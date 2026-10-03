@@ -12,8 +12,9 @@ import { usePullToRefresh } from "@cartze/core/hooks/usePullToRefresh";
 import { useDebouncedValue } from "@cartze/core/hooks/useDebouncedValue";
 import { toast } from "@cartze/core/ui/toast";
 import { ApiError } from "@cartze/core/types/api";
-import { SearchIcon, UtensilsIcon } from "@cartze/core/ui/icons";
+import { PlusIcon, SearchIcon, UtensilsIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
+import { ScreenHeader } from "../../../common/components/ScreenHeader";
 import { ProductRow } from "../components/ProductRow";
 import { useCategories, useProducts, useSoldOut } from "../hooks/useCatalog";
 import type { MenuStackParamList } from "../../../navigation/types";
@@ -63,8 +64,20 @@ export function MenuScreen() {
 
   return (
     <SafeScreen edges={["top"]}>
-      <View style={s.head}>
-        <Text style={s.title}>Menu</Text>
+      <ScreenHeader
+        title="Menu"
+        actions={
+          <Touchable
+            onPress={() => nav.navigate("ProductForm")}
+            accessibilityRole="button"
+            accessibilityLabel="Add an item"
+            hitSlop={8}
+            style={s.addButton}
+          >
+            <PlusIcon size={20} color={c.onPrimary} />
+          </Touchable>
+        }
+      >
         <AppTextInput
           icon={SearchIcon}
           placeholder="Search the menu"
@@ -74,7 +87,7 @@ export function MenuScreen() {
           autoCorrect={false}
           returnKeyType="search"
         />
-      </View>
+      </ScreenHeader>
 
       {categories && categories.length > 0 ? (
         <FlatList
@@ -82,6 +95,21 @@ export function MenuScreen() {
           showsHorizontalScrollIndicator={false}
           data={[{ id: "", name: "All" }, ...categories]}
           keyExtractor={(cat) => cat.id || "all"}
+          /**
+           * `flexGrow: 0` and a centred content container — the third bar in
+           * this app to need both, and the reason is the same every time.
+           *
+           * A horizontal list placed straight into a flex column takes the
+           * leftover height and stretches every chip to fill it. Here the
+           * chips were also CLIPPED in half, because a stretched pill inside a
+           * row this app never sized is drawn taller than the strip it is
+           * allowed to paint in.
+           *
+           * StageBar and PeriodBar carry the identical fix. That is three
+           * copies of one rule, which is a shared component waiting to be
+           * written — noted rather than done in the same breath as a bug fix.
+           */
+          style={s.catsBar}
           contentContainerStyle={s.cats}
           renderItem={({ item }) => {
             const on = (item.id || null) === category;
@@ -147,7 +175,7 @@ export function MenuScreen() {
                   ? `Nothing in the menu matches “${debounced.trim()}”.`
                   : category
                     ? "Nothing in this category yet — tap All to see everything."
-                    : "Add products from the CartZe web panel and they appear here."
+                    : "Tap + to add your first item."
               }
             />
           }
@@ -159,16 +187,28 @@ export function MenuScreen() {
 
 const styles = (c: ThemeColors) =>
   StyleSheet.create({
-    head: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, gap: spacing.sm },
-    title: { ...typography.title, color: c.text },
-    cats: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+    addButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: c.primary,
+    },
+    catsBar: { flexGrow: 0 },
+    cats: {
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      alignItems: "center",
+    },
     cat: {
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
       borderRadius: 999,
       backgroundColor: c.surfaceAlt,
     },
-    catOn: { backgroundColor: c.primary },
+    catOn: { backgroundColor: c.primary, borderColor: c.primary },
     catText: { ...typography.label, fontSize: 13, color: c.textSecondary },
     catTextOn: { color: c.onPrimary },
     list: { padding: spacing.md, paddingTop: spacing.xs, gap: spacing.sm },

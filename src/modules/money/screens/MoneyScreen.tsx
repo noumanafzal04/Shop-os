@@ -15,6 +15,7 @@ import { PeriodBar } from "../components/PeriodBar";
 import { useCommission, useSummary } from "../hooks/useMoney";
 import type { Period, Summary } from "../services/moneyService";
 import type { MoneyStackParamList } from "../../../navigation/types";
+import { ScreenHeader } from "../../../common/components/ScreenHeader";
 
 /**
  * WHAT THE SHOP MADE.
@@ -43,7 +44,7 @@ export function MoneyScreen() {
 
   return (
     <SafeScreen edges={["top"]}>
-      <Text style={s.title}>Money</Text>
+      <ScreenHeader title="Money" />
       <PeriodBar active={period} onPick={setPeriod} />
 
       <ScrollView
@@ -162,7 +163,6 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
 
 const styles = (c: ThemeColors) =>
   StyleSheet.create({
-    title: { ...typography.title, color: c.text, paddingHorizontal: spacing.md, paddingTop: spacing.xs },
     body: { padding: spacing.md, paddingTop: spacing.xs, gap: spacing.md, paddingBottom: spacing.xxl },
 
     hero: { backgroundColor: c.primarySoft, borderRadius: 18, padding: spacing.lg },

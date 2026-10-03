@@ -1,0 +1,25 @@
+<resources>
+    <!--
+      The brand, for the frame Android draws BEFORE JavaScript exists.
+
+      Without this the launcher shows a white sheet for the second or so it
+      takes to start the runtime, and the app appears to flash before it opens.
+      The colour is duplicated here because a native resource cannot read
+      `@cartze/core/theme` — see `src/common/brand.ts` for the rest of what a
+      rename has to touch.
+
+      THE SHOPPING SIDE'S OCEAN. This app wears the same Meadow palette as the
+      customer app (`ThemeProvider`'s default), so this is `meadowThemes.light
+      .primary` and the first frame hands over to a screen of the same colour.
+    -->
+    <color name="brand">#1A759F</color>
+    <!--
+      THE LAUNCHER ICON'S GROUND — the LOGO's teal, not the app's primary.
+
+      Supplied artwork: a rounded square with its own deep teal ground and the
+      T mark on it. Same family as the splash above, eight degrees apart on
+      the hue wheel, so tapping the icon still leads somewhere that looks
+      related — which is the only thing this rule was ever about.
+    -->
+    <color name="ic_launcher_background">#0B4A50</color>
+</resources>

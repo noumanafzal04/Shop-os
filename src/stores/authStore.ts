@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { configureAuth } from "@cartze/core/api/client";
 import { secureStorage } from "../common/utils/secureStorage";
 import type { SessionUser } from "../types/session";
+import { holds } from "../common/permissions";
 
 /**
  * "booting" is the state before the Keychain has answered. It is a separate
@@ -81,7 +82,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
    * has no job roles by design: cashier, waiter and kitchen are permission
    * SETS.
    */
-  can: (permission) => get().user?.permissions?.includes(permission) ?? false,
+  // Same mirror `tabsFor` uses — see `common/permissions.ts`.
+  can: (permission) => holds(get().user, permission),
 }));
 
 /**

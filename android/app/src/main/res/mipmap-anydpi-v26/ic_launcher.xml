@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE ADAPTIVE ICON — Android 8 and up, which is every phone this app targets.
+
+  Two layers the launcher masks into whatever shape the device uses: a circle
+  on stock Android, a squircle on Samsung, a rounded square elsewhere. Only the
+  middle 72dp of the 108dp canvas survives that mask, which is why
+  `ic_launcher_foreground` sizes the mark against the SAFE ZONE rather than
+  against the canvas.
+
+  This app had no adaptive icon at all — only the legacy square — so on a
+  modern launcher Android generated one by dropping the square onto a white
+  plate with a border. The shop app's icon was the one icon in the product
+  that did not look like the product.
+
+  Generated from the supplied artwork; see `core/brand/` and the script that
+  derives every size from it.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_ground" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

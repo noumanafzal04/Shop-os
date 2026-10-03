@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
@@ -8,7 +8,8 @@ import { LoadFailed } from "@cartze/core/ui/LoadFailed";
 import { Skeleton } from "@cartze/core/ui/Skeleton";
 import { usePullToRefresh } from "@cartze/core/hooks/usePullToRefresh";
 import { ReceiptIcon } from "@cartze/core/ui/icons";
-import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
+import { spacing, useColors } from "@cartze/core/theme";
+import { ScreenHeader } from "../../../common/components/ScreenHeader";
 import { StageBar } from "../components/StageBar";
 import { OrderCard } from "../components/OrderCard";
 import { useOrders } from "../hooks/useOrders";
@@ -29,7 +30,7 @@ import type { OrdersStackParamList } from "../../../navigation/types";
  */
 export function OrdersScreen() {
   const c = useColors();
-  const s = styles(c);
+  const s = styles();
   const nav = useNavigation<NativeStackNavigationProp<OrdersStackParamList>>();
   const [stage, setStage] = useState<OrderStatus | "all">("all");
 
@@ -43,22 +44,23 @@ export function OrdersScreen() {
 
   return (
     <SafeScreen edges={["top"]}>
-      <View style={s.head}>
-        <Text style={s.title}>Orders</Text>
-        {/**
-         * A WARNING, NOT A FILTER RESULT.
-         *
-         * The server counts unassigned deliveries across every stage on
-         * purpose — an order marked out for delivery with nobody carrying it
-         * is a customer waiting for a bike that was never sent, and it stays
-         * true whichever chip is selected.
-         */}
-        {unassigned > 0 ? (
-          <Text style={s.warn}>
-            {unassigned} {unassigned === 1 ? "delivery has" : "deliveries have"} no rider
-          </Text>
-        ) : null}
-      </View>
+      <ScreenHeader
+        title="Orders"
+        {...(unassigned > 0
+          ? {
+              /**
+               * A WARNING, NOT A FILTER RESULT.
+               *
+               * The server counts unassigned deliveries across every stage on
+               * purpose — an order marked out for delivery with nobody
+               * carrying it is a customer waiting for a bike that was never
+               * sent, and it stays true whichever chip is selected.
+               */
+              subtitle: `${unassigned} ${unassigned === 1 ? "delivery has" : "deliveries have"} no rider`,
+              subtitleTone: "alert" as const,
+            }
+          : {})}
+      />
 
       <StageBar active={stage} counts={data?.meta.status_counts} onPick={setStage} />
 
@@ -112,11 +114,11 @@ export function OrdersScreen() {
   );
 }
 
-const styles = (c: ThemeColors) =>
+// No colours left on this screen — the header, the bar and the cards each own
+// their own. A `(c: ThemeColors)` factory that reads nothing is a hook this
+// screen re-runs for no reason.
+const styles = () =>
   StyleSheet.create({
-    head: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, gap: 2 },
-    title: { ...typography.title, color: c.text },
-    warn: { ...typography.small, color: c.error },
     list: { padding: spacing.md, paddingTop: spacing.xs, gap: spacing.sm + 2 },
     listEmpty: { flexGrow: 1, justifyContent: "center" },
   });

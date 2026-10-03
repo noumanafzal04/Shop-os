@@ -12,11 +12,12 @@
  * `ThemeProvider` uses its default, which is the shopping side's green.
  */
 import React, { useEffect, useState } from "react";
-import { StatusBar } from "react-native";
+import { StatusBar, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@cartze/core/api/queryClient";
 import { configureApi } from "@cartze/core/api/client";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider, useTheme, type ThemePreference } from "@cartze/core/theme";
 import { ToastHost } from "@cartze/core/ui/toast";
 import { ConfirmHost } from "@cartze/core/ui/confirm";
@@ -106,6 +107,20 @@ export default function App() {
   if (!saved) return null;
 
   return (
+    /*
+      THE ROOT A GESTURE CAN BE RECOGNISED IN.
+
+      `GestureHandlerRootView` is where the library's touch pipeline attaches.
+      Every handler below it works; every handler outside it mounts, renders
+      and never fires — with no warning, because "no gesture happened" and
+      "the gesture was not listened for" look identical from JavaScript. The
+      library now throws rather than letting that happen silently, which is
+      how the customer app's test caught it.
+
+      `flex: 1` is required: it is a plain View underneath, and without it the
+      whole app lays out at zero height — a blank screen rather than an error.
+    */
+    <GestureHandlerRootView style={styles.root}>
     <SafeAreaProvider>
       <ThemeProvider
         initialPreference={saved.theme}
@@ -122,5 +137,9 @@ export default function App() {
         </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
+
+/** One rule, and it is not optional — see the note above. */
+const styles = StyleSheet.create({ root: { flex: 1 } });

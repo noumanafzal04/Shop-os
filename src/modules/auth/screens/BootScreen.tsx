@@ -35,7 +35,7 @@ export function BootScreen() {
     <View style={s.root}>
       <Text style={s.wordmark}>{BRAND.family}</Text>
       <Text style={s.sub}>Partner</Text>
-      {slow ? <ActivityIndicator color={c.primary} style={s.spinner} /> : null}
+      {slow ? <ActivityIndicator color={c.primaryPressed} style={s.spinner} /> : null}
     </View>
   );
 }
@@ -43,6 +43,7 @@ export function BootScreen() {
 const styles = (c: ThemeColors) =>
   StyleSheet.create({
     root: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: c.bg },
+    // logotype — see SignInScreen.
     wordmark: { ...typography.display, fontSize: 34, color: c.primary, letterSpacing: -0.6 },
     sub: {
       ...typography.label,

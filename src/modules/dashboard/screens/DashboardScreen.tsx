@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
 import { LoadFailed } from "@cartze/core/ui/LoadFailed";
 import { Skeleton } from "@cartze/core/ui/Skeleton";
+import { Gradient } from "@cartze/core/ui/Gradient";
 import { usePullToRefresh } from "@cartze/core/hooks/usePullToRefresh";
 import { money } from "@cartze/core/format";
 import {
@@ -19,6 +20,7 @@ import { useDashboard } from "../hooks/useDashboard";
 import { WeekChart } from "../components/WeekChart";
 import { StatTile } from "../components/StatTile";
 import type { Dashboard } from "../services/dashboardService";
+import { ScreenHeader } from "../../../common/components/ScreenHeader";
 
 /**
  * TODAY, FOR SOMEBODY STANDING BEHIND A COUNTER.
@@ -53,12 +55,10 @@ export function DashboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
         }
       >
-        <View style={s.head}>
-          <Text style={s.hello} numberOfLines={1}>
-            {user?.tenant?.business_name ?? "Your shop"}
-          </Text>
-          <Text style={s.date}>{todayLabel()}</Text>
-        </View>
+        <ScreenHeader
+          title={user?.tenant?.business_name ?? "Your shop"}
+          subtitle={todayLabel()}
+        />
 
         {isLoading ? <Loading /> : null}
 
@@ -95,8 +95,22 @@ function Body({ data }: { data: Dashboard }) {
 
   return (
     <View style={s.body}>
-      {/* 1 — what have I taken */}
-      <View style={s.hero}>
+      {/*
+        1 — WHAT HAVE I TAKEN, on the brand's own ramp.
+
+        This was a pale tint of the brand with dark type on it — correct, and
+        indistinguishable from the four cards underneath it. The one number
+        somebody unlocked their phone for was the same weight as the count of
+        items running low.
+
+        A gradient earns its place here for the reason it does on the
+        customer's home screen: the palette is a ten-step strip whose defining
+        property is that it travels, and this is the one block on the screen
+        big enough to show it. Everything inside is therefore drawn for a dark
+        ground — see `ThemeColors.gradient`, whose first stop is the one that
+        has to carry type.
+      */}
+      <Gradient style={s.hero} direction="vertical" borderRadius={18}>
         <Text style={s.heroLabel}>Taken today</Text>
         <Text style={s.heroValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
           {money(taken)}
@@ -122,7 +136,7 @@ function Body({ data }: { data: Dashboard }) {
             <Text style={s.heroQuiet}>{money(t.refunds)} refunded today</Text>
           ) : null}
         </View>
-      </View>
+      </Gradient>
 
       <View style={s.row}>
         <StatTile label="Sales" value={String(t.sales_count)} icon={ReceiptIcon} />
@@ -218,7 +232,12 @@ function Stage({ label, count, urgent }: { label: string; count: number; urgent?
   const s = styles(c);
   return (
     <View style={s.stage}>
-      <Text style={[s.stageCount, urgent && count > 0 ? { color: c.primary } : null]}>{count}</Text>
+      {/* `primaryPressed` — see PartnerTabs. `primary` is 2.54:1 on this card,
+        and this is the URGENT count: the one number on the screen that has to
+        be read was drawn in the one colour that could not be. */}
+    <Text style={[s.stageCount, urgent && count > 0 ? { color: c.primaryPressed } : null]}>
+      {count}
+    </Text>
       <Text style={s.stageLabel}>{label}</Text>
     </View>
   );
@@ -277,18 +296,26 @@ function todayLabel(): string {
 
 const styles = (c: ThemeColors) =>
   StyleSheet.create({
-    content: { padding: spacing.md, paddingBottom: spacing.xxl },
-    head: { marginBottom: spacing.lg },
-    hello: { ...typography.title, color: c.text },
-    date: { ...typography.small, color: c.textMuted, marginTop: 2 },
-    body: { gap: spacing.md },
+    /**
+     * The gutter moved OFF the scroll container and onto the body.
+     *
+     * `ScreenHeader` carries its own horizontal padding, so leaving 16 on the
+     * ScrollView too would inset the title twice — 32 on this screen and 16 on
+     * every other one, which is the kind of difference nobody can name and
+     * everybody can see.
+     */
+    content: { paddingBottom: spacing.xxl },
+    body: { gap: spacing.md, padding: spacing.md },
 
     hero: {
-      backgroundColor: c.primarySoft,
-      borderRadius: 18,
+      // No `backgroundColor` — `Gradient` paints it. Leaving one here would
+      // draw a flat fill UNDER an SVG that already covers the block, which
+      // costs a layer and shows as a hairline at the rounded corners.
       padding: spacing.lg,
     },
-    heroLabel: { ...typography.label, color: c.primaryPressed },
+    // Drawn for the ramp, not for the page: `inkMuted` is the muted tier for
+    // a dark block, where `textSecondary` disappears.
+    heroLabel: { ...typography.label, color: c.inkMuted },
     /**
      * 40pt. The largest number on the screen because it is the only one most
      * people came for, and it shrinks rather than wraps so a busy day and a
@@ -297,12 +324,12 @@ const styles = (c: ThemeColors) =>
     heroValue: {
       ...typography.display,
       fontSize: 40,
-      color: c.text,
+      color: c.textInverse,
       marginTop: spacing.xs,
     },
     heroMeta: { marginTop: spacing.sm, gap: 2 },
     heroDelta: { ...typography.label, fontSize: 13 },
-    heroQuiet: { ...typography.small, color: c.textSecondary },
+    heroQuiet: { ...typography.small, color: c.inkMuted },
 
     row: { flexDirection: "row", gap: spacing.md },
 

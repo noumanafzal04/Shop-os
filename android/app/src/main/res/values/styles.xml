@@ -4,6 +4,21 @@
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!--
+          THE FRAME BEFORE JAVASCRIPT EXISTS.
+
+          Without this the launcher shows a WHITE sheet for the second or so
+          it takes to start the runtime, and the app appears to flash before
+          it opens. This app had no `windowBackground` at all, so it was doing
+          exactly that — the customer app fixed it long ago and the shop app
+          never got the same line.
+
+          `windowLightStatusBar` false because the ground is a deep ocean: the
+          clock and the battery have to be drawn light on it.
+        -->
+        <item name="android:windowBackground">@color/brand</item>
+        <item name="android:statusBarColor">@color/brand</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 </resources>

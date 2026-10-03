@@ -90,8 +90,27 @@ const TOPICS: Topic[] = [
     module: "products",
   },
   {
-    q: "Can I add a new product here?",
-    a: "Not yet — adding products, photos, categories and variants is in the web panel. Here you can change a name and a price, and take something off the menu. A form that asked for everything on a phone is one nobody finishes.",
+    q: "How do I add a new product?",
+    a: "Menu \u2192 the + button, or the sidebar \u2192 Add a product. You give it a name, a price, a kind and a category; a sale price, a cost, sizes, a stock count, a SKU or barcode, collections and one photo are all optional. Tax groups, pack sizes, scale codes and recipes stay in the web panel \u2014 they are set once, at a desk.",
+    permission: "products.manage",
+    module: "products",
+  },
+
+  {
+    q: "What is the difference between a category and a collection?",
+    a: "A category is what a thing IS \u2014 Starters, Drinks \u2014 and an item has one. A collection is a shelf you arrange yourself, like Ramzan deals, and an item can be on several or none. Both are in the sidebar.",
+    permission: "products.manage",
+    module: "products",
+  },
+  {
+    q: "What is a sale price?",
+    a: "The offer price a customer sees, with your normal price crossed out beside it. It has to be lower than the price \u2014 the app will not let you save one that is higher, because a crossed-out number that was never higher is not true.",
+    permission: "products.manage",
+    module: "products",
+  },
+  {
+    q: "How do I sell one thing in two sizes?",
+    a: "On the add form, Sizes \u2192 Add a size, and give each one a name and its own price \u2014 Half and Full, or 250g and 500g. Leave it empty if the item is sold one way. A size needs BOTH a name and a price, or the save waits for you.",
     permission: "products.manage",
     module: "products",
   },
@@ -126,7 +145,7 @@ const TOPICS: Topic[] = [
   },
   {
     q: "I set my hours and now the shop looks closed on other days",
-    a: "Once ANY day has hours, a day with no times counts as closed. Set every day you open, not just the one you were changing. With no hours saved at all, the shop is treated as always open.",
+    a: "Once ANY day has hours, a day with no times counts as closed. The quickest fix is Same every day: one opening time, one closing time, and tick the days you open. Use Different each day only when a day really is different. With no hours saved at all, the shop is treated as always open.",
     permission: "settings.manage",
   },
   {

@@ -19,6 +19,14 @@ export interface Tenant {
   images_enabled: boolean;
   /** Module switches — `features.pos`, `features.delivery`, and so on. */
   features: Record<string, boolean>;
+  /**
+   * WHICH KINDS OF THING THIS SHOP MAY CATALOG.
+   *
+   * Computed by the server from the trade AND the live module map, by the same
+   * function that validates the save. Read it; never work it out here. An
+   * empty array is a real answer — a finance business catalogs nothing.
+   */
+  item_types?: string[];
   city?: { id: string; name: string } | null;
   plan?: { id: string; name: string; code: string } | null;
 }

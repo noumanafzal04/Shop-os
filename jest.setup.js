@@ -76,3 +76,17 @@ jest.mock('react-native-image-picker', () => ({
   launchCamera: jest.fn(async () => ({ didCancel: true })),
   launchImageLibrary: jest.fn(async () => ({ didCancel: true })),
 }));
+
+/**
+ * ── GESTURE HANDLER AND REANIMATED, UNDER JEST ───────────────────────
+ *
+ * Both are native modules with a JS façade, and the façade is the half that
+ * matters here: a test that renders the drawer has to be able to construct a
+ * `Gesture.Pan()`, not to animate anything.
+ *
+ * The packages' OWN stubs rather than hand-written ones — a hand-written list
+ * falls behind the API the app uses, and the failure arrives as "Element type
+ * is invalid" in a test about something else entirely.
+ */
+require('react-native-gesture-handler/jestSetup');
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));

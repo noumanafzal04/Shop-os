@@ -1,3 +1,18 @@
 <resources>
-    <string name="app_name">CartZePartner</string>
+    <!--
+      THE LABEL UNDER THE LAUNCHER ICON.
+
+      Android reads this before any JavaScript exists, so it cannot be derived
+      from `PRODUCT.name` in `@cartze/core/brand`. `__tests__/appName.test.ts`
+      reads this file and fails naming the exact value to paste when the two
+      drift.
+
+      It carries the SUFFIX, because a shopkeeper who installs both apps tells
+      them apart in a launcher and nowhere else. It was "CartZePartner" — one
+      word, which is what an applicationId looks like, not what a person reads.
+
+      NOT an identifier: `com.cartze.partner` and `cartze.partner.auth` are
+      addresses and keep their spelling — see `PRODUCT`.
+    -->
+    <string name="app_name">True Serve Partner</string>
 </resources>

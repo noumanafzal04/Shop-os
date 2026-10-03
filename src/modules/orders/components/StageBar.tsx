@@ -1,7 +1,5 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text } from "react-native";
-import { Touchable } from "@cartze/core/ui/Touchable";
-import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
+import { ChipBar } from "@cartze/core/ui/ChipBar";
 import { STATUS_LABEL, type OrderStatus } from "../services/orderStages";
 import type { StageCounts } from "../services/ordersService";
 
@@ -18,6 +16,10 @@ const STAGES: Array<OrderStatus | "all"> = [
 
 /**
  * WHICH STAGE THE QUEUE IS SHOWING, AND HOW MANY ARE IN EACH.
+ *
+ * The pills themselves are `ChipBar` — one copy, in core, after this app grew
+ * three of them and two rendered broken. What belongs here is only WHICH
+ * stages, in what order, and where the numbers come from.
  *
  * ── The count is always drawn, including zero ────────────────────────
  *
@@ -36,65 +38,15 @@ export function StageBar({
   counts: StageCounts | undefined;
   onPick: (stage: OrderStatus | "all") => void;
 }) {
-  const c = useColors();
-  const s = styles(c);
-
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={s.row}
-      // The bar is the screen's own control and must not steal a vertical
-      // drag meant for the list behind it.
-      directionalLockEnabled
-    >
-      {STAGES.map((stage) => {
-        const on = stage === active;
-        const n = counts?.[stage];
-
-        return (
-          <Touchable
-            key={stage}
-            onPress={() => onPick(stage)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            style={[s.chip, on ? s.chipOn : null]}
-          >
-            <Text style={[s.label, on ? s.labelOn : null]} numberOfLines={1}>
-              {stage === "all" ? "All" : STATUS_LABEL[stage]}
-            </Text>
-            {n != null ? (
-              <Text style={[s.count, on ? s.countOn : null]}>{n}</Text>
-            ) : null}
-          </Touchable>
-        );
-      })}
-    </ScrollView>
+    <ChipBar
+      active={active}
+      onPick={onPick}
+      items={STAGES.map((stage) => ({
+        key: stage,
+        label: stage === "all" ? "All" : STATUS_LABEL[stage],
+        count: counts?.[stage],
+      }))}
+    />
   );
 }
-
-const styles = (c: ThemeColors) =>
-  StyleSheet.create({
-    row: { gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-    chip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm + 1,
-      borderRadius: 999,
-      backgroundColor: c.surfaceAlt,
-    },
-    /**
-     * `borderRadius: 999` is safe HERE and banned on small square views.
-     *
-     * The rule in this product is about 9999 on a view under about 40pt, where
-     * Fabric rounds it away and the thing renders square. A pill this wide is
-     * not that case.
-     */
-    chipOn: { backgroundColor: c.primary },
-    label: { ...typography.label, fontSize: 13, color: c.textSecondary },
-    labelOn: { color: c.onPrimary },
-    count: { ...typography.label, fontSize: 13, color: c.textMuted },
-    countOn: { color: c.onPrimary, opacity: 0.85 },
-  });

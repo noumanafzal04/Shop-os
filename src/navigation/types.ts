@@ -1,10 +1,30 @@
+import type { NavigatorScreenParams } from "@react-navigation/native";
 import type { PartnerTab } from "./tabsFor";
 
 /**
- * The tab names ARE the route names. One list, so a tab that exists in the bar
- * and not in the navigator is a type error rather than a dead press.
+ * The tab names ARE the route names, and each tab that holds a stack declares
+ * that stack's params.
+ *
+ * `NavigatorScreenParams` is what makes `navigate("Menu", { screen:
+ * "Categories" })` type-check — the sidebar reaches INTO another tab's stack,
+ * which is its whole point: a shopkeeper opening Categories should not have to
+ * know it lives behind Menu.
+ *
+ * The `satisfies` below is what keeps the old guarantee: a tab that exists in
+ * the bar and not here is a type error rather than a dead press.
  */
-export type PartnerTabParamList = Record<PartnerTab, undefined>;
+export type PartnerTabParamList = {
+  Dashboard: undefined;
+  Orders: NavigatorScreenParams<OrdersStackParamList> | undefined;
+  Menu: NavigatorScreenParams<MenuStackParamList> | undefined;
+  Money: NavigatorScreenParams<MoneyStackParamList> | undefined;
+  Account: NavigatorScreenParams<AccountStackParamList> | undefined;
+};
+
+/** Every tab the bar can draw has params declared above. */
+export type TabsAreCovered = PartnerTab extends keyof PartnerTabParamList ? true : never;
+const _tabsAreCovered: TabsAreCovered = true;
+void _tabsAreCovered;
 
 /**
  * Orders is a STACK inside its tab, not a screen.
@@ -22,6 +42,10 @@ export type OrdersStackParamList = {
 export type MenuStackParamList = {
   MenuList: undefined;
   ProductDetail: { id: string };
+  /** Add an item. Editing an existing one is `ProductDetail`. */
+  ProductForm: undefined;
+  Categories: undefined;
+  Collections: undefined;
 };
 
 /** The figures, with commission and expense entry behind them. */
@@ -47,5 +71,15 @@ export type AccountStackParamList = {
 
 export type RootStackParamList = {
   SignIn: undefined;
-  Tabs: undefined;
+  /**
+   * NESTED, because the sidebar addresses a screen two levels down.
+   *
+   * `DrawerHost` wraps the tab navigator, so its `useNavigation` is the ROOT
+   * stack's — not the tabs'. Asking the root to `navigate("Menu", ...)` is
+   * asking for a route it does not have: react-navigation quietly does
+   * nothing, the panel closes, and the shopkeeper is left on the screen they
+   * started on with no error. The whole path has to be spelled out from where
+   * the navigator actually is.
+   */
+  Tabs: NavigatorScreenParams<PartnerTabParamList> | undefined;
 };

@@ -2,12 +2,25 @@ import { fs, path, PROJECT_ROOT, codeOnly, sourceFiles } from "./support/node";
 import { tabsFor, landingTab } from "../src/navigation/tabsFor";
 import type { SessionUser } from "../src/types/session";
 
+/**
+ * A STAFF MEMBER — somebody who holds exactly what they were assigned.
+ *
+ * This fixture used to be called "Owner" and carried `role: "shop_owner"` with
+ * an empty permission list, and the case below asserted it got Dashboard and
+ * Account only. That assertion described the bug and called it the design.
+ *
+ * The server grants owners every permission BY ROLE, so a real owner arrives
+ * exactly like this and must get the whole app. Signing in as one on a phone
+ * gave a two-tab partner app with no error anywhere. The role that actually
+ * holds nothing until told is `staff`, so that is what a bare fixture is now,
+ * and the owner has cases of its own in `permissionsMirrorServer.test.ts`.
+ */
 const user = (over: Partial<SessionUser> = {}): SessionUser => ({
   id: "u1",
-  name: "Owner",
-  email: "owner@shop.pk",
+  name: "A staff member",
+  email: "staff@shop.pk",
   phone: null,
-  role: "shop_owner",
+  role: "staff",
   status: "active",
   branch_id: null,
   permissions: [],

@@ -1,4 +1,5 @@
 import type { SessionUser } from "../types/session";
+import { holds } from "../common/permissions";
 
 export type PartnerTab = "Dashboard" | "Orders" | "Menu" | "Money" | "Account";
 
@@ -74,7 +75,10 @@ const RULES: TabRule[] = [
 export function tabsFor(user: SessionUser | null): PartnerTab[] {
   if (!user) return [];
 
-  const has = (p: string) => user.permissions?.includes(p) ?? false;
+  // `holds`, not `permissions.includes` — an owner's array is empty and the
+  // server grants them everything by role. Reading the array alone gave the
+  // shop's owner a two-tab app. See `common/permissions.ts`.
+  const has = (p: string) => holds(user, p);
   const on = (m: string) => user.tenant?.features?.[m] === true;
 
   return RULES.filter(

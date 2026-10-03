@@ -84,6 +84,10 @@ export function SignInScreen() {
           <AppTextInput
             label="Email or phone"
             icon={EnvelopeIcon}
+            // An empty field showing nothing but an icon reads as a box that
+            // failed to load. It also has to carry BOTH shapes, because the
+            // label cannot show two examples and the server takes either.
+            placeholder="you@shop.pk  or  03xx xxxxxxx"
             value={identifier}
             onChangeText={(t) => {
               setIdentifier(t);
@@ -101,6 +105,7 @@ export function SignInScreen() {
           <AppTextInput
             label="Password"
             icon={LockIcon}
+            placeholder="Your panel password"
             value={password}
             onChangeText={(t) => {
               setPassword(t);
@@ -140,8 +145,28 @@ export function SignInScreen() {
 
 const styles = (c: ThemeColors) =>
   StyleSheet.create({
-    content: { padding: spacing.lg, paddingTop: spacing.xxl },
-    head: { alignItems: "center", marginBottom: spacing.xxl },
+    /**
+     * `flexGrow` + centred, and the footnote pushed to the bottom.
+     *
+     * The first version was `paddingTop: xxl` and nothing else, which stacked
+     * everything against the top and left the bottom 40% of the phone empty —
+     * the form floating in a void rather than sitting on the page. Growing to
+     * the full height and centring spreads that space above and below, and
+     * `marginTop: "auto"` on the foot anchors the one line that belongs at the
+     * bottom. On a small screen with the keyboard up it still scrolls, because
+     * this is flexGrow and not a fixed height.
+     */
+    content: {
+      flexGrow: 1,
+      padding: spacing.lg,
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.lg,
+      justifyContent: "center",
+    },
+    head: { alignItems: "center", marginBottom: spacing.xl },
+    // logotype — WCAG 1.4.3 exempts a brand mark from the contrast floor, and
+    // this one is 34pt bold. Every other use of `c.primary` as a colour for
+    // text or an icon is banned; see `houseRules`.
     wordmark: { ...typography.display, fontSize: 34, color: c.primary, letterSpacing: -0.6 },
     sub: {
       ...typography.label,
@@ -167,11 +192,21 @@ const styles = (c: ThemeColors) =>
     },
     errorText: { ...typography.label, fontWeight: "500", color: c.error, lineHeight: 20 },
     submit: { marginTop: spacing.xs },
+    /**
+     * `textSecondary`, not `textMuted`.
+     *
+     * This sentence tells somebody locked out what to actually do, so it is
+     * text a person must read — and `textMuted` measured 2.35:1 on the page
+     * when this screen was first run on a phone: visibly grey-on-grey in the
+     * screenshot. The token has been raised to 3.4:1 as well, but a line this
+     * load-bearing should not be sitting in the faintest tier at all.
+     */
     foot: {
       ...typography.small,
-      color: c.textMuted,
+      color: c.textSecondary,
       textAlign: "center",
-      marginTop: spacing.xl,
+      marginTop: "auto",
+      paddingTop: spacing.xl,
       lineHeight: 19,
     },
   });

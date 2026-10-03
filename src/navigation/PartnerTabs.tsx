@@ -13,6 +13,7 @@ import {
 import { Touchable } from "@cartze/core/ui/Touchable";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useAuthStore } from "../stores/authStore";
+import { DrawerHost } from "../common/components/DrawerHost";
 import { tabsFor, type PartnerTab } from "./tabsFor";
 import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
 import { OrdersStack } from "./OrdersStack";
@@ -35,7 +36,7 @@ const TABS: Record<
   PartnerTab,
   { label: string; icon: (p: IconProps) => React.JSX.Element; screen: React.ComponentType }
 > = {
-  Dashboard: { label: "Today", icon: GridIcon, screen: DashboardScreen },
+  Dashboard: { label: "Home", icon: GridIcon, screen: DashboardScreen },
   Orders: { label: "Orders", icon: ReceiptIcon, screen: OrdersStack },
   Menu: { label: "Menu", icon: UtensilsIcon, screen: MenuStack },
   Money: { label: "Money", icon: BanknoteIcon, screen: MoneyStack },
@@ -43,11 +44,13 @@ const TABS: Record<
 };
 
 /**
- * "Today", not "Dashboard".
+ * "Home".
  *
- * The tab says what is on the screen — this morning's takings — rather than
- * naming the software's idea of a page. A shopkeeper opening this app at 11am
- * is asking one question, and the label answers it.
+ * It was "Today", on the argument that a tab should say what is on the screen
+ * rather than name the software's idea of a page. Changed on the owner's call
+ * after seeing the bar on a phone — and "Home" over "Dashboard" because five
+ * labels share one row at 12pt, and the longest of them decides whether any
+ * of them can be read.
  */
 function PartnerTabBar({ state, navigation }: BottomTabBarProps) {
   const c = useColors();
@@ -82,7 +85,7 @@ function PartnerTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityLabel={item.label}
             style={s.item}
           >
-            <Icon size={24} color={focused ? c.primary : c.textMuted} bold={focused} />
+            <Icon size={24} color={focused ? c.primaryPressed : c.textMuted} bold={focused} />
             <Text style={[s.label, focused ? s.labelOn : s.labelOff]} numberOfLines={1}>
               {item.label}
             </Text>
@@ -100,11 +103,18 @@ export function PartnerTabs() {
   const allowed = tabsFor(user);
 
   return (
-    <Tabs.Navigator tabBar={renderTabBar} screenOptions={{ headerShown: false }}>
-      {allowed.map((tab) => (
-        <Tabs.Screen key={tab} name={tab} component={TABS[tab].screen} />
-      ))}
-    </Tabs.Navigator>
+    /**
+     * The drawer wraps the navigator, so it is ONE panel over all five tabs
+     * rather than one per screen — and so a link in it can address any tab's
+     * stack. See `DrawerHost`.
+     */
+    <DrawerHost>
+      <Tabs.Navigator tabBar={renderTabBar} screenOptions={{ headerShown: false }}>
+        {allowed.map((tab) => (
+          <Tabs.Screen key={tab} name={tab} component={TABS[tab].screen} />
+        ))}
+      </Tabs.Navigator>
+    </DrawerHost>
   );
 }
 
@@ -133,6 +143,22 @@ const styles = (c: ThemeColors) =>
      * at, and the bar is tall enough to carry it.
      */
     label: { ...typography.tiny, fontSize: 12 },
-    labelOn: { color: c.primary, fontWeight: "700" },
+    /**
+     * `primaryPressed`, NOT `primary` — and the palette says so itself.
+     *
+     * `themes.ts` on the emerald side: *"on the green side a brand-coloured
+     * MARK takes `primaryPressed`, and `primary` is for FILLS"*. This bar drew
+     * its selected label and icon in `primary`, which measures **2.54:1 on the
+     * white bar** — under AA, under AA-large, under the 3:1 floor for a UI
+     * component. The most-looked-at text in the app was the least readable
+     * thing in it.
+     *
+     * `primaryPressed` is 5.48:1. Same green family, still unmistakably the
+     * selected tab, and legible in a bright shop.
+     *
+     * Same defect as the button that drew `c.white`: a rule written in the
+     * palette and kept by nobody who reads it.
+     */
+    labelOn: { color: c.primaryPressed, fontWeight: "700" },
     labelOff: { color: c.textMuted, fontWeight: "500" },
   });
