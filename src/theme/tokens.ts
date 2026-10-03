@@ -1,123 +1,14 @@
 import { Platform, type ViewStyle } from "react-native";
 
 /**
- * The raw scales. Nothing here knows about light or dark — these are the
- * pigments, and `themes.ts` decides where each one gets used.
+ * Spacing, type and depth — the tokens that are NOT colours.
  *
- * ── The palette, and why it is these colours ───────────────────────────
- *
- * Approved from a reference the user chose: a hot red-orange over near-white,
- * with a warm amber for anything that shouts about money.
- *
- *   #E94E00  primary   the brand, and the only thing allowed to be loud
- *   #FB7331  accent    a lighter step of the same hue — dark mode's primary
- *   #EBC249  warm      offers, ratings, the selected tab — never a button
- *   #80B931  green     confirmation: an item added, a fee waived
- *   #221711  ink       the bar, and any block the page sits under
- *   #FFFFFF  surface
- *
- * ── One note on contrast, so it is a decision and not an oversight ────
- *
- * White on #E94E00 is about 3.1:1. That clears AA for large or bold display
- * text and not for body text, so `onPrimary` is for BUTTON LABELS and icons on
- * a brand fill — never for a paragraph. Anything smaller reads `text` on a
- * plain ground. The previous, darker red cleared 4.2:1; this is the cost of
- * the warmer hue and it is worth stating rather than discovering.
- *
- * The names here did NOT change when the colours did. `brand[500]` is read in
- * roughly five hundred places, and a rename would have been five hundred edits
- * to achieve exactly what changing one hex achieves — while a half-finished
- * rename leaves two palettes on screen at once.
+ * The pigments moved to `palette.ts` and are re-exported below, so every
+ * existing `from "./tokens"` still resolves. See that file for why: it has no
+ * `react-native` import, which is the only reason the web panel can read the
+ * brand ramp instead of keeping a third copy of it.
  */
-
-/**
- * Ten steps, light to dark — or, in a dark theme, faint to loud. A scale is a
- * shape, not a set of hexes: `as const` below gives the literal palette its
- * exact type, which is useful at a call site and useless to a THEME, because a
- * second scale could then never satisfy it. See `themes.ts`.
- */
-export type ColorScale = Record<50 | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900, string>;
-
-export const brand = {
-  50: "#fef2f2",
-  100: "#fee2e2",
-  200: "#fecaca",
-  300: "#fca5a5",
-  400: "#f87171", // the accent — and the brand's face in dark mode
-  500: "#ef4444", // the primary
-  600: "#dc2626",
-  700: "#b91c1c",
-  800: "#991b1b",
-  900: "#7f1d1d",
-} as const;
-
-/**
- * Amber, for what a shop is offering.
- *
- * Deliberately NOT a second brand colour: it marks a discount, a rating star, a
- * countdown — things the eye should find without being asked to act. Nothing
- * tappable is this colour, or the page ends up with two primaries and neither
- * reads as the important one.
- */
-export const warm = {
-  100: "#fdf6e2",
-  300: "#f5dc94",
-  500: "#ebc249",
-  // 700 exists because 500 is a FILL and this is the TEXT.
-  //
-  // Yellow on white is around 1.6:1 — not "a bit low", unreadable. The warning
-  // copy used to be written in warm[500] and was already poor at #FC8F1A; at
-  // #EBC249 it would have disappeared. A scale that is only ever a fill hides
-  // that; naming the darker step forces the choice at each call site.
-  700: "#a8871f",
-} as const;
-
-/**
- * Green, for confirmation.
- *
- * Not a second brand colour and never a button: it says a thing HAPPENED — an
- * item went into the basket, a delivery fee was waived. Same split as `warm`:
- * 500 is the fill, 600 is the text, because #80B931 on white is 2.4:1.
- */
-export const green = {
-  100: "#f1f8e4",
-  300: "#b4d97a",
-  500: "#80b931",
-  600: "#5c8a20",
-  700: "#4d7318",
-} as const;
-
-/**
- * Warm greys, and warm on purpose.
- *
- * The scale this replaced was a cool blue-grey, which is the standard choice
- * and the wrong one beside a red-orange: a blue-tinted card under a #E94E00
- * button makes the button look faintly purple, and the eye reads the whole
- * screen as slightly dirty. These carry a trace of the brand's own hue, so
- * grey and brand belong to each other.
- */
-export const gray = {
-  50: "#faf8f7",
-  100: "#f4f1ef",
-  200: "#e9e4e0",
-  300: "#d8d0cb",
-  400: "#aaa09a",
-  500: "#7e746e",
-  600: "#5d544f",
-  700: "#453d39",
-  800: "#2c2522",
-  900: "#1a1512",
-} as const;
-
-/** Near-black, warm. Hero blocks in light; the deepest ground in dark. */
-export const ink = {
-  base: "#221711",
-  soft: "#35251c",
-  muted: "#8a807a",
-} as const;
-
-/** Warm cream — offer and promo cards. */
-export const cream = "#fdf1e7";
+export * from "./palette";
 
 export const spacing = {
   xs: 4,

@@ -1,8 +1,21 @@
-export { brand, cream, gray, ink, radius, shadow, spacing, typography, warm, type ColorScale } from "./tokens";
+export {
+  brand,
+  cream,
+  gradients,
+  gray,
+  ink,
+  meadow,
+  radius,
+  shadow,
+  spacing,
+  typography,
+  warm,
+  type ColorScale,
+} from "./tokens";
 export {
   darkColors,
   carmineThemes,
-  emeraldThemes,
+  meadowThemes,
   lightColors,
   type ThemeColors,
   type ThemeName,

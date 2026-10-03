@@ -5,6 +5,7 @@
  * barrel that also holds code is a file every consumer imports for one
  * symbol and gets all of it.
  */
+export * from "./brand";
 export * from "./theme";
 export * from "./format";
 export * from "./types/api";
