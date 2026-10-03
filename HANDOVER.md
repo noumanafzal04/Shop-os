@@ -7929,11 +7929,15 @@ counts from the 12th, walked forward in whole billing periods. `addMonths`
 takes 31 January to 3 March, so it is `addMonthsNoOverflow` — otherwise a
 shop billed on the last day of the month resets on a creeping date for ever.
 
-**Retention is recorded and visible, and enforces nothing.** `plans
-.retention_months`, shown in the plan catalogue and on the shop's own page.
-Fencing the read is left as an explicit open decision, because a shop that
-cannot find last March does not think "my plan covers two years" — it thinks
-its records are lost.
+**Retention is enforced, and it is never silent.** `plans.retention_months`
+now fences every historical list and report at one choke point each, with
+`ReportService::resolvePeriod` covering all thirteen report endpoints. Three
+rules hold it up and each has a test that fails without it: archived is not
+deleted (raise the plan and last year is back), never silent (every fenced
+read carries `meta.retention` and the panel prints it under the pager), and
+never a balance — stock on hand and a customer's khata are the SUM of
+history and are never touched. See `docs/decisions/shopos-archived-is-not-
+deleted.md`.
 
 ### What found the mistakes, again
 
@@ -7946,3 +7950,53 @@ all**. That hole is closed with `tsconfig.e2e.json`; it is the same shape as
 the day `tsc --noEmit` passed a `step="any"` that `tsc -b` refused.
 
 **2,961 backend tests · 1,574 panel tests · 0 lint errors.**
+
+---
+
+## The plan ladder, 2026-10-04
+
+Branches, staff and tills are **on the plan** now. They were on neither the
+plan nor anywhere else, so Basic and Enterprise granted identical
+organisations until somebody typed otherwise.
+
+    effective = (this shop's override OR the plan's included) + bought
+
+`null` means UNLIMITED on billed usage and "this plan has no opinion" on
+organisation size — the asymmetry is what makes the migration safe, because
+every pre-existing plan holds null and no shop's ceiling moved. Offline
+selling is the one capability a plan gates, and the reasoning is in
+`docs/decisions/shopos-what-the-plan-includes.md`.
+
+The bills meter gained **grace** and three words — reached / grace / over —
+and refuses nothing at any point. A plan change never resets the meter.
+`GET /admin/tenants/{id}/plan-change` previews the price difference and
+every ceiling a shop would land over, writing nothing.
+
+### Deploying this to live — NOT DONE, on purpose
+
+The user's call on 2026-10-04 was **do not touch live yet**. Nothing has been
+deployed. When it is:
+
+1. Deploy the backend and run `php artisan migrate`. The migration is purely
+   additive — six nullable columns on `plans` — and changes no shop's
+   ceiling, because null on organisation size means "fall to the default".
+2. **Decide about `PlanSeeder` separately.** Running it reprices the live
+   ladder (Premium → "Standard", 6,000 → 4,999), adds `pro`, and sets
+   branches/staff/bills/history on every rung. That changes what real shops
+   are billed and what capacity they have. The safe alternative is to add
+   `pro` by hand in the admin panel and edit the other three there.
+3. Retention only bites once a live plan carries `retention_months`. Until
+   then nothing is fenced, and the panel says nothing.
+4. Deploy the panel.
+
+### The fixture finally exercises any of this
+
+The nine load-test shops were on **no plan at all** — the factory gave every
+tenant 20 branches, 100 staff and 20 lanes as a flat override, so the biggest
+fixture in the repo proved nothing about the pricing model. They now sit
+across the ladder, one of them on Basic with a hand-granted staff allowance,
+and the filling station runs four lanes on a three-lane plan so the "over a
+ceiling" state is actually reachable.
+
+**2,975 backend tests · 1,574 panel tests · 29 volume browser checks ·
+413 audit checks, EMPTY: nothing · 0 lint errors.**

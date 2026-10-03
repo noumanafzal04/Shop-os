@@ -228,3 +228,6 @@
 - [The Sign Lives In The Type](shopos-sign-lives-in-the-type.md) — STANDING: 3 ledgers store +amount with direction in `type`; summing agrees with the opposite
 - [What The Fixture Proves](shopos-what-the-fixture-proves.md) — REFERENCE: 9 load-test shops, 412 audit checks, what each phase exercises
 - [e2e Checked By Nothing](shopos-e2e-checked-by-nothing.md) — STANDING: panel/e2e was in no tsconfig; a broken spec committed clean
+- [The Plan Ladder](shopos-the-plan-ladder.md) — plans carry branches/staff/tills/bills/history/offline; null reads two ways; grace; a plan change never resets the meter
+- [Archived Is Not Deleted](shopos-archived-is-not-deleted.md) — retention fences lists and reports, never a balance, never silently
+- [Fixture On No Plan](shopos-fixture-on-no-plan.md) — STANDING: a fixture that over-provisions everything measures nothing
