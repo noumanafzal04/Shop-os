@@ -31,7 +31,14 @@ class OtpDeliveryTest extends TestCase
     public function test_phone_identifier_delivers_via_sms_sender(): void
     {
         $this->mock(SmsSender::class, function ($m): void {
-            $m->shouldReceive('send')->once()->withArgs(fn ($to, $msg) => $to === '+923001234567' && str_contains($msg, 'CartZe'));
+            // Against `config('app.name')`, not a literal. A test that
+            // hardcodes the product's name is a SECOND place the name is
+            // written — and this one failed on the rename rather than
+            // following it, which is the whole shape of the bug the clients
+            // just finished removing.
+            $m->shouldReceive('send')->once()->withArgs(
+                fn ($to, $msg) => $to === '+923001234567' && str_contains($msg, config('app.name'))
+            );
         });
         $this->mock(EmailSender::class, fn ($m) => $m->shouldReceive('send')->never());
 

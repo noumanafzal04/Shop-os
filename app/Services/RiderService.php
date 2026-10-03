@@ -639,7 +639,7 @@ class RiderService
         if (! $profile->is_platform) {
             return [
                 'code' => 'not_platform',
-                'message' => 'You are only taking jobs from shops that added you. Switch on CartZe deliveries to be offered work from the pool.',
+                'message' => 'You are only taking jobs from shops that added you. Switch on '.config('app.name').' deliveries to be offered work from the pool.',
             ];
         }
 
@@ -698,7 +698,7 @@ class RiderService
         // strangers' work is never the person to argue with.
         if ($inPool && ! $profile->isPlatformApproved()) {
             throw DomainException::forbidden(
-                'Your shop added you as their own rider. To take CartZe deliveries from any shop, '.
+                'Your shop added you as their own rider. To take '.config('app.name').' deliveries from any shop, '.
                 'apply and send your CNIC and licence first.',
                 'RIDER_NOT_PLATFORM_APPROVED',
             );

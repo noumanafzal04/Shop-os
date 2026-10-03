@@ -168,7 +168,7 @@ class RiderProfileController extends Controller
         return ApiResponse::ok(
             $this->serialize($profile),
             $profile->is_platform
-                ? 'You will be offered CartZe deliveries'
+                ? 'You will be offered '.config('app.name').' deliveries'
                 : 'You will only get jobs from shops that added you',
         );
     }

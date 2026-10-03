@@ -667,7 +667,7 @@ class RiderSideTest extends TestCase
         $this->assertFalse($board['in_pool']);
         // And it says what to do about it, because a reason nobody can act on
         // is the same empty page with more words.
-        $this->assertStringContainsString('CartZe', $board['blocked']['message']);
+        $this->assertStringContainsString(config('app.name'), $board['blocked']['message']);
         $this->assertTrue($profile->fresh()->is_online);
     }
 

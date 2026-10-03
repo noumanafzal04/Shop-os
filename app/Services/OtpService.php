@@ -128,11 +128,11 @@ class OtpService
 
     private function deliver(string $identifier, string $code, OtpPurpose $purpose): void
     {
-        $message = "Your CartZe code is {$code}. It expires in ".self::TTL_MINUTES.' minutes.';
+        $message = 'Your '.config('app.name')." code is {$code}. It expires in ".self::TTL_MINUTES.' minutes.';
 
         // Route by identifier: email address → email, otherwise → SMS.
         if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
-            $this->email->send($identifier, 'Your CartZe verification code', $message);
+            $this->email->send($identifier, 'Your '.config('app.name').' verification code', $message);
         } else {
             $this->sms->send($identifier, $message);
         }

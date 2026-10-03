@@ -306,7 +306,7 @@ class AppDemoSeeder extends Seeder
             return;
         }
         Announcement::query()->create([
-            'title' => 'Welcome to ShopOS! 🎉',
+            'title' => 'Welcome to '.config('app.name').'! 🎉',
             'body' => 'Order from your favorite local shops — cash on delivery, no fuss.',
             'audience' => 'customers', 'is_published' => true, 'published_at' => now()->subDay(),
             'recipients_count' => 10,

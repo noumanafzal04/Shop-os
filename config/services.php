@@ -64,6 +64,20 @@ return [
     'sms' => [
         'key' => env('SMS_API_KEY'),
         'endpoint' => env('SMS_ENDPOINT'),
+        /*
+         * THE SENDER ID, and it is NOT branding.
+         *
+         * What a phone shows above an OTP. It is registered with the SMS
+         * gateway and the telco — alphanumeric, no spaces, eleven characters
+         * at most — so it cannot simply follow `APP_NAME`: "True Serve" has a
+         * space in it, and an unregistered sender is silently dropped or
+         * replaced with a shortcode by the operator.
+         *
+         * So it stays a separate setting with its own value, changed only
+         * once the new id has actually been registered. Same rule as the
+         * storage keys in the clients: an identifier somebody else holds does
+         * not move because we renamed a product.
+         */
         'from' => env('SMS_FROM', 'CartZe'),
     ],
 
