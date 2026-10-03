@@ -231,3 +231,5 @@
 - [The Plan Ladder](shopos-the-plan-ladder.md) — plans carry branches/staff/tills/bills/history/offline; null reads two ways; grace; a plan change never resets the meter
 - [Archived Is Not Deleted](shopos-archived-is-not-deleted.md) — retention fences lists and reports, never a balance, never silently
 - [Fixture On No Plan](shopos-fixture-on-no-plan.md) — STANDING: a fixture that over-provisions everything measures nothing
+- [HRM Is A Module](shopos-hrm-is-a-module.md) — `hrm` key added before the feature; off for every trade, so the area is optional
+- [A Check That Cannot Fail](shopos-check-that-cannot-fail.md) — STANDING: an absence assertion passed twice with the guard removed

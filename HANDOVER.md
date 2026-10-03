@@ -8000,3 +8000,30 @@ ceiling" state is actually reachable.
 
 **2,975 backend tests · 1,574 panel tests · 29 volume browser checks ·
 413 audit checks, EMPTY: nothing · 0 lint errors.**
+
+---
+
+## Basic HR is a module, 2026-10-04
+
+`hrm` is in `Modules::all()` under a **People** group, `depends: []`, and
+**no trade gets it by default**. The nine Basic HR screens still say "not
+built yet" and save nothing — the key exists so the area can be DECLINED,
+which it could not be before: every shop on the platform carried an HR
+department in its sidebar.
+
+Four places must stay in step, and three guards catch drift automatically:
+`Modules::all()`, `BusinessTypes::FEATURES`, the panel's routes + sidebar,
+and the nine Help articles.
+
+### `OneBusinessEndToEndTest`
+
+One shop walked from the create form to the second invoice over real HTTP —
+module granted, module refused by name, the plan's ceiling biting at 3 and
+not the platform's 5, an add-on lifting one ceiling and no other, a plan
+change that moves the ceiling and leaves the meter, the history window
+closing and the row surviving, and a module withdrawn without taking its
+dependencies or its data. 41 assertions, mutation-proven.
+
+**2,976 backend tests · 1,575 panel tests · 42 browser checks (32 volume,
+10 admin) · 413 audit checks, EMPTY: nothing · 0 lint errors.**
+
