@@ -20,21 +20,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    /*
-      THE SHARED LAYER, declared for the compiler too.
-
-      Vite resolves `@cartze/core` by alias (see `vite.config.ts`). The
-      compiler does not read that file, and a mapping that exists for the
-      bundler and not for `tsc` is a build that passes and a typecheck that
-      does not — the two-out-of-three failure the mobile apps' tsconfigs warn
-      about, caught here on the first import.
-    */
-    "baseUrl": ".",
-    "paths": {
-      "@cartze/core/*": ["../core/src/*"]
-    }
+    "noUncheckedSideEffectImports": true
   },
   "include": ["src"]
 }

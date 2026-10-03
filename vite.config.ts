@@ -1,41 +1,24 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import { VitePWA } from "vite-plugin-pwa";
-import { PRODUCT } from "../core/src/brand";
+import { PRODUCT } from "./src/common/brand";
 
 /**
- * THE SHARED LAYER, consumed by ALIAS — the same arrangement the two mobile
- * apps already use.
+ * THE NAME, FROM THE APP'S OWN SOURCE — not from a sibling repo.
  *
- * `@cartze/core` is a sibling folder, not an installed package: there is no
- * build step and no `node_modules` of its own. Metro resolves it this way for
- * the phones; this is the browser's half of the same decision, so the
- * product's name is one constant across all three clients rather than three
- * constants that drift.
+ * This imported `../core/src/brand` for a day. It compiled on a developer's
+ * machine, where `core` sits beside this folder, and `tsc -b` failed on the
+ * server, where only this repository is checked out. A build that works in
+ * one of the two places it has to work is a build that does not work.
  *
- * Only the DEEP path is used here (`@cartze/core/brand`). The package's
- * barrel re-exports the theme, which imports `react-native` — fine on a
- * phone, not something a browser bundle should be asked to resolve.
+ * `src/common/brand.ts` is inside this project, so the config and the app
+ * read the same constant and the deploy has nothing to resolve outside its
+ * own tree.
  */
-const CORE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../core/src");
 
 // https://vite.dev/config/
 export default defineConfig({
-  resolve: {
-    alias: { "@cartze/core": CORE },
-  },
-  server: {
-    fs: {
-      // The alias points OUTSIDE this project's root, and the dev server
-      // refuses to serve such a file unless it is allowed by name. Without
-      // this the app builds and the dev server 403s on one import — which
-      // reads as a broken page rather than as a config line.
-      allow: [".", CORE],
-    },
-  },
   plugins: [
     react(),
     svgr({

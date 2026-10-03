@@ -1,5 +1,5 @@
 import { PRODUCT } from "../../common/brand";
-import { oceanBrandWeb } from "@cartze/core/theme/palette";
+import { oceanBrandWeb } from "./oceanRamp";
 /**
  * Per-tenant branding.
  *
