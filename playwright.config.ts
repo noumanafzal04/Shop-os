@@ -174,6 +174,20 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume-petrol.json" },
     },
 
+    /**
+     * The books-only office, and the only shop with Basic HR — so the nine
+     * placeholder screens are opened by something.
+     *
+     *   E2E_VOLUME_SHOP=finance npx playwright test --project=volume-finance
+     */
+    { name: "volume-finance-setup", testMatch: /volume\.setup\.ts/ },
+    {
+      name: "volume-finance",
+      testMatch: VOLUME_ONLY,
+      dependencies: ["volume-finance-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/volume-finance.json" },
+    },
+
     { name: "volume-workshop-setup", testMatch: /volume\.setup\.ts/ },
     {
       name: "volume-workshop",

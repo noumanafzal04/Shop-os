@@ -19,12 +19,34 @@ import { test, expect, type Page } from "@playwright/test";
  *   SWITCH            unit test it had. It is only wrong on screen.
  */
 
+/**
+ * EVERY ADMIN ROUTE, not a sample of them.
+ *
+ * The first version of this list walked six of fourteen, which is the same
+ * mistake the shop side made for months — chrome.spec walked 14 of 48
+ * screens and the nine it missed were where the defects were. A list that
+ * covers "the important ones" is a list somebody chose, and the screens
+ * nobody chose are the ones nobody looks at.
+ *
+ * Kept in step with App.tsx by hand, and `four-doors.spec.ts`'s redirect
+ * check below is what makes a stale entry here fail loudly rather than
+ * quietly test the dashboard six times.
+ */
 const SCREENS: Array<{ path: string; name: string; budget?: number }> = [
   { path: "/admin", name: "the console", budget: 8 },
   { path: "/admin/tenants", name: "businesses" },
+  { path: "/admin/tenants/new", name: "create a business", budget: 8 },
+  { path: "/admin/shop-requests", name: "shop requests" },
+  { path: "/admin/enquiries", name: "enquiries" },
   { path: "/admin/plans", name: "plans" },
   { path: "/admin/payments", name: "payments" },
-  { path: "/admin/enquiries", name: "enquiries" },
+  { path: "/admin/commission", name: "commission" },
+  { path: "/admin/riders", name: "riders" },
+  { path: "/admin/customers", name: "customers" },
+  { path: "/admin/banners", name: "banners & ads" },
+  { path: "/admin/announcements", name: "announcements" },
+  { path: "/admin/staff", name: "platform staff" },
+  { path: "/admin/config", name: "configuration" },
   { path: "/admin/audit-logs", name: "audit trail" },
 ];
 
@@ -153,4 +175,34 @@ test("Basic HR can be handed to a shop, and is not there by default", async ({ p
   // docket — it belongs to no trade and to all of them.
   const body = (await page.locator("body").innerText()).toLowerCase();
   expect(body, "Basic HR has no group of its own in the picker").toContain("people");
+});
+
+/**
+ * THE PLAN DECIDES, AND THE FORM HAS TO LOOK LIKE IT DOES.
+ *
+ * The size boxes on the create form were once pre-filled with 1 / 5 / 2 and
+ * sent every time, which wrote an override onto EVERY shop at the moment of
+ * creation — so a shop "on Standard" was really on a frozen copy of
+ * Standard's numbers, and upgrading it a year later moved nothing.
+ *
+ * Blanking them fixed the sending and left the invitation: an empty box on a
+ * form gets filled in. The plan now states its answer and the override is
+ * behind a deliberate tick, which is the difference between an exception and
+ * a default.
+ */
+test("creating a business takes its size from the plan, not from three empty boxes", async ({ page }) => {
+  await open(page, "/admin/tenants/new");
+
+  const override = page.getByRole("checkbox", { name: /negotiated something different/i });
+  await expect(override).toBeVisible();
+  await expect(override, "the override starts ticked, so every new shop gets one").not.toBeChecked();
+
+  // Closed means CLOSED — no field to type into, so none can be sent.
+  await expect(
+    page.getByLabel("Branches"),
+    "the size boxes are on the form before anybody asked for them",
+  ).toHaveCount(0);
+
+  await override.check();
+  await expect(page.getByLabel("Branches")).toBeVisible();
 });

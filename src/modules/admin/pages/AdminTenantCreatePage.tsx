@@ -15,6 +15,16 @@ import { toIsoDate } from "../../../components/ui/filters";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
+/**
+ * The three numbers a buyer asks about first — named once, because the
+ * read-only summary and the override boxes have to agree about them.
+ */
+const SIZE_FIELDS = [
+  { key: "branches", label: "Branches", hint: "The Main branch counts as one." },
+  { key: "staff", label: "Staff accounts", hint: "The owner isn't counted." },
+  { key: "registers", label: "Checkout lanes", hint: "A single-counter shop needs none." },
+] as const;
+
 
 /**
  * Creating a business, in the order the decisions actually happen.
@@ -87,6 +97,10 @@ export default function AdminTenantCreatePage() {
     owner_password: "",
   });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Closed by default: an override is the exception, and a form that offers
+  // one by default gets one by default.
+  const [negotiated, setNegotiated] = useState(false);
 
   const [modules, setModules] = useState<Record<string, boolean>>({});
   // Once the admin has touched a checkbox the proposal stops overwriting their
@@ -399,47 +413,90 @@ export default function AdminTenantCreatePage() {
         <FormCard
           title="Size of the business"
           description={selectedPlan
-            ? `${selectedPlan.name} includes these. Type a number only where this one business is an exception.`
-            : "Pick a plan first — it decides the usual numbers, and these boxes then say what they are."}
+            ? `What ${selectedPlan.name} includes.`
+            : "Pick a plan — it decides all three."}
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {([
-              { key: "branches", label: "Branches", hint: "The Main branch counts as one." },
-              { key: "staff", label: "Staff accounts", hint: "The owner isn't counted." },
-              { key: "registers", label: "Checkout lanes", hint: "A single-counter shop needs none." },
-            ] as const).map(({ key, label, hint }) => {
+          {/* THE PLAN'S ANSWER, READ-ONLY.
+              These were three empty boxes, and an empty box on a form is an
+              invitation. The first version of this screen pre-filled them
+              with 1 / 5 / 2 and sent all three every time, which wrote an
+              override onto EVERY shop at the moment of creation — so a shop
+              "on Standard" was really on a frozen copy of Standard's numbers
+              and upgrading it later moved nothing.
+              Blanking them fixed the sending and left the invitation. Now
+              the plan simply states its answer, and typing over it is a
+              separate, deliberate act below. */}
+          <div className="grid grid-cols-3 gap-3">
+            {SIZE_FIELDS.map(({ key, label }) => {
               const included = selectedPlan?.limits?.[key] ?? selectedPlan?.defaults?.[key] ?? null;
-              const typed = form[key].trim() !== "";
+              const typed = form[key].trim();
 
               return (
-                <div key={key}>
-                  <Label>{label}</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={form[key]}
-                    onChange={(e) => set(key, e.target.value)}
-                    /* The plan's own number, so an empty box states what it
-                       will actually be rather than looking unfinished. */
-                    placeholder={included === null ? "" : String(included)}
-                  />
-                  <p className="mt-1 text-theme-xs text-gray-400">
-                    {typed
-                      ? `Set for this business. The plan includes ${included ?? "—"}.`
-                      : hint}
+                <div key={key} className="rounded-xl bg-gray-50 py-3 text-center dark:bg-white/[0.04]">
+                  <p className="text-xl font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                    {typed !== "" ? typed : (included ?? "—")}
                   </p>
+                  <p className="text-theme-xs text-gray-500 dark:text-gray-400">{label}</p>
+                  {/* Only when it has been overridden, so the ordinary case
+                      is three plain numbers and nothing to read. */}
+                  {typed !== "" && String(included) !== typed && (
+                    <p className="mt-0.5 text-theme-xs text-warning-600 dark:text-warning-400">
+                      plan gives {included ?? "—"}
+                    </p>
+                  )}
                 </div>
               );
             })}
           </div>
-          {/* WHY LEAVING THESE BLANK IS THE RIGHT ANSWER.
-              A number typed here is frozen: it beats the plan for ever, so a
-              shop upgraded to Pro next year would keep the three staff
-              somebody keyed in today and nobody would know why. */}
-          <p className="mt-3 text-theme-xs text-gray-400">
-            Leave them blank and this business follows its plan — including after an upgrade. A number typed
-            here overrides the plan permanently, so use it only when the deal really is different.
-          </p>
+
+          <label className="mt-4 flex cursor-pointer items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4"
+              checked={negotiated}
+              onChange={(e) => {
+                setNegotiated(e.target.checked);
+                // Closing it CLEARS what was typed. A hidden override is the
+                // exact thing this card exists to prevent: an admin who
+                // changed their mind must not leave a number behind that no
+                // longer appears anywhere on the form.
+                if (!e.target.checked) {
+                  setForm((f) => ({ ...f, branches: "", staff: "", registers: "" }));
+                }
+              }}
+            />
+            <span>
+              <span className="font-medium">This business negotiated something different</span>
+              <span className="block text-theme-xs text-gray-400">
+                Rare. A number set here beats the plan permanently — including after an upgrade — so it is
+                for a deal that really is different, not for a shop that is merely bigger.
+              </span>
+            </span>
+          </label>
+
+          {negotiated && (
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {SIZE_FIELDS.map(({ key, label, hint }) => {
+                const included = selectedPlan?.limits?.[key] ?? selectedPlan?.defaults?.[key] ?? null;
+
+                return (
+                  <div key={key}>
+                    <Label>{label}</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={form[key]}
+                      onChange={(e) => set(key, e.target.value)}
+                      placeholder={included === null ? "" : String(included)}
+                    />
+                    <p className="mt-1 text-theme-xs text-gray-400">
+                      {form[key].trim() === "" ? hint : `The plan includes ${included ?? "—"}.`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </FormCard>
 
         <FormCard title="Owner account" description="The first login. They set their own password afterwards.">

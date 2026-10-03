@@ -43,6 +43,9 @@ const SCREENS: Screen[] = [
   { path: "/tenant/stocktake", name: "stock counts", rows: true },
   { path: "/tenant/transfers", name: "branch transfers", rows: true },
   { path: "/tenant/coupons", name: "coupons", rows: true },
+  // A real screen no browser had ever opened. It is behind `bank_offers`,
+  // which only two load-test shops have, so it fell through every list.
+  { path: "/tenant/bank-offers", name: "bank card offers", rows: true },
   { path: "/tenant/day", name: "day & banking · 91 shifts", rows: true },
   { path: "/tenant/cashbook", name: "the cashbook", rows: false },
   { path: "/tenant/ledger", name: "the ledger", rows: false },
@@ -65,6 +68,31 @@ const FORECOURT: Screen[] = [
   { path: "/tenant/fuel/deliveries", name: "tanker deliveries", rows: true },
   { path: "/tenant/fuel/setup", name: "tanks & pumps", rows: false },
   { path: "/tenant/day", name: "day & banking · forecourt", rows: true },
+];
+
+/**
+ * THE BOOKS-ONLY OFFICE — no till, no catalogue, no stock.
+ *
+ * The seeder calls it "the shape most likely to be broken by a change made
+ * for everybody else", and it had never been walked by a browser. It is also
+ * the one shop granted Basic HR, so these nine placeholder screens are
+ * finally opened by something: they render a "not built yet" notice, and a
+ * notice that throws is indistinguishable from a broken product.
+ */
+const FINANCE: Screen[] = [
+  { path: "/tenant", name: "the office dashboard", rows: false, budget: 8 },
+  { path: "/tenant/expenses", name: "expenses · books-only", rows: true },
+  { path: "/tenant/income", name: "other income", rows: true },
+  { path: "/tenant/cashbook", name: "the cashbook · no sales to lean on", rows: false },
+  { path: "/tenant/hrm", name: "Basic HR", rows: false },
+  { path: "/tenant/hrm/attendance", name: "HR · attendance", rows: false },
+  { path: "/tenant/hrm/leaves", name: "HR · leaves", rows: false },
+  { path: "/tenant/hrm/shifts", name: "HR · shifts", rows: false },
+  { path: "/tenant/hrm/advances", name: "HR · advances", rows: false },
+  { path: "/tenant/hrm/commission", name: "HR · commission", rows: false },
+  { path: "/tenant/hrm/payroll", name: "HR · payroll", rows: false },
+  { path: "/tenant/hrm/reports", name: "HR · reports", rows: false },
+  { path: "/tenant/hrm/settings", name: "HR · settings", rows: false },
 ];
 
 const WORKSHOP: Screen[] = [
@@ -161,34 +189,34 @@ const LIST: Record<string, Screen[]> = {
   grocery: SCREENS,
   petrol: FORECOURT,
   workshop: WORKSHOP,
+  finance: FINANCE,
 };
 
 for (const screen of LIST[WHICH] ?? SCREENS) walk(screen);
 
 /**
- * A DEPARTMENT THIS SHOP DOES NOT HAVE.
+ * A DEPARTMENT THIS SHOP DOES OR DOES NOT HAVE.
  *
  * Basic HR is nine screens that say "not built yet" and save nothing. Until
  * it had a module key there was nothing to gate it on, so every shop on the
  * platform carried an HR department in its sidebar — a grocery, a filling
  * station, a one-person accountancy office.
  *
- * None of the load-test shops is granted it, so none of them should be
- * offered it. Asserting the ABSENCE is the whole point: the leak was
- * invisible precisely because an extra menu looks like a feature.
+ * Both directions, because only the pair is evidence. An absence assertion
+ * passes for every reason the thing could be missing and only one of them is
+ * the reason you meant — this one already passed twice with the gate
+ * deliberately removed, first because HRM is a collapsible group whose
+ * children are not in the DOM, then because the sidebar hides it in Simple
+ * mode and Simple is the default.
+ *
+ * The books-only office is the one shop granted it; everybody else is a live
+ * check that the gate holds.
  */
-test("the sidebar offers no HR to a shop that was not given it", async ({ page }) => {
+test("the sidebar offers HR to exactly the shop that was given it", async ({ page }) => {
   /**
-   * IN FULL VIEW, WHICH IS THE ONLY VIEW THAT COULD SHOW IT.
-   *
-   * HRM is back-office work and the sidebar hides it in Simple mode. The
-   * first two versions of this test ran in Simple — the default — and passed
-   * with the module gate deliberately removed, twice. It was asserting that
-   * a menu hidden by density was hidden, and counting that as proof the
-   * module gate worked.
-   *
-   * Set before the first navigation: the mode is read from localStorage once,
-   * on mount.
+   * IN FULL VIEW, which is the only view that could show it: HRM is
+   * back-office work and the sidebar hides it in Simple mode. Set before the
+   * reload, because the mode is read from localStorage once, on mount.
    */
   await page.goto("/tenant");
   await page.evaluate(() => localStorage.setItem("ui_mode", "advanced"));
@@ -198,17 +226,14 @@ test("the sidebar offers no HR to a shop that was not given it", async ({ page }
   const sidebar = page.locator("aside").first();
   await expect(sidebar).toBeVisible();
 
-  /**
-   * THE GROUP, NOT ITS CHILDREN.
-   *
-   * The first version of this looked for links named Payroll and Attendance
-   * and passed with the gate deliberately removed — HRM is a COLLAPSIBLE
-   * group, so its sub-links are not in the DOM until somebody expands it.
-   * The assertion was vacuous: it could not have failed, and a check that
-   * cannot fail is worse than no check, because it is counted.
-   *
-   * The group's own label is always rendered, so that is what to look at.
-   */
+  // The GROUP label, not its children — see the docblock above.
   const text = await sidebar.innerText();
+
+  if (WHICH === "finance") {
+    expect(text, "the shop that WAS given Basic HR cannot reach it").toMatch(/\bHRM\b/);
+
+    return;
+  }
+
   expect(text, "a shop with no HR module was offered an HRM menu").not.toMatch(/\bHRM\b/);
 });

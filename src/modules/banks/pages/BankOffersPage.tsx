@@ -175,7 +175,14 @@ export default function BankOffersPage() {
                     No campaigns. The till will not offer this bank until one is running.
                   </p>
                 ) : (
-                  <div className="space-y-2">
+                  /* `data-rows` says "these are this screen's records".
+                     The volume suite asks every screen whether it is showing
+                     anything at a real shop's size, and it can only count
+                     table rows unless told otherwise — so this screen, built
+                     as cards, reported as EMPTY on a shop running four live
+                     campaigns. That was a finding about the probe dressed up
+                     as a finding about the product. */
+                  <div data-rows className="space-y-2">
                     {offers.map((offer) => {
                       const ended = hasEnded(offer);
                       const running = offer.is_active && !ended;
