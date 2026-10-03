@@ -48,6 +48,8 @@ const DOORS_ONLY = /four-doors\.spec\.ts/;
 // fixture here is a twenty-eight-product sweep shop, and almost everything
 // works at twenty-eight rows.
 const VOLUME_ONLY = /at-volume\.spec\.ts/;
+// The console that prices every shop — see e2e/admin-console.spec.ts.
+const ADMIN_ONLY = /admin-console\.spec\.ts/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
@@ -102,13 +104,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -120,15 +122,30 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
+    },
+
+    /**
+     * THE ADMIN CONSOLE.
+     *
+     * Its own sign-in, because a super admin is not a tenant: the shop
+     * fixtures' storage state lands on /tenant and would walk this project
+     * straight into a redirect.
+     */
+    { name: "admin-setup", testMatch: /admin\.setup\.ts/ },
+    {
+      name: "admin",
+      testMatch: ADMIN_ONLY,
+      dependencies: ["admin-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/admin.json" },
     },
 
     { name: "volume-setup", testMatch: /volume\.setup\.ts/ },
