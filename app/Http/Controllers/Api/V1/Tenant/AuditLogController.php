@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Support\ApiResponse;
+use App\Support\Retention;
 use App\Support\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,6 +61,10 @@ class AuditLogController extends Controller
             ->when($request->query('user_id'), fn ($q, $id) => $q->where('user_id', $id))
             ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
+            // The trail is history like any other and goes no further back
+            // than the plan keeps. Nothing is erased — raise the plan and the
+            // older entries are there again.
+            ->tap(fn (Builder $q) => Retention::fence($q, 'audit_logs.created_at'))
             // Rows can share a timestamp to the second; the id breaks the tie so
             // the list never reshuffles between pages.
             ->orderByDesc('created_at')
@@ -81,6 +87,8 @@ class AuditLogController extends Controller
                 'created_at' => $log->created_at?->toIso8601String(),
             ]);
 
-        return ApiResponse::paginated($logs);
+        return ApiResponse::paginated($logs, meta: array_filter([
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 }

@@ -152,12 +152,30 @@ class HowCloseToTheCeilingTest extends TestCase
         $this->assertSame('critical', $this->row('orders_month')['band']);
     }
 
+    /**
+     * AT the ceiling is not the same as PAST it.
+     *
+     * `reached` used to cover both, which meant a shop that had used exactly
+     * what it paid for and a shop four thousand bills beyond it produced the
+     * same word on the admin's list. The first needs no phone call at all;
+     * the second has been unnoticed for a month.
+     */
+    public function test_exactly_at_the_ceiling_is_reached(): void
+    {
+        $this->ring(10);
+
+        $row = $this->row('orders_month');
+        $this->assertSame('reached', $row['band']);
+        $this->assertSame(100, $row['percent']);
+        $this->assertSame(0, $row['remaining']);
+    }
+
     public function test_past_the_ceiling_says_so_without_stopping_the_till(): void
     {
         $this->ring(11);
 
         $row = $this->row('orders_month');
-        $this->assertSame('reached', $row['band']);
+        $this->assertSame('over', $row['band']);
         $this->assertSame(110, $row['percent']);
         $this->assertSame(0, $row['remaining']);
 

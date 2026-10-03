@@ -42,21 +42,21 @@ class ReportController extends Controller
             $period['from'],
             $period['to'],
             $period['granularity'],
-        ));
+        ), meta: $this->window($period));
     }
 
     public function purchases(Request $request, ReportService $reports, TenantContext $context): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->purchases($context->id(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->purchases($context->id(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
     public function staff(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->staffPerformance($context->id(), $branch->scopeId(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->staffPerformance($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
     /**
@@ -71,14 +71,14 @@ class ReportController extends Controller
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->bankClaims($context->id(), $branch->scopeId(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->bankClaims($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
     public function tax(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->tax($context->id(), $branch->scopeId(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->tax($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
     /**
@@ -92,6 +92,7 @@ class ReportController extends Controller
 
         return ApiResponse::ok(
             $reports->cashbook($context->id(), $branch->scopeId(), $p['from'], $p['to'], $p['granularity']),
+            meta: $this->window($p),
         );
     }
 
@@ -114,7 +115,7 @@ class ReportController extends Controller
         $result = $ledger->page($context->id(), $branch->scopeId(), $p['from'], $p['to'], $request);
         $entries = $result['entries'];
 
-        return ApiResponse::paginated($entries, 'OK', [
+        return ApiResponse::paginated($entries, 'OK', $this->window($p) + [
             'period' => ['from' => $p['from'], 'to' => $p['to']],
             'opening' => $result['opening'],
             'closing' => $result['closing'],
@@ -147,7 +148,7 @@ class ReportController extends Controller
     {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($reports->margins($context->id(), $branch->scopeId(), $p['from'], $p['to']));
+        return ApiResponse::ok($reports->margins($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
     /** What the shelves are worth — the figure a bank meeting asks for. */
@@ -292,7 +293,21 @@ class ReportController extends Controller
     ): JsonResponse {
         $p = $this->period($request, $reports);
 
-        return ApiResponse::ok($fuel->summary($p['from'], $p['to'], $branch->scopeId()));
+        return ApiResponse::ok($fuel->summary($p['from'], $p['to'], $branch->scopeId()), meta: $this->window($p));
+    }
+
+    /**
+     * What the screen must be told about the window it just got.
+     *
+     * Always present when the plan has a retention window, even on a request
+     * that stayed well inside it — see App\Support\Retention. Absent, and
+     * therefore silent, on a plan that keeps everything.
+     *
+     * @return array<string, mixed>
+     */
+    private function window(array $period): array
+    {
+        return array_filter(['retention' => $period['retention'] ?? null]);
     }
 
     /** Shared period validation + resolution. */

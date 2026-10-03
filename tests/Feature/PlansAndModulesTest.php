@@ -141,17 +141,31 @@ class PlansAndModulesTest extends TestCase
         $this->assertSame(4, PlanLimits::limit($tenant, 'registers'));
     }
 
-    public function test_a_shop_nobody_sized_gets_the_platform_default_not_infinity(): void
+    /**
+     * A SHOP NOBODY SIZED GETS WHAT ITS PLAN INCLUDES — never infinity.
+     *
+     * This used to assert the platform defaults (1 and 5), because no plan
+     * had an opinion about either number. Basic now includes 1 branch and 3
+     * staff, and THAT is what an unsized shop on Basic gets.
+     *
+     * The rule the test is really defending has not changed and is asserted
+     * below: whatever the answer is, it is a number. "As many staff accounts
+     * as you like" is how a shop ends up with forty of them and finds out
+     * during an audit.
+     */
+    public function test_a_shop_nobody_sized_gets_what_its_plan_includes_not_infinity(): void
     {
         $id = $this->asAdmin()->postJson('/api/v1/admin/tenants', $this->payload())
             ->assertCreated()->json('data.id');
 
         $tenant = Tenant::query()->findOrFail($id);
+        $plan = $tenant->plan;
 
-        // "As many branches as you like" is how a shop ends up with forty staff
-        // accounts and finds out during an audit.
-        $this->assertSame(1, PlanLimits::limit($tenant, 'branches'));
-        $this->assertSame(5, PlanLimits::limit($tenant, 'staff'));
+        $this->assertSame($plan->max_branches, PlanLimits::limit($tenant, 'branches'));
+        $this->assertSame($plan->max_staff, PlanLimits::limit($tenant, 'staff'));
+
+        $this->assertNotNull(PlanLimits::limit($tenant, 'branches'));
+        $this->assertNotNull(PlanLimits::limit($tenant, 'staff'));
     }
 
     public function test_a_second_branch_is_a_number_an_admin_raises_not_a_plan_to_buy(): void
@@ -311,9 +325,24 @@ class PlansAndModulesTest extends TestCase
     {
         $plans = $this->asAdmin()->getJson('/api/v1/admin/plans')->assertOk()->json('data');
 
-        $this->assertSame(['basic', 'premium', 'enterprise'], array_column($plans, 'code'));
-        $this->assertSame([2500, 6000, 15000], array_map(fn ($p) => (int) $p['price'], $plans));
-        $this->assertSame([1000, 10000, null], array_map(fn ($p) => $p['limits']['products'], $plans));
+        $this->assertSame(['basic', 'premium', 'pro', 'enterprise'], array_column($plans, 'code'));
+        $this->assertSame([2499, 4999, 7999, 15000], array_map(fn ($p) => (int) $p['price'], $plans));
+
+        /**
+         * THE RUNGS DIFFER IN SOMETHING A BUYER CAN SEE.
+         *
+         * The ladder used to differ in product ceiling and storage, neither
+         * of which a shopkeeper has ever asked about. Branches, staff and
+         * tills are the first three questions on every call, and they were
+         * identical on all three plans — so the ladder being sold did not
+         * exist in the software.
+         */
+        $this->assertSame([1, 3, 10, 50], array_map(fn ($p) => $p['limits']['branches'], $plans));
+        $this->assertSame([3, 10, 25, 200], array_map(fn ($p) => $p['limits']['staff'], $plans));
+        $this->assertSame([1, 3, 8, 50], array_map(fn ($p) => $p['limits']['registers'], $plans));
+        $this->assertSame([5000, 20000, 100000, null], array_map(fn ($p) => $p['limits']['orders_month'], $plans));
+        $this->assertSame([24, 60, 120, null], array_map(fn ($p) => $p['limits']['retention_months'], $plans));
+        $this->assertSame([1000, 10000, null, null], array_map(fn ($p) => $p['limits']['products'], $plans));
 
         // Nothing in a plan says what a shop may DO.
         foreach ($plans as $plan) {
@@ -333,10 +362,29 @@ class PlansAndModulesTest extends TestCase
 
         $codes = array_column($this->asAdmin()->getJson('/api/v1/admin/plans')->json('data'), 'code');
 
-        $this->assertSame(['basic', 'premium', 'enterprise', 'metro-chain'], $codes);
+        $this->assertSame(['basic', 'premium', 'pro', 'enterprise', 'metro-chain'], $codes);
     }
 
-    public function test_a_plan_cannot_be_given_modules_branches_or_staff(): void
+    /**
+     * A PLAN STILL CANNOT SAY WHAT A SHOP MAY DO.
+     *
+     * This test used to cover modules, branches and staff together, and the
+     * three have come apart. The rule was never "a plan may not carry
+     * numbers" — it was that CAPABILITY and CAPACITY are different questions:
+     *
+     *   What a shop may DO  — modules. Decided per shop, by an admin, and a
+     *                         renewal must never silently revoke one. Still
+     *                         forbidden here, and the reason this test keeps
+     *                         its name.
+     *
+     *   How MUCH it may have — products, branches, staff, lanes. This is
+     *                          exactly what a plan is, and leaving branches
+     *                          and staff off it made "Basic" and
+     *                          "Enterprise" identical organisations.
+     *
+     * See `WhatThePlanIncludesTest` for the capacity half.
+     */
+    public function test_a_plan_cannot_be_given_modules(): void
     {
         $this->asAdmin()->postJson('/api/v1/admin/plans', [
             'name' => 'Sneaky', 'code' => 'sneaky', 'price' => 100,
@@ -344,10 +392,14 @@ class PlansAndModulesTest extends TestCase
             'features' => ['pos' => true], 'max_branches' => 9, 'max_staff' => 9,
         ])->assertCreated();
 
-        // Silently ignored rather than stored — there is nowhere for them to go.
         $plan = Plan::query()->where('code', 'sneaky')->first();
+
+        // Silently ignored rather than stored — there is nowhere for it to go.
         $this->assertArrayNotHasKey('features', $plan->getAttributes());
-        $this->assertArrayNotHasKey('max_branches', $plan->getAttributes());
+
+        // Capacity, on the other hand, is the plan's whole job.
+        $this->assertSame(9, $plan->max_branches);
+        $this->assertSame(9, $plan->max_staff);
     }
 
     // ── Registry ─────────────────────────────────────────────────────

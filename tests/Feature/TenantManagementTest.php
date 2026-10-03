@@ -353,12 +353,12 @@ class TenantManagementTest extends TestCase
         $response = $this->asAdmin()->getJson('/api/v1/admin/plans');
 
         $response->assertOk();
-        // One ladder, three rungs. They differ only in size and price — which
+        // One ladder, four rungs. They differ only in size and price — which
         // is why a petrol pump, a restaurant and a books-only office can all
         // sit on the same rung and still each run what their trade needs.
-        $this->assertCount(3, $response->json('data'));
+        $this->assertCount(4, $response->json('data'));
         $this->assertSame(
-            ['basic', 'premium', 'enterprise'],
+            ['basic', 'premium', 'pro', 'enterprise'],
             array_column($response->json('data'), 'code'),
         );
     }

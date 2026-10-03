@@ -7,6 +7,7 @@ use App\Models\SubscriptionPayment;
 use App\Support\ApiResponse;
 use App\Support\Modules;
 use App\Support\PlanLimits;
+use App\Support\Retention;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 
@@ -48,6 +49,18 @@ class SubscriptionController extends Controller
                  */
                 'retention_months' => $plan->retention_months,
             ],
+            /**
+             * THE WINDOW, AS A DATE.
+             *
+             * `retention_months` above is the promise; this is where it
+             * currently falls. A shopkeeper cannot work out "24 months" into
+             * a date while looking at a list that stops, and the date is the
+             * only form of the answer that matches what they are seeing.
+             *
+             * Null on a plan that keeps everything — the screen then says
+             * nothing at all, which is correct.
+             */
+            'history_from' => Retention::horizon($tenant)?->toDateString(),
             'state' => $tenant->subscriptionState(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
             'grace_ends_at' => $tenant->graceEndsAt()?->toIso8601String(),

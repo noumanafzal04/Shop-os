@@ -71,6 +71,13 @@ class MoneyEntryFilters
             $query->whereDate("{$table}.{$dateColumn}", '<=', $to);
         }
 
+        // The plan's history window. Applied after the caller's own `from`
+        // because it is a ceiling on the question, not an answer to it: a
+        // merchant asking for last month gets last month, and one asking for
+        // 2019 on a two-year plan gets the two years they pay for — plus, in
+        // the response meta, the sentence that says so.
+        Retention::fence($query, "{$table}.{$dateColumn}");
+
         // "Anything big" is the question behind most reviews of a cash book.
         if (is_numeric($min = $request->query('min_amount'))) {
             $query->where("{$table}.amount", '>=', (float) $min);

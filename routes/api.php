@@ -1230,6 +1230,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/{tenant}/suspend', [TenantController::class, 'suspend'])->middleware('permission:tenants.suspend');
                 Route::post('/{tenant}/activate', [TenantController::class, 'activate'])->middleware('permission:tenants.suspend');
                 Route::post('/{tenant}/restore', [TenantController::class, 'restore'])->middleware('permission:tenants.delete');
+                // What a plan change would do, BEFORE it does it — the price
+                // difference and, far more importantly, every ceiling this
+                // shop would land over. Writes nothing, so an admin can
+                // compare all four plans without committing to any.
+                Route::get('/{tenant}/plan-change', [TenantController::class, 'planChange'])->middleware('permission:tenants.assign_plan');
                 Route::post('/{tenant}/assign-plan', [TenantController::class, 'assignPlan'])->middleware('permission:tenants.assign_plan');
                 // Account recovery for a locked-out shop owner. Its own
                 // permission, not tenants.update — this one can impersonate a

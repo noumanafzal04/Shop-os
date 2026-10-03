@@ -17,6 +17,7 @@ use App\Support\ApiResponse;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
+use App\Support\Retention;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +33,13 @@ class SaleController extends Controller
             ->orderByDesc('sold_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
-        return ApiResponse::paginated($sales);
+        // What the plan keeps online, said on every read and not only on the
+        // one that hits the wall. A shopkeeper who scrolls to the bottom of
+        // 24 months and finds nothing older must be told why, or the only
+        // available reading is that the records were lost.
+        return ApiResponse::paginated($sales, meta: array_filter([
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 
     /**
@@ -108,6 +115,9 @@ class SaleController extends Controller
             ->when($request->query('payment_method'), fn ($q, $method) => $q->where('payment_method', $method))
             ->when($request->query('served_by'), fn ($q, $seller) => $q->where('served_by', $seller))
             ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
+            // The plan's window. Archived, never deleted: raise the plan and
+            // the same rows come back, because nothing removed them.
+            ->tap(fn (Builder $q) => Retention::fence($q, 'sold_at'))
             // The whole of the day it names. Midnight would drop everything
             // rung during it, and "today" is the range this screen is opened
             // with.

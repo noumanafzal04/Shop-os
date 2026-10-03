@@ -13,6 +13,8 @@ use App\Http\Requests\Purchase\ReceivePurchaseOrderRequest;
 use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
 use App\Support\ApiResponse;
+use App\Support\Retention;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -26,10 +28,18 @@ class PurchaseOrderController extends Controller
             ->when($request->query('search'), fn ($q, $s) => $q->where('po_number', 'like', "%{$s}%"))
             ->when($request->query('status'), fn ($q, $st) => $q->where('status', $st))
             ->when($request->query('supplier_id'), fn ($q, $id) => $q->where('supplier_id', $id))
+            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
+            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
+            // Older paperwork is archived with everything else. A received PO
+            // has already moved the stock, and that stock level is NOT fenced
+            // — see App\Support\Retention on why a balance never is.
+            ->tap(fn (Builder $q) => Retention::fence($q, 'purchase_orders.created_at'))
             ->orderByDesc('created_at')
             ->paginate(min((int) $request->query('per_page', 15), 100));
 
-        return ApiResponse::paginated($orders);
+        return ApiResponse::paginated($orders, meta: array_filter([
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 
     public function store(StorePurchaseOrderRequest $request, CreatePurchaseOrderAction $action): JsonResponse

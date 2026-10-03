@@ -12,6 +12,7 @@ use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\MoneyEntryFilters;
 use App\Support\ReceiptFiles;
+use App\Support\Retention;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,7 +41,10 @@ class ExpenseController extends Controller
 
         $expenses = $query->paginate(min((int) $request->query('per_page', 15), 100));
 
-        return ApiResponse::paginated($expenses, 'OK', ['totals' => $totals]);
+        return ApiResponse::paginated($expenses, 'OK', array_filter([
+            'totals' => $totals,
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 
     /**

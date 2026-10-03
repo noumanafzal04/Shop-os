@@ -32,6 +32,11 @@ class UpdatePlanRequest extends FormRequest
             'max_orders_month' => ['sometimes', 'nullable', 'integer', 'min:1'],
             // Months, so eighteen is sayable. Null = no limit, which is what
             // every plan had before the column existed and what it keeps.
+            // Organisation size the plan includes. Null = the plan says
+            // nothing and the platform default applies — see PlanResource.
+            'max_branches' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1000'],
+            'max_staff' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:10000'],
+            'max_registers' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1000'],
             'retention_months' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1200'],
             'is_active' => ['sometimes', 'boolean'],
             'is_custom' => ['sometimes', 'boolean'],

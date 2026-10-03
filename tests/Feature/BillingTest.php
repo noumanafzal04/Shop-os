@@ -227,7 +227,7 @@ class BillingTest extends TestCase
         $this->asAdmin()->getJson('/api/v1/admin/billing/payments')
             ->assertOk()
             ->assertJsonPath('meta.pagination.total', 1)
-            ->assertJsonPath('data.0.plan_name', 'Premium');
+            ->assertJsonPath('data.0.plan_name', 'Standard');
 
         $this->asAdmin()->getJson("/api/v1/admin/billing/payments?tenant_id={$tenant->id}")
             ->assertOk()

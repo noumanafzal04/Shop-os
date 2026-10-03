@@ -476,6 +476,92 @@ class TenantController extends Controller
         );
     }
 
+    /**
+     * WHAT WOULD CHANGE — asked before anything does.
+     *
+     * Moving a shop between plans is the one admin action whose consequences
+     * are invisible at the moment it is taken. The price difference an admin
+     * can work out; what they cannot work out from a dropdown is that this
+     * particular shop has six staff accounts and the plan they are about to
+     * choose includes three.
+     *
+     * ── Nothing is refused, and nothing is deleted ──────────────────────
+     *
+     * A downgrade that leaves a shop over its new ceiling is allowed. It is
+     * an ordinary commercial situation — a chain closing a branch next month,
+     * a seasonal business shrinking its team — and the software's job is to
+     * SAY SO, not to decide. Three answers follow from being told: remove the
+     * excess, buy an add-on, or leave it. All three are the admin's.
+     *
+     * What must never happen is the fourth: the plan changes, seven staff
+     * accounts stop working on Monday morning, and nobody was warned. That is
+     * what this endpoint exists to prevent.
+     *
+     * It is a GET. It writes nothing, so an admin can flick through all four
+     * plans and see each outcome before committing to any of them.
+     */
+    public function planChange(Request $request, string $id): JsonResponse
+    {
+        $tenant = Tenant::query()->with('plan')->findOrFail($id);
+        $next = Plan::query()->findOrFail($request->query('plan_id'));
+
+        $now = PlanLimits::snapshot($tenant);
+
+        /**
+         * The same shop, reading the other plan — in memory only.
+         *
+         * `setRelation` rather than a save-and-rollback: a preview that
+         * touches the row would have the shop briefly, genuinely on the new
+         * plan, and anything reading it in that instant (a sale, a sync, a
+         * second admin) would see a change nobody has agreed to.
+         */
+        $hypothetical = clone $tenant;
+        $hypothetical->plan_id = $next->id;
+        $hypothetical->setRelation('plan', $next);
+        $after = PlanLimits::snapshot($hypothetical);
+
+        $byKey = collect($after)->keyBy('key');
+
+        $rows = collect($now)->map(function (array $row) use ($byKey): array {
+            $to = $byKey[$row['key']] ?? $row;
+
+            return [
+                'key' => $row['key'],
+                'label' => $row['label'],
+                'used' => $row['used'],
+                'from' => $row['limit'],
+                'to' => $to['limit'],
+                // Positive only. A shop under its new ceiling has no excess,
+                // and reporting a negative "excess" would read as a credit.
+                'excess' => ($to['limit'] === null || $row['used'] <= $to['limit'])
+                    ? 0
+                    : $row['used'] - $to['limit'],
+                'blocks' => $to['blocks'] ?? false,
+            ];
+        })->values();
+
+        return ApiResponse::ok([
+            'from' => ['id' => $tenant->plan?->id, 'name' => $tenant->plan?->name, 'price' => $tenant->plan?->price],
+            'to' => ['id' => $next->id, 'name' => $next->name, 'price' => $next->price],
+            // Signed, and per billing period rather than per month: a shop
+            // moving from a monthly plan to an annual one is not "paying
+            // 12x more".
+            'price_difference' => round((float) $next->price - (float) ($tenant->plan?->price ?? 0), 2),
+            'billing_period_months' => $next->billing_period_months,
+            'rows' => $rows,
+            /**
+             * The rows an admin has to make a decision about, separated out
+             * so the warning does not depend on anybody scanning a table of
+             * eleven.
+             *
+             * `blocks` is the sharp half: being over the bills meter is a
+             * conversation, being over the staff ceiling means nobody can
+             * add the next account.
+             */
+            'excess' => $rows->filter(fn (array $r): bool => $r['excess'] > 0)->values(),
+        ]);
+    }
+
     public function assignPlan(AssignPlanRequest $request, string $id, AssignPlanAction $action): JsonResponse
     {
         $tenant = $action->execute(

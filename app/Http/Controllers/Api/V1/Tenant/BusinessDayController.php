@@ -11,6 +11,8 @@ use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\DrawerMath;
 use App\Support\Permissions;
+use App\Support\Retention;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -145,10 +147,17 @@ class BusinessDayController extends Controller
             ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('trading_date', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('trading_date', '<=', $request->date('to')))
+            // Closed days are history. The day currently TRADING is not, and
+            // `current()` above does not go through here — a shop whose plan
+            // window had somehow swallowed today would otherwise be unable to
+            // see its own open till.
+            ->tap(fn (Builder $q) => Retention::fence($q, 'trading_date'))
             ->orderByDesc('trading_date')
             ->paginate(30);
 
-        return ApiResponse::paginated($days);
+        return ApiResponse::paginated($days, meta: array_filter([
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 
     public function show(string $id): JsonResponse
@@ -195,10 +204,13 @@ class BusinessDayController extends Controller
             ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->filled('from'), fn ($q) => $q->whereDate('deposited_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('deposited_at', '<=', $request->date('to')))
+            ->tap(fn (Builder $q) => Retention::fence($q, 'deposited_at'))
             ->orderByDesc('deposited_at')
             ->paginate(30);
 
-        return ApiResponse::paginated($deposits);
+        return ApiResponse::paginated($deposits, meta: array_filter([
+            'retention' => Retention::notice($request->query('from')),
+        ]));
     }
 
     /**

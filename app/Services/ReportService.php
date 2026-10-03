@@ -12,6 +12,7 @@ use App\Models\SaleReturnItem;
 use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Support\Payable;
+use App\Support\Retention;
 use App\Support\Takings;
 use App\Support\TaxYear;
 use Carbon\CarbonImmutable;
@@ -32,10 +33,42 @@ class ReportService
     /**
      * @return array{from: string, to: string, granularity: string}
      */
+    /**
+     * The window a report covers — and how far back this shop may look.
+     *
+     * The clamp lives HERE, at the one door every report goes through, for
+     * the reason the module docblock gives: a rule applied to one half of a
+     * surface is worse than no rule, because the half that obeys it makes the
+     * half that doesn't look authoritative. Thirteen report endpoints resolve
+     * their period through this method; none of them has to remember.
+     *
+     * A clamp moves `from` FORWARD only. A chart drawn from the clamped dates
+     * is therefore a true chart of a shorter window, never a window padded
+     * with zeroes the shop did not trade.
+     */
     public function resolvePeriod(string $period, ?string $from, ?string $to): array
     {
         $today = CarbonImmutable::today();
 
+        $resolved = $this->windowFor($period, $from, $to, $today);
+        $asked = $resolved['from'];
+        $resolved['from'] = Retention::clamp($asked) ?? $asked;
+        $resolved['retention'] = Retention::notice($asked);
+
+        // A window entirely behind the horizon would otherwise come back with
+        // `to` before `from` — a silently empty report. Saying so is the
+        // whole point; an empty report that explains itself is honest, one
+        // that doesn't is a bug report.
+        if (CarbonImmutable::parse($resolved['from'])->greaterThan(CarbonImmutable::parse($resolved['to']))) {
+            $resolved['to'] = $resolved['from'];
+        }
+
+        return $resolved;
+    }
+
+    /** @return array{from: string, to: string, granularity: string} */
+    private function windowFor(string $period, ?string $from, ?string $to, CarbonImmutable $today): array
+    {
         return match ($period) {
             'daily' => ['from' => $today->toDateString(), 'to' => $today->toDateString(), 'granularity' => 'day'],
             'weekly' => ['from' => $today->startOfWeek()->toDateString(), 'to' => $today->endOfWeek()->toDateString(), 'granularity' => 'day'],

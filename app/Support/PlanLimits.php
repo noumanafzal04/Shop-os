@@ -73,14 +73,20 @@ class PlanLimits
         // image byte accounting lands.
         'storage_mb' => ['owner' => 'plan', 'column' => 'max_storage_mb', 'label' => 'MB of storage', 'enforced' => false],
 
-        // ── Assigned to the shop itself ─────────────────────────────────
+        // ── The size of the organisation ────────────────────────────────
+        //
+        // The plan says what is INCLUDED, the admin may override it for one
+        // shop, and an entitlement adds on top. Null on the plan column is
+        // not "unlimited" the way it is above — it is "this plan has no
+        // opinion", and the shop falls to `default`. See `baseline()`.
+        //
         // The default "Main" branch counts, so 1 means Main and no more.
-        'branches' => ['owner' => 'tenant', 'default' => 1, 'label' => 'branches', 'enforced' => true],
+        'branches' => ['owner' => 'tenant', 'column' => 'max_branches', 'default' => 1, 'label' => 'branches', 'enforced' => true],
         // The owner is not "staff" — only additional accounts count.
-        'staff' => ['owner' => 'tenant', 'default' => 5, 'label' => 'staff members', 'enforced' => true],
+        'staff' => ['owner' => 'tenant', 'column' => 'max_staff', 'default' => 5, 'label' => 'staff members', 'enforced' => true],
         // Checkout lanes. A single-counter shop needs no register row at all,
         // so most tenants sit at zero used.
-        'registers' => ['owner' => 'tenant', 'default' => 2, 'label' => 'registers', 'enforced' => true],
+        'registers' => ['owner' => 'tenant', 'column' => 'max_registers', 'default' => 2, 'label' => 'registers', 'enforced' => true],
         // How long a till may keep SELLING with no contact with the server.
         //
         // Not enforced through assert(): nothing is being created, so there is
@@ -93,7 +99,7 @@ class PlanLimits
         // expiry at all, and a sale rung forty days ago still syncs and is
         // still accepted. Expiring the queue along with the selling window is
         // how offline systems lose money.
-        'offline_days' => ['owner' => 'tenant', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy'],
+        'offline_days' => ['owner' => 'tenant', 'column' => 'max_offline_days', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy'],
         // May this shop's tills SELL with no server at all?
         //
         // The kill switch, and the reason it is a separate key rather than
@@ -115,7 +121,7 @@ class PlanLimits
         // Defaults to 0. A shop gets offline selling when an admin decides it
         // does, after shadow mode has actually proved the pricing mirror on
         // that shop's own carts.
-        'offline_selling' => ['owner' => 'tenant', 'default' => 0, 'label' => 'offline selling (0 = off, 1 = on)', 'enforced' => false, 'kind' => 'policy'],
+        'offline_selling' => ['owner' => 'tenant', 'column' => 'max_offline_selling', 'default' => 0, 'label' => 'offline selling', 'enforced' => false, 'kind' => 'policy', 'switch' => true],
         // The point past which a till stops trading blind altogether.
         //
         // `offline_days` MARKS; this REFUSES, and the two are deliberately
@@ -145,7 +151,7 @@ class PlanLimits
         //
         // Not the queue, either. Sales already rung sync for ever, like every
         // other offline rule here — see `offline_selling`.
-        'offline_hard_stop_days' => ['owner' => 'tenant', 'default' => 0, 'label' => 'hard stop after N days offline (0 = never)', 'enforced' => false, 'kind' => 'policy'],
+        'offline_hard_stop_days' => ['owner' => 'tenant', 'default' => 0, 'label' => 'hard stop after N days offline', 'enforced' => false, 'kind' => 'policy', 'zero_means' => 'never'],
     ];
 
     /** Is this a number of rows the shop owns, rather than a rule about behaviour? */
@@ -234,12 +240,28 @@ class PlanLimits
             return null;
         }
 
-        if ($meta['owner'] === 'tenant') {
-            return $meta['default'];
-        }
-
         $tenant->loadMissing('plan');
-        $planLimit = $tenant->plan?->{$meta['column']};
+        $planLimit = isset($meta['column']) ? $tenant->plan?->{$meta['column']} : null;
+
+        /**
+         * THE SAME COLUMN, TWO MEANINGS — on purpose.
+         *
+         * Plan-owned: null = UNLIMITED. That is what a plan is for; a shop
+         * on a plan with no product ceiling has no product ceiling.
+         *
+         * Organisation size: null = THIS PLAN HAS NO OPINION, and the shop
+         * falls to the platform default. These are never unlimited, because
+         * "however many staff accounts you like" is how a shop ends up with
+         * forty of them and finds out in an audit.
+         *
+         * Collapsing the two would have been tidier and wrong in the
+         * dangerous direction: every plan that pre-dates these columns holds
+         * null in all three, so the tidy reading would hand every existing
+         * shop on the platform unlimited branches overnight.
+         */
+        if ($meta['owner'] === 'tenant') {
+            return $planLimit === null ? $meta['default'] : (int) $planLimit;
+        }
 
         return $planLimit === null ? null : (int) $planLimit;
     }
@@ -412,7 +434,7 @@ class PlanLimits
      *
      * @param  array<string, mixed>  $meta
      */
-    private static function band(int $used, ?int $limit, array $meta): ?string
+    private static function band(int $used, ?int $limit, array $meta, int $grace = 0): ?string
     {
         if ($limit === null || $limit <= 0 || ($meta['kind'] ?? 'count') !== 'count') {
             return null;
@@ -420,12 +442,57 @@ class PlanLimits
 
         $pct = $used / $limit * 100;
 
+        /**
+         * PAST THE CEILING, AND STILL TRADING.
+         *
+         * `reached` has become three words, because one word was being asked
+         * to describe two situations that call for different phone calls:
+         *
+         *   reached  at the included figure. Nothing is wrong; the shop has
+         *            had what it paid for.
+         *   grace    past it, inside the room the plan allows. This is the
+         *            upsell conversation, and it is NOT an incident.
+         *   over     past the grace as well. Still not a block — see
+         *            `assert()` — but now an account someone must ring.
+         *
+         * Collapsing these would mean a shop one bill over its allowance and
+         * a shop four thousand over read identically on the admin's screen,
+         * which is how the second one goes unnoticed for a month.
+         */
         return match (true) {
+            $grace > 0 && $used > $limit + $grace => 'over',
+            $grace > 0 && $used > $limit => 'grace',
+            // No grace on this plan, and past the number: there is no room
+            // left to be inside, so it is straight to the word that means
+            // somebody should ring them.
+            $grace === 0 && $used > $limit => 'over',
             $pct >= 100 => 'reached',
             $pct >= self::CRITICAL => 'critical',
             $pct >= self::NEARING => 'nearing',
             default => 'ok',
         };
+    }
+
+    /**
+     * HOW FAR PAST THE INCLUDED FIGURE A SHOP MAY GO.
+     *
+     * Only the bills meter has one. A shop cannot "slightly exceed" its
+     * branches — it either opened a fourth shop or it did not — but bills a
+     * month is a forecast, and a forecast that turns into a locked till on
+     * the 22nd is the single worst thing this software could do to a
+     * business.
+     *
+     * Zero, and therefore no grace at all, on a plan that has not set one.
+     */
+    public static function grace(Tenant $tenant, string $key): int
+    {
+        if ($key !== 'orders_month') {
+            return 0;
+        }
+
+        $tenant->loadMissing('plan');
+
+        return max(0, (int) ($tenant->plan?->grace_orders_month ?? 0));
     }
 
     public static function snapshot(Tenant $tenant): array
@@ -484,7 +551,29 @@ class PlanLimits
                 'percent' => ($limit === null || $limit <= 0)
                     ? null
                     : min(999, (int) round($used / $limit * 100)),
-                'band' => self::band($used, $limit, $meta),
+                'band' => self::band($used, $limit, $meta, $grace = self::grace($tenant, $key)),
+                /**
+                 * The room past the included figure, and where it ends.
+                 * Both, because "1,000 grace" and "up to 6,000" are the same
+                 * fact and a shopkeeper reads only one of them without
+                 * arithmetic.
+                 */
+                'grace' => $grace > 0 ? $grace : null,
+                'grace_until' => ($grace > 0 && $limit !== null) ? $limit + $grace : null,
+                /**
+                 * NOBODY IS BLOCKED BY THIS ROW.
+                 *
+                 * Stated per row rather than left to the reader, because
+                 * `enforced` is about whether a WRITE is refused and says
+                 * nothing about whether the till keeps working. A shop over
+                 * its bills allowance goes on selling; a shop at its branch
+                 * ceiling cannot open a fourth branch. Same screen, very
+                 * different consequences.
+                 */
+                'blocks' => $meta['enforced'] && ($meta['kind'] ?? 'count') === 'count',
+                /** A yes/no that renders as a switch, not a 0 / 1 bar. */
+                'switch' => (bool) ($meta['switch'] ?? false),
+                'zero_means' => $meta['zero_means'] ?? null,
             ];
         })->values()->all();
     }
