@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE LAUNCHER ICON'S GROUND, as a RAMP rather than a flat fill.
+
+  `ic_launcher.xml` used to say the background was "a flat colour rather than
+  a bitmap: one hex to change, and nothing to re-render at five densities when
+  the brand moves". That argument was about a BITMAP, and it still holds —
+  this is a vector shape, so there is nothing to re-render and still one place
+  to change.
+
+  It is a ramp because the supplied artwork is: a rounded square running from
+  a deep teal at the top-left to a near-black teal at the bottom-right. A flat
+  fill of the lighter end is a different logo.
+
+  `startColor` is `@color/ic_launcher_background`, so the hex still lives in
+  `colors.xml` beside the window colour it has to stay in the same family as —
+  and `splashAndIntro.test.ts` can still read it there.
+
+  Angle 315: Android measures anticlockwise from "left to right", so 315 runs
+  top-left to bottom-right. 45 would run the artwork backwards.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="315"
+        android:startColor="@color/ic_launcher_background"
+        android:endColor="#062E33" />
+</shape>

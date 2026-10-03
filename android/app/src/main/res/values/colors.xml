@@ -8,25 +8,34 @@
       read `src/theme/tokens.ts` — see `src/common/brand.ts` for the rest of
       what a rename has to touch.
 
-      THE SHOPPING SIDE'S GREEN, and getting this wrong was a real bug rather
-      than a preference. This app has two palettes and `ThemeProvider` decides
-      which side wears which: shopping is EMERALD, working is CARMINE. Android
+      THE SHOPPING SIDE'S OCEAN, and getting this wrong was a real bug rather
+      than a preference. This app has two palettes and `palettes.ts` decides
+      which side wears which: shopping is MEADOW, working is CARMINE. Android
       cannot ask — this frame is painted before the process exists, let alone
       the store — so it is painted for the answer true of almost everybody and
       stated by the store listing from its first frame: customer.
 
       It was once #E94E00, and a shopper tapped an orange icon, waited behind
       an orange sheet and arrived in a green app. `splashAndIntro.test.ts`
-      asserts this hex against `emeraldThemes.light.primary` so the two cannot
+      asserts this hex against `meadowThemes.light.primary` so the two cannot
       drift again.
     -->
-    <color name="brand">#10B981</color>
+    <color name="brand">#1A759F</color>
     <!--
-      The launcher icon's ground. The same brand green, named separately
-      because it is read by `mipmap-anydpi-v26/ic_launcher.xml` and a colour
-      the LAUNCHER holds is not the same fact as the colour the splash frame
-      holds — one of them can change without the other.
+      THE LAUNCHER ICON'S GROUND — the LOGO's teal, not the app's primary.
+
+      These were the same hex, on the reasoning that "the icon's ground, the
+      window and the splash are one fact in three files". That held while the
+      icon was a glyph this repo drew. It is supplied artwork now: a rounded
+      square whose ground is its own deep teal, with the T mark on it, and a
+      launcher icon is the one place the ARTWORK decides rather than the
+      palette.
+
+      The two are still one FAMILY — #0B4A50 against the splash's #1A759F —
+      so the original complaint is still answered. That complaint was never
+      "these hexes differ"; it was a green icon opening an orange app, 150
+      degrees away on the hue wheel. These are 8 degrees apart.
     -->
-    <color name="ic_launcher_background">#10B981</color>
-    <color name="brand_dark">#059669</color>
+    <color name="ic_launcher_background">#0B4A50</color>
+    <color name="brand_dark">#1E6091</color>
 </resources>

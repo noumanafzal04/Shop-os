@@ -90,11 +90,24 @@ interface Slide {
  * a blue, which are neighbours of it rather than of the orange. The three
  * still read as a set — that was always the point — and now the set belongs to
  * the app the slides are introducing.
+ *
+ * ── THREE STEPS DOWN THE REFERENCE STRIP ────────────────────────────
+ *
+ * They were an olive, a teal and a navy — chosen as neighbours of a green
+ * brand, which is what the app wore then. The strip in `tokens.ts` makes this
+ * easy and literal now: the slides walk it from the fresh end to the deep
+ * end, so the introduction ARRIVES at the colour the home screen's header is
+ * painted in. The last slide's ground is #184E77, which is the hero
+ * gradient's own first stop.
+ *
+ * Deeper than the strip's own pigments at the fresh end, and that is forced:
+ * these are full-bleed panels carrying white type, and #76C893 is 2:1 against
+ * white. The HUES are the strip's; the lightness is what a text ground needs.
  */
 const PANEL = {
-  leaf: ["#3f6f14", "#d8ecb8"],
-  teal: ["#11544c", "#bfe6df"],
-  blue: ["#14477e", "#c2dcf7"],
+  leaf: ["#2a6b45", "#cfeedd"],
+  teal: ["#145f6b", "#c6e9ee"],
+  blue: ["#184e77", "#cde1f0"],
 } as const;
 
 const SLIDES: Slide[] = [

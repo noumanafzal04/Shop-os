@@ -9,10 +9,11 @@
   against the canvas — the first version had its handle clipped off by the
   circular mask and read as a floating box.
 
-  The background is a flat colour rather than a bitmap: one hex to change, and
-  nothing to re-render at five densities when the brand moves.
+  The background is a vector RAMP, not a bitmap and not a flat fill — see
+  `drawable/ic_launcher_ground.xml` for why the artwork needs the ramp and why
+  that still costs one hex to change.
 -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background" />
+    <background android:drawable="@drawable/ic_launcher_ground" />
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>

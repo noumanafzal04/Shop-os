@@ -15,6 +15,11 @@ buildscript {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+        // Firebase. Reads `app/google-services.json` at build time and turns
+        // it into resources the SDK looks up at runtime — which is why a
+        // missing file is a BUILD failure here rather than a silent no-op on a
+        // phone, and why the file is gitignored but required.
+        classpath("com.google.gms:google-services:4.4.2")
     }
 }
 

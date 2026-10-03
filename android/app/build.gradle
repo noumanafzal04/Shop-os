@@ -1,4 +1,10 @@
 apply plugin: "com.android.application"
+
+/**
+ * Firebase, AFTER the android plugin — it reads the applicationId to pick the
+ * matching client out of google-services.json.
+ */
+apply plugin: "com.google.gms.google-services"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 

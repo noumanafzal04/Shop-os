@@ -1,35 +1,27 @@
 /**
- * The product's name, in ONE place.
+ * This app's name — the product's, with nothing added.
  *
- * The name is expected to change again, so nothing anywhere else may spell it
- * out. A screen that needs the name imports `BRAND.name`; a test that checks
- * the name asserts against `BRAND.name` too, so a rename is one edit and the
- * suite follows it rather than failing.
+ * ── The name itself lives in `@cartze/core/brand` ────────────────────
  *
- * ── What belongs here, and what emphatically does not ──────────────────
+ * It used to be written out on the line below, and the shop app wrote it out
+ * on a line of its own, and the panel wrote it out in seventy-three page
+ * titles. Three "one places" is not one place, and they had already drifted
+ * apart — two apps said CartZe while the panel said True Serve.
  *
- * BRANDING is what a person reads: the wordmark, a page title, the line under
- * a permission prompt. All of that lives here.
- *
- * An ADDRESS is not branding, even when it happens to contain the old name.
- * These keep their spelling for ever, because renaming one does not move the
- * data it points at — it points somewhere empty and the data is simply gone:
- *
- *   `shopos.auth`      the Keychain service holding the session. Rename it and
- *                      every signed-in user is signed out, silently.
- *   `shopos-*`         the web panel's IndexedDB / localStorage keys. The
- *                      offline outbox lives in one of them — see the panel's
- *                      `storageKeys.test.ts`, which is mutation-proven.
- *
- * If one of those ever has to change it is a MIGRATION that reads the old name
- * and writes the new, never a find-and-replace.
+ * So this file keeps only what is TRUE OF THIS APP: the version a person
+ * reads on a support call, and the addresses below that do not follow a
+ * rename. `PRODUCT` owns the rest. See its docblock for the branding-versus-
+ * address rule, which is why `domain`, `scheme`, `shopos.auth` and
+ * `com.shoposmobile` all keep their old spelling.
  */
-export const BRAND = {
-  /** What a person reads. Change this line to rename the product. */
-  name: "CartZe",
+import { PRODUCT, productName } from "@cartze/core/brand";
 
-  /** Where the marketing site lives. Shown in support copy, never fetched. */
-  domain: "cartze.shop",
+export const BRAND = {
+  /** The product's own name, unqualified — this IS the customer app. */
+  name: productName(),
+
+  /** An ADDRESS, not branding. Shown in support copy, never fetched. */
+  domain: PRODUCT.domain,
 
   /**
    * WHAT IS INSTALLED, as a person reads it.
@@ -47,29 +39,26 @@ export const BRAND = {
   version: "1.2.0",
 
   /**
-   * The deep-link scheme, e.g. `cartze://orders/123`.
-   *
-   * NOT derived from `name`: it is registered in native config, so changing it
-   * here alone would leave a scheme the OS never routes. To change it you must
-   * also edit `android/app/src/main/AndroidManifest.xml` and the iOS
-   * `CFBundleURLSchemes`, and links already sent to phones stop resolving.
-   *
-   * Neither platform registers one yet, so today this only strips a prefix a
-   * notification might carry.
+   * The deep-link scheme, e.g. `cartze://orders/123`. An ADDRESS — see
+   * `PRODUCT`. Registered in native config, so changing it in JavaScript
+   * alone would leave a scheme the OS never routes, and links already sent to
+   * phones would stop resolving.
    */
-  scheme: "cartze",
+  scheme: PRODUCT.scheme,
 } as const;
 
 /**
  * ── Renaming checklist ────────────────────────────────────────────────
  *
- * Native platforms cannot read a TypeScript constant, so a rename is this file
- * plus two label resources. Listed here so it is a checklist and not a hunt:
+ * Edit `PRODUCT.name` in `@cartze/core/brand`. That is everything drawn in
+ * JavaScript, in all three clients.
  *
- *   1. `BRAND.name` above                        — everything drawn in JS
- *   2. `android/app/src/main/res/values/strings.xml`  → `app_name`
- *      (the label under the launcher icon)
- *   3. iOS `Info.plist` → `CFBundleDisplayName`  (same, on iOS)
+ * Native platforms cannot read a TypeScript constant, so two label resources
+ * follow by hand — and they are not left to memory. `appName.test.ts` reads
+ * both and fails naming the exact value to paste:
+ *
+ *   1. `android/app/src/main/res/values/strings.xml`  → `app_name`
+ *   2. iOS `Info.plist` → `CFBundleDisplayName`
  *
  * These four are IDENTIFIERS and stay as they are, whatever the product is
  * called. They are how the OS and the app stores know this app apart from
@@ -81,5 +70,5 @@ export const BRAND = {
  *   `com.shoposmobile`                   Android applicationId — the Play
  *                                        Store listing itself
  *   `ShoposMobile.xcodeproj`             the iOS target
- *   `shopos.auth`                        the Keychain service (see above)
+ *   `shopos.auth`                        the Keychain service (see `PRODUCT`)
  */

@@ -31,7 +31,7 @@ import { toast } from "../../../common/ui/toast";
 import { money } from "../../../common/format";
 import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../../marketplace/shopFacts";
-import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { askForLocation, currentPosition } from "../../../services/position";
 import { useRiderActions, useRiderBoard, useRiderProfile } from "../hooks/useRider";
@@ -80,9 +80,6 @@ const BLOCK_TITLES: Record<string, string> = {
 
 export function RiderHomeScreen() {
   const c = useColors();
-  // Dark glyphs on the light page, light on the dark one — the phone's theme,
-  // not the brand's. The band this used to paint behind the status bar is gone.
-  const { isDark } = useTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   // The board is a root tab in rider mode, so the left slot is the way into
@@ -245,7 +242,7 @@ export function RiderHomeScreen() {
      * `edges` drops "top" because the hero paints under the status bar itself.
      */
     <SafeScreen backgroundColor={c.bg} edges={["top", "bottom"]}>
-      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
+      <FocusedStatusBar background={c.bg} />
       <SideMenu visible={menu} onClose={() => setMenu(false)} />
 
       <FlatList

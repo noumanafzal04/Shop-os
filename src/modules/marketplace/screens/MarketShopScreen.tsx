@@ -522,7 +522,10 @@ export function MarketShopScreen() {
 
   const contactShop = () => {
     if (shop.data?.phone) {
-      Alert.alert(shop.data.business_name, `📞 ${shop.data.phone}`);
+      // No emoji. A native alert draws whatever the OS has for it, at a
+      // weight nothing in this app controls, and the number alone is already
+      // unambiguous under the shop's name.
+      Alert.alert(shop.data.business_name, shop.data.phone);
     } else {
       Alert.alert("Sign in required", "Log in to see this shop's contact number.");
     }
@@ -657,7 +660,25 @@ export function MarketShopScreen() {
               </View>
             ) : (
               <View style={styles.modePill}>
-                <Text style={styles.modePillText}>{hasDelivery ? "🚚 Delivery only" : "🏬 Pickup only"}</Text>
+                {/*
+                  A GLYPH FROM THE APP'S OWN SET, not an emoji.
+
+                  This read "🚚 Delivery only" / "🏬 Pickup only". The emoji
+                  is drawn by the phone's font, so it is a different picture
+                  on every make of handset and at a different weight from the
+                  two Phosphor icons six points below it in the same card —
+                  the exact complaint `tileArt.tsx` records about the
+                  illustrations it replaced: "fake sy icon lg rhy, emoji".
+
+                  The same two icons the info card uses, so a shop that
+                  delivers is marked with the same motorcycle in both places.
+                */}
+                {hasDelivery ? (
+                  <MotorcycleIcon size={15} color={c.brand[700]} />
+                ) : (
+                  <BagIcon size={15} color={c.brand[700]} />
+                )}
+                <Text style={styles.modePillText}>{hasDelivery ? "Delivery only" : "Pickup only"}</Text>
               </View>
             )}
           </View>
@@ -821,7 +842,7 @@ export function MarketShopScreen() {
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <FocusedStatusBar style="dark-content" background={c.bg} />
+      <FocusedStatusBar background={c.bg} />
       {/*
         ── THE PINNED TOP, AND WHY IT GREW A HEADER ──────────────────
 
@@ -1345,6 +1366,11 @@ const makeStyles = (c: ThemeColors) =>
   toggleText: { ...typography.label, color: c.gray[500], fontSize: 13 },
   toggleTextOn: { color: c.brand[700] },
   modePill: {
+    // A row now, because it carries a glyph beside its label — see the pill
+    // itself for why that is not an emoji any more.
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: c.brand[50],
     borderRadius: 18,
     paddingHorizontal: spacing.lg,

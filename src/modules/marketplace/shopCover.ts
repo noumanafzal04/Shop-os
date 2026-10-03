@@ -58,24 +58,40 @@ export interface ShopCover {
  *
  * Every pairing below is at least 6:1, which is the level a single large
  * letter needs and comfortably above the 4.5:1 floor.
+ *
+ * ── THEY ARE THE REFERENCE STRIP'S OWN HUES NOW ─────────────────────
+ *
+ * The set this replaced was peach, apricot, amber, olive, clay and sand —
+ * warm, and correct, for a brand that was #E94E00. The brand is an ocean
+ * blue. `themes.ts` spends a long comment on exactly this mistake at a
+ * larger size: a warm neutral under a cool brand reads as a beige page with
+ * somebody else's wordmark on it, and a WALL of warm cards is the same
+ * defect with more of the screen given over to it.
+ *
+ * So the six are sampled along the Meadow strip — hues 73, 92, 112, 141, 166
+ * and 199 degrees — at one lightness. That is a 126-degree span rather than
+ * the full circle, which is less texture than a free choice of six hues
+ * would give; it is the right trade, because the job here is "tell these
+ * apart at a glance", not "be as different as possible", and a grid that
+ * belongs to the app does the first job better than a rainbow that does not.
  */
 const LIGHT: ShopCover[] = [
-  { bg: "#ffd9c2", fg: "#8f2e00" }, // peach — the brand's own hue
-  { bg: "#ffe9cc", fg: "#8a4a00" }, // apricot
-  { bg: "#faeec0", fg: "#6a5000" }, // amber
-  { bg: "#dfefc4", fg: "#3f5f12" }, // olive
-  { bg: "#ffdcd2", fg: "#9a2f16" }, // clay
-  { bg: "#ece2da", fg: "#5b483b" }, // sand
+  { bg: "#e9f1ce", fg: "#4a5c07" }, // lime    6.4:1
+  { bg: "#def1ce", fg: "#2f5c07" }, // sprout  6.6:1
+  { bg: "#d2f1ce", fg: "#135c07" }, // leaf    6.7:1
+  { bg: "#cef1da", fg: "#075c25" }, // fern    6.7:1
+  { bg: "#cef1e8", fg: "#075c48" }, // sea     6.6:1
+  { bg: "#cee6f1", fg: "#07415c" }, // ocean   8.5:1
 ];
 
 /** The same six, for a near-black page: deep ground, light ink. */
 const DARK: ShopCover[] = [
-  { bg: "#3a2318", fg: "#ffb894" },
-  { bg: "#3b2a14", fg: "#f5c98a" },
-  { bg: "#332d12", fg: "#ebd37e" },
-  { bg: "#232d14", fg: "#b9d97f" },
-  { bg: "#3a211a", fg: "#ffaf98" },
-  { bg: "#2b2420", fg: "#d5c4b6" },
+  { bg: "#2d3218", fg: "#cadd88" }, // lime    9.0:1
+  { bg: "#243218", fg: "#b0dd88" }, // sprout  8.8:1
+  { bg: "#1b3218", fg: "#94dd88" }, // leaf    8.6:1
+  { bg: "#183221", fg: "#88dda6" }, // fern    8.5:1
+  { bg: "#18322c", fg: "#88ddc9" }, // sea     8.6:1
+  { bg: "#182a32", fg: "#88c2dd" }, // ocean   7.6:1
 ];
 
 /**

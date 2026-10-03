@@ -103,3 +103,48 @@ jest.mock('react-native-image-picker', () => ({
   launchCamera: jest.fn(async () => ({ didCancel: true })),
   launchImageLibrary: jest.fn(async () => ({ didCancel: true })),
 }));
+
+/**
+ * FIREBASE MESSAGING, MOCKED.
+ *
+ * `@react-native-firebase/messaging` ships ESM and needs a native module, so a
+ * jsdom test that renders a screen cannot load it. Six suites broke the moment
+ * `src/services/push.ts` started importing it for real — which is itself the
+ * finding: the old file loaded Firebase through a `require` inside a try/catch,
+ * so it never loaded at all, in tests OR on a phone, and push had never worked.
+ *
+ * Mocked rather than added to `transformIgnorePatterns`: these are tests of
+ * screens, and transforming the whole Firebase tree to prove a navigator
+ * renders is paying a lot for nothing. `pushIsWired` reads push.ts as TEXT for
+ * the same reason.
+ */
+jest.mock('@react-native-firebase/messaging', () => ({
+  AuthorizationStatus: { AUTHORIZED: 1, PROVISIONAL: 2, DENIED: 0, NOT_DETERMINED: -1 },
+  getMessaging: () => ({}),
+  getToken: jest.fn(async () => 'test-fcm-token'),
+  requestPermission: jest.fn(async () => 1),
+  onMessage: jest.fn(() => () => {}),
+  onTokenRefresh: jest.fn(() => () => {}),
+  onNotificationOpenedApp: jest.fn(() => () => {}),
+  getInitialNotification: jest.fn(async () => null),
+}));
+
+/**
+ * ── GESTURE HANDLER AND REANIMATED, UNDER JEST ───────────────────────
+ *
+ * Both are native modules with a JS façade, and the façade is the half that
+ * matters here: a test that renders the side menu or a bottom sheet has to be
+ * able to construct a `Gesture.Pan()` and an `useSharedValue`, not to animate
+ * anything.
+ *
+ * `jestSetup.js` and `mock.js` are the packages' OWN stubs rather than
+ * hand-written ones. A hand-written list is the `react-native-svg` lesson
+ * again: it falls behind the API the app draws with, and the failure arrives
+ * as "Element type is invalid" in a test about something else entirely.
+ *
+ * Reanimated's mock also silences the "Reanimated 2 failed to create a
+ * worklet" warning, which under Jest is true and meaningless — there is no
+ * UI thread to create one on.
+ */
+require('react-native-gesture-handler/jestSetup');
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));

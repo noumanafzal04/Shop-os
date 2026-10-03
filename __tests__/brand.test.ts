@@ -16,7 +16,11 @@ import { BRAND } from "../src/common/brand";
  * empty, which is worse than a stale name because nothing says so.
  */
 const ALLOWED = new Map<string, string>([
-  ["src/common/brand.ts", "the constant itself"],
+  // `src/common/brand.ts` USED to be here, as "the constant itself". It is
+  // not any more: the name moved to `@cartze/core/brand` and this file only
+  // derives from it, so it spells nothing out and has nothing to be excused
+  // for. Removed rather than left — the comment above says an exemption
+  // nobody needs is a place names hide, and this is that rule being kept.
   [
     "src/common/utils/secureStorage.ts",
     "the Keychain service name — renaming it signs every user out silently",
@@ -35,8 +39,14 @@ const ALLOWED = new Map<string, string>([
  * Names that must not appear in source. Matched case-INSENSITIVELY and past
  * names count: `shopos.auth` and `api.shopos.app` are the exact strings this
  * exists to surface, and neither carries the capitals.
+ *
+ * "CartZe" joined the list the day the product became True Serve, and that is
+ * the one maintenance this guard needs. Without it a rename DISARMS the
+ * check: `BRAND.name` moves on, the old name stops being forbidden, and every
+ * screen still carrying it passes — which is precisely when the sweep matters
+ * most.
  */
-const NAMES = [BRAND.name, "ShopOS"].map((n) => n.toLowerCase());
+const NAMES = [BRAND.name, "ShopOS", "CartZe"].map((n) => n.toLowerCase());
 
 /**
  * A RE-EXPORT SEAM IS NOT A BRAND MENTION.
@@ -47,15 +57,22 @@ const NAMES = [BRAND.name, "ShopOS"].map((n) => n.toLowerCase());
  * every slice — a list nobody reads, on a rule that exists to be read.
  *
  * So it is a rule rather than a list: a line that is EXACTLY a re-export of
- * this package does not count. The shape is narrow on purpose. It is not
- * "any line mentioning the package" — a toast that said "Welcome to CartZe"
- * would still be caught, and so would an import used to build a string.
+ * this package, or an import from it, does not count. The shape is narrow on
+ * purpose. It is not "any line mentioning the package" — a toast that said
+ * "Welcome to CartZe" would still be caught, and so would an import used to
+ * build a string.
+ *
+ * The import half was added when the product's NAME moved into the package:
+ * `brand.ts` has to import it, and a rule that made the one file allowed to
+ * know the name unable to fetch it would have been the guard beating its own
+ * purpose. The reasoning below already covered it — a module specifier is
+ * resolved by three config files and never rendered — the regex just did not.
  *
  * What the original rule protects is the name appearing in anything a PERSON
  * reads: a title, a toast, a store listing. A module specifier is resolved by
  * three config files and never rendered.
  */
-const SEAM = /^\s*export \* from "@cartze\/core[^"]*";\s*$/;
+const SEAM = /^\s*(?:export \* from|import\b[^"']*\bfrom)\s*"@cartze\/core[^"]*";\s*$/;
 
 const ROOT = PROJECT_ROOT;
 

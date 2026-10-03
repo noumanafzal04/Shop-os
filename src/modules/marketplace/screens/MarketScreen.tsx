@@ -91,7 +91,7 @@ export function MarketScreen() {
   // lands under the gesture bar. One component, two answers.
   return (
     <SafeScreen backgroundColor={c.brand[500]} edges={isTab ? ["top"] : ["top", "bottom"]}>
-      <FocusedStatusBar style="light-content" background={c.brand[500]} />
+      <FocusedStatusBar background={c.brand[500]} />
 
       {/* ── Brand hero header ─────────────────────────────────────── */}
       <View style={styles.header}>

@@ -19,7 +19,8 @@
  */
 
 import React, { useEffect, useState } from "react";
-import { StatusBar } from "react-native";
+import { StatusBar, StyleSheet } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./src/common/api/queryClient";
@@ -128,6 +129,23 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
   const palettes = useModePalettes();
 
   return (
+    /*
+      THE ROOT A GESTURE CAN BE RECOGNISED IN.
+      
+      `GestureHandlerRootView` is where the library's touch pipeline attaches.
+      Every handler below it works; every handler outside it mounts, renders,
+      and never fires — with no warning, because "no gesture happened" and
+      "the gesture was not listened for" look identical from JavaScript.
+      
+      At the very top rather than around the one screen that needs it: the
+      side menu, the sheets and the carousels are in three different subtrees,
+      and a root per subtree is three chances to forget the fourth.
+      
+      `flex: 1` is required. It is a plain View underneath, so without it the
+      whole app lays out at zero height — the one mistake this component
+      reliably produces, and it produces a blank screen rather than an error.
+    */
+    <GestureHandlerRootView style={styles.root}>
     <SafeAreaProvider>
       {/*
         Follows the phone until somebody says otherwise.
@@ -189,7 +207,12 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
         </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
+
+/** One rule, and it is not optional — see `GestureHandlerRootView` above:
+ *  without `flex: 1` the whole app lays out at zero height. */
+const styles = StyleSheet.create({ root: { flex: 1 } });
 
 export default App;

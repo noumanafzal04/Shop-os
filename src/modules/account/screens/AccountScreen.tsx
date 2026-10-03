@@ -215,7 +215,7 @@ export function AccountScreen() {
       `edges={["top"]}` because the tab bar owns the bottom inset.
     */
     <SafeScreen backgroundColor={c.primary} edges={["top"]}>
-      <FocusedStatusBar style="light-content" background={c.primary} />
+      <FocusedStatusBar background={c.primary} />
 
       <View style={styles.hero}>
         <View style={styles.heroTop}>

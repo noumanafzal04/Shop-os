@@ -12,6 +12,7 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -44,15 +45,32 @@ import type { RiderProfile } from "../modules/rider/services/riderService";
 /**
  * The side menu.
  *
- * ── Why it is not `@react-navigation/drawer` ─────────────────────────
+ * ── Why it is STILL not `@react-navigation/drawer` ───────────────────
  *
- * That package needs Reanimated and Gesture Handler, neither of which is in
- * this app. Adding both — two native modules, a rebuild, a second animation
- * system beside the one the sheets already use — to gain a panel that slides
- * is a large permanent cost for a small thing.
+ * The old reason was that the package needs Reanimated and Gesture Handler
+ * and this app had neither. It has both now, so that reason is spent, and an
+ * argument whose premise has gone is worth re-making rather than keeping.
+ *
+ * It stays hand-built for a different reason: `@react-navigation/drawer` is a
+ * NAVIGATOR. This panel is not navigation — it is a sheet over whichever
+ * screen is showing, it carries a sign-out, a rider switch and a profile
+ * card, and it swaps its whole contents with the mode. Wrapping the app in a
+ * drawer navigator to render it would put a second navigator above the tabs
+ * for a panel that routes nothing.
  *
  * So this is the same construction as `BottomSheet`, turned ninety degrees:
  * backdrop fades, panel translates, both on the native driver, drag to close.
+ *
+ * ── What Gesture Handler did buy ─────────────────────────────────────
+ *
+ * The way IN. Dragging it closed has always worked; opening needed the
+ * hamburger, because an edge swipe has to beat a horizontal rail and a
+ * vertical scroll to the same touch. `PanResponder` cannot express that — it
+ * asks one question once, in `onMoveShouldSetPanResponder`, and then owns the
+ * gesture. Gesture Handler states it as two conditions, "activate after
+ * twelve points sideways" and "give up if the finger goes down instead", so
+ * the home screen's shop rails and its page scroll are untouched by it.
+ * See `EDGE_WIDTH`.
  *
  * ── The shape, and the one it replaced ───────────────────────────────
  *
@@ -79,9 +97,36 @@ import type { RiderProfile } from "../modules/rider/services/riderService";
 const DISMISS_PX = 60;
 const DISMISS_VELOCITY = 0.6;
 
+/**
+ * THE STRIP A SWIPE MAY START IN.
+ *
+ * 22 points — about a thumb's width of glass, and close to what both
+ * platforms give their own back gestures. Wider and it starts eating the
+ * first card of a horizontal rail; narrower and it is a gesture people try
+ * twice and then stop trying.
+ *
+ * It exists only while the panel is CLOSED. An invisible strip left over a
+ * screen with the panel already up is a second handler on the same pixels,
+ * competing with the one that drags it shut.
+ */
+const EDGE_WIDTH = 22;
+
+/** How much of the panel must be dragged out before letting go opens it. */
+const OPEN_RATIO = 0.4;
+const OPEN_VELOCITY = 0.5;
+
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Open it — the other half of `visible`, and what the edge swipe needs.
+   *
+   * Optional, because a screen may want the panel without wanting the
+   * gesture: where the content itself is a horizontal pager, an edge swipe
+   * belongs to the pager. Omitted, no strip is rendered at all — which is
+   * different from a strip that catches a drag and does nothing with it.
+   */
+  onOpen?: () => void;
 }
 
 interface Link {
@@ -157,7 +202,7 @@ function riderLink(profile: RiderProfile | null | undefined): { label: string; v
   }
 }
 
-export function SideMenu({ visible, onClose }: Props) {
+export function SideMenu({ visible, onClose, onOpen }: Props) {
   const c = useColors();
   const other = useOppositeColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -186,6 +231,20 @@ export function SideMenu({ visible, onClose }: Props) {
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
+  /**
+   * "THE PANEL IS ALREADY WHERE THE FINGER PUT IT."
+   *
+   * The open effect below springs from fully-closed to fully-open. That is
+   * right for a tap on the hamburger and wrong for a drag, which has already
+   * placed the panel somewhere in between — springing from -330 would snap it
+   * back under the finger and then chase it.
+   *
+   * So the gesture raises this before it calls `onOpen`, and the effect reads
+   * it as "mount, but do not animate". Cleared on release, by whichever of
+   * the two settle paths runs.
+   */
+  const draggingOpen = useRef(false);
+
   const animateOut = useCallback(
     (then: () => void) => {
       Animated.timing(x, {
@@ -200,6 +259,9 @@ export function SideMenu({ visible, onClose }: Props) {
   useEffect(() => {
     if (visible) {
       setMounted(true);
+      // See `draggingOpen`: a drag has already positioned the panel, and the
+      // spring below would take it away from the finger to put it back.
+      if (draggingOpen.current) return;
       x.setValue(-panelWidth);
       Animated.spring(x, {
         toValue: 0,
@@ -247,7 +309,81 @@ export function SideMenu({ visible, onClose }: Props) {
     }),
   ).current;
 
-  if (!mounted) return null;
+  /**
+   * THE SWIPE IN, from the left edge.
+   *
+   * `runOnJS(true)` rather than a worklet, deliberately. The panel is an
+   * `Animated.Value` on the native driver — the same machinery `BottomSheet`
+   * uses — and a Reanimated worklet cannot drive one. Mixing the two
+   * animation systems inside a single gesture to save a few JS-thread frames
+   * on a 200ms slide is a trade in the wrong direction; the second system is
+   * here for things that need it, not as a rule.
+   *
+   * The two conditions are the whole reason this is not `PanResponder`:
+   *
+   *   activeOffsetX   twelve points sideways before it owns anything, so a
+   *                   tap near the edge still reaches whatever is under it.
+   *   failOffsetY     fourteen points DOWN and it gives up for good, so the
+   *                   page scrolls instead of the panel appearing.
+   *
+   * `hitSlop` is not used to widen it: the strip is already the width it
+   * should be, and widening the touch area without widening the view is how
+   * a gesture starts stealing presses from a card it does not cover.
+   */
+  const settle = (shouldOpen: boolean) => {
+    draggingOpen.current = false;
+    if (shouldOpen) {
+      Animated.spring(x, {
+        toValue: 0,
+        damping: 30,
+        stiffness: 300,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Through `onClose`, not straight to `animateOut`: the parent holds
+      // `visible`, and animating out behind its back leaves the panel
+      // unmounted with the parent still believing it is open — the next tap
+      // on the hamburger would then do nothing at all.
+      onCloseRef.current();
+    }
+  };
+
+  const edge = Gesture.Pan()
+    .runOnJS(true)
+    .activeOffsetX(12)
+    .failOffsetY([-14, 14])
+    .onStart(() => {
+      draggingOpen.current = true;
+      x.setValue(-panelWidth);
+      onOpen?.();
+    })
+    .onUpdate((e) => {
+      // Rightward only, and never past the open position. A drag that
+      // continues across the whole screen should not keep pushing the panel
+      // out of the other side.
+      x.setValue(Math.min(0, -panelWidth + Math.max(0, e.translationX)));
+    })
+    .onEnd((e) => {
+      settle(e.translationX > panelWidth * OPEN_RATIO || e.velocityX > OPEN_VELOCITY * 1000);
+    })
+    // A gesture the system interrupts — a call arriving, the app backgrounded
+    // — must not leave the panel half-way out with nothing coming to finish
+    // it. Without this the app returns to a sliver of menu over the screen.
+    .onFinalize((_e, success) => {
+      if (!success && draggingOpen.current) settle(false);
+    });
+
+  if (!mounted) {
+    // Nothing to render once the gesture is not wanted — see `onOpen`.
+    if (!onOpen) return null;
+
+    return (
+      <GestureDetector gesture={edge}>
+        <View style={styles.edge} accessible={false} importantForAccessibility="no-hide-descendants" />
+      </GestureDetector>
+    );
+  }
 
   const dim = x.interpolate({
     inputRange: [-panelWidth, 0],
@@ -540,6 +676,26 @@ function Row({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    /**
+     * THE EDGE STRIP — invisible, and that is the point.
+     *
+     * No colour, no size on screen: it exists so a gesture has something to
+     * be attached TO. It sits above the page because `SideMenu` is the last
+     * child of the screen, which is where an overlay belongs anyway.
+     *
+     * `top: 0, bottom: 0` rather than a height, so it covers whatever the
+     * screen turns out to be — including a phone whose keyboard is up.
+     */
+    edge: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: EDGE_WIDTH,
+      // No background. A debug tint here is the fastest way to see the strip
+      // and the easiest thing to leave behind, so it is named rather than
+      // written: set `backgroundColor: "rgba(255,0,0,0.2)"` to find it.
+    },
     root: { flex: 1, flexDirection: "row" },
     fill: { flex: 1 },
     backdrop: {

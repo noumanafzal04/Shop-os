@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, codeOnly, fs, path } from "./support/node";
-import { carmineThemes, emeraldThemes } from "@cartze/core/theme/themes";
+import { carmineThemes, meadowThemes } from "@cartze/core/theme/themes";
 
 /**
  * THE FIRST TWO SCREENS ANYBODY SEES.
@@ -42,7 +42,7 @@ describe("the splash wears the mode's colour", () => {
    * primary — that it should reach past the theme to `brand[500]`. That was
    * written to fix "splash py 2 colors arhy" and it fixed nothing, because
    * `brand[500]` IS the ember scale: the colour the WORKING side wears.
-   * `ThemeProvider` hands the shopping side `emeraldThemes`. So the token was
+   * `ThemeProvider` hands the shopping side `meadowThemes`. So the token was
    * never the customer's colour, and the guard held the bug in place.
    *
    * The store answers `customer` from its first frame — that is its initial
@@ -68,16 +68,47 @@ describe("the splash wears the mode's colour", () => {
     // The VALUE, not a regex over the file: the shopping side's primary is
     // decided by one line in `ThemeProvider`, and reading the palette itself
     // is the only way this survives that line being turned over again.
-    expect(native!.toLowerCase()).toBe(emeraldThemes.light.primary.toLowerCase());
+    expect(native!.toLowerCase()).toBe(meadowThemes.light.primary.toLowerCase());
     // And the window actually uses it, rather than defaulting to white.
     expect(styles).toMatch(/windowBackground">@color\/brand/);
   });
 
-  it("puts the same colour under the launcher icon", () => {
-    // A green icon opening an orange app was the whole complaint. The icon's
-    // ground, the window and the splash are one fact in three files.
+  it("keeps the launcher's ground in the same hue family as the window", () => {
+    /**
+     * THIS USED TO DEMAND THE SAME HEX, and the demand was too strong.
+     *
+     * "The icon's ground, the window and the splash are one fact in three
+     * files" held while the launcher icon was a glyph this repo drew. It is
+     * SUPPLIED ARTWORK now — a rounded square with its own deep teal ground —
+     * and a launcher icon is the one place the artwork decides rather than the
+     * palette.
+     *
+     * What the rule was actually protecting is still protected. The complaint
+     * was never "these hexes differ"; it was a green icon opening an orange
+     * app, 150 degrees apart on the hue wheel. So the check becomes the thing
+     * it meant: same family, measured.
+     */
     const ground = colors.match(/<color name="ic_launcher_background">(#[0-9a-fA-F]{6})<\/color>/)?.[1];
-    expect(ground?.toLowerCase()).toBe(emeraldThemes.light.primary.toLowerCase());
+    expect(ground).toBeDefined();
+
+    const hue = (hex: string) => {
+      const n = parseInt(hex.replace("#", ""), 16);
+      const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (max === min) return 0;
+      const d = max - min;
+      const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    const apart = (a: string, b: string) => {
+      const d = Math.abs(hue(a) - hue(b));
+      return Math.min(d, 360 - d);
+    };
+
+    // 30 degrees is one step on a twelve-hue wheel — the same threshold
+    // `riderTheme.test.tsx` uses for "do these belong together".
+    expect(apart(ground!, meadowThemes.light.primary)).toBeLessThanOrEqual(30);
   });
 
   it("does not paint the working side's colour on the shopping side", () => {
@@ -89,7 +120,15 @@ describe("the splash wears the mode's colour", () => {
   /** The mark the launcher carries, so tapping the icon leads somewhere that
    *  looks related. */
   it("carries the same mark as the launcher icon", () => {
-    expect(splash).toMatch(/<CartIcon/);
+    /**
+     * It asserted `<CartIcon`, and passed for years while being wrong for the
+     * last few hours of them: the launcher icon became the supplied T and the
+     * splash kept drawing a shopping trolley. A test that names the OLD art
+     * cannot notice the art changing — so it names the shared ASSET instead,
+     * which is the thing both the icon and this screen are cut from.
+     */
+    expect(splash).toMatch(/assets\/brand\/mark\.png/);
+    expect(splash).not.toMatch(/<CartIcon/);
   });
 });
 

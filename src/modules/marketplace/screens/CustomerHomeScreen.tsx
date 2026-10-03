@@ -18,13 +18,14 @@ import {
   SlidersIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { Gradient } from "../../../common/ui/Gradient";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { SideMenu } from "../../../navigation/SideMenu";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Skeleton, SkeletonShopCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
-import { radius, spacing, type ThemeColors, typography, useColors, useTheme } from "../../../theme";
+import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useServingPin } from "../servingPin";
 import { useHomeFeed } from "../hooks/useMarketplace";
@@ -71,6 +72,17 @@ import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover"
 const HOME_TRADES = 7;
 
 /**
+ * HOW FAR THE PAGE SITS OVER THE HERO.
+ *
+ * Named rather than written twice, because it is one distance stated in two
+ * opposite signs — the header pads itself by this much and the body pulls
+ * itself up by the same. Two literals here means a four-point gap or a
+ * four-point overlap appears the first time either is adjusted, and on a
+ * gradient that reads as a rendering fault rather than as spacing.
+ */
+const BODY_LIFT = 20;
+
+/**
  * A trade code, roughly title-cased.
  *
  * The LAST remaining caller is a shop card's little type chip, where the shop
@@ -85,10 +97,6 @@ const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function CustomerHomeScreen() {
   const c = useColors();
-  // The status bar's icons follow the PHONE's theme, not the brand: dark
-  // glyphs on the light page, light on the dark one. Hard-coded
-  // "light-content" was invisible against a white header.
-  const { isDark } = useTheme();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -192,8 +200,31 @@ export function CustomerHomeScreen() {
       page's colour and the phone's own icon polarity, and the brand appears
       where it says something — the pin, the filter, the tiles, the prices.
     */
-    <SafeScreen backgroundColor={c.bg} edges={["top"]}>
-      <FocusedStatusBar style={isDark ? "light-content" : "dark-content"} background={c.bg} />
+    <SafeScreen backgroundColor={c.gradient[0]} edges={["top"]}>
+      {/*
+        ALWAYS LIGHT ICONS, in both themes — and this reverses an earlier
+        decision rather than forgetting it.
+
+        The note below the old wrapper recorded three complaints about a
+        coloured status bar: "color should be white as was first", "top notch
+        issue", "just show branding color". Every one of them was made against
+        #E94E00 — a full-bleed hot red-orange running up behind the clock and
+        the camera cut-out, which is the loudest a phone screen gets.
+
+        The header is a deep-ocean GRADIENT now, asked for directly with
+        reference screens, and the deepest stop is #184e77 at 8.8:1 against
+        white. "Dark and quiet behind the clock" is not the thing that was
+        objected to; "hot orange behind the clock" was.
+
+        The polarity is no longer stated here at all — it is DERIVED from the
+        ground, which on this screen is dark in both themes. This line used to
+        read `isDark ? "light-content" : "dark-content"`, which is the theme's
+        question rather than the ground's: correct while the header was the
+        page colour and wrong the moment it stopped being. Four other screens
+        were answering the same question four other ways, three of them
+        wrongly. See `FocusedStatusBar`.
+      */}
+      <FocusedStatusBar background={c.gradient[0]} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollGround}
@@ -210,8 +241,28 @@ export function CustomerHomeScreen() {
           />
         }
       >
-        {/* ── Header: white, and the brand where it means something ── */}
-        <View style={styles.header}>
+        {/*
+          ── THE HEADER IS THE PALETTE'S ARGUMENT ──────────────────
+
+          One block, the deep half of the ramp, running straight DOWN.
+
+          It was diagonal and it was the whole strip, which failed on a phone
+          for two reasons worth keeping written down. The lime corner landed
+          under the notification bell at about 1.2:1 — a white glyph on a
+          near-white ground. And the flat band `SafeScreen` paints behind the
+          status bar can match one end of a diagonal or the other but never
+          both, so the top of the screen had a seam running across it.
+
+          Vertical fixes both at once: the first stop is the status bar's
+          colour AND the colour under the first line of type, so the band
+          above and the block below are the same hex and there is no edge.
+
+          Everything in here is therefore drawn for a DARK ground: white
+          type, translucent-white controls, and the filter button in the
+          fresh accent — which sits inside the white search field rather than
+          on the gradient, because #76c893 on the ramp's own teal is 1.6:1.
+        */}
+        <Gradient style={styles.header} direction="vertical">
           <View style={styles.headerTop}>
             {/*
               A hamburger, not an avatar.
@@ -227,7 +278,7 @@ export function CustomerHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Menu"
             >
-              <MenuIcon size={21} color={c.text} />
+              <MenuIcon size={21} color={c.textInverse} />
             </Touchable>
 
             {/*
@@ -248,11 +299,11 @@ export function CustomerHomeScreen() {
             >
               <Text style={styles.placeLabel}>DELIVER TO</Text>
               <View style={styles.placeRow}>
-                <MapPinIcon size={14} color={c.primary} />
+                <MapPinIcon size={14} color={c.accent} />
                 <Text style={styles.placeName} numberOfLines={1}>
                   {status === "locating" ? "Finding you…" : label ?? "Set your location"}
                 </Text>
-                <ChevronDownIcon size={13} color={c.textMuted} />
+                <ChevronDownIcon size={13} color={c.inkMuted} />
               </View>
             </Touchable>
 
@@ -262,7 +313,7 @@ export function CustomerHomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <BellIcon size={20} color={c.text} />
+              <BellIcon size={20} color={c.textInverse} />
             </Touchable>
           </View>
 
@@ -294,10 +345,10 @@ export function CustomerHomeScreen() {
               accessibilityLabel="Browse and filter all products"
               onPress={() => navigation.navigate("Browse")}
             >
-              <SlidersIcon size={17} color={c.onPrimary} />
+              <SlidersIcon size={17} color={c.onAccent} />
             </Touchable>
           </Touchable>
-        </View>
+        </Gradient>
 
         {/* ── Light content area ────────────────────────────────── */}
         <View style={styles.body}>
@@ -697,7 +748,16 @@ export function CustomerHomeScreen() {
         </View>
       </ScrollView>
 
-      <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+      {/*
+        `onOpen` is what turns the left edge of this screen into a way in —
+        see `EDGE_WIDTH` in `SideMenu`. The hamburger stays: a gesture nobody
+        is told about is not a control, it is a secret.
+      */}
+      <SideMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onOpen={() => setMenuOpen(true)}
+      />
     </SafeScreen>
   );
 }
@@ -845,13 +905,15 @@ const makeStyles = (c: ThemeColors) =>
    * things that mean something.
    */
   header: {
-    backgroundColor: c.bg,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.sm,
+    // Deeper than it was, because the body is pulled UP over it by
+    // `BODY_LIFT`. Without the extra the search bar ends up under the
+    // rounded corner it is supposed to sit above.
+    paddingBottom: spacing.sm + BODY_LIFT,
     gap: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: c.border,
+    // No bottom hairline. The body's rounded top edge is the boundary now,
+    // and a border under a gradient draws a line the shape does not follow.
   },
   headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   /** One shape for both round controls — they were `burger` and `bell`, two
@@ -860,7 +922,16 @@ const makeStyles = (c: ThemeColors) =>
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: c.surfaceAlt,
+    /**
+     * Translucent white, not `surfaceAlt`.
+     *
+     * A solid token here is a pale disc on a dark gradient — correct in the
+     * palette and wrong on the ground, because the ground is the one thing a
+     * semantic token cannot know about. White at 18% picks up whatever stop
+     * of the ramp is behind it, so the two buttons at opposite ends of the
+     * row stay the same WEIGHT while sitting on different colours.
+     */
+    backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -870,20 +941,34 @@ const makeStyles = (c: ThemeColors) =>
   placeLabel: {
     ...typography.tiny,
     fontSize: 9,
-    color: c.textMuted,
+    // `inkMuted`, which is the muted tier FOR AN INK GROUND — `textMuted` is
+    // muted against the page and disappears here. Both exist for this.
+    color: c.inkMuted,
     fontWeight: "700",
     letterSpacing: 0.8,
   },
   placeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  placeName: { ...typography.label, color: c.text, fontSize: 14, flexShrink: 1 },
+  placeName: { ...typography.label, color: c.textInverse, fontSize: 14, flexShrink: 1 },
   searchFilter: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    // Solid brand, because it is the one control in the header that is a
-    // destination rather than a field. `primarySoft` behind a brand glyph
-    // measured 1.4:1 and read as disabled.
-    backgroundColor: c.primary,
+    /**
+     * THE ACCENT, not the primary — and the reason is the ground.
+     *
+     * This was `c.primary`, chosen when the header was the page colour:
+     * "solid brand, because it is the one control in the header that is a
+     * destination rather than a field". Still true. But the header is now
+     * the brand's own ramp, and #1a759f on an ocean gradient is a button
+     * drawn in the colour behind it — 1.3:1 at the stop it lands on, which
+     * is the same 1.4:1 "read as disabled" defect the old comment was
+     * written about, arriving from the other direction.
+     *
+     * The fresh accent is the one colour on this palette that stands off the
+     * deep half at any size. It is a fill with a dark glyph on it, which is
+     * what `onAccent` is for.
+     */
+    backgroundColor: c.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -891,9 +976,10 @@ const makeStyles = (c: ThemeColors) =>
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surfaceAlt,
-    borderWidth: 1,
-    borderColor: c.border,
+    // A white field on the gradient — the one opaque thing in the header, so
+    // it reads as the control rather than as another panel of the hero.
+    backgroundColor: c.surface,
+    borderWidth: 0,
     borderRadius: 24,
     paddingLeft: spacing.md,
     paddingRight: 7,
@@ -906,8 +992,29 @@ const makeStyles = (c: ThemeColors) =>
   // under the content. `SafeScreen` paints this screen brand red so the status
   // bar matches the header — which also meant the header's corners revealed
   // red on red and the rounding could not be seen at all.
-  scrollGround: { backgroundColor: c.bg },
-  body: { backgroundColor: c.bg, minHeight: 600 },
+  // The gradient is the first thing in the scroll, so the container itself
+  // must NOT be painted — a `bg` here draws a page-coloured strip over the
+  // top of the hero on an over-scroll bounce.
+  scrollGround: {},
+  /**
+   * THE SHEET THE PAGE LIVES ON.
+   *
+   * Pulled up over the hero by `BODY_LIFT` with its top corners rounded, so
+   * the content reads as a card sliding over the header rather than as the
+   * next band down. It is the move the reference screens make and it is also
+   * what makes a gradient header finish: a flat edge between a ramp and a
+   * flat colour is a seam, a rounded overlap is a transition.
+   */
+  body: {
+    backgroundColor: c.bg,
+    minHeight: 600,
+    marginTop: -BODY_LIFT,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    // Clipped, or the first chip row's shadow-free card corners poke out
+    // past the rounding.
+    overflow: "hidden",
+  },
   /**
    * THE FOUR THAT NARROW THE AISLE — a scrolling row, not four more squares.
    *

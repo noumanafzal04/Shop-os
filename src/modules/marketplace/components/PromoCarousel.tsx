@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useTheme } from "../../../theme";
 import { SmartImage } from "../../../common/ui/SmartImage";
+import { Gradient } from "../../../common/ui/Gradient";
 import type { HomeBanner } from "../services/marketplaceService";
 
 /**
@@ -172,14 +173,22 @@ export function PromoCarousel({
           }
 
           const { bg, fg } = toneOf(item.tone);
-          return (
-            <View
-              // Not a button: it advertises the app to the person already
-              // holding it, so there is nowhere for a tap to go.
-              accessible
-              accessibilityLabel={`${item.title}. ${item.body}`}
-              style={[styles.card, styles.placeholder, size, { backgroundColor: bg, padding: spacing.lg }]}
-            >
+
+          /*
+            THE APP'S OWN CARD GETS THE APP'S OWN RAMP.
+
+            Only the `brand` tone. The warm and ink placeholders stay flat,
+            because three gradients side by side in a snapping carousel is a
+            strip that shimmers as it scrolls — and the whole reason there are
+            three tones is that the cards should read as three different
+            things.
+
+            `Gradient` draws an SVG behind its children, so the padding and
+            the row layout move onto it rather than staying on a wrapper; a
+            `<View>` inside would sit on top of the ramp at the wrong size.
+          */
+          const body = (
+            <>
               <Text style={styles.emoji}>{item.emoji}</Text>
               <View style={styles.copy}>
                 <Text style={[typography.title, { color: fg }]} numberOfLines={2}>
@@ -189,6 +198,35 @@ export function PromoCarousel({
                   {item.body}
                 </Text>
               </View>
+            </>
+          );
+
+          const props = {
+            // Not a button: it advertises the app to the person already
+            // holding it, so there is nowhere for a tap to go.
+            accessible: true,
+            accessibilityLabel: `${item.title}. ${item.body}`,
+          };
+
+          if (item.tone === "brand") {
+            return (
+              <Gradient
+                {...props}
+                direction="diagonal"
+                borderRadius={radius.lg}
+                style={[styles.card, styles.placeholder, size, { padding: spacing.lg }]}
+              >
+                {body}
+              </Gradient>
+            );
+          }
+
+          return (
+            <View
+              {...props}
+              style={[styles.card, styles.placeholder, size, { backgroundColor: bg, padding: spacing.lg }]}
+            >
+              {body}
             </View>
           );
         }}

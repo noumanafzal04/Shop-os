@@ -1,7 +1,7 @@
 import React from "react";
-import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Image, StatusBar, StyleSheet, Text, View } from "react-native";
 import { BRAND } from "../brand";
-import { CartIcon } from "./icons";
+
 import { useTheme } from "../../theme";
 
 /**
@@ -127,6 +127,20 @@ export function Splash() {
 
   return (
     <View style={[styles.root, { backgroundColor: GROUND }]}>
+      {/*
+        LIGHT GLYPHS, because this screen's ground is always a brand fill.
+
+        A plain `StatusBar` rather than `FocusedStatusBar`: this is shown
+        BEFORE the navigation container exists, and `useIsFocused` throws
+        outside one. There is nothing to leak a style to either — the splash
+        is the only thing on screen while it is on screen.
+
+        It was absent, so the clock and the battery kept whatever polarity the
+        OS had last been given. On a phone in light mode that is black on
+        #1a759f at about 2.8:1: the one piece of chrome on the screen, and the
+        only thing on it nobody could read.
+      */}
+      <StatusBar barStyle="light-content" backgroundColor={GROUND} />
       <Animated.View
         style={{
           alignItems: "center",
@@ -138,13 +152,26 @@ export function Splash() {
         }}
       >
         {/*
-          The same cart the launcher icon carries.
-          Tapping an icon and seeing an unrelated page is a small seam, and it
-          is the first one anybody meets. A white ring holds it, so the mark
-          reads as a mark rather than as a glyph floating on the ground.
+          THE SAME MARK THE LAUNCHER ICON CARRIES — and now it really is.
+
+          This drew `<CartIcon>`, with a comment claiming it was "the same
+          cart the launcher icon carries". That was true of a launcher icon
+          this repo had drawn itself. The icon is supplied artwork now — the
+          True Serve T — so the sentence quietly became false and tapping a T
+          opened a screen with a shopping trolley on it. Exactly the seam the
+          comment existed to prevent, left behind by the thing it described.
+
+          The image is the ON-DARK cut, because this screen's ground is always
+          a brand fill. The ring stays: it holds the mark at a fixed size so
+          the layout does not move with the artwork.
         */}
         <View style={styles.markRing}>
-          <CartIcon size={40} color={ON_GROUND} />
+          <Image
+            source={require("../../assets/brand/mark.png")}
+            style={styles.mark}
+            resizeMode="contain"
+            accessible={false}
+          />
         </View>
         <Text style={[typography.display, styles.word, { color: ON_GROUND }]}>
           {BRAND.name}
@@ -187,6 +214,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 22,
   },
+  // 54 x 39 keeps the artwork's own 778:557 ratio. Stated rather than left
+  // to `undefined`, which would let a re-exported asset at a different size
+  // change the splash's layout.
+  mark: { width: 54, height: 39 },
   word: { fontSize: 38, letterSpacing: -0.8, textAlign: "center" },
   tag: { textAlign: "center", marginTop: 6, letterSpacing: 0.2 },
   dots: { flexDirection: "row", gap: 8 },

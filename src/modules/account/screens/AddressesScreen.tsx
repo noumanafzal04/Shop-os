@@ -85,9 +85,17 @@ export function AddressesScreen() {
         <View style={styles.form}>
           <AppTextInput placeholder="Label (Home / Work)" value={label} onChangeText={setLabel} />
           <AppTextInput placeholder="House, street, area…" value={address} onChangeText={setAddress} />
-          <Text style={styles.pinNote}>
-            📍 Pin: {lat != null ? `current location${cityLabel ? ` (${cityLabel})` : ""}` : "no GPS — address only"}
-          </Text>
+          {/*
+            The pin glyph is the app's own, not an emoji — the same
+            `MapPinIcon` the rows below this form are drawn with, so a saved
+            address and the note about saving one carry the same mark.
+          */}
+          <View style={styles.pinRow}>
+            <MapPinIcon size={14} color={c.textSecondary} />
+            <Text style={styles.pinNote}>
+              Pin: {lat != null ? `current location${cityLabel ? ` (${cityLabel})` : ""}` : "no GPS — address only"}
+            </Text>
+          </View>
           <AppButton
             title={add.isPending ? "Saving…" : "Save address"}
             onPress={() => address.trim() && add.mutate()}
@@ -162,6 +170,7 @@ const makeStyles = (c: ThemeColors) =>
     borderRadius: radius.lg,
     gap: spacing.sm,
   },
+  pinRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   pinNote: { ...typography.tiny, color: c.gray[500] },
 
   list: { padding: spacing.md, gap: spacing.xs },

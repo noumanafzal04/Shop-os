@@ -1,3 +1,17 @@
 <resources>
-    <string name="app_name">CartZe</string>
+    <!--
+      THE LABEL UNDER THE LAUNCHER ICON.
+
+      Android reads this before any JavaScript exists, so it cannot be derived
+      from `PRODUCT.name` in `@cartze/core/brand` — which is where the name
+      actually lives and the only line a rename should touch.
+
+      It is not left to memory either: `__tests__/appName.test.ts` reads this
+      file and fails naming the exact value to paste when the two drift.
+
+      NOT an identifier. `app.json`'s `name`, the applicationId
+      `com.shoposmobile` and the Keychain service `shopos.auth` are addresses
+      and keep their old spelling for ever — see `PRODUCT` for why.
+    -->
+    <string name="app_name">True Serve</string>
 </resources>

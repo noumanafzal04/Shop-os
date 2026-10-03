@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Location-based marketplace: GPS → nearest city + delivery pin -->
@@ -13,6 +14,19 @@
       install the app rather than be filtered out of the Play Store listing by
       a permission the shopping half never uses.
     -->
+    <!--
+      Android 13 and later will not show a notification until the person has
+      been asked. Declared here and REQUESTED at runtime — see
+      `src/services/push.ts`.
+
+      It was missing from this app entirely, and `messaging().requestPermission()`
+      returns "authorised" on Android whether or not the runtime permission
+      exists. So the app believed push was on, the phone dropped every message,
+      and nothing anywhere said why. The partner app had both halves; this one
+      had neither.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
@@ -25,6 +39,25 @@
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
       android:supportsRtl="true">
+
+      <!--
+        THE CHANNEL A PUSH ARRIVES ON.
+
+        Android 8 and later DROP a notification whose channel it does not
+        recognise — silently, with no error and nothing in logcat that names
+        the cause. The server sends `default` (config/services.php →
+        `FCM_CHANNEL`), so this must agree with it.
+
+        `tools:replace` because the messaging library declares this same
+        meta-data with an EMPTY value and the merger refuses two. Left to the
+        library's blank the channel id would be "", which Android does not
+        recognise, so every notification would be dropped in silence.
+      -->
+      <meta-data
+        android:name="com.google.firebase.messaging.default_notification_channel_id"
+        android:value="default"
+        tools:replace="android:value" />
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

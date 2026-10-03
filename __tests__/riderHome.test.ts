@@ -68,11 +68,24 @@ describe("the hero, and what it replaced", () => {
      * cut-out is the loudest thing on the screen, and it was loudest on the
      * one screen a rider stares at all day.
      *
-     * So the top inset is back, and the icon polarity follows the PHONE rather
-     * than the brand — `light-content` on a white header is invisible.
+     * So the top inset is back, and the icon polarity follows the GROUND —
+     * `light-content` on a white header is invisible.
+     *
+     * ── This used to assert the implementation ──────────────────────
+     *
+     * The line below was `style={isDark ? "light-content" : "dark-content"}`,
+     * matched as a literal. That is the right ANSWER written the wrong way:
+     * it pinned one screen to one expression, and said nothing about the four
+     * other screens that were answering the same question differently — one
+     * of which shipped a black clock on a near-black page.
+     *
+     * The polarity is derived from the background now, so what this screen
+     * owes is a GROUND and no opinion. `statusBarPolarity.test.ts` holds the
+     * rule itself, for every screen at once.
      */
     expect(src).toMatch(/edges=\{\["top", "bottom"\]\}/);
-    expect(src).toMatch(/style=\{isDark \? "light-content" : "dark-content"\}/);
+    expect(src).toMatch(/<FocusedStatusBar background=\{c\.bg\} \/>/);
+    expect(src).not.toMatch(/<FocusedStatusBar[^>]*\bstyle=/);
     expect(src).not.toMatch(/backgroundColor=\{c\.brand\[600\]\}/);
   });
 
