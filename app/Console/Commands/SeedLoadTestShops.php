@@ -267,6 +267,7 @@ class SeedLoadTestShops extends Command
             // broken by a change made for everybody else, and the only one
             // where the cashbook has no sales to lean on.
             'plan' => 'basic', 'extra_staff' => 7,
+            'hrm' => true,
             'branches' => ['Main — Office'],
             'lines' => 0,
             'sizes' => 0,
@@ -366,6 +367,27 @@ class SeedLoadTestShops extends Command
          */
         if (! empty($spec['bank_offers'])) {
             $tenant->applyModules(['bank_offers' => true]);
+            $tenant->refresh();
+        }
+
+        /**
+         * ONE SHOP WITH BASIC HR, AND ONLY ONE.
+         *
+         * `hrm` is off for every trade by default, which is right — the
+         * screens are honest placeholders. But a module that no fixture ever
+         * has is a module no browser ever opens, and nine screens went
+         * unwalked for exactly that reason.
+         *
+         * The books-only office gets it. Not arbitrary: it is the shape with
+         * no till, no catalogue and no stock, so people and what they are
+         * paid is the only thing it has — and it is the shop most likely to
+         * be broken by a change made for everybody else.
+         *
+         * Every OTHER shop here is then a live check that the gate holds:
+         * `at-volume.spec.ts` asserts the grocery is offered no HR at all.
+         */
+        if (! empty($spec['hrm'])) {
+            $tenant->applyModules(['hrm' => true]);
             $tenant->refresh();
         }
 
