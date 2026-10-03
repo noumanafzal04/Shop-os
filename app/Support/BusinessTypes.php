@@ -52,6 +52,10 @@ class BusinessTypes
         // have to switch on the whole restaurant (tables, tabs, split bills)
         // to get one.
         'kitchen',
+        // Basic HR. Listed so it can be ASSIGNED, and given to no trade by
+        // default — the screens are honest placeholders and an unbuilt
+        // module must never arrive on its own. See App\Support\Modules.
+        'hrm',
     ];
 
     /**

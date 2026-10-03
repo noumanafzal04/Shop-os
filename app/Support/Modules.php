@@ -150,6 +150,42 @@ class Modules
                 'group' => 'Trade-specific',
                 'depends' => ['products', 'inventory'],
             ],
+
+            /**
+             * BASIC HR — nine screens that say "not built yet", and until
+             * now there was no way to stop showing them.
+             *
+             * They had no key, so `RequireFeature` had nothing to gate on and
+             * the whole area was in every shop's sidebar: a one-person
+             * accountancy office, a filling station and a tyre shop were each
+             * offered Attendance, Leaves, Shifts, Advances, Commission,
+             * Payroll, Reports and HR settings — eight screens that save
+             * nothing and read nothing.
+             *
+             * The comment in App.tsx said as much and called it temporary:
+             * "no RequireFeature yet — there is no `hrm` module key on the
+             * server, and gating on a flag that does not exist would hide the
+             * whole thing". That was true and it stayed true, which is how a
+             * placeholder becomes furniture.
+             *
+             * ── Registered BEFORE it is built, deliberately ────────────
+             *
+             * The key is what makes the area optional. Admins can hand it to
+             * the two or three businesses actually reviewing the shape, and
+             * every other shop stops being shown a department it does not
+             * have. `BusinessTypes` gives it to NOBODY by default — an
+             * unbuilt module must never arrive by itself.
+             *
+             * `depends` is empty on purpose: payroll is about people, not
+             * about products or a till. A books-only office with no catalog
+             * is exactly the shape that might want it first.
+             */
+            'hrm' => [
+                'label' => 'Basic HR',
+                'description' => 'Attendance, leave, shifts, advances and payroll for shop staff. Still being built — the screens show their shape and save nothing.',
+                'group' => 'People',
+                'depends' => [],
+            ],
         ];
     }
 
