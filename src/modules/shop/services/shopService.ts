@@ -59,6 +59,13 @@ export interface SubscriptionInfo {
      */
     retention_months: number | null;
   } | null;
+  /**
+   * THE WINDOW AS A DATE — the earliest day still listed.
+   *
+   * `retention_months` is the promise; this is where it currently falls.
+   * Null on a plan that keeps everything, and the screen then says nothing.
+   */
+  history_from: string | null;
   state: "active" | "grace" | "read_only";
   subscription_ends_at: string | null;
   grace_ends_at: string | null;

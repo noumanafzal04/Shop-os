@@ -77,9 +77,11 @@ export default function AdminTenantCreatePage() {
     payment_method: "cash",
     payment_reference: "",
     payment_paid_at: "",
-    branches: "1",
-    staff: "5",
-    registers: "2",
+    // Blank = whatever the chosen plan includes. Typing in one of these is
+    // a deliberate exception for THIS shop, and the form says so.
+    branches: "",
+    staff: "",
+    registers: "",
     owner_name: "",
     owner_email: "",
     owner_password: "",
@@ -148,11 +150,21 @@ export default function AdminTenantCreatePage() {
             }
           : undefined,
         modules,
-        limits: {
-          branches: Number(form.branches) || 1,
-          staff: Number(form.staff) || 1,
-          registers: Number(form.registers) || 1,
-        },
+        /**
+         * ONLY WHAT WAS TYPED.
+         *
+         * This used to send all three every time, which wrote an override
+         * onto every shop the moment it was created — so a shop "on Standard"
+         * was really on a frozen copy of Standard's numbers, and raising the
+         * plan later moved nothing. An untouched box now means "follow the
+         * plan", for ever, including after an upgrade.
+         */
+        limits: Object.fromEntries(
+          (["branches", "staff", "registers"] as const)
+            .map((k) => [k, form[k].trim()])
+            .filter(([, v]) => v !== "")
+            .map(([k, v]) => [k, Number(v)]),
+        ),
         owner: {
           name: form.owner_name.trim(),
           email: form.owner_email.trim() || undefined,
@@ -253,27 +265,7 @@ export default function AdminTenantCreatePage() {
           </div>
         </FormCard>
 
-        <FormCard title="Size of the business" description="Assigned to this business, not bought with a plan — so a second branch is a number you raise here, any time.">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <Label>Branches</Label>
-              <Input type="number" min="1" value={form.branches} onChange={(e) => set("branches", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">The Main branch counts as one.</p>
-            </div>
-            <div>
-              <Label>Staff accounts</Label>
-              <Input type="number" min="1" value={form.staff} onChange={(e) => set("staff", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">The owner isn't counted.</p>
-            </div>
-            <div>
-              <Label>Checkout lanes</Label>
-              <Input type="number" min="1" value={form.registers} onChange={(e) => set("registers", e.target.value)} />
-              <p className="mt-1 text-theme-xs text-gray-400">A single-counter shop needs none.</p>
-            </div>
-          </div>
-        </FormCard>
-
-        <FormCard title="Plan" description="Price, billing period and the catalog ceiling. It grants no modules.">
+        <FormCard title="Plan" description="What this business pays, and how much it may have. It grants no modules.">
           <div className="space-y-4">
             <div>
               <Label>Plan <span className="text-error-500">*</span></Label>
@@ -291,11 +283,24 @@ export default function AdminTenantCreatePage() {
               <div className="rounded-lg bg-gray-50 p-3 text-theme-xs dark:bg-white/[0.04]">
                 <p className="mb-1 font-medium text-gray-700 dark:text-gray-200">{selectedPlan.name}</p>
                 <p className="text-gray-500 dark:text-gray-400">
-                  {money(selectedPlan.price)} every {selectedPlan.billing_period_months ?? 1} month(s) ·{" "}
-                  {selectedPlan.limits?.products == null
-                    ? "unlimited products"
-                    : `${selectedPlan.limits.products.toLocaleString()} products`}{" "}
-                  · {selectedPlan.grace_period_days ?? 7}-day grace
+                  {money(selectedPlan.price)} every {selectedPlan.billing_period_months ?? 1} month(s)
+                </p>
+                {/* The six numbers a buyer asks about, in the order they ask.
+                    The summary used to lead with the product ceiling, which
+                    nobody has ever rung up about. */}
+                <p className="mt-1 text-gray-500 dark:text-gray-400">
+                  {selectedPlan.limits?.branches ?? selectedPlan.defaults?.branches ?? 1} branches ·{" "}
+                  {selectedPlan.limits?.staff ?? selectedPlan.defaults?.staff ?? 5} staff ·{" "}
+                  {selectedPlan.limits?.registers ?? selectedPlan.defaults?.registers ?? 2} lanes
+                </p>
+                <p className="mt-1 text-gray-500 dark:text-gray-400">
+                  {selectedPlan.limits?.orders_month == null
+                    ? "Unlimited bills"
+                    : `${selectedPlan.limits.orders_month.toLocaleString()} bills`} a month ·{" "}
+                  {selectedPlan.limits?.retention_months == null
+                    ? "history kept for good"
+                    : `${selectedPlan.limits.retention_months} months of history`}{" "}
+                  · {(selectedPlan.limits?.offline_selling ?? 0) > 0 ? "offline selling" : "no offline selling"}
                 </p>
               </div>
             )}
@@ -389,6 +394,52 @@ export default function AdminTenantCreatePage() {
               </div>
             </div>
           </div>
+        </FormCard>
+
+        <FormCard
+          title="Size of the business"
+          description={selectedPlan
+            ? `${selectedPlan.name} includes these. Type a number only where this one business is an exception.`
+            : "Pick a plan first — it decides the usual numbers, and these boxes then say what they are."}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {([
+              { key: "branches", label: "Branches", hint: "The Main branch counts as one." },
+              { key: "staff", label: "Staff accounts", hint: "The owner isn't counted." },
+              { key: "registers", label: "Checkout lanes", hint: "A single-counter shop needs none." },
+            ] as const).map(({ key, label, hint }) => {
+              const included = selectedPlan?.limits?.[key] ?? selectedPlan?.defaults?.[key] ?? null;
+              const typed = form[key].trim() !== "";
+
+              return (
+                <div key={key}>
+                  <Label>{label}</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={form[key]}
+                    onChange={(e) => set(key, e.target.value)}
+                    /* The plan's own number, so an empty box states what it
+                       will actually be rather than looking unfinished. */
+                    placeholder={included === null ? "" : String(included)}
+                  />
+                  <p className="mt-1 text-theme-xs text-gray-400">
+                    {typed
+                      ? `Set for this business. The plan includes ${included ?? "—"}.`
+                      : hint}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+          {/* WHY LEAVING THESE BLANK IS THE RIGHT ANSWER.
+              A number typed here is frozen: it beats the plan for ever, so a
+              shop upgraded to Pro next year would keep the three staff
+              somebody keyed in today and nobody would know why. */}
+          <p className="mt-3 text-theme-xs text-gray-400">
+            Leave them blank and this business follows its plan — including after an upgrade. A number typed
+            here overrides the plan permanently, so use it only when the deal really is different.
+          </p>
         </FormCard>
 
         <FormCard title="Owner account" description="The first login. They set their own password afterwards.">

@@ -319,6 +319,7 @@ export default function IncomePage() {
         direction="in"
         showBranch={branchCol.show}
         pagination={pagination}
+        retention={incomes.data?.meta.retention}
         onPage={setPage}
         noun="entries"
         sort={{ key: sort, dir, onSort: sortBy }}

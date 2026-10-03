@@ -22,6 +22,12 @@ export interface LimitUsage {
   extra: number | null;
   /** Set on this shop specifically rather than inherited. */
   assigned: boolean;
+  /**
+   * Of the effective ceiling, how much was BOUGHT OR GIVEN rather than set
+   * by hand. Reported apart from `extra`, which is the arithmetic difference
+   * and cannot say why it exists.
+   */
+  granted?: number;
   used: number;
   remaining: number | null;
   unlimited: boolean;
@@ -38,7 +44,31 @@ export interface LimitUsage {
    * not a quota: a tablet three days out against a three-day window is late,
    * not spent.
    */
-  band: "ok" | "nearing" | "critical" | "reached" | null;
+  band: "ok" | "nearing" | "critical" | "reached" | "grace" | "over" | null;
+  /**
+   * HOW FAR PAST THE INCLUDED FIGURE THIS SHOP MAY GO.
+   *
+   * Only the bills-a-month meter has any. A shop cannot be slightly over its
+   * branches — it opened a fourth shop or it did not — but bills a month is
+   * a FORECAST, and a forecast that turns into a locked till on the 22nd is
+   * the worst thing this software could do to a business. Null = no room,
+   * which is every other row.
+   */
+  grace?: number | null;
+  /** limit + grace, so nobody has to add 20,000 and 1,000 while reading. */
+  grace_until?: number | null;
+  /**
+   * Whether being over THIS row actually refuses anything.
+   *
+   * Separate from `enforced`, which is about writes. A shop past its bills
+   * allowance keeps selling; a shop at its branch ceiling cannot open
+   * another. Same screen, very different sentences.
+   */
+  blocks?: boolean;
+  /** A yes/no that must render as a switch, never as a 0 / 1 progress bar. */
+  switch?: boolean;
+  /** What a zero means on a policy row, when it does not mean "none". */
+  zero_means?: string | null;
 }
 
 /**

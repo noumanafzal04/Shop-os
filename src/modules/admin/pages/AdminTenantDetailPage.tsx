@@ -13,11 +13,11 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, usePayments, usePlans, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
-import type { Entitlement, Plan } from "../services/adminService";
+import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, usePayments, usePlans, usePlanChangePreview, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import type { Entitlement, Plan, PlanChangePreview } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
-import type { Tenant } from "../../auth/types";
+import type { LimitUsage, Tenant } from "../../auth/types";
 import { toIsoDate } from "../../../components/ui/filters";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
@@ -200,6 +200,279 @@ function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
   );
 }
 
+/**
+ * WHAT THIS PLAN CHANGE WOULD DO, BEFORE IT DOES IT.
+ *
+ * Two facts, and they are not equally important.
+ *
+ * The price difference an admin can work out for themselves — it is two
+ * numbers on the same dropdown. What they cannot work out is that THIS
+ * shop has six staff accounts and the plan they are hovering over includes
+ * three. That is what the warning is for, and it is why this block renders
+ * before the Assign button rather than as a toast afterwards.
+ *
+ * It refuses nothing. A downgrade that leaves a shop over its new ceiling
+ * is an ordinary commercial situation — a chain closing a branch next
+ * month, a team shrinking after Eid — and three answers follow from being
+ * told: remove the excess, sell them an add-on, or leave it. All three are
+ * the admin's to pick, and none of them is this screen's.
+ *
+ * What must never happen is the fourth: the plan changes, seven staff
+ * accounts stop working on Monday, and nobody was warned.
+ */
+function PlanChangePreviewBlock({ preview }: {
+  preview: { data?: PlanChangePreview; isLoading: boolean; isError: boolean };
+}) {
+  if (preview.isLoading) {
+    return <div className="h-20 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />;
+  }
+  // Silent on error and when idle. A broken preview must not stop an admin
+  // doing the thing they came to do; it just stops helping.
+  if (preview.isError || !preview.data) return null;
+
+  const p = preview.data;
+  const diff = p.price_difference;
+  const per = p.billing_period_months > 1 ? `every ${p.billing_period_months} months` : "a month";
+
+  return (
+    <div className="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+      <div className="flex flex-wrap items-baseline gap-2 text-theme-sm">
+        <span className="text-gray-500 dark:text-gray-400">{p.from.name ?? "No plan"}</span>
+        <span className="text-gray-400">→</span>
+        <span className="font-medium text-gray-800 dark:text-white/90">{p.to.name}</span>
+        {diff !== 0 && (
+          <span className={`ml-auto tabular-nums ${diff > 0 ? "text-success-600 dark:text-success-500" : "text-warning-600 dark:text-warning-400"}`}>
+            {diff > 0 ? "+" : "−"}Rs {Math.abs(diff).toLocaleString()} {per}
+          </span>
+        )}
+      </div>
+
+      {/* Only the rows that actually move. A table of eleven, nine of them
+          unchanged, is a table nobody reads to the bottom. */}
+      {p.rows.filter((r) => r.from !== r.to).length > 0 && (
+        <table className="w-full text-left text-theme-xs">
+          <tbody>
+            {p.rows.filter((r) => r.from !== r.to).map((r) => (
+              <tr key={r.key} className="text-gray-500 dark:text-gray-400">
+                <td className="py-0.5">{r.label}</td>
+                <td className="py-0.5 text-right tabular-nums">{r.from === null ? "∞" : r.from.toLocaleString()}</td>
+                <td className="w-5 py-0.5 text-center text-gray-400">→</td>
+                <td className="py-0.5 text-right font-medium tabular-nums text-gray-700 dark:text-gray-300">
+                  {r.to === null ? "∞" : r.to.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {p.excess.length > 0 && (
+        <div className="rounded-lg bg-warning-50 p-3 text-theme-xs dark:bg-warning-500/10">
+          <p className="font-medium text-warning-700 dark:text-warning-400">
+            This shop would be over {p.excess.length === 1 ? "one ceiling" : `${p.excess.length} ceilings`}.
+          </p>
+          <ul className="mt-1 space-y-0.5 text-warning-700/90 dark:text-warning-400/90">
+            {p.excess.map((r) => (
+              <li key={r.key}>
+                {r.label}: {r.used.toLocaleString()} in use, {r.to?.toLocaleString()} allowed
+                {" — "}
+                {r.blocks
+                  ? "no more can be added until it is raised"
+                  : "nothing is blocked; the plan stops covering it"}
+              </li>
+            ))}
+          </ul>
+          {/* The three ways out, named. Nothing here is deleted and nothing
+              is refused — but an admin who presses on should have chosen to. */}
+          <p className="mt-2 text-warning-700/80 dark:text-warning-400/80">
+            Nothing is deleted. Remove the excess, grant the extra capacity below, or go ahead and leave it over.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * THREE QUESTIONS, NOT ONE LIST.
+ *
+ * Every limit used to render as a progress bar, which produced rows an admin
+ * could only read as a bug:
+ *
+ *     offline selling (0 = off, 1 = on)      0 / 0
+ *     hard stop after N days offline          0 / 0
+ *
+ * That is a SWITCH drawn as a quota, and a quota of zero at that. The labels
+ * had to carry their own instructions because the control underneath them was
+ * the wrong shape.
+ *
+ * The three sections are three different conversations:
+ *
+ *   CAPACITY   how big is this organisation. A number sold on the plan,
+ *              raiseable for one shop, and the thing a downgrade collides
+ *              with.
+ *   USAGE      what did they consume this period. A meter that resets.
+ *   POLICIES   what are they allowed to do. Not a quantity at all.
+ */
+const SECTIONS: Array<{ title: string; note: string; keys: string[]; policy?: boolean }> = [
+  {
+    title: "Capacity",
+    note: "in use / allowed",
+    keys: ["branches", "staff", "registers"],
+  },
+  {
+    title: "Usage this period",
+    // Named, because "this month" is wrong for a shop billed quarterly and
+    // for one whose month starts on the 12th.
+    note: "resets each billing period",
+    keys: ["orders_month", "products", "storage_mb"],
+  },
+  {
+    title: "Policies",
+    note: "what this shop is allowed to do",
+    keys: ["offline_selling", "offline_days", "offline_hard_stop_days"],
+    policy: true,
+  },
+];
+
+/** One line of the picture. How it draws depends on what kind of thing it is. */
+function UsageRow({ row: u, assigned, onReset }: {
+  row: LimitUsage;
+  assigned: boolean;
+  onReset: () => void;
+}) {
+  const fmt = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
+
+  /**
+   * A YES/NO IS A YES/NO.
+   *
+   * Drawn as a state, not as "0 / 1". The provenance line still says where
+   * the answer came from, because "off" means something different when the
+   * plan withholds it and when an admin turned it off for this shop.
+   */
+  if (u.switch) {
+    const on = u.limit !== null && u.limit > 0;
+
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-gray-700 dark:text-gray-300">{u.label}</span>
+        <span className="flex items-center gap-2">
+          {assigned && <Badge size="sm" color="light">set here</Badge>}
+          <Badge size="sm" color={on ? "success" : "light"}>{on ? "Allowed" : "Not allowed"}</Badge>
+        </span>
+      </div>
+    );
+  }
+
+  /**
+   * A POLICY NUMBER IS A SETTING, NOT A QUOTA.
+   *
+   * `offline_days` reports the worst device currently out of contact. Three
+   * days out against a three-day window is a tablet that is LATE — calling
+   * it "100% used" puts a billing word on an operational fact, which is why
+   * the server returns no band for these at all.
+   */
+  if (u.band === null && !u.unlimited) {
+    const zeroMeans = u.zero_means;
+    const value = u.limit === 0 && zeroMeans ? zeroMeans : `${u.limit?.toLocaleString()} days`;
+
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-gray-700 dark:text-gray-300">{u.label}</span>
+        <span className="flex items-center gap-2 text-sm">
+          {u.used > 0 && (
+            <span className="text-theme-xs text-gray-400">worst device {u.used}d out</span>
+          )}
+          {assigned && <Badge size="sm" color="light">set here</Badge>}
+          <span className="font-medium text-gray-700 dark:text-gray-300">{value}</span>
+        </span>
+      </div>
+    );
+  }
+
+  const pct = u.percent ?? 0;
+  const band = u.band;
+  const bar =
+    band === "over" ? "bg-error-500"
+    : band === "grace" ? "bg-warning-500"
+    : band === "reached" ? "bg-error-400"
+    : band === "critical" ? "bg-warning-500"
+    : band === "nearing" ? "bg-warning-400"
+    : "bg-brand-500";
+  const extra = u.extra ?? 0;
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+          {u.label}
+          {/* Say what was granted, not just that something was. An admin
+              about to change a ceiling needs to know whether 1,100 is the
+              plan or 1,000 plus 100 they gave in March. */}
+          {assigned && (
+            <Badge size="sm" color={extra > 0 ? "info" : extra < 0 ? "warning" : "light"}>
+              {extra > 0 ? `+${extra.toLocaleString()}` : extra < 0 ? extra.toLocaleString() : "set here"}
+            </Badge>
+          )}
+          {(u.granted ?? 0) > 0 && (
+            <Badge size="sm" color="success">+{(u.granted ?? 0).toLocaleString()} bought</Badge>
+          )}
+        </span>
+        <span className="tabular-nums text-gray-500 dark:text-gray-400">
+          {u.used.toLocaleString()}{" / "}
+          <span className="font-medium text-gray-700 dark:text-gray-300">
+            {u.unlimited ? "∞" : u.limit?.toLocaleString()}
+          </span>
+        </span>
+      </div>
+      {!u.unlimited && (
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+          {/* Clamped at 100 because a bar cannot be 110% long. The WORD
+              below says 110, which is the number that matters. */}
+          <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        </div>
+      )}
+      {/* A COLOUR IS NOT A SENTENCE. Most of these are reported and
+          deliberately not enforced — a hard stop in the middle of a queue is
+          the failure the offline module exists to avoid — and a bar going
+          red says nothing an admin can act on. */}
+      {band !== null && band !== "ok" && (
+        <p
+          className={`mt-1 text-theme-xs ${
+            band === "over"
+              ? "text-error-600 dark:text-error-400"
+              : "text-warning-600 dark:text-warning-400"
+          }`}
+        >
+          {band === "over"
+            ? u.blocks
+              ? `Over the ceiling (${pct}%) — nothing more can be added until it is raised.`
+              : `Over the plan (${pct}%). Still selling — nothing is blocked — but this is an account to ring.`
+            : band === "grace"
+              ? `Past the included ${u.limit?.toLocaleString()}, inside the ${u.grace?.toLocaleString()} allowed over. Room until ${u.grace_until?.toLocaleString()}.`
+              : band === "reached"
+                ? `All ${u.limit?.toLocaleString()} used — exactly what the plan includes.${u.grace ? ` ${u.grace.toLocaleString()} more allowed before anyone need worry.` : ""}`
+                : band === "critical"
+                  ? `${pct}% used — worth a call before the period ends.`
+                  : `${pct}% used.`}
+        </p>
+      )}
+      {assigned ? (
+        <div className="mt-1 flex items-center gap-2 text-theme-xs text-gray-400">
+          <span>Set for this shop. Plan includes {fmt(u.baseline)}</span>
+          <button type="button" onClick={onReset} className="text-brand-500 hover:text-brand-600">
+            Back to the plan
+          </button>
+        </div>
+      ) : (
+        <p className="mt-1 text-theme-xs text-gray-400">
+          {u.owner === "plan" ? "From the plan" : "Included in the plan"}: {fmt(u.baseline)}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** Live usage vs this shop's effective ceilings, with an action to change them. */
 function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
   const extend = useExtendLimits();
@@ -297,93 +570,32 @@ function UsageLimitsCard({ tenant, plan }: { tenant: Tenant; plan?: Plan }) {
           Nothing to meter yet.
         </p>
       ) : (
-        <div className="space-y-4">
-          {usage.map((u) => {
-            /* WHERE "NEARLY" STARTS IS THE SERVER'S DECISION, not this
-               screen's. The shop's own Subscription page draws the same
-               figure, and two copies of 80 would drift the first time
-               somebody tuned one of them. The bar is still clamped at 100%
-               because a bar cannot be 110% long — but the WORD below it
-               says 110, which is the number that matters. */
-            const pct = u.percent ?? 0;
-            const band = u.band;
-            const bar =
-              band === "reached" ? "bg-error-500"
-              : band === "critical" ? "bg-warning-500"
-              : band === "nearing" ? "bg-warning-400"
-              : "bg-brand-500";
-            const extended = assigned[u.key] != null;
-            const extra = u.extra ?? 0;
+        <div className="space-y-6">
+          {SECTIONS.map((section) => {
+            const rows = section.keys
+              .map((k) => usage.find((u) => u.key === k))
+              .filter((u): u is LimitUsage => u !== undefined);
+            if (rows.length === 0) return null;
+
             return (
-              <div key={u.key}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                    {u.label}
-                    {/* Say what was granted, not just that something was. An
-                        admin about to change a ceiling needs to know whether
-                        1,100 is the plan or 1,000 plus 100 they gave in March. */}
-                    {extended && (
-                      <Badge size="sm" color={u.owner === "tenant" ? "light" : extra < 0 ? "warning" : "info"}>
-                        {u.owner === "tenant"
-                          ? "assigned"
-                          : extra > 0
-                            ? `+${extra.toLocaleString()}`
-                            : extra < 0
-                              ? extra.toLocaleString()
-                              : "custom"}
-                      </Badge>
-                    )}
-                  </span>
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {u.used.toLocaleString()}{" / "}
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      {u.unlimited ? "∞" : u.limit?.toLocaleString()}
-                    </span>
-                  </span>
+              <section key={section.title}>
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <h4 className="text-theme-xs font-medium uppercase tracking-wide text-gray-400">
+                    {section.title}
+                  </h4>
+                  <span className="text-theme-xs text-gray-400">{section.note}</span>
                 </div>
-                {!u.unlimited && (
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                )}
-                {/* A COLOUR IS NOT A SENTENCE. Three of these limits are
-                    reported and deliberately not enforced — a hard stop in
-                    the middle of a queue is the failure the offline module
-                    exists to avoid — and until now the only thing beside
-                    them was a bar that went red. An admin ringing a shop
-                    about its plan needs the words. */}
-                {band !== null && band !== "ok" && (
-                  <p
-                    className={`mt-1 text-theme-xs ${
-                      band === "reached"
-                        ? "text-error-600 dark:text-error-400"
-                        : "text-warning-600 dark:text-warning-400"
-                    }`}
-                  >
-                    {band === "reached"
-                      ? u.enforced
-                        ? `At the ceiling (${pct}%) — nothing more can be added until it is raised.`
-                        : `Past the ceiling (${pct}%). Nothing is blocked; the plan no longer covers it.`
-                      : band === "critical"
-                        ? `${pct}% of the plan used — worth a call before the month ends.`
-                        : `${pct}% of the plan used.`}
-                  </p>
-                )}
-                {extended && (
-                  <div className="mt-1 flex items-center gap-2 text-theme-xs text-gray-400">
-                    <span>
-                      {u.owner === "plan" ? "Plan gives" : "Default is"} {fmt(u.baseline)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => clearOverride(u.key)}
-                      className="text-brand-500 hover:text-brand-600"
-                    >
-                      {u.owner === "plan" ? "Reset to plan" : "Reset to default"}
-                    </button>
-                  </div>
-                )}
-              </div>
+                <div className={section.policy ? "space-y-2" : "space-y-4"}>
+                  {rows.map((u) => (
+                    <UsageRow
+                      key={u.key}
+                      row={u}
+                      assigned={assigned[u.key] != null}
+                      onReset={() => clearOverride(u.key)}
+                    />
+                  ))}
+                </div>
+              </section>
             );
           })}
         </div>
@@ -839,6 +1051,9 @@ export default function AdminTenantDetailPage() {
   const [pw, setPw] = useState({ password: "", confirm: "", user_id: "" });
 
   const t = tenant.data;
+  // What picking this plan would do to this shop — asked while the admin is
+  // still deciding, and never fetched for the plan they are already on.
+  const planPreview = usePlanChangePreview(id, planId, t?.plan?.id ?? null);
   const paymentRows = payments.data?.data ?? [];
   const currentPlan = plans.data?.find((p) => p.id === t?.plan?.id);
 
@@ -1198,6 +1413,8 @@ export default function AdminTenantDetailPage() {
                 </p>
               )}
             </div>
+
+            <PlanChangePreviewBlock preview={planPreview} />
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <p className="mb-3 text-theme-xs text-gray-400">
                 Billing period (optional — leave blank to run from today for the plan's period)

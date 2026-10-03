@@ -17,6 +17,7 @@ import { downloadFile } from "../../../common/api/download";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
+import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
 import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useQuery } from "@tanstack/react-query";
@@ -478,6 +479,12 @@ export default function SalesPage() {
         </div>
 
         <Pager pagination={pagination} onPage={setPage} noun="sales" />
+
+        {/* WHY THE LIST STOPS WHERE IT STOPS. Under the pager, because that
+            is where somebody looking for last March arrives. */}
+        <div className="px-5 pb-4">
+          <ArchivedBefore notice={sales.data?.meta.retention} what="Sales" />
+        </div>
       </div>
 
       {/* Detail modal */}

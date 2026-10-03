@@ -1,8 +1,9 @@
 import { formatEntryDate } from "../../../components/ui/filters";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import Pager from "../../../components/ui/pager";
+import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
-import type { Pagination } from "../../../common/types/api";
+import type { Pagination, RetentionNotice } from "../../../common/types/api";
 
 /**
  * One line of a book, in the shape both sides of it share.
@@ -39,6 +40,11 @@ interface Props {
   showBranch: boolean;
   pagination?: Pagination;
   onPage: (page: number) => void;
+  /**
+   * Why the book stops where it stops. Shown under the pager, which is
+   * where a merchant hunting last March arrives — see ArchivedBefore.
+   */
+  retention?: RetentionNotice;
   noun: string;
   /** What to say when there is nothing — the two reasons differ. */
   empty: { filtered: boolean; title: string; hint: string; action?: React.ReactNode };
@@ -78,6 +84,7 @@ export function MoneyEntryTable({
   showBranch,
   pagination,
   onPage,
+  retention,
   noun,
   empty,
   sort,
@@ -251,6 +258,10 @@ export function MoneyEntryTable({
       </div>
 
       <Pager pagination={pagination} onPage={onPage} noun={noun} />
+
+      <div className="px-5 pb-4">
+        <ArchivedBefore notice={retention} what="Entries" />
+      </div>
     </div>
   );
 }

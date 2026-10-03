@@ -150,6 +150,29 @@ export function useEntitlements(tenantId: string | undefined) {
   });
 }
 
+/**
+ * WHAT A PLAN CHANGE WOULD DO — asked while the admin is still deciding.
+ *
+ * Enabled only once a DIFFERENT plan is picked: previewing a move to the
+ * plan the shop is already on would print a table of zeroes beside a
+ * price difference of nothing, which reads as a broken screen rather
+ * than as "you have changed nothing".
+ *
+ * `staleTime: 0` because the shop's live usage is half the answer, and a
+ * cached count of staff accounts is exactly the number an admin must not
+ * be shown while choosing whether to cut their ceiling.
+ */
+export function usePlanChangePreview(tenantId: string | undefined, planId: string, currentPlanId?: string | null) {
+  const different = planId !== "" && planId !== currentPlanId;
+
+  return useQuery({
+    queryKey: ["admin", "tenant", tenantId, "plan-change", planId],
+    queryFn: async () => (await adminService.planChange(tenantId!, planId)).data,
+    enabled: !!tenantId && different,
+    staleTime: 0,
+  });
+}
+
 export function useGrantCapacity() {
   const queryClient = useQueryClient();
   return useMutation({

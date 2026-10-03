@@ -38,14 +38,36 @@ export type PaymentCounts = Record<PaymentStatus | "all", number>;
 /**
  * The usage a PLAN meters — null = unlimited for that resource.
  *
- * Branches, staff and checkout lanes are deliberately absent: they are assigned
- * to a shop, not sold on a plan, so a business opening its second site no
- * longer needs a plan minted for it.
+ * ── Null reads two ways here, on purpose ───────────────────────────────
+ *
+ * On BILLED USAGE — products, storage, bills a month — null means UNLIMITED.
+ * That is what a plan is for.
+ *
+ * On ORGANISATION SIZE — branches, staff, tills — null means THIS PLAN HAS NO
+ * OPINION, and the shop falls to the platform default carried in `defaults`
+ * below. Never unlimited: "however many staff accounts you like" is how a shop
+ * ends up with forty and finds out in an audit.
+ *
+ * The asymmetry is what makes the columns safe to have added. Every plan that
+ * pre-dates them holds null in all of them, so no shop's ceiling moved.
  */
 export interface PlanLimits {
   products: number | null;
   storage_mb: number | null;
   orders_month: number | null;
+  /** Branches this plan includes. Null = the platform default. */
+  branches: number | null;
+  /** Staff logins, not counting the owner. Null = the platform default. */
+  staff: number | null;
+  registers: number | null;
+  /**
+   * Whether a shop on this plan may sell with no server. 0/1, and the one
+   * capability a plan gates — a module describes the SHAPE of a trade, and
+   * offline selling is wanted by every trade there is.
+   */
+  offline_selling: number | null;
+  /** How long a till may keep selling out of contact. */
+  offline_days: number | null;
   /**
    * How far back a shop on this plan can look, in months. Null = no limit.
    *
@@ -70,6 +92,16 @@ export interface Plan {
   /** A bespoke deal for one business rather than a rung on the ladder. */
   is_custom?: boolean;
   tenants_count?: number;
+  /**
+   * Room past the included bills before anyone calls the number exhausted.
+   * A till must never stop because of an invoice.
+   */
+  grace_orders_month?: number | null;
+  /**
+   * What a shop lands on when this plan says nothing, so an empty box on the
+   * admin screen can print "1 (platform default)" rather than look broken.
+   */
+  defaults?: { branches: number; staff: number; registers: number };
 }
 
 export interface PlanInput {
@@ -85,9 +117,50 @@ export interface PlanInput {
   max_products?: number | null;
   max_storage_mb?: number | null;
   max_orders_month?: number | null;
+  grace_orders_month?: number | null;
+  max_branches?: number | null;
+  max_staff?: number | null;
+  max_registers?: number | null;
+  max_offline_selling?: number | null;
+  max_offline_days?: number | null;
   retention_months?: number | null;
   is_active?: boolean;
   is_custom?: boolean;
+}
+
+/**
+ * WHAT MOVING THIS SHOP BETWEEN PLANS WOULD DO.
+ *
+ * Asked before anything changes, because the dangerous half of a plan change
+ * is invisible from a dropdown: an admin moving a shop from Pro to Basic is
+ * thinking about the price, not about the six staff accounts that shop has
+ * and the three the new plan includes.
+ *
+ * Nothing here refuses anything. A downgrade that leaves a shop over its new
+ * ceiling is an ordinary commercial situation and the software's job is to
+ * SAY SO.
+ */
+export interface PlanChangePreview {
+  from: { id: string | null; name: string | null; price: string | number | null };
+  to: { id: string; name: string; price: string | number };
+  /** Signed, per billing period. Negative on a downgrade. */
+  price_difference: number;
+  billing_period_months: number;
+  rows: PlanChangeRow[];
+  /** Only the rows this shop would land over. Usually empty. */
+  excess: PlanChangeRow[];
+}
+
+export interface PlanChangeRow {
+  key: string;
+  label: string;
+  used: number;
+  from: number | null;
+  to: number | null;
+  /** How far over the new ceiling this shop already is. 0 when it is not. */
+  excess: number;
+  /** Whether being over this one actually refuses anything. */
+  blocks: boolean;
 }
 
 export interface Banner {
@@ -343,6 +416,10 @@ export const adminService = {
    * price, and until when: the part that can be invoiced, expired, and
    * explained six months later.
    */
+  /** A read-only "what would happen" — see PlanChangePreview. */
+  planChange: (id: string, planId: string) =>
+    apiGet<PlanChangePreview>(`/admin/tenants/${id}/plan-change`, { params: { plan_id: planId } }),
+
   entitlements: (id: string) => apiGet<Entitlement[]>(`/admin/tenants/${id}/entitlements`),
   grantCapacity: (id: string, body: GrantInput) =>
     apiPost<Entitlement>(`/admin/tenants/${id}/entitlements`, body),

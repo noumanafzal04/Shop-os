@@ -432,6 +432,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         direction="out"
         showBranch={branchCol.show}
         pagination={pagination}
+        retention={expenses.data?.meta.retention}
         onPage={setPage}
         noun="expenses"
         sort={{ key: sort, dir, onSort: sortBy }}

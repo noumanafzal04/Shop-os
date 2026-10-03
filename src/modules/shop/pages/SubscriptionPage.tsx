@@ -121,9 +121,14 @@ export default function SubscriptionPage() {
               {data.plan.description && (
                 <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300">{data.plan.description}</p>
               )}
-              {/* HOW FAR BACK YOU CAN LOOK. Said plainly, in years where
-                  the number divides, because "sixty months" is not how
-                  anybody holds this. Nothing is hidden by it today. */}
+              {/* HOW FAR BACK YOU CAN LOOK — and, because the window is
+                  now enforced, the DATE as well.
+                  A shopkeeper cannot turn "24 months" into a date while
+                  staring at a list that stops, and the date is the only
+                  form of the answer that matches what they are seeing.
+                  The second sentence is the one that prevents the support
+                  call: "archived" on its own is a word a worried person
+                  reads as "gone". */}
               {data.plan.retention_months != null && (
                 <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300">
                   History kept online:{" "}
@@ -132,7 +137,10 @@ export default function SubscriptionPage() {
                       ? `${data.plan.retention_months / 12} year${data.plan.retention_months === 12 ? "" : "s"}`
                       : `${data.plan.retention_months} months`}
                   </span>
-                  . Older records are never deleted.
+                  {data.history_from && <> — back to {day(data.history_from)}</>}.{" "}
+                  Older records are archived, never deleted: they stay out of lists and reports, and they
+                  come straight back if you move up a plan. Your stock levels and customer balances are
+                  never affected.
                 </p>
               )}
               {data.plan.is_custom && (
