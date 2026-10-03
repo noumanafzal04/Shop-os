@@ -164,3 +164,51 @@ const LIST: Record<string, Screen[]> = {
 };
 
 for (const screen of LIST[WHICH] ?? SCREENS) walk(screen);
+
+/**
+ * A DEPARTMENT THIS SHOP DOES NOT HAVE.
+ *
+ * Basic HR is nine screens that say "not built yet" and save nothing. Until
+ * it had a module key there was nothing to gate it on, so every shop on the
+ * platform carried an HR department in its sidebar — a grocery, a filling
+ * station, a one-person accountancy office.
+ *
+ * None of the load-test shops is granted it, so none of them should be
+ * offered it. Asserting the ABSENCE is the whole point: the leak was
+ * invisible precisely because an extra menu looks like a feature.
+ */
+test("the sidebar offers no HR to a shop that was not given it", async ({ page }) => {
+  /**
+   * IN FULL VIEW, WHICH IS THE ONLY VIEW THAT COULD SHOW IT.
+   *
+   * HRM is back-office work and the sidebar hides it in Simple mode. The
+   * first two versions of this test ran in Simple — the default — and passed
+   * with the module gate deliberately removed, twice. It was asserting that
+   * a menu hidden by density was hidden, and counting that as proof the
+   * module gate worked.
+   *
+   * Set before the first navigation: the mode is read from localStorage once,
+   * on mount.
+   */
+  await page.goto("/tenant");
+  await page.evaluate(() => localStorage.setItem("ui_mode", "advanced"));
+  await page.reload();
+  await page.waitForLoadState("networkidle").catch(() => {});
+
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar).toBeVisible();
+
+  /**
+   * THE GROUP, NOT ITS CHILDREN.
+   *
+   * The first version of this looked for links named Payroll and Attendance
+   * and passed with the gate deliberately removed — HRM is a COLLAPSIBLE
+   * group, so its sub-links are not in the DOM until somebody expands it.
+   * The assertion was vacuous: it could not have failed, and a check that
+   * cannot fail is worse than no check, because it is counted.
+   *
+   * The group's own label is always rendered, so that is what to look at.
+   */
+  const text = await sidebar.innerText();
+  expect(text, "a shop with no HR module was offered an HRM menu").not.toMatch(/\bHRM\b/);
+});

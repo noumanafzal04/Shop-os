@@ -64,6 +64,9 @@ export const EVERY_MODULE: Record<string, boolean> = Object.fromEntries(
     "inventory", "purchasing", "stocktake", "disposals", "labels",
     "customers", "promotions", "bank_offers", "reservations",
     "expenses", "images", "marketplace", "delivery", "kitchen", "dine_in", "fuel",
+    // Given to no trade by default, so it reaches a menu only through this
+    // list — which is exactly what "optional, not orphaned" means.
+    "hrm",
   ].map((key) => [key, true]),
 );
 

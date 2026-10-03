@@ -439,11 +439,15 @@ export default function App() {
                   <Route element={<RequireTenantScreen />}>
                     <Route path="reports" element={<ReportsPage />} />
                   </Route>
-                  {/* Basic HR. No RequireFeature yet — there is no `hrm`
-                      module key on the server, and gating on a flag that does
-                      not exist would hide the whole thing. The screen
-                      permission (staff.manage) is what keeps a cashier out of
-                      payroll in the meantime. */}
+                  {/* Basic HR, behind its own module.
+                      It used to be ungated, with a comment explaining that
+                      there was no `hrm` key to gate on — which was true, and
+                      meant every shop on the platform was offered a
+                      nine-screen HR department whose screens save nothing.
+                      The key exists now and no trade gets it by default, so
+                      the area is there only where somebody granted it.
+                      `staff.manage` still keeps a cashier out of payroll. */}
+                  <Route element={<RequireFeature feature="hrm" />}>
                   <Route element={<RequireTenantScreen />}>
                     <Route path="hrm" element={<HrmDashboardPage />} />
                     <Route path="hrm/attendance" element={<AttendancePage />} />
@@ -454,6 +458,7 @@ export default function App() {
                     <Route path="hrm/payroll" element={<PayrollPage />} />
                     <Route path="hrm/reports" element={<HrmReportsPage />} />
                     <Route path="hrm/settings" element={<HrmSettingsPage />} />
+                  </Route>
                   </Route>
                   {/* Orders follow PRODUCTS, matching the API. They used to
                       follow marketplace, which locked out the exact shop the

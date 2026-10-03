@@ -423,31 +423,6 @@ describe("every screen either has a module of its own, or is written down", () =
     "/tenant/staff": "who works here is not optional for a business with anybody in it",
     "/tenant/activity": "the audit trail of the above — a shop that can grant a permission may ask what was done with it",
     "/tenant/reports": "a business always may read its own numbers",
-    /**
-     * ⚠️ BASIC HR — A DEBT, NOT A DECISION.
-     *
-     * These nine are PLACEHOLDERS. Every one renders a "not built yet" notice
-     * and talks to nothing, so a shop that has bought no HR is shown no HR
-     * behaviour — only the shape of it.
-     *
-     * HR is plainly something a shop can decline, so this is NOT the same kind
-     * of entry as the ones above it. It needs an `hrm` key in
-     * App\Support\Modules — registry, route and nav together — and it needs
-     * it BEFORE any of these screens reads or writes a single row. Until then
-     * `staff.manage` is what keeps a cashier out of the wage bill.
-     *
-     * Delete these nine lines when the module key lands; the guard will then
-     * hold the real rule instead of a note about it.
-     */
-    "/tenant/hrm": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/attendance": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/leaves": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/shifts": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/advances": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/commission": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/payroll": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/reports": "PLACEHOLDER — owes a module key before it does anything",
-    "/tenant/hrm/settings": "PLACEHOLDER — owes a module key before it does anything",
     "/tenant/branches": "follows the PLAN (multi-branch), not a module",
     "/tenant/transfers": "as above — stock between branches only exists once there are two",
   };

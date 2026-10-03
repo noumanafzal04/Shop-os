@@ -116,3 +116,41 @@ test("a tenant's limits read as capacity, usage and policy", async ({ page }) =>
     "the policy label is still carrying its own instructions, which means it is still drawn as a quota",
   ).not.toContain("(0 = off, 1 = on)");
 });
+
+/**
+ * A MODULE THAT IS NOT BUILT STILL HAS TO BE ASSIGNABLE.
+ *
+ * Basic HR is nine screens that say "not built yet" and save nothing. It had
+ * no module key, so `RequireFeature` had nothing to gate on and EVERY shop
+ * carried an HR department in its sidebar — a one-person accountancy office,
+ * a filling station, a tyre shop.
+ *
+ * The key is what makes it optional. This checks the admin can actually see
+ * and reach it, which is the only reason to add a key before the feature.
+ */
+test("Basic HR can be handed to a shop, and is not there by default", async ({ page }) => {
+  await open(page, "/admin/tenants");
+
+  const firstShop = page.locator("table tbody tr td a").first();
+  await expect(firstShop).toBeVisible();
+  await firstShop.click();
+  await page.waitForURL(/\/admin\/tenants\/[^/]+$/, { timeout: 20_000 });
+  await expect(page.getByText("Usage & limits")).toBeVisible({ timeout: 20_000 });
+
+  /**
+   * WAIT FOR THE PICKER, NOT FOR THE CARD ABOVE IT.
+   *
+   * The module catalogue is its own request. Reading the page after "Usage &
+   * limits" appears finds the picker still empty, and the failure says "does
+   * not offer Basic HR at all" — a true sentence about a list that had not
+   * arrived. A module nobody can press is the same as a module that does not
+   * exist, so the switch is what this waits on.
+   */
+  const hr = page.getByRole("switch", { name: "Basic HR" });
+  await expect(hr).toBeVisible({ timeout: 20_000 });
+
+  // Its own group, so HR is not filed under "Trade-specific" beside a kitchen
+  // docket — it belongs to no trade and to all of them.
+  const body = (await page.locator("body").innerText()).toLowerCase();
+  expect(body, "Basic HR has no group of its own in the picker").toContain("people");
+});

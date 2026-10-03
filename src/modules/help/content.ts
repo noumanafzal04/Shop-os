@@ -60,11 +60,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
   // are written now rather than later because this repo's rule is that a
   // screen and its help arrive together — and because what Basic HR will and
   // will NOT do is the thing people need to read before it exists.
+  //
+  // Behind `hrm` now, like the screens. They were ungated for as long as the
+  // module key did not exist, which meant a one-person accountancy office
+  // searching Help for "payroll" was handed nine articles about a department
+  // it does not have and cannot open.
   {
     id: "hrm",
     title: "Basic HR",
     summary: "Attendance, leave, shifts, advances, commission and a monthly payroll.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm",
     keywords: ["hr", "hrm", "staff", "attendance", "payroll", "salary", "leave", "commission", "advance"],
@@ -87,6 +93,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Attendance",
     summary: "Who came, when, and how long they worked.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/attendance",
     parent: "hrm",
@@ -102,6 +109,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Leaves",
     summary: "Requests, approvals, and what each person has left.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/leaves",
     parent: "hrm",
@@ -117,6 +125,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Shifts & roster",
     summary: "The hours each person is expected to work.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/shifts",
     parent: "hrm",
@@ -132,6 +141,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Advances",
     summary: "Money taken before payday, and how it comes back.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/advances",
     parent: "hrm",
@@ -147,6 +157,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Commission",
     summary: "What a sale earns the person who made it.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/commission",
     parent: "hrm",
@@ -162,6 +173,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Payroll",
     summary: "One run a month, built from everything else.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/payroll",
     parent: "hrm",
@@ -177,6 +189,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "HR reports",
     summary: "Attendance, money and people — per branch.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/reports",
     parent: "hrm",
@@ -192,6 +205,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "HR settings",
     summary: "The policies every HR figure is worked out from.",
     group: "People & setup",
+    modules: ["hrm"],
     permission: "staff.manage",
     screen: "/tenant/hrm/settings",
     parent: "hrm",

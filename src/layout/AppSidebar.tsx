@@ -319,11 +319,22 @@ export function shopNav(
      * real sidebar before any of it exists.
      *
      * Full view only: this is back-office work, and Simple mode is the daily
-     * board. Ungated by module because there is no `hrm` key on the server
-     * yet — `staff.manage` is what keeps a cashier out of the wage bill, and
+     * board. `staff.manage` keeps a cashier out of the wage bill, and
      * filterByPermission below applies it.
+     *
+     * ── Gated now, and the gate was the missing half ───────────────────
+     *
+     * This used to be ungated "because there is no `hrm` key on the server
+     * yet" — true when it was written, still true months later, which is how
+     * a placeholder becomes furniture. Every shop on the platform carried a
+     * nine-screen HR department in its sidebar: a one-person accountancy
+     * office, a filling station, a tyre shop. Eight of those screens say
+     * "Not built yet" and the ninth is a dashboard of them.
+     *
+     * There is an `hrm` key now and no trade gets it by default, so the area
+     * appears only where somebody decided it should.
      */
-    {
+    ...(has("hrm") ? [{
       icon: <TimeIcon />,
       name: "HRM",
       subItems: [
@@ -339,7 +350,7 @@ export function shopNav(
         // not buried among the shop's.
         { name: "HR settings", path: "/tenant/hrm/settings" },
       ],
-    },
+    }] : []),
     {
       // The back office, plus the counter LOOKUPS a trade reaches for when a
       // customer is standing there — not its daily board, which is above.

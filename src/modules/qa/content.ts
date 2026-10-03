@@ -89,7 +89,7 @@ export const QA_SECTIONS: QaSection[] = [
         screen: "/tenant/settings",
         required: "always",
         what: [
-          "Settings → Your modules lists all twenty modules with a tick or a dash. It is read-only for the shop: modules are the platform admin's decision, because a shop able to switch its own till off would be a support call.",
+          "Settings → Your modules lists all twenty-one modules with a tick or a dash. It is read-only for the shop: modules are the platform admin's decision, because a shop able to switch its own till off would be a support call.",
           "This is the answer to 'why can I not see Purchases'. Open it FIRST whenever a screen you expected is not there.",
           "Modules depend on each other. Suppliers & Purchases needs Inventory, which needs Products. A module standing on one that is off is not enabled, however the list was written.",
         ],
