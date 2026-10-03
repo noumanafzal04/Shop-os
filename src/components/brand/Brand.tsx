@@ -1,3 +1,5 @@
+import { PRODUCT } from "../../common/brand";
+
 /**
  * The product's name and mark, in one place.
  *
@@ -19,6 +21,23 @@
  * Wordmark below for why.
  */
 
+/**
+ * ── THE MARK WEARS THE PRIMARY, AND THE APP ICON DOES NOT ───────────
+ *
+ * Asked for directly: *"panel main logo color primary wala e hoga"*. These
+ * two files are the mark as it appears INSIDE the product — in the rail, on
+ * the sign-in panel — beside buttons and links drawn in #1a759f. A mark in a
+ * neighbouring teal there does not read as a highlight, it reads as a second
+ * brand.
+ *
+ * The APP ICON is the other case and keeps the supplied artwork's aqua on its
+ * own deep ground (`public/icon-*.png`, and the phones' launcher icons). An
+ * icon is masked by a launcher and sits beside other companies' logos with
+ * nothing of ours around it; the palette has no claim on it.
+ *
+ * Both are cut from the same artwork by the script in `core/brand/`, so the
+ * SHAPE cannot drift between them — only the pigment, deliberately.
+ */
 const MARK = "/images/logo/true-serve-mark.png";
 const MARK_ON_DARK = "/images/logo/true-serve-mark-ondark.png";
 
@@ -49,8 +68,8 @@ export function BrandMark({ size = 32, tone = "auto" }: {
  *
  * ── Why the name is not part of the picture ─────────────────────────────
  *
- * The supplied lock-up spelled it "True Server". The product is True Serve,
- * and a logo with an extra letter in it is not something `alt` can fix —
+ * The supplied lock-up spelled the name with an extra letter in it, and that
+ * is not something `alt` can fix —
  * a screen reader would hear the right name while every sighted viewer read
  * the wrong one.
  *
@@ -76,6 +95,24 @@ export function Wordmark({ className = "", tone = "auto", size = 32 }: {
   const name = tone === "onDark" ? "text-white" : "text-gray-900 dark:text-white";
   const half = tone === "onDark" ? "text-brand-400" : "text-brand-500";
 
+  /**
+   * THE TWO-TONE SPLIT, TAKEN FROM THE NAME RATHER THAN TYPED.
+   *
+   * The artwork sets the first word in the reading colour and the rest in the
+   * brand. That was written out as `True<span>&nbsp;Serve</span>` — correct,
+   * and the last place in this app where the product's name was a literal, so
+   * a rename would have left the wordmark itself saying the old thing while
+   * every page title said the new one. The one string that is the brand is
+   * not a good place for that.
+   *
+   * A name with no space in it keeps the whole word in the reading colour and
+   * loses the second tone. That is the right failure: a split needs two
+   * halves, and inventing one by cutting letters would produce a lock-up
+   * nobody designed.
+   */
+  const [first, ...rest] = PRODUCT.name.split(" ");
+  const second = rest.join(" ");
+
   return (
     <span className={`flex items-center gap-2 ${className}`}>
       <BrandMark size={size} tone={tone} />
@@ -83,7 +120,8 @@ export function Wordmark({ className = "", tone = "auto", size = 32 }: {
         className={`font-bold italic tracking-tight ${name}`}
         style={{ fontSize: size * 0.66, lineHeight: 1.1 }}
       >
-        True<span className={half}>&nbsp;Serve</span>
+        {first}
+        {second && <span className={half}>&nbsp;{second}</span>}
       </span>
     </span>
   );

@@ -194,7 +194,7 @@ describe("dismissing", () => {
 
 describe("the card names the device the reader is actually holding", () => {
   /**
-   * "Put CartZe on this iPad" was shown on the Safari route to everyone, and
+   * `Put True Serve on this iPad` was shown on the Safari route to everyone, and
    * `isIOS()` is true for an iPhone too — so a waiter holding a phone was told
    * to install it on a tablet they did not have. The instruction that follows
    * is right on both, which is exactly why nobody caught it: nothing was

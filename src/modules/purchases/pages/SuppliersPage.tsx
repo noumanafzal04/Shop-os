@@ -144,7 +144,7 @@ export default function SuppliersPage() {
 
   return (
     <>
-      <PageMeta title="Suppliers | True Serve" description="Your vendors and payables" />
+      <PageMeta title="Suppliers" description="Your vendors and payables" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Suppliers</h2>

@@ -17,6 +17,7 @@ import type {
   HardwareDevice,
   HardwareType,
 } from "../services/hardwareService";
+import { PRODUCT } from "../../../common/brand";
 
 const TYPE_LABEL: Record<HardwareType, string> = {
   receipt_printer: "Receipt printer",
@@ -99,7 +100,7 @@ function testPrint(d: HardwareDevice) {
     <div class="r"><h2>${d.name || TYPE_LABEL[d.type]}</h2>
     <div>${d.brand ?? ""} ${d.model ?? ""}</div><hr/>
     <div>Test print OK</div><div>${new Date().toLocaleString()}</div><hr/>
-    <div>CartZe</div></div>
+    <div>${PRODUCT.name}</div></div>
     <script>window.onload=function(){window.print()}</script>
     </body></html>`);
   win.document.close();

@@ -235,7 +235,7 @@ export default function ProductsPage() {
 
   return (
     <>
-      <PageMeta title="Items | True Serve" description="Products and services" />
+      <PageMeta title="Items" description="Products and services" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

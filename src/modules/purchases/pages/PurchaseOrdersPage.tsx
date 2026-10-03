@@ -189,7 +189,7 @@ export default function PurchaseOrdersPage() {
 
   return (
     <>
-      <PageMeta title="Purchases | True Serve" description="Purchase orders & receiving" />
+      <PageMeta title="Purchases" description="Purchase orders & receiving" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Purchase Orders</h2>

@@ -170,7 +170,7 @@ export default function AdminBannersPage() {
 
   return (
     <>
-      <PageMeta title="Banners | True Serve Admin" description="Promo banners / paid ads" />
+      <PageMeta title="Banners" area="Admin" description="Promo banners / paid ads" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Promo Banners</h2>

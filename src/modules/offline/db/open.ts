@@ -1,4 +1,5 @@
 import { DB_NAME, DB_VERSION, type StoreName, upgrade } from "./schema";
+import { PRODUCT } from "../../../common/brand";
 
 /**
  * A promise wrapper over IndexedDB, and nothing more.
@@ -79,7 +80,7 @@ export function openDb(): Promise<IDBDatabase> {
     // forever with nothing on screen.
     request.onblocked = () => {
       if (cached === opening) cached = null;
-      reject(new Error("Another CartZe tab is holding the till's storage. Close it and try again."));
+      reject(new Error(`Another ${PRODUCT.name} tab is holding the till's storage. Close it and try again.`));
     };
   });
 

@@ -175,7 +175,7 @@ export default function OwnerOrdersPage() {
 
   return (
     <>
-      <PageMeta title="Orders | True Serve" description="Online orders" />
+      <PageMeta title="Orders" description="Online orders" />
 
       {/*
         Asked for HERE, from a button, and nowhere else. A browser asks for

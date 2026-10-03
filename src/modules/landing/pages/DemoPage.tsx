@@ -10,6 +10,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import type { User } from "../../auth/types";
 import { TRADE_ICON, type TradeCode } from "../components/tradeIcon";
 import { useSettlesIn } from "../components/useSettlesIn";
+import { PRODUCT } from "../../../common/brand";
 
 /**
  * PICK A TRADE, GET A SHOP.
@@ -67,13 +68,13 @@ export default function DemoPage() {
   return (
     <div className="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-white/90">
       <PageMeta
-        title="Try CartZe — pick your trade"
+        title="Try it — pick your trade"
         description="Open a working demo shop for your trade. No card, no phone call, no sign-up."
       />
 
       <header className="border-b border-gray-200/70 dark:border-white/10">
         <nav className="mx-auto flex max-w-4xl items-center justify-between px-5 py-3.5">
-          <Link to="/" aria-label="CartZe home"><Wordmark size={30} /></Link>
+          <Link to="/" aria-label={`${PRODUCT.name} home`}><Wordmark size={30} /></Link>
           <Link to="/signin" className="text-sm font-medium text-gray-600 transition hover:text-brand-500 dark:text-gray-300">
             I already have a shop
           </Link>

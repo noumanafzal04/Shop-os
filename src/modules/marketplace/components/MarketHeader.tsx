@@ -10,6 +10,7 @@ import { useSavedStore } from "../../../stores/savedStore";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { useCities } from "../../shop/hooks/useShop";
 import { CartIcon, ChevronDownIcon, HeartIcon, PinIcon, SearchIcon } from "./MarketIcons";
+import { PRODUCT } from "../../../common/brand";
 
 const NAV = [
   { to: "/shops", label: "Home" },
@@ -91,7 +92,7 @@ export function MarketHeader({ onOpenCart }: { onOpenCart?: () => void }) {
   return (
     <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/85 backdrop-blur-xl dark:border-white/10 dark:bg-gray-950/85">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:gap-5 sm:px-6">
-        <Link to="/shops" aria-label="CartZe marketplace" className="shrink-0">
+        <Link to="/shops" aria-label={`${PRODUCT.name} marketplace`} className="shrink-0">
           <Wordmark size={28} tone="auto" />
         </Link>
 

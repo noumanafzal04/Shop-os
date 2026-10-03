@@ -1,7 +1,7 @@
 /**
  * Self-contained Code128-B barcode encoder → SVG string. No dependency, works
  * offline / under strict CSP. Covers ASCII 32–126, which includes the numeric
- * barcodes CartZe generates and typical SKUs.
+ * barcodes True Serve generates and typical SKUs.
  *
  * Each table entry is the module bit-pattern (1 = bar, 0 = space); data
  * symbols are 11 modules, the stop symbol is 13.

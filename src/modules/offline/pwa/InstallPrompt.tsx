@@ -3,9 +3,10 @@ import { useLocation } from "react-router";
 
 import { installRoute, iosDeviceName, isInstalled } from "./installable";
 import { useReservesBottomRoom } from "./useReservesBottomRoom";
+import { PRODUCT } from "../../../common/brand";
 
 /**
- * "Put CartZe on this tablet."
+ * `Put True Serve on this tablet.`
  *
  * ── Why this is not a nicety ────────────────────────────────────────────
  *
@@ -110,12 +111,12 @@ export default function InstallPrompt() {
       <span className="flex-1 text-theme-sm text-gray-700 dark:text-gray-200">
         {route === "prompt" ? (
           <>
-            Put CartZe on this device. It opens from an icon, fills the screen,
+            Put {PRODUCT.name} on this device. It opens from an icon, fills the screen,
             and keeps working when the line drops.
           </>
         ) : (
           <>
-            Put CartZe on this {iosDeviceName()}: tap{" "}
+            Put {PRODUCT.name} on this {iosDeviceName()}: tap{" "}
             <span className="font-semibold">Share</span>, then{" "}
             <span className="font-semibold">Add to Home Screen</span>. It then
             opens from an icon and keeps working when the line drops.

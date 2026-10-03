@@ -3,6 +3,7 @@ import GridShape from "../../components/common/GridShape";
 import { Link } from "react-router";
 import ThemeTogglerTwo from "../../components/common/ThemeTogglerTwo";
 import { Wordmark } from "../../components/brand/Brand";
+import { PRODUCT } from "../../common/brand";
 
 export default function AuthLayout({
   children,
@@ -27,7 +28,7 @@ export default function AuthLayout({
           <div className="flex justify-center pb-6 pt-2 lg:hidden">
             <Link
               to="/"
-              aria-label="CartZe — go to the home page"
+              aria-label={`${PRODUCT.name} — go to the home page`}
               className="inline-flex min-h-11 items-center rounded-lg px-2 transition-opacity hover:opacity-80"
             >
               {/* `auto`, not `onDark`: this half of the screen is white in

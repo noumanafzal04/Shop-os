@@ -26,7 +26,7 @@ export default function SavedPage() {
 
   return (
     <>
-      <PageMeta title="Saved items — CartZe" description="Things you meant to come back to." />
+      <PageMeta title="Saved items" description="Things you meant to come back to." />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">

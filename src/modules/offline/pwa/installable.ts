@@ -1,5 +1,5 @@
 /**
- * Can this device put CartZe on its home screen, and how.
+ * Can this device put True Serve on its home screen, and how.
  *
  * ── Two completely different answers ────────────────────────────────────
  *
@@ -62,7 +62,7 @@ export function isIOS(): boolean {
 /**
  * What to CALL the thing in the reader's hands.
  *
- * The install card said "Put CartZe on this iPad" to everyone on the Safari
+ * The install card said `Put True Serve on this iPad` to everyone on the Safari
  * route — and `isIOS()` is true for an iPhone as well, so a waiter holding a
  * phone was told to install it on a tablet they were not holding. The
  * instruction that follows (Share → Add to Home Screen) is correct on both,

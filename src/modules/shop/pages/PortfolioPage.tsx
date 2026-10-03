@@ -24,7 +24,7 @@ export default function PortfolioPage() {
 
   return (
     <>
-      <PageMeta title="Portfolio | True Serve" description="Showcase gallery" />
+      <PageMeta title="Portfolio" description="Showcase gallery" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Portfolio</h2>

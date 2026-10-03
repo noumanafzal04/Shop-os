@@ -377,7 +377,7 @@ export default function TabPage() {
 
   return (
     <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-950`}>
-      <PageMeta title={`Tab ${ticket.ticket_number} | True Serve`} description="Dine-in tab" />
+      <PageMeta title={`Tab ${ticket.ticket_number}`} description="Dine-in tab" />
 
       {/* Wraps, for the same reason the floor's header does — and this one
           carries four more controls, so it ran off a phone by more. */}

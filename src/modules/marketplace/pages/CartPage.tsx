@@ -38,7 +38,7 @@ export default function CartPage() {
   if (groups.length === 0) {
     return (
       <>
-        <PageMeta title="Your basket — CartZe" description="What you have picked out." />
+        <PageMeta title="Your basket" description="What you have picked out." />
         <div className="mx-auto max-w-lg px-4 py-24 text-center">
           <span className="mx-auto mb-4 grid size-16 place-items-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-white/5">
             <CartIcon className="size-7" />
@@ -60,7 +60,7 @@ export default function CartPage() {
 
   return (
     <>
-      <PageMeta title="Your basket — CartZe" description="What you have picked out." />
+      <PageMeta title="Your basket" description="What you have picked out." />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
         <h1 className="mb-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Your basket</h1>

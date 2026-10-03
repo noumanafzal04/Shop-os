@@ -24,7 +24,7 @@ export default function NotBuiltYet({
 }) {
   return (
     <>
-      <PageMeta title={`${title} | True Serve`} description={lead} />
+      <PageMeta title={`${title}`} description={lead} />
 
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">{title}</h2>

@@ -97,7 +97,7 @@ export default function AdminShopRequestsPage() {
 
   return (
     <>
-      <PageMeta title="Shop requests | True Serve" description="Demo shops asking to become businesses" />
+      <PageMeta title="Shop requests" description="Demo shops asking to become businesses" />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>

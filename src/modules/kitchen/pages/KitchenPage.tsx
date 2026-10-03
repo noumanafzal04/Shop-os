@@ -72,7 +72,7 @@ export default function KitchenPage() {
 
   return (
     <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-950`}>
-      <PageMeta title="Kitchen | True Serve" description="Kitchen display" />
+      <PageMeta title="Kitchen" description="Kitchen display" />
 
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="flex items-center gap-3">

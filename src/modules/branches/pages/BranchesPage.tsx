@@ -66,7 +66,7 @@ export default function BranchesPage() {
 
   return (
     <>
-      <PageMeta title="Branches | True Serve" description="Your shop locations" />
+      <PageMeta title="Branches" description="Your shop locations" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

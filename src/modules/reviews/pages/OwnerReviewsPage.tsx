@@ -57,7 +57,7 @@ export default function OwnerReviewsPage() {
 
   return (
     <>
-      <PageMeta title="Reviews | True Serve" description="Customer feedback" />
+      <PageMeta title="Reviews" description="Customer feedback" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

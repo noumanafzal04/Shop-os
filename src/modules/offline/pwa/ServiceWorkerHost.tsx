@@ -36,7 +36,7 @@ export default function ServiceWorkerHost() {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW({
-    // Deliberately silent on first install. "CartZe is ready to work offline"
+    // Deliberately silent on first install. `True Serve is ready to work offline`
     // is a sentence that means nothing to a cashier and arrives at the one
     // moment they are busiest — their first day.
     //

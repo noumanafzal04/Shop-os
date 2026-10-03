@@ -348,7 +348,7 @@ export default function SalesPage() {
 
   return (
     <>
-      <PageMeta title="Sales | True Serve" description="Sales and invoices" />
+      <PageMeta title="Sales" description="Sales and invoices" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

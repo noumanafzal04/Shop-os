@@ -233,7 +233,7 @@ export default function LabelsPage() {
 
   return (
     <>
-      <PageMeta title="Barcode Labels | True Serve" description="Generate and print barcode labels" />
+      <PageMeta title="Barcode Labels" description="Generate and print barcode labels" />
 
       <style>{`
         #label-sheet { display: none; }

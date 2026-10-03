@@ -181,7 +181,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-white/90">
       <PageMeta
-        title="CartZe — the till that keeps selling"
+        title="The till that keeps selling"
         description="A complete business system for shops: point of sale, stock, khata, staff and reporting — built for eight trades, and it keeps selling when the internet does not."
       />
 

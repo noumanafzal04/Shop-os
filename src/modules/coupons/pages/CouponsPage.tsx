@@ -87,7 +87,7 @@ export default function CouponsPage() {
 
   return (
     <>
-      <PageMeta title="Coupons | True Serve" description="Discount codes" />
+      <PageMeta title="Coupons" description="Discount codes" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Coupons</h2>

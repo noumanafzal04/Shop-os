@@ -1,4 +1,5 @@
 import { apiDelete, apiPost } from "../common/api/client";
+import { PRODUCT } from "../common/brand";
 
 /**
  * PUSH FOR THE PANEL — so a shop learns about an order with the phone in a
@@ -144,7 +145,7 @@ export async function enablePush(): Promise<PushState> {
       const n = payload.notification ?? {};
       for (const listener of listeners) {
         listener({
-          title: n.title ?? data.title ?? "CartZe",
+          title: n.title ?? data.title ?? `${PRODUCT.name}`,
           body: n.body ?? data.body ?? "",
           type: data.type ?? null,
           link: data.link ?? null,

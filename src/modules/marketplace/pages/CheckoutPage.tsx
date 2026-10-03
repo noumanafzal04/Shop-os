@@ -142,7 +142,7 @@ export default function CheckoutPage() {
   if (!isAuthenticated || user?.role !== "customer") {
     return (
       <>
-        <PageMeta title="Checkout — CartZe" description="Place your order." />
+        <PageMeta title="Checkout" description="Place your order." />
         <div className="mx-auto max-w-md px-4 py-24 text-center">
           <span className="mx-auto mb-4 grid size-16 place-items-center rounded-2xl bg-brand-50 text-brand-500 dark:bg-brand-500/15">
             <BagIcon className="size-7" />
@@ -177,7 +177,7 @@ export default function CheckoutPage() {
 
   return (
     <>
-      <PageMeta title="Checkout — CartZe" description="Place your order." />
+      <PageMeta title="Checkout" description="Place your order." />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
         <h1 className="mb-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Checkout</h1>

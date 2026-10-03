@@ -1,3 +1,5 @@
+import { PRODUCT } from "../../common/brand";
+import { oceanBrandWeb } from "@cartze/core/theme/palette";
 /**
  * Per-tenant branding.
  *
@@ -12,8 +14,15 @@
  * "good" whatever the brand.
  */
 
-/** CartZe house brand. Also the fallback whenever a tenant hasn't chosen. */
-export const DEFAULT_PRIMARY = "#465fff";
+/** True Serve house brand. Also the fallback whenever a tenant hasn't chosen. */
+/**
+ * The brand's own primary, READ rather than typed.
+ *
+ * It was `#465fff` — a third blue, agreeing with neither the stylesheet's
+ * #0755e9 nor the logo. Three copies of "the primary" is how a product ends
+ * up a different colour depending on which screen you are looking at.
+ */
+export const DEFAULT_PRIMARY = oceanBrandWeb[500];
 
 /**
  * Lightness targets for each ramp step, read off the stock TailAdmin brand
@@ -137,7 +146,7 @@ export function contrastInk(hex: string): string {
 
 /**
  * Paint the tenant's colours onto the document. Passing null/undefined (or an
- * unparseable value) restores the CartZe default, so this is safe to call on
+ * unparseable value) restores the True Serve default, so this is safe to call on
  * every settings load — including when a tenant clears their choice.
  */
 export type TintLevel = "none" | "subtle" | "strong";
@@ -176,7 +185,7 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
     // No choice (or an unparseable one) — strip every override so the
     // stylesheet's own palette shows through untouched. Removing beats
     // re-setting the defaults: the house look stays pixel-identical, and a
-    // future rebrand of CartZe needs no change here.
+    // future rebrand of True Serve needs no change here.
     for (const [step] of RAMP) root.style.removeProperty(`--color-brand-${step}`);
     for (const [step] of NEUTRAL_RAMP) root.style.removeProperty(`--color-gray-${step}`);
     root.style.removeProperty("--brand-ink");
@@ -222,7 +231,7 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
 
 /** A few ready-made brands so a merchant isn't forced to hunt for a hex. */
 export const THEME_PRESETS: Array<{ name: string; primary: string }> = [
-  { name: "CartZe Blue", primary: DEFAULT_PRIMARY },
+  { name: `${PRODUCT.name} Ocean`, primary: DEFAULT_PRIMARY },
   { name: "Emerald", primary: "#12b76a" },
   { name: "Teal", primary: "#0d9488" },
   { name: "Violet", primary: "#7a5af8" },

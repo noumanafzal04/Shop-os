@@ -137,7 +137,7 @@ export interface ShopSettings {
   language: string;
   default_tax_rate: number | string;
   tax_inclusive: boolean;
-  /** Tenant branding. null = use the CartZe default (brand blue). */
+  /** Tenant branding. null = use the True Serve default (brand blue). */
   theme_primary: string | null;
   theme_secondary: string | null;
   theme_tint: "none" | "subtle" | "strong";

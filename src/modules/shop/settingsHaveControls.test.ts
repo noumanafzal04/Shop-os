@@ -7,7 +7,7 @@ import path from "node:path";
  *
  * ── The bug this exists for ──────────────────────────────────────────
  *
- * `delivery_provider` decides whether a delivery order is offered to CartZe's
+ * `delivery_provider` decides whether a delivery order is offered to True Serve's
  * rider pool or stays with the shop's own riders. It was in the backend's
  * `defaults()`, in its `rules()`, documented in a comment, read by
  * `OrderService` to start the offer engine and by `RiderService` to decide who

@@ -151,7 +151,7 @@ export default function PromotionsPage() {
 
   return (
     <>
-      <PageMeta title="Promotions | True Serve" description="Automatic scheduled discounts" />
+      <PageMeta title="Promotions" description="Automatic scheduled discounts" />
       <div className="mb-5 flex items-center justify-between">
         <div>
           <h1 className="text-title-sm font-semibold text-gray-800 dark:text-white/90">Promotions</h1>

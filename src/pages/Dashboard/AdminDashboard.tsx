@@ -24,6 +24,7 @@ import { RecentTenantsPanel } from "../../modules/dashboard/components/admin/Rec
 import { RevenueTrendPanel } from "../../modules/dashboard/components/admin/RevenueTrendPanel";
 import { TenantGrowthPanel } from "../../modules/dashboard/components/admin/TenantGrowthPanel";
 import { count, money } from "../../modules/dashboard/components/admin/format";
+import { PRODUCT } from "../../common/brand";
 
 const ICON = "size-5";
 
@@ -40,13 +41,13 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <PageMeta title="Admin | True Serve" description="Platform overview" />
+      <PageMeta title="Admin" description="Platform overview" />
 
       {/* Counted from the payload's own tenant block, never from the rows on
           screen — a summary that disagrees with its own table is worse than no
           summary. */}
       <DashboardHero
-        eyebrow="CartZe platform"
+        eyebrow={`${PRODUCT.name} platform`}
         title="Platform Overview"
         subtitle="Tenants, subscriptions and revenue across the platform"
         icon={<GridIcon className="size-6" />}

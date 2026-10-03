@@ -1,4 +1,5 @@
 import type { QaSection } from "./types";
+import { PRODUCT } from "../../common/brand";
 
 /**
  * WHAT THIS PRODUCT IS — read this before opening anything.
@@ -9,7 +10,7 @@ import type { QaSection } from "./types";
 export const QA_INTRO = {
   title: "What you are testing",
   lines: [
-    "CartZe is one system that runs a whole shop: the counter, the stock, the money and, if the shop wants one, its page on the internet. It is multi-tenant — every business has its own data, its own staff and its own settings, and they can never see each other's.",
+    `${PRODUCT.name} is one system that runs a whole shop: the counter, the stock, the money and, if the shop wants one, its page on the internet. It is multi-tenant — every business has its own data, its own staff and its own settings, and they can never see each other's.`,
     "It is not written for one kind of shop. The SAME code runs a kiryana store, a chemist, a restaurant, a workshop, a filling station, a salon and a books-only office, and each of them sees a different product. That is the single most important thing to hold on to while testing: a screen that is missing is usually missing on purpose.",
   ],
   axes: [

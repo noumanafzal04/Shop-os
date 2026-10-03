@@ -88,26 +88,36 @@ layer(base);
      in the first place. This is that blend, computed and frozen. */
   --color-pos-plate-active: #2f3b6d;
 
-  /* ── THE BRAND: Tkxcel blue ──────────────────────────────────────
-     500 is the logo's own #0755e9. The ladder keeps the original blue
-     ramp's lightness steps, so nothing re-lays out.
+  /* ── THE BRAND: the Meadow strip's ocean ─────────────────────────
+     500 is #1A759F — `meadowThemes.light.primary`, the same hex the two
+     phone apps draw their primary with, and the colour the logo's mark is
+     cut in inside the product.
 
-     Unlike the orange this replaces, this blue is DARK enough to carry
-     white text: white on #0755e9 is 6.03:1, so the primary button keeps a
-     white label and `text-brand-500` is fine on a light ground. The orange
-     needed a near-black label and a lifted text tier; both are reverted. */
-  --color-brand-25: #f5f8fc;
-  --color-brand-50: #ecf1fb;
-  --color-brand-100: #d8e4fb;
-  --color-brand-200: #b2cbfb;
-  --color-brand-300: #7ea9fb;
-  --color-brand-400: #4885f9;
-  --color-brand-500: #0755e9;
-  --color-brand-600: #0648c6;
-  --color-brand-700: #063ca2;
-  --color-brand-800: #073282;
-  --color-brand-900: #092968;
-  --color-brand-950: #061b41;
+     ── This file cannot import it, so a test holds it ───────────────
+     A stylesheet cannot read TypeScript, and the result of that was three
+     different "primary" blues shipping at once: #0755e9 here, #465fff in
+     `tenantTheme.ts`, and the logo's own. The hexes below are now copied
+     from `oceanBrandWeb` in `@cartze/core/theme/palette`, and
+     `brandRamp.test.ts` fails — naming the step and the value — the moment
+     they drift again.
+
+     ── It still carries a white label ───────────────────────────────
+     White on #1A759F is 5.14:1, so the primary button keeps a white label
+     and `text-brand-500` is fine on a light ground. That is the whole
+     reason the primary sits at this step of the strip rather than three
+     steps up — see the contrast table in `palette.ts`. */
+  --color-brand-25: #f5f9fc;
+  --color-brand-50: #eaf3f8;
+  --color-brand-100: #cfe6f0;
+  --color-brand-200: #a6d2e3;
+  --color-brand-300: #6bb6cf;
+  --color-brand-400: #168aad;
+  --color-brand-500: #1a759f;
+  --color-brand-600: #1e6091;
+  --color-brand-700: #184e77;
+  --color-brand-800: #143f61;
+  --color-brand-900: #0f2f49;
+  --color-brand-950: #0a2033;
 
   --color-blue-light-25: #f5fbff;
   --color-blue-light-50: #f0f9ff;

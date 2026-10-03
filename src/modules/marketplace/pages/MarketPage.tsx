@@ -67,7 +67,7 @@ export default function MarketPage() {
   return (
     <>
       <PageMeta
-        title="CartZe Market — shop every local shop in one place"
+        title="Market — shop every local shop in one place"
         description="Groceries, food, medicine and more from shops near you, in one basket."
       />
 

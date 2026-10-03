@@ -8,7 +8,7 @@ import Badge from "../../../components/ui/badge/Badge";
  *
  * ── Why it is on the Subscription page and not its own ───────────────
  *
- * Because a shop owner asking "what do I pay CartZe" is asking one question,
+ * Because a shop owner asking `what do I pay True Serve` is asking one question,
  * and the answer is two numbers. Splitting them across two screens is how a
  * shop concludes it has been charged twice for the same thing.
  *

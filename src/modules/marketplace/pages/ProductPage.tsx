@@ -159,7 +159,7 @@ export default function ProductPage() {
 
   return (
     <>
-      <PageMeta title={`${product.name} — CartZe`} description={product.description ?? product.name} />
+      <PageMeta title={product.name} description={product.description ?? product.name} />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-10">
         {/* Where you are, and the way back out. */}

@@ -6,11 +6,12 @@ import Badge from "../../../components/ui/badge/Badge";
 import { CommissionOwed } from "../components/CommissionOwed";
 import { useSubscription } from "../hooks/useShop";
 import type { SubscriptionInfo } from "../services/shopService";
+import { PRODUCT, productSlug } from "../../../common/brand";
 
 /**
  * Platform billing is in rupees regardless of what the shop sells in —
  * `currency_symbol` is a per-tenant SHOP setting and means nothing about what
- * this business pays CartZe. Same reasoning as the admin console's `money`.
+ * this business pays True Serve. Same reasoning as the admin console's `money`.
  */
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -91,7 +92,7 @@ export default function SubscriptionPage() {
 
   return (
     <>
-      <PageMeta title="Subscription | True Serve" description="Your plan and usage" />
+      <PageMeta title="Subscription" description="Your plan and usage" />
 
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Subscription</h2>
@@ -174,7 +175,7 @@ export default function SubscriptionPage() {
         >
           {modules.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Nothing switched on yet. Ask support which parts of CartZe suit your business.
+              Nothing switched on yet. Ask support which parts of {PRODUCT.name} suit your business.
             </p>
           ) : (
             <ul className="space-y-2.5">
@@ -278,7 +279,7 @@ export default function SubscriptionPage() {
 
       {/*
         The OTHER thing this shop pays. Shown here because "what do I pay
-        CartZe" is one question with two answers, and splitting them across two
+        True Serve" is one question with two answers, and splitting them across two
         screens is how a shop concludes it has been billed twice for the same
         thing. Renders nothing at all when the platform charges this shop
         nothing.
@@ -430,7 +431,12 @@ function Payments({ payments }: { payments: SubscriptionInfo["payments"] }) {
 
   const exportCsv = () =>
     downloadCsv(
-      "cartze-payments.csv",
+      // A download filename is branding — it lands in somebody's Downloads
+      // folder with the product's name on it — but it cannot be the name
+      // verbatim: a space needs quoting and a capital is a different file on a
+      // case-sensitive disk. Nothing is STORED under it, so unlike the
+      // `shopos-*` keys it is free to follow a rename.
+      `${productSlug()}-payments.csv`,
       ["Paid", "Plan", "Period start", "Period end", "Method", "Reference", "Amount"],
       payments.map((p) => [
         new Date(p.paid_at).toLocaleDateString(),

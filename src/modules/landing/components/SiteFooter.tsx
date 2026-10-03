@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Wordmark } from "../../../components/brand/Brand";
 import { TRADE_CART } from "./tradeCarts";
 import type { TradeCode } from "./tradeIcon";
+import { PRODUCT } from "../../../common/brand";
 
 const TRADES: TradeCode[] = [
   "food", "mart", "pharmacy", "retail",
@@ -98,7 +99,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-7 sm:flex-row">
-          <p className="text-sm">© {new Date().getFullYear()} CartZe. Built for the counter.</p>
+          <p className="text-sm">© {new Date().getFullYear()} {PRODUCT.name}. Built for the counter.</p>
           <p className="text-sm">
             <a href="#talk" className="transition hover:text-white">Talk to us</a>
           </p>

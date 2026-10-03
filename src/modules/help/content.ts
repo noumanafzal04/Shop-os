@@ -1,3 +1,4 @@
+import { PRODUCT } from "../../common/brand";
 /**
  * The Help Centre's content — one entry per module, plus the topics that are
  * not a module but are the first thing anyone asks about.
@@ -219,7 +220,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   // ── Start here ────────────────────────────────────────────────────
   {
     id: "how-it-fits",
-    title: "How CartZe fits together",
+    title: `How ${PRODUCT.name} fits together`,
     summary: "Why you see the screens you see, and not the ones you don't.",
     group: "Start here",
     keywords: ["missing", "hidden", "why can't I see", "screen not showing"],
@@ -1302,7 +1303,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A customer asks you to keep something. The stock is set aside so it cannot be sold to somebody else, and the reservation expires on its own if they do not come back." },
       { type: "p", text: "Confirm it to turn it into a sale, or let it lapse and the stock returns to the shelf." },
-      { type: "warn", text: "This is holding STOCK, not booking an appointment. CartZe does not do appointment booking." },
+      { type: "warn", text: `This is holding STOCK, not booking an appointment. ${PRODUCT.name} does not do appointment booking.` },
     ],
   },
   {
@@ -1419,12 +1420,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "Adding a rider" },
       { type: "p", text: "ADD YOUR OWN RIDER \u2014 a name and a phone number. We give you a rider id for them straight away, like RDR-000123. Write it down and hand it to your rider." },
       { type: "p", text: "That is all you have to do. If your rider never uses it, nothing changes: you assign their deliveries and move each one through Preparing, On the way and Completed yourself, exactly as before. The id simply sits in your list until somebody wants it." },
-      { type: "p", text: "If they do want it, they install the CartZe app, sign in, and enter the id you gave them. From that moment they see your deliveries on their own phone, accept them, collect them, and close each one at the door with a four-digit code the customer reads out. The order moves through the same stages either way \u2014 they press the buttons instead of you." },
+      { type: "p", text: `If they do want it, they install the ${PRODUCT.name} app, sign in, and enter the id you gave them. From that moment they see your deliveries on their own phone, accept them, collect them, and close each one at the door with a four-digit code the customer reads out. The order moves through the same stages either way \u2014 they press the buttons instead of you.` },
       { type: "note", text: "Your list shows every rider id, and says \u201cnot on the app yet\u201d beside the ones nobody has picked up. So a lost piece of paper is never a problem \u2014 come back here and read it again." },
-      { type: "p", text: "ADD SOMEONE WHO ALREADY RIDES is the other card, for a person who already has a CartZe rider account. Ask for their rider id and type it in. You add them by that code and not by name on purpose: a shop able to search every rider by name would be a searchable list of strangers' phone numbers." },
-      { type: "warn", text: "A rider you added works for YOU. They cannot take deliveries from other shops on the strength of your say-so \u2014 for that they apply to CartZe themselves and send their CNIC and licence, which is what protects every other shop from a rider nobody checked." },
+      { type: "p", text: `ADD SOMEONE WHO ALREADY RIDES is the other card, for a person who already has a ${PRODUCT.name} rider account. Ask for their rider id and type it in. You add them by that code and not by name on purpose: a shop able to search every rider by name would be a searchable list of strangers' phone numbers.` },
+      { type: "warn", text: `A rider you added works for YOU. They cannot take deliveries from other shops on the strength of your say-so \u2014 for that they apply to ${PRODUCT.name} themselves and send their CNIC and licence, which is what protects every other shop from a rider nobody checked.` },
       { type: "h", text: "Riders you did not add" },
-      { type: "p", text: "CartZe riders carry your deliveries unless you say otherwise. Once you accept a delivery order, approved riders near your shop are offered it and the first one to take it collects it \u2014 you do not have to assign anybody. Shop Settings \u2192 Order fulfillment \u2192 Who delivers is where that is changed." },
+      { type: "p", text: `${PRODUCT.name} riders carry your deliveries unless you say otherwise. Once you accept a delivery order, approved riders near your shop are offered it and the first one to take it collects it \u2014 you do not have to assign anybody. Shop Settings \u2192 Order fulfillment \u2192 Who delivers is where that is changed.` },
       { type: "p", text: "Set Who delivers to \u201cMy own riders\u201d and only the people on this page ever see your work \u2014 nothing is offered to anybody else, and you assign every delivery yourself as before." },
       { type: "p", text: "If nobody takes an order within a few minutes we tell you it is still waiting. It stays on offer, and you can hand it to one of your own riders at any point." },
       { type: "h", text: "The cash" },
@@ -1440,19 +1441,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     id: "commission",
     title: "Marketplace commission",
-    summary: "The share CartZe takes of what your online shop sells.",
+    summary: `The share ${PRODUCT.name} takes of what your online shop sells.`,
     group: "Money",
     modules: ["marketplace"],
     permission: "settings.manage",
     screen: "/tenant/subscription",
     keywords: ["commission", "percentage", "platform", "fee", "charge", "invoice", "cut"],
     body: [
-      { type: "p", text: "You pay CartZe two separate things, and they are billed apart on purpose so either can be questioned." },
+      { type: "p", text: `You pay ${PRODUCT.name} two separate things, and they are billed apart on purpose so either can be questioned.` },
       { type: "p", text: "YOUR PLAN is what the software costs, every month, whether you sell anything or not. It is the block at the top of Subscription." },
       { type: "p", text: "COMMISSION is a share of what the marketplace actually sold for you. It is only ever charged on an ONLINE order that COMPLETED \u2014 never on a walk-in at the till, never on a phone order you took yourself, and never on an order that was cancelled. If the marketplace did not bring you the customer, there is no commission on the sale." },
       { type: "h", text: "What the percentage is taken of" },
       { type: "p", text: "The GOODS on the order, after any discount. The delivery fee is normally left out, because that money is the rider's rather than yours \u2014 otherwise a shop that delivers would pay more for an identical basket. Your Subscription page states the rate you are on and whether it is the platform's default or one agreed for your shop." },
-      { type: "warn", text: "The rate is recorded on each order at the moment it completes. If CartZe changes the platform rate later, orders you have already delivered keep the number that applied on the day \u2014 a bill never re-prices itself after the fact." },
+      { type: "warn", text: `The rate is recorded on each order at the moment it completes. If ${PRODUCT.name} changes the platform rate later, orders you have already delivered keep the number that applied on the day \u2014 a bill never re-prices itself after the fact.` },
       { type: "h", text: "Checking it" },
       { type: "p", text: "Open Subscription. Under your plan you will see what is outstanding, every invoice you have been sent, and \u2014 behind \u201cThe orders behind the outstanding amount\u201d \u2014 the individual orders that make up the total, each with the rate and the amount it was charged. If an order looks wrong, you can name it." },
       { type: "p", text: "Nothing here charges your account automatically. An invoice is raised, you are shown it, and it is marked paid when the payment is agreed." },
@@ -1745,7 +1746,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["Last 4 digits", "Optional, and never blocks a sale. But the bank matches your claim on it, so a sale without one may be harder to collect — the claims report flags those separately."],
         ["The amount due drops", "The customer taps less. What YOU are owed has not changed; the bank pays the rest."],
       ]},
-      { type: "warn", text: "Never type a full card number anywhere in CartZe. The box takes four digits and nothing else, deliberately — holding full card numbers is a serious legal obligation, and this is not the place for them." },
+      { type: "warn", text: `Never type a full card number anywhere in ${PRODUCT.name}. The box takes four digits and nothing else, deliberately — holding full card numbers is a serious legal obligation, and this is not the place for them.` },
 
       { type: "h", text: "Getting the money back" },
       { type: "p", text: "Reports → Bank claims. Per campaign, with every invoice number, date and last-4 the bank will ask for. Export it and send it to them." },
@@ -1889,7 +1890,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "One device belongs to one shop. If a tablet has already signed itself in somewhere else, this screen will say so instead of listing it — it is not a fault, it is the tablet still being registered to the other shop." },
 
       { type: "h", text: "Offline pricing checks" },
-      { type: "p", text: "CartZe is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does." },
+      { type: "p", text: `${PRODUCT.name} is being prepared to keep selling when the internet drops. Before a till is allowed to work out prices on its own, it has to prove it gets the same answer your server does.` },
       { type: "p", text: "So every sale is priced TWICE — once by the server, which is what the customer pays, and again by the offline engine, purely to compare. Nothing on the receipt changes, and nobody is ever charged the second figure." },
       { type: "keys", items: [
         ["Carts checked", "How many sales have actually been compared. This is the number that matters — zero disagreements means nothing if nothing was checked."],
@@ -1902,7 +1903,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "Your automatic offers ARE worked out by the till, including buy-one-get-one. If you ever set up an offer of a kind the till does not recognise, it will refuse to sell offline rather than print a wrong price — the shop is told, not the customer. The same applies to a customer whose group gets a percentage off, and to a bank card offer: the till says so at the tender screen and the customer keeps the discount if you wait for the connection." },
       { type: "p", text: "If a till's browser data is cleared, its count starts again from zero and the totals here go down. That is deliberate — the evidence really did go with it, and a figure that only ever climbed would claim more than it could show." },
 
-      { type: "h", text: "Getting a newer CartZe" },
+      { type: "h", text: `Getting a newer ${PRODUCT.name}` },
       { type: "p", text: "A till is the one screen nobody ever navigates away from — it is opened on Monday and stood on the counter until Saturday — so it will not notice a new version on its own the way an ordinary web page does. It checks once an hour instead, and when a newer one is ready a strip appears at the bottom offering it." },
       { type: "p", text: "Nothing ever updates by itself. Updating reloads the till, so the moment has to be one you chose: finish the sale you are on, then press Update. Any sales still waiting to be sent survive the reload — they are stored on the tablet, not in the page." },
       { type: "note", text: "There is a refresh button in the header, next to the bell, if you would rather ask now than wait for the hourly check — somebody has told you the new prices are live, say. It answers straight: a new version is ready, you are already on the latest, or there is no connection to check with. Pressing 'Later' on the strip is safe too: the update waits, and that header button is where you go back to it." },
@@ -1935,7 +1936,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       ]},
       { type: "warn", text: "Some things still need the connection, and the till will say so before you take the money — never after. Khata (a customer's balance is shared between tills), spending loyalty points, coupons, dine-in tables, medicines, and anything tracked by serial number. Take cash, card or a wallet instead, or wait." },
       { type: "note", text: "A mobile wallet works with the internet down. The customer's confirmation comes through their own phone and yours, not through the shop's connection, so there is nothing for the till to check — the same reason a card works. It queues and sends with everything else." },
-      { type: "note", text: "A sale that has been rung is never lost. Close the browser, flatten the battery, come back three days later — it is still there and it still sends. It is safest of all if you have installed CartZe to the home screen rather than leaving it in a browser tab." },
+      { type: "note", text: `A sale that has been rung is never lost. Close the browser, flatten the battery, come back three days later — it is still there and it still sends. It is safest of all if you have installed ${PRODUCT.name} to the home screen rather than leaving it in a browser tab.` },
       { type: "p", text: "When they arrive, the shop records them against the time they actually happened — a Tuesday sale counts in Tuesday's takings and Tuesday's cashier's figures, not the day it finally reached us." },
       { type: "note", text: "That is true even when the tablet's own clock is wrong. A device that has been flat for a week can come back believing it is the day it was made; the till corrects itself against the shop's time, and the shop refuses to file a sale into tomorrow or into a moment before that till was last in touch. You are told which tablet was out and by how much — see 'The morning after' below." },
       { type: "note", text: "The sale is also credited to the cashier who RANG it, not to whoever happened to be signed in when the queue finally sent. And a tablet carried to another branch still files its waiting sales at the branch it belongs to — the goods left that shelf, not this one." },
@@ -1959,7 +1960,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "If a till runs out of space" },
       { type: "p", text: "A till holds its unsent sales on the device itself, so it needs room. You will see a warning long before it matters — free some space and carry on." },
       { type: "warn", text: "If the device genuinely fills up, the till will not let you open a shift. That is deliberate: a sale rung with no room to save it is a sale lost with the customer already gone, and refusing before the shift starts costs nothing. Connect the till and let it sync — that sends what is waiting and frees the space." },
-      { type: "note", text: "Add CartZe to the home screen and open it from there. An installed till holds onto its data far better than a browser tab, and on an iPad it is the only thing that makes a real difference." },
+      { type: "note", text: `Add ${PRODUCT.name} to the home screen and open it from there. An installed till holds onto its data far better than a browser tab, and on an iPad it is the only thing that makes a real difference.` },
     ],
   },
   {
@@ -2156,11 +2157,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "Who carries your deliveries" },
       {
         type: "p",
-        text: "Settings → Tax & Delivery → Who delivers. \"CartZe riders\" offers each order to the riders nearest you the moment you accept it; \"My own riders\" means only the people you have added under Riders, and no CartZe rider is ever offered your orders.",
+        text: `Settings → Tax & Delivery → Who delivers. "${PRODUCT.name} riders" offers each order to the riders nearest you the moment you accept it; "My own riders" means only the people you have added under Riders, and no ${PRODUCT.name} rider is ever offered your orders.`,
       },
       {
         type: "note",
-        text: "If you are set to your own riders and have not added any, nobody is coming — the order simply waits. Every shop that saved its settings before we made CartZe riders the default still has the old setting stored, so check this once even if you never changed it.",
+        text: `If you are set to your own riders and have not added any, nobody is coming — the order simply waits. Every shop that saved its settings before we made ${PRODUCT.name} riders the default still has the old setting stored, so check this once even if you never changed it.`,
       },
       { type: "h", text: "How far you deliver, and who can see you" },
       {
@@ -2177,7 +2178,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "Every tab shares one Save. Change something on one tab, move to another, and it is still waiting to be saved — pressing Save anywhere saves the lot.",
       },
       { type: "h", text: "Your tills" },
-      { type: "p", text: "Settings → Point of Sale → Lanes & PINs. Every device that opens CartZe signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us." },
+      { type: "p", text: `Settings → Point of Sale → Lanes & PINs. Every device that opens ${PRODUCT.name} signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us.` },
       { type: "p", text: "Lost a tablet, or lent one out and never got it back? Sign it out. It stops being usable straight away, but it stays on the list — the sales it already sent still belong to it, and you may want to see what happened. If it turns up, allow it again." },
       {
         type: "note",

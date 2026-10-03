@@ -88,7 +88,7 @@ export default function CategoriesPage() {
 
   return (
     <>
-      <PageMeta title="Categories | True Serve" description="Organize your catalog" />
+      <PageMeta title="Categories" description="Organize your catalog" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Categories</h2>

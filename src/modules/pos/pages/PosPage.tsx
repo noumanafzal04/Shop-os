@@ -1962,7 +1962,7 @@ export default function PosPage() {
        hai". Fixing the cards alone could not fix it, because the ground was
        never the cards. */
     <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-pos-ground dark:bg-gray-900`}>
-      <PageMeta title="POS | True Serve" description="Point of sale terminal" />
+      <PageMeta title="POS" description="Point of sale terminal" />
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
           the end of a sale, it's the end of a person's turn at the counter. */}

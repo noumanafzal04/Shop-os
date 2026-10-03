@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { PRODUCT } from "../../common/brand";
 
 /**
  * A SCREEN THAT LOOKS EMPTY IS NOT THE SAME AS A SCREEN THAT SAYS WHY.
@@ -93,7 +94,7 @@ export default function OldBrowserNotice() {
       }}
     >
       <span style={{ flex: "1 1 auto", minWidth: 0 }}>
-        This device&rsquo;s browser is too old for CartZe, so some backgrounds,
+        This device&rsquo;s browser is too old for {PRODUCT.name}, so some backgrounds,
         colours and borders will not be drawn. Everything still works and
         nothing is at risk &mdash; but on iPad or iPhone please update to
         iOS&nbsp;16.4 or newer, and on Android update Chrome.

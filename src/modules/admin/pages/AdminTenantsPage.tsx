@@ -210,7 +210,7 @@ export default function AdminTenantsPage() {
 
   return (
     <>
-      <PageMeta title="Tenants | True Serve Admin" description="Manage businesses" />
+      <PageMeta title="Tenants" area="Admin" description="Manage businesses" />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>

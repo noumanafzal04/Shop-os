@@ -112,7 +112,7 @@ export default function QaFlowPage() {
     // the bottom of the window — the install prompt sits there, and a page that
     // is exactly the height of the viewport has no scroll room to recover with.
     <div className={`${FULL_SCREEN_PAGE_MIN} bg-gray-50 dark:bg-gray-950`}>
-      <PageMeta title="QA walkthrough — CartZe" description="One pass through the whole product, in the order a shop lives it." />
+      <PageMeta title="QA walkthrough" description="One pass through the whole product, in the order a shop lives it." />
 
       <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-5 py-3">

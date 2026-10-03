@@ -28,7 +28,7 @@ export default function AdminConfigPage() {
 
   return (
     <>
-      <PageMeta title="Platform Configuration | True Serve" description="Modules & business types" />
+      <PageMeta title="Platform Configuration" description="Modules & business types" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Platform Configuration</h2>

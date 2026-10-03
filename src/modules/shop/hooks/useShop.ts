@@ -37,7 +37,7 @@ export function useShopSettings() {
  * settings arrive, and repaints whenever they change it. Re-declaring Tailwind's
  * --color-brand-* variables re-skins the entire panel — light and dark alike —
  * so this hook is the only wiring theming needs. An unset colour restores the
- * CartZe default, which is also what non-shop roles get.
+ * True Serve default, which is also what non-shop roles get.
  */
 export function useTenantTheme() {
   const settings = useShopSettings();

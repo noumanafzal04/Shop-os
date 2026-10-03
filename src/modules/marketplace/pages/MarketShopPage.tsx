@@ -96,7 +96,7 @@ export default function MarketShopPage() {
   return (
     <>
       <PageMeta
-        title={`${shop.data?.business_name ?? "Shop"} — CartZe`}
+        title={shop.data?.business_name ?? "Shop"}
         description={`Order from ${shop.data?.business_name ?? "this shop"} online.`}
       />
 

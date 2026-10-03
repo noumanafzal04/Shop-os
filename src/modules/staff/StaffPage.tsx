@@ -278,7 +278,7 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
 
   return (
     <>
-      <PageMeta title={`${title} | True Serve`} description={subtitle} />
+      <PageMeta title={`${title}`} description={subtitle} />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>

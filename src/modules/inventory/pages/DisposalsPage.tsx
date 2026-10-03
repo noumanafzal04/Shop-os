@@ -77,7 +77,7 @@ export default function DisposalsPage() {
 
   return (
     <>
-      <PageMeta title="Disposals | True Serve" description="Stock written off or sent back, and what is owed for it" />
+      <PageMeta title="Disposals" description="Stock written off or sent back, and what is owed for it" />
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>

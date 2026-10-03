@@ -111,7 +111,7 @@ export default function AdminEnquiriesPage() {
 
   return (
     <>
-      <PageMeta title="Enquiries | True Serve" description="People asking for a walkthrough or with a question" />
+      <PageMeta title="Enquiries" description="People asking for a walkthrough or with a question" />
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>

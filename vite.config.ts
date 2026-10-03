@@ -1,10 +1,41 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import { VitePWA } from "vite-plugin-pwa";
+import { PRODUCT } from "../core/src/brand";
+
+/**
+ * THE SHARED LAYER, consumed by ALIAS — the same arrangement the two mobile
+ * apps already use.
+ *
+ * `@cartze/core` is a sibling folder, not an installed package: there is no
+ * build step and no `node_modules` of its own. Metro resolves it this way for
+ * the phones; this is the browser's half of the same decision, so the
+ * product's name is one constant across all three clients rather than three
+ * constants that drift.
+ *
+ * Only the DEEP path is used here (`@cartze/core/brand`). The package's
+ * barrel re-exports the theme, which imports `react-native` — fine on a
+ * phone, not something a browser bundle should be asked to resolve.
+ */
+const CORE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../core/src");
 
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: { "@cartze/core": CORE },
+  },
+  server: {
+    fs: {
+      // The alias points OUTSIDE this project's root, and the dev server
+      // refuses to serve such a file unless it is allowed by name. Without
+      // this the app builds and the dev server 403s on one import — which
+      // reads as a broken page rather than as a config line.
+      allow: [".", CORE],
+    },
+  },
   plugins: [
     react(),
     svgr({
@@ -41,8 +72,11 @@ export default defineConfig({
       includeAssets: ["favicon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"],
 
       manifest: {
-        name: "True Serve",
-        short_name: "True Serve",
+        // The installed app's name, from the one place it is written. See
+        // `src/common/brand.ts` — this file is TypeScript run by Node, so it
+        // can import the constant the app imports.
+        name: PRODUCT.name,
+        short_name: PRODUCT.name,
         description: "Point of sale and shop management",
         // The till fills the screen and is used in one orientation on a stand.
         display: "standalone",

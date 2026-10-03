@@ -5,6 +5,7 @@ import { homeForRole } from "../../../common/routing/guards";
 import { Wordmark } from "../../../components/brand/Brand";
 import { useAuthStore } from "../../../stores/authStore";
 import { TryDemo } from "./TryDemo";
+import { PRODUCT } from "../../../common/brand";
 
 /**
  * The sections a visitor can be taken to.
@@ -16,7 +17,7 @@ import { TryDemo } from "./TryDemo";
  * words and names a thing, not a question.
  */
 const LINKS: Array<{ id: string; label: string }> = [
-  { id: "offline", label: "Why CartZe" },
+  { id: "offline", label: `Why ${PRODUCT.name}` },
   { id: "trades", label: "Trades" },
   { id: "inside", label: "Features" },
   { id: "pricing", label: "Pricing" },
@@ -204,7 +205,7 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
             `Brand.tsx` exists because the wordmark used to be three SVG files
             that were forever one edit apart — an SVG in an <img> is its own
             document and inherits neither the font nor the theme. */}
-        <Link to="/" aria-label="CartZe home" className="shrink-0">
+        <Link to="/" aria-label={`${PRODUCT.name} home`} className="shrink-0">
           <Wordmark size={30} tone={onDark ? "onDark" : "auto"} />
         </Link>
 

@@ -13,6 +13,7 @@ import Pager from "../../../components/ui/pager";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useRiderStatement } from "../hooks/useOrders";
 import { useMoney } from "../../shop/hooks/useShop";
+import { PRODUCT } from "../../../common/brand";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
@@ -140,7 +141,7 @@ export default function RidersPage() {
 
   return (
     <>
-      <PageMeta title="Riders | True Serve" description="Your delivery riders" />
+      <PageMeta title="Riders" description="Your delivery riders" />
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Delivery Riders</h2>
@@ -207,7 +208,7 @@ export default function RidersPage() {
                 {minted.code}
               </p>
               <p className="text-theme-xs text-brand-700/80 dark:text-brand-300/80">
-                Give this to {minted.name}. They enter it in the CartZe app to see your
+                Give this to {minted.name}. They enter it in the {PRODUCT.name} app to see your
                 deliveries on their phone. It stays in the list below — nothing is lost if
                 you close this.
               </p>
@@ -225,7 +226,7 @@ export default function RidersPage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h3 className="mb-1 text-sm font-semibold text-gray-800 dark:text-white/90">Add someone who already rides</h3>
           <p className="mb-3 text-theme-xs text-gray-500 dark:text-gray-400">
-            Already has a CartZe rider account? Ask for their rider id — it is on their own
+            Already has a {PRODUCT.name} rider account? Ask for their rider id — it is on their own
             Rider screen, like RDR-000123.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">

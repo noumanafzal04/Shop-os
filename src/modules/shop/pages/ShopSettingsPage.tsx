@@ -27,6 +27,7 @@ import DeviceSessionsPanel from "../../auth/components/DeviceSessionsPanel";
 import OfflineReadyPanel from "../../offline/OfflineReadyPanel";
 import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
 import PricingVariancesPanel from "../../offline/pricing/PricingVariancesPanel";
+import { PRODUCT } from "../../../common/brand";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -340,7 +341,7 @@ export default function ShopSettingsPage() {
 
   return (
     <>
-      <PageMeta title="Settings | True Serve" description="Shop settings" />
+      <PageMeta title="Settings" description="Shop settings" />
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">Manage your shop profile, location and how the app works for you.</p>
@@ -638,24 +639,24 @@ export default function ShopSettingsPage() {
                         <Field
                           label="Who delivers"
                           hint={String(prefs.delivery_provider ?? "platform") === "platform"
-                            ? "CartZe riders nearby are offered the order once you accept it. If nobody takes it within a few minutes we tell you, and you can still hand it to your own rider."
-                            : "Only riders you have added under Riders will carry your orders. CartZe riders are never offered them."}
+                            ? `${PRODUCT.name} riders nearby are offered the order once you accept it. If nobody takes it within a few minutes we tell you, and you can still hand it to your own rider.`
+                            : `Only riders you have added under Riders will carry your orders. ${PRODUCT.name} riders are never offered them.`}
                         >
                           <Select
                             className="max-w-xs"
                             value={String(prefs.delivery_provider ?? "platform")}
                             options={[
-                              { value: "platform", label: "CartZe riders" },
+                              { value: "platform", label: `${PRODUCT.name} riders` },
                               { value: "self", label: "My own riders" },
                             ]}
-                            placeholder="CartZe riders"
+                            placeholder={`${PRODUCT.name} riders`}
                             onChange={(v) => setP("delivery_provider", v)}
                           />
                           {/*
                             ── SAID OUT LOUD, BECAUSE A DEFAULT FLIP DOES NOT
                                REACH A SHOP THAT HAS EVER PRESSED SAVE ───────
 
-                            The platform default became "CartZe riders", and it
+                            The platform default became `True Serve riders`, and it
                             changed nothing for existing shops: this page READS
                             the merged settings (defaults + overrides) and SAVES
                             all of them back, so the old default — "self" — was
@@ -672,7 +673,7 @@ export default function ShopSettingsPage() {
                             <p className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
                               <span aria-hidden="true">⚠</span>
                               <span>
-                                No CartZe rider will ever be offered your deliveries. Every order
+                                No {PRODUCT.name} rider will ever be offered your deliveries. Every order
                                 waits for a rider you have added under Riders — if you have none,
                                 nobody is coming.
                               </span>
@@ -757,7 +758,7 @@ export default function ShopSettingsPage() {
                         <Input value={String(prefs.invoice_strn ?? "")} onChange={(e) => setP("invoice_strn", e.target.value)} placeholder="e.g. 03-04-8765-432-11" />
                       </Field>
                     </div>
-                    <Field label="FBR POS ID" hint="Your FBR POS registration, if you're a Tier-1 retailer. CartZe prints it — it does not transmit invoices to FBR.">
+                    <Field label="FBR POS ID" hint={`Your FBR POS registration, if you're a Tier-1 retailer. ${PRODUCT.name} prints it — it does not transmit invoices to FBR.`}>
                       <Input className="max-w-xs" value={String(prefs.invoice_fbr_pos_id ?? "")} onChange={(e) => setP("invoice_fbr_pos_id", e.target.value)} placeholder="e.g. 556677" />
                     </Field>
                   </SectionCard>

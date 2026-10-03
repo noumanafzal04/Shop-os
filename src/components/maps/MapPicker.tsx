@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getGeocoder, tileLayer, type GeoPlace } from "../../common/maps/geocoding";
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, PINNED_MAP_ZOOM, mapsConfigured } from "../../config/maps";
+import { PRODUCT } from "../../common/brand";
 
 export interface PickedLocation {
   lat: number;
@@ -186,7 +187,7 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
         </p>
         <p className="max-w-sm text-theme-xs text-gray-500 dark:text-gray-400">
           Your address fields below still work and still save. Pinning a location on the map
-          needs a map key — ask whoever set up your CartZe to add one.
+          needs a map key — ask whoever set up your {PRODUCT.name} to add one.
         </p>
       </div>
     );
