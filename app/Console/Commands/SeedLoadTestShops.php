@@ -40,6 +40,7 @@ use App\Models\CustomerVehicle;
 use App\Models\FuelNozzle;
 use App\Models\FuelPump;
 use App\Models\FuelTank;
+use App\Models\Plan;
 use App\Models\Product;
 use App\Models\RecurringExpense;
 use App\Models\RecurringIncome;
@@ -168,6 +169,7 @@ class SeedLoadTestShops extends Command
         $lines = max(200, (int) $this->option('products'));
 
         $this->shop('grocery', 'Al-Madina Cash & Carry', 'mart', $city, [
+            'plan' => 'enterprise',
             'branches' => ['Main — Ferozepur Road', 'Johar Town', 'Model Town'],
             'lines' => $lines,
             'sizes' => 0,
@@ -178,6 +180,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('clothing', 'Zahra Couture', 'retail', $city, [
+            'plan' => 'pro',
             'branches' => ['Main — Liberty', 'Packages Mall'],
             // Fewer designs, but every design in four sizes — the row count
             // that matters here is variants, not products.
@@ -190,6 +193,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('restaurant', 'Karahi House', 'food', $city, [
+            'plan' => 'premium',
             'branches' => ['Main — MM Alam Road', 'Bahria Town'],
             // A MENU IS NOT A CATALOGUE. Six thousand dishes is not a
             // restaurant, it is a warehouse — the volume that matters here is
@@ -202,6 +206,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('pharmacy', 'Shifa Pharmacy', 'pharmacy', $city, [
+            'plan' => 'premium',
             'branches' => ['Main — Jail Road', 'DHA Phase 4'],
             'lines' => (int) round($lines * 0.8),
             'sizes' => 0,
@@ -211,6 +216,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('services', 'Gulberg Service Centre', 'services', $city, [
+            'plan' => 'premium',
             'branches' => ['Main — Gulberg', 'Township'],
             // A service list is short. What a service business carries volume
             // in is JOBS and QUOTES, not lines on a price list.
@@ -221,6 +227,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('wholesale', 'Akbari Mandi Traders', 'wholesale', $city, [
+            'plan' => 'pro',
             'branches' => ['Main — Akbari Mandi', 'Sabzi Mandi'],
             'lines' => (int) round($lines * 0.5),
             'sizes' => 0,
@@ -233,6 +240,7 @@ class SeedLoadTestShops extends Command
             // branch, and the one fault this shape has already had was a
             // tank stored with a null branch while the shift looked for
             // Main. One site could never have shown it.
+            'plan' => 'premium',
             'branches' => ['Main — Multan Road', 'Raiwind Road'],
             // The shop behind the forecourt is small; the volume here is
             // SHIFTS, meters and dips, not lines on a shelf.
@@ -243,6 +251,7 @@ class SeedLoadTestShops extends Command
         ]);
 
         $this->shop('workshop', 'Rahat Auto Workshop', 'automotive', $city, [
+            'plan' => 'premium',
             'branches' => ['Main — Band Road'],
             // Parts on a shelf AND labour on the same invoice. What carries
             // the volume is cars through the bay, not part numbers.
@@ -257,6 +266,7 @@ class SeedLoadTestShops extends Command
             // expense book IS the product. It is the shape most likely to be
             // broken by a change made for everybody else, and the only one
             // where the cashbook has no sales to lean on.
+            'plan' => 'basic', 'extra_staff' => 7,
             'branches' => ['Main — Office'],
             'lines' => 0,
             'sizes' => 0,
@@ -307,6 +317,38 @@ class SeedLoadTestShops extends Command
              */
             'features' => Modules::defaultsFor($type),
         ]);
+
+        /**
+         * THE SHOPS NOBODY PUT ON A PLAN.
+         *
+         * Nine shops the size of real businesses, and not one of them was on
+         * a plan — the factory handed every tenant 20 branches, 100 staff and
+         * 20 lanes as a flat override, which is how the biggest fixture in
+         * this repo managed to exercise the entire pricing model not at all.
+         * No ceiling was ever near, no usage band was ever anything but "ok",
+         * and the retention window could not fire because there was no plan
+         * to carry one.
+         *
+         * Each shop sits on a real rung now, spread across the ladder, and
+         * the blanket override goes: a limit on one of these shops means
+         * somebody decided it, exactly as on a real tenant. `extra_staff` is
+         * the deliberate exception — one shop on the cheapest plan with a
+         * hand-granted allowance on top, so the override arithmetic is
+         * exercised by something other than a unit test.
+         */
+        $plan = Plan::query()->where('code', $spec['plan'] ?? 'premium')->first();
+
+        $tenant->forceFill([
+            'plan_id' => $plan?->id,
+            'limits' => array_filter([
+                'staff' => $spec['extra_staff'] ?? null,
+            ], fn ($v) => $v !== null),
+            // An anniversary in the past, so the bills meter has a real
+            // period to count inside rather than falling back to the 1st.
+            'subscription_starts_at' => now()->subMonthsNoOverflow(random_int(2, 14))->startOfDay(),
+            'subscription_ends_at' => now()->addMonthNoOverflow(),
+        ])->save();
+        $tenant->refresh();
 
         if (! empty($spec['online'])) {
             $tenant->applyModules(['marketplace' => true, 'delivery' => true]);

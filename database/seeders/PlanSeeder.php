@@ -72,6 +72,9 @@ class PlanSeeder extends Seeder
                 'max_staff' => 3,
                 'max_registers' => 1,
                 'max_orders_month' => 5000,
+                // Room over the included figure before anybody is called
+                // exhausted. The till does not stop at either number.
+                'grace_orders_month' => 1000,
                 'max_products' => 1000,
                 'max_storage_mb' => 512,
                 'retention_months' => 24,
@@ -91,6 +94,7 @@ class PlanSeeder extends Seeder
                 'max_staff' => 10,
                 'max_registers' => 3,
                 'max_orders_month' => 20000,
+                'grace_orders_month' => 2000,
                 'max_products' => 10000,
                 'max_storage_mb' => 5120,
                 'retention_months' => 60,
@@ -107,6 +111,7 @@ class PlanSeeder extends Seeder
                 'max_staff' => 25,
                 'max_registers' => 8,
                 'max_orders_month' => 100000,
+                'grace_orders_month' => 5000,
                 'max_products' => null,   // unlimited
                 'max_storage_mb' => 20480,
                 'retention_months' => 120,

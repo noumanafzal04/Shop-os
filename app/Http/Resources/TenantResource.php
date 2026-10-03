@@ -51,7 +51,20 @@ class TenantResource extends JsonResource
                 'id' => $this->plan->id,
                 'name' => $this->plan->name,
                 'code' => $this->plan->code,
+                // What the list could never say: whether "Standard" means one
+                // counter or four. The price belongs beside the name on a
+                // screen whose job is chasing renewals.
+                'price' => $this->plan->price,
             ]),
+            /**
+             * HOW BIG THIS SHOP ACTUALLY IS.
+             *
+             * Present only on the list, which counts them (`withCount`). The
+             * detail view carries the whole usage snapshot instead and has no
+             * need of a second, thinner copy.
+             */
+            'branches_count' => $this->whenCounted('branches'),
+            'users_count' => $this->whenCounted('users'),
             'online_shop_enabled' => $this->online_shop_enabled,
             'features' => $this->features ?? [],
             // What this shop was assigned: branches, staff and lanes, plus any

@@ -112,7 +112,19 @@ class TenantController extends Controller
             ->when($except !== 'origin' && $origin, fn ($q) => $q->origin($origin))
             ->when($except !== 'payment_status' && $status, fn ($q) => $q->paymentStatus($status));
 
-        $tenants = $this->sorted($scoped()->with(['city', 'plan']), (string) $request->query('sort', 'newest'))
+        /**
+         * HOW BIG IS THIS SHOP — two subqueries, and worth them.
+         *
+         * The list could say what every business PAYS and not what any of
+         * them IS. "Standard" tells an admin nothing about whether the shop
+         * is one counter or four, which is the first thing they need when a
+         * plan change or a support call comes in. Two `withCount`s per page
+         * of fifteen is cheap; opening fifteen shops to find out is not.
+         */
+        $tenants = $this->sorted(
+            $scoped()->with(['city', 'plan'])->withCount(['branches', 'users']),
+            (string) $request->query('sort', 'newest'),
+        )
             ->paginate(min((int) $request->query('per_page', 15), 100))
             ->withQueryString();
 
