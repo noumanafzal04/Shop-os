@@ -156,6 +156,8 @@ export interface ReportSummary {
     /** Money in that wasn't a sale — a retainer, an owner's injection, a refund. */
     other_income: number;
     cogs: number;
+    /** Sales tax still held for the government: charged, less handed back on returns. Not the shop's. */
+    tax: number;
     gross_profit: number;
     expenses: number;
     net_profit: number;
@@ -343,5 +345,10 @@ export interface StaffReport {
 
 export interface TaxReport {
   period: { from: string; to: string };
-  totals: { taxable_sales: number; net_sales: number; tax_collected: number; gross_sales: number };
+  totals: {
+    taxable_sales: number; net_sales: number; tax_collected: number;
+    /** Tax handed back with returned goods, and what is left to pay. */
+    tax_refunded: number; tax_payable: number;
+    gross_sales: number;
+  };
 }

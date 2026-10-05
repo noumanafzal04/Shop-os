@@ -226,6 +226,14 @@ export default function ReportsPage() {
             {data.totals.other_income > 0 && (
               <MetricCard label="Other Income" value={money(data.totals.other_income)} />
             )}
+            {/* THE TAX IS NOT THE SHOP'S. Revenue includes it — that is what
+                customers paid — and profit used to as well, so a shop that
+                charges sales tax was shown the government's share as its own
+                earnings. Stated on its own card so the row still adds up:
+                Revenue − Refunds − Sales tax − Cost of goods = Gross profit. */}
+            {data.totals.tax > 0 && (
+              <MetricCard label="Sales Tax (not yours)" value={money(data.totals.tax)} />
+            )}
             <MetricCard label="Cost of Goods" value={money(data.totals.cogs)} />
             <MetricCard label="Gross Profit" value={money(data.totals.gross_profit)} />
             <MetricCard label="Expenses" value={money(data.totals.expenses)} />
@@ -461,6 +469,10 @@ function TaxTab({ range }: { range: ReportRange }) {
       <MetricCard label="Taxable sales" value={d.totals.taxable_sales} />
       <MetricCard label="Net sales" value={fmt(d.totals.net_sales)} />
       <MetricCard label="Tax collected" value={fmt(d.totals.tax_collected)} />
+      {/* A return hands the tax back with the goods. The report a shop files
+          from showed only what was charged. */}
+      {d.totals.tax_refunded > 0 && <MetricCard label="Tax refunded" value={fmt(d.totals.tax_refunded)} />}
+      <MetricCard label="Tax payable" value={fmt(d.totals.tax_payable)} />
       <MetricCard label="Gross sales" value={fmt(d.totals.gross_sales)} />
     </div>
   );
