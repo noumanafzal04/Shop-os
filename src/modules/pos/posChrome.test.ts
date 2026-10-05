@@ -71,10 +71,13 @@ describe("the till's chrome gives way rather than disappearing", () => {
     // hidden, and whatever un-hides it must be `xl` — the width at which this
     // codebase says "a real counter machine with a real keyboard"
     // (RAIL_STARTS_COLLAPSED_BELOW = 1280). `sm`, `md` and `lg` are all tablets.
-    const hints = SOURCE.match(/<kbd className="[^"]*">\s*F\d/g) ?? [];
+    //
+    // The hints print `keyLabel(action)` now rather than a literal "F9" — a
+    // Mac is shown the key that works without fn — so that is what is found.
+    const hints = SOURCE.match(/<kbd className="[^"]*">\s*\{keyLabel\("\w+"\)\}/g) ?? [];
 
-    expect(hints.length, "no key hints found at all — has the markup moved?")
-      .toBeGreaterThan(0);
+    expect(hints.length, "a key hint went missing — has the markup moved?")
+      .toBeGreaterThanOrEqual(5);
 
     for (const hint of hints) {
       const cls = hint.match(/className="([^"]*)"/)?.[1] ?? "";
@@ -196,5 +199,27 @@ describe("the tile grid fits the pane it lives in", () => {
     // Both step at the same breakpoint, so the two never disagree about size.
     expect(skeleton).toContain("xl:h-");
     expect(image).toContain("xl:h-");
+  });
+});
+
+describe("the selected product is readable in both views", () => {
+  it("every pale 'selected' plate on the shelf has a dark half", () => {
+    /**
+     * Reported with a screenshot: in the tiles view the selected product's
+     * name was invisible. The tile said `bg-brand-50` with no `dark:` half,
+     * so on the dark shelf it went pale under text that stayed white. The
+     * rows view, a hundred lines down, had always carried both halves.
+     *
+     * Asked of every class string, not just the tile: the rule is "a pale
+     * plate under the shelf's light text is a bug", wherever it is written.
+     */
+    const shelf = SOURCE.slice(SOURCE.indexOf('data-pos-item="tile"'), SOURCE.indexOf("{/* ── Cart"));
+    const pale = shelf.match(/"[^"\n]*\bbg-brand-50\b[^"\n]*"/g) ?? [];
+
+    expect(pale.length, "no selected plate found — has the markup moved?").toBeGreaterThanOrEqual(2);
+
+    for (const cls of pale) {
+      expect(cls, "a selected plate with no dark half").toMatch(/dark:bg-pos-plate-active/);
+    }
   });
 });

@@ -114,19 +114,48 @@ function hslToHex({ h, s, l }: Hsl): string {
  * The full brand ramp for a chosen colour, as { step: hex }. The picked colour
  * is used verbatim at 500 so a tenant's exact brand hex is never approximated.
  */
+/**
+ * The lightness the RAMP table was drawn around — the old indigo's.
+ *
+ * Every figure in that table is ABSOLUTE: "600 is 0.58 light". That is one
+ * step darker than a 500 at 0.64 and one step LIGHTER than a 500 at 0.36,
+ * which is what the ocean is, and Teal, Emerald, Slate, Crimson, Rose and
+ * Amber besides. For six of the seven presets a shop can pick, the "darker"
+ * steps came out paler than the colour itself: a button that lightened when
+ * hovered, and `text-brand-600` — which is most of the coloured text in the
+ * panel — set in a tint that white could not carry.
+ *
+ * Nothing showed it, because the default never builds a ramp at all: it uses
+ * the hand-tuned one in index.css. It took a shop choosing a colour.
+ */
+const PIVOT = 0.64;
+
+/**
+ * A step's lightness for THIS colour: never on the wrong side of the 500.
+ *
+ * Above the pivot the table is kept unless the colour is paler than the table
+ * assumed, in which case the step moves toward white by the same proportion.
+ * Below it, the step moves toward black by the same proportion. A colour at
+ * the pivot gets the table exactly, so nothing drawn against it has moved.
+ */
+function stepLightness(table: number, base: number): number {
+  return table >= PIVOT
+    ? Math.max(table, base + ((table - PIVOT) / (1 - PIVOT)) * (1 - base))
+    : Math.min(table, base * (table / PIVOT));
+}
+
 export function buildRamp(primary: string): Record<number, string> {
   const base = hexToHsl(primary);
   if (!base) return {};
 
   const out: Record<number, string> = {};
-  for (const [step, lightness] of RAMP) {
+  for (const [step, table] of RAMP) {
+    const lightness = stepLightness(table, base.l);
     out[step] =
       step === 500
         ? primary.toLowerCase()
         : hslToHex({
             h: base.h,
-            // Very light and very dark steps read as muddy at full saturation;
-            // easing it off keeps tints airy and shades from going neon.
             s: base.s * (lightness > 0.9 ? 0.9 : lightness < 0.3 ? 0.85 : 1),
             l: lightness,
           });
@@ -150,7 +179,45 @@ export function contrastInk(hex: string): string {
  * every settings load — including when a tenant clears their choice.
  */
 export type TintLevel = "none" | "subtle" | "strong";
-export type SidebarStyle = "light" | "tinted" | "dark";
+export type SidebarStyle = "light" | "tinted" | "primary" | "dark";
+
+/** WCAG relative luminance of a #rrggbb colour. */
+function luminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0;
+  const int = parseInt(m[1], 16);
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin((int >> 16) & 255) + 0.7152 * lin((int >> 8) & 255) + 0.0722 * lin(int & 255);
+}
+
+/** Contrast of white text on this colour, as WCAG states it. */
+export function whiteOn(hex: string): number {
+  return 1.05 / (luminance(hex) + 0.05);
+}
+
+/**
+ * THE SHADE OF THE BRAND A SIDEBAR CAN BE.
+ *
+ * "Primary" paints the whole rail in the shop's colour with white writing on
+ * it. For the default ocean that is simply the 600 step. But a shop may pick
+ * yellow, and white on yellow is a menu nobody can read — so the rail takes
+ * the first step of the SAME ramp, 600 downward, that carries white at 4.5:1.
+ * The shop still gets its own colour; it gets it dark enough to work.
+ *
+ * Returns the ramp step's hex. Falls to 950 for a colour so pale that nothing
+ * lighter will do, which is still that colour's own darkest shade.
+ */
+export function railPrimaryFor(primary: string): string {
+  const ramp = buildRamp(primary);
+  for (const step of [600, 700, 800, 900, 950]) {
+    const hex = ramp[step];
+    if (hex && whiteOn(hex) >= 4.5) return hex;
+  }
+  return ramp[950] ?? primary;
+}
 
 export interface TenantThemeOptions {
   primary?: string | null;
@@ -189,6 +256,8 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
     for (const [step] of RAMP) root.style.removeProperty(`--color-brand-${step}`);
     for (const [step] of NEUTRAL_RAMP) root.style.removeProperty(`--color-gray-${step}`);
     root.style.removeProperty("--brand-ink");
+    // The stylesheet's own fallback (brand-600 of the default ocean) applies.
+    root.style.removeProperty("--rail-primary");
   } else {
     const ramp = buildRamp(chosen);
     for (const [step, hex] of Object.entries(ramp)) {
@@ -196,6 +265,7 @@ export function applyTenantTheme(options: TenantThemeOptions = {}): void {
     }
     // Exposed for surfaces that sit directly on the brand colour.
     root.style.setProperty("--brand-ink", contrastInk(chosen));
+    root.style.setProperty("--rail-primary", railPrimaryFor(chosen));
 
     // Carry the hue into the neutrals so the sidebar, page background, cards
     // and borders belong to the same family as the accent — on every page and

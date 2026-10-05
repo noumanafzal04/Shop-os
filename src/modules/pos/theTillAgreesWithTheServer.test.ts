@@ -341,8 +341,18 @@ describe("a short tender is a question the till can answer", () => {
     expect(onError).not.toMatch(/\.mutate\(|checkout\./);
   });
 
-  it("draws the server's figure whole, without taking the bank's share off twice", () => {
-    expect(code).toMatch(/money\(serverDue \?\? Math\.max\(0, payable - bankDiscount\)\)/);
+  it("takes the bank's share off the figure once, corrected or not", () => {
+    /**
+     * `payable` is the till's figure OR the server's correction, and both are
+     * the amount BEFORE the bank's share — the server states `payable`, not
+     * `amount_due`, for this. So it comes off the same way in both cases.
+     *
+     * The first version drew the server's figure "whole", which was right
+     * while that figure was `amount_due` and would have shown a bank-offer
+     * sale Rs 1,000 high once it stopped being.
+     */
+    expect(code).toMatch(/\{money\(Math\.max\(0, payable - bankDiscount\)\)\}/);
+    expect(code).not.toMatch(/money\(serverDue \?\?/);
   });
 });
 

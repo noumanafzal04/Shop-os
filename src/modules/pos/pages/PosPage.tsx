@@ -20,9 +20,11 @@ import { syncDetail, syncLabel, useManualSync } from "../../offline/sync/useManu
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { effectiveTaxRate } from "../../offline/pricing/priceCart";
 import { round2 } from "../../offline/pricing/money";
+import { formatMoney } from "../../../common/format/money";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine } from "../lineMath";
 import { followLevel, tillBill, type BillGroup } from "../tillBill";
+import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
 import { billKey, serverDueFrom } from "../tenderRecovery";
 import { completeOffline, linesFromCatalog, promotionLocally } from "../../offline/outbox/offlineCheckout";
@@ -153,18 +155,24 @@ let ck = 0;
  * down the screen, so "the green one" is a usable instruction across a noisy
  * counter. Pay is brand-coloured because it is the only one that takes money.
  */
-const SHORTCUTS: Array<{
-  k: string;
-  label: string;
-  tone: string;
-  run: "focusSearch" | "hold" | "openHeld" | "document" | "pay";
-}> = [
-  { k: "F2", label: "Search", tone: "border-blue-light-500/40 bg-blue-light-500/15 text-blue-light-300", run: "focusSearch" },
-  { k: "F4", label: "Hold", tone: "border-warning-500/40 bg-warning-500/15 text-warning-300", run: "hold" },
-  { k: "F6", label: "Drafts", tone: "border-orange-500/40 bg-orange-500/15 text-orange-300", run: "openHeld" },
-  { k: "F7", label: "Quote", tone: "border-success-500/40 bg-success-500/15 text-success-300", run: "document" },
-  { k: "F9", label: "Pay", tone: "border-brand-500/40 bg-brand-500/15 text-brand-300", run: "pay" },
-];
+/**
+ * THE COLOUR EACH KEY WEARS — and the button it belongs to wears the same.
+ *
+ * Search blue, Hold amber, Drafts orange, Quote green, Pay in the brand. A
+ * cashier learns the till by position and COLOUR before they read a word of
+ * it, so "the amber one" is how Hold is found on a busy counter.
+ *
+ * These were made one quiet grey for an afternoon, on the theory that a bar
+ * with five hues was noise. The shop asked for them back within the hour:
+ * colourful "as it was first". The hues were doing a job.
+ */
+const KEY_TONE: Record<ShortcutAction, string> = {
+  focusSearch: "border-blue-light-500/40 bg-blue-light-500/15 text-blue-light-300",
+  hold: "border-warning-500/40 bg-warning-500/15 text-warning-300",
+  openHeld: "border-orange-500/40 bg-orange-500/15 text-orange-300",
+  document: "border-success-500/40 bg-success-500/15 text-success-300",
+  pay: "border-brand-500/40 bg-brand-500/15 text-brand-300",
+};
 
 /** First letter of the first two words — "Adeel Khan" -> AK, "Adeel" -> A. */
 const initials = (name: string): string =>
@@ -253,6 +261,27 @@ export default function PosPage() {
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
   const has = (key: string) => modules?.[key] ?? false;
+  /**
+   * THE TILL OFFERS ONLY WHAT THE SHOP HAS.
+   *
+   * Reported from a mart: "This module is not enabled for your shop — Quote
+   * and Advance, so why is it showing if not enabled?" Because the till asked
+   * nobody. Its sidebar, its dashboard and its reports are all gated on the
+   * shop's modules; this screen, which is the one a cashier lives on, showed
+   * every control to every shop and let the server do the refusing.
+   *
+   * And it was not one button. By default FOUR of the eight trades have no
+   * Quotes module, FIVE have no Coupons & Promotions, and NO trade has Bank
+   * Card Offers — so on most shops the till carried a button that bounced, a
+   * coupon box that bounced, and two requests that failed on every sale.
+   *
+   * A module a shop was never sold is invisible and fine. A button that
+   * bounces reads as a broken product.
+   */
+  const sellsQuotes = has("documents");
+  const hasOffers = has("promotions");
+  const hasKhata = has("customers");
+  const hasBankOffers = has("bank_offers");
   // Whether this till serves food it has to COOK — which is a module question,
   // not a trade one. It read `businessType === "food"`, so a bakery counter, a
   // juice corner in a mart and a canteen inside a services business were never
@@ -345,7 +374,11 @@ export default function PosPage() {
   // shop that mostly takes card was one extra press away on every single sale.
   const chosenDefault = settings.data?.pos_default_payment;
   const defaultTender: PayMethod = chosenDefault === "card" || chosenDefault === "wallet" ? chosenDefault : "cash";
-  const money = (n: string | number) => `${cur} ${Number(n).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+  // The shared rule — a whole amount has no decimals, anything else has
+  // exactly two. This page had its own copy that kept up to THREE places and
+  // dropped trailing zeroes, so the till read "Rs 437.4" and "Rs 750.861"
+  // while the Products screen beside it read "Rs 217.50".
+  const money = (n: string | number) => formatMoney(cur, n);
 
   // ── Receipts & drawer ───────────────────────────────────────────
   // The hardware this lane drives. The drawer usually hangs off the printer,
@@ -751,15 +784,16 @@ export default function PosPage() {
       // open the tender modal behind it, and a scan would land in the cart of
       // whoever just walked away.
       if (useTillStore.getState().locked) return;
-      switch (e.key) {
-        case "F2": e.preventDefault(); a.focusSearch(); break;   // jump to scan/search
-        case "F4": e.preventDefault(); a.hold(); break;          // park the ticket under a name
-        case "F6": e.preventDefault(); a.openHeld(); break;      // reopen a parked ticket
-        case "F7": e.preventDefault(); a.document(); break;      // quotation / advance booking
-        case "F9": e.preventDefault(); a.pay(); break;           // complete / pay
-        case "Escape": a.clearSearch(); break;                   // clear the search box
-        default: break;
+      // One table says which key does what — `shortcuts.ts`. Every action
+      // answers to its function key AND to Alt/Option + a letter, because on
+      // a Mac the function keys are media keys and never arrive here.
+      const run = shortcutFor(e);
+      if (run !== null) {
+        e.preventDefault();
+        a[run]();
+        return;
       }
+      if (e.key === "Escape") a.clearSearch();                    // clear the search box
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1067,7 +1101,8 @@ export default function PosPage() {
   // which is most shops with trade customers.
   useEffect(() => {
     const phone = customerPhone.trim();
-    if (phone.length < 7) { setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null); return; }
+    // Customers & Khata is a module. Without it there is no record to find.
+    if (phone.length < 7 || !hasKhata) { setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null); return; }
     let alive = true;
     apiGet<CustomerAtTill | null>("/customers-lookup", { params: { phone } })
       .then(({ data }) => {
@@ -1084,7 +1119,7 @@ export default function PosPage() {
         if (alive) setCustomerGroup(groupAtTill(cached));
       });
     return () => { alive = false; };
-  }, [customerPhone, loyaltyOn]);
+  }, [customerPhone, loyaltyOn, hasKhata]);
 
   /**
    * Promotions: the best automatic one for THIS cart, as it will be charged.
@@ -1107,7 +1142,9 @@ export default function PosPage() {
     .map((l) => `${l.product_id}:${l.variant_id ?? ""}:${l.quantity}:${lineNet(l)}`)
     .join("|");
   useEffect(() => {
-    if (billLines.length === 0) { setPromo(null); return; }
+    // No module, no question: the server answers a shop without Coupons &
+    // Promotions with a refusal, and it used to on every change to the cart.
+    if (billLines.length === 0 || !hasOffers) { setPromo(null); return; }
     let alive = true;
     promotionsService
       .preview(billLines.map((l) => ({
@@ -1132,7 +1169,7 @@ export default function PosPage() {
     // Keyed on what the lines COST, not on the array: a customer's group
     // arriving re-prices every line without the cart itself changing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promoKey]);
+  }, [promoKey, hasOffers]);
 
   const clearSale = () => {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
@@ -2082,12 +2119,39 @@ export default function PosPage() {
     .slice(0, 4);
 
   // Publish the current handlers for the keyboard-shortcut listener.
+  //
+  // A key that cannot act SAYS WHY. Each of these used to do nothing at all
+  // on an empty cart, and "nothing happened" is exactly how a working
+  // shortcut gets reported as a broken one.
   actionsRef.current = {
-    focusSearch: () => scanRef.current?.focus(),
-    hold: () => { if (cart.length > 0) askHold(); },
-    pay: () => { if (cart.length > 0 && open) { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); } },
+    focusSearch: () => { scanRef.current?.focus(); scanRef.current?.select(); },
+    hold: () => {
+      if (cart.length > 0) askHold();
+      else setPosNotice("Nothing to hold yet — add an item first.");
+    },
+    /**
+     * THE SAME QUESTION THE PAY BUTTON ASKS.
+     *
+     * The button is `disabled={cart.length === 0 || !canRing}`. This used to
+     * say `&& open` — is a SHIFT open — which is a different rule: a shop that
+     * never asked for shifts can ring a sale with none, so its button worked
+     * and its key did nothing. Most shops never ask for shifts.
+     */
+    pay: () => {
+      if (cart.length === 0) { setPosNotice("Nothing to pay for yet — add an item first."); return; }
+      if (!canRing) { setPosNotice(whyCannotRing(session.data ?? null, requireShift) ?? "This till cannot take payment right now."); return; }
+      setMethod(defaultTender);
+      setTendered((t) => t || String(payable));
+      tenderModal.openModal();
+    },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
-    document: () => { if (cart.length > 0) documentModal.openModal(); },
+    document: () => {
+      // The chip and the button are not drawn for a shop without the module;
+      // this is for the hand that presses F7 from habit.
+      if (!sellsQuotes) { setPosNotice("Quotes & Advances isn't switched on for this shop."); return; }
+      if (cart.length > 0) documentModal.openModal();
+      else setPosNotice("Nothing to quote yet — add an item first.");
+    },
     clearSearch: () => setSearch(""),
   };
 
@@ -2158,7 +2222,7 @@ export default function PosPage() {
       {/* The cart as a promise instead of a sale. Prices are re-derived
           SERVER-side from the product ids — the till's own line prices are a
           display estimate, and a document freezes its price for weeks. */}
-      <ParkAsDocumentModal
+      {sellsQuotes && <ParkAsDocumentModal
         isOpen={documentModal.isOpen}
         onClose={documentModal.closeModal}
         lines={cart.map((l) => ({
@@ -2178,7 +2242,7 @@ export default function PosPage() {
         customerPhone={customerPhone}
         total={total}
         onDone={clearSale}
-      />
+      />}
 
       {/* Practice. A full-width bar rather than a chip among chips: a till in
           training looks EXACTLY like a live one, so the one thing that must
@@ -2265,21 +2329,26 @@ export default function PosPage() {
             and three buttons used to jam into one another. */}
         <div className="flex shrink-0 items-center justify-end gap-2 sm:gap-3">
           {/* Keyboard legend. The till is keyboard-first, and a cashier learns
-              these by GLANCING at them for the first week — a row of identical
-              grey chips is read as decoration and never learned. Each key keeps
-              the colour of the thing it does, matching its button below, so the
-              eye can jump straight to the one it wants. Clickable too: the same
-              action, for anyone still reaching for the mouse. */}
-          <div className="hidden items-center gap-2.5 xl:flex">
-            {SHORTCUTS.map(({ k, label, tone, run }) => (
+              these by GLANCING at them for the first week. Clickable too: the
+              same action, for anyone still reaching for the mouse.
+
+              Removed once as a duplicate of the hints on the buttons below, and
+              asked for back the same day — this row is where the keys are
+              LEARNED, and its going looked like the keys themselves had gone.
+
+              Each key keeps the colour of the thing it does, matching its
+              button below, so the eye can jump straight to the one it wants —
+              see KEY_TONE. */}
+          <div className="hidden items-center gap-2 xl:flex">
+            {SHORTCUT_KEYS.filter((k) => k.action !== "document" || sellsQuotes).map(({ action, label }) => (
               <button
-                key={k}
+                key={action}
                 type="button"
-                onClick={() => actionsRef.current?.[run]?.()}
-                title={`${label} (${k})`}
-                className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-125 ${tone}`}
+                onClick={() => actionsRef.current?.[action]?.()}
+                title={keyTitle(action)}
+                className={`inline-flex min-h-9 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-125 ${KEY_TONE[action]}`}
               >
-                <kbd className="rounded-md bg-white/20 px-1.5 py-0.5 font-sans text-[11px] font-bold tracking-wide text-white">{k}</kbd>
+                <kbd className="rounded-md bg-white/20 px-1.5 py-0.5 font-sans text-[11px] font-bold tracking-wide text-white">{keyLabel(action)}</kbd>
                 {label}
               </button>
             ))}
@@ -2343,7 +2412,7 @@ export default function PosPage() {
             type="button"
             onClick={drawerModal.openModal}
             title="Count the drawer (X-read)"
-            className="flex items-center gap-1.5 rounded-lg border border-blue-light-500/40 bg-blue-light-500/15 px-3 py-1.5 text-theme-sm font-semibold text-blue-light-300 transition hover:bg-blue-light-500/25"
+            className={`flex items-center gap-1.5 rounded-lg border border-blue-light-500/40 bg-blue-light-500/15 px-3 py-1.5 text-theme-sm font-semibold text-blue-light-300 transition hover:bg-blue-light-500/25`}
           >
             <DollarLineIcon className="h-4 w-4" /> Drawer
           </button>
@@ -2433,7 +2502,7 @@ export default function PosPage() {
        *
        * Panes are divided by a hairline rather than a gutter, so no width is
        * wasted at the screen edges. */}
-      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] sm:grid-rows-[minmax(0,1fr)_minmax(0,1.35fr)_auto] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto]">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] sm:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)_auto] lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)_auto]">
         {/* ── Products / scan ─────────────────────────────────────── */}
         {/* The scan side sits on the dark primary. Two-tone is doing the work a
             border cannot: the eye finds "where I look things up" and "where the
@@ -2574,7 +2643,7 @@ export default function PosPage() {
                    *
                    * It also cost the search box 40px of right padding it was
                    * reserving for a hint nobody could act on. */
-                  <kbd className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-400 xl:inline dark:border-gray-700 dark:bg-gray-800">F2</kbd>
+                  <kbd className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[10px] text-gray-400 xl:inline dark:border-gray-700 dark:bg-gray-800">{keyLabel("focusSearch")}</kbd>
                 )}
               </div>
               </div>
@@ -2781,7 +2850,17 @@ export default function PosPage() {
                        * Measured, not guessed — the cells were always equal. */
                       className={`group flex w-full flex-col overflow-hidden rounded-xl border text-left shadow-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                         i === activeIndex
-                          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400"
+                          /* THE SELECTED TILE NEEDS ITS DARK HALF TOO.
+                           *
+                           * The row view below has always said
+                           * `bg-brand-50 … dark:bg-pos-plate-active`. This one
+                           * said only `bg-brand-50`, so on the dark shelf the
+                           * selected tile turned pale while its name stayed
+                           * white — white on near-white, and the one product
+                           * the cashier had just moved to was the one they
+                           * could not read. One rule, written for one of the
+                           * two views. */
+                          ? "border-brand-500 bg-brand-50 ring-2 ring-brand-400 dark:border-brand-400 dark:bg-pos-plate-active"
                           : "border-gray-200 bg-pos-card hover:border-brand-400 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-pos-plate dark:hover:bg-pos-plate-hover"
                       }`}
                     >
@@ -2834,7 +2913,7 @@ export default function PosPage() {
                           </span>
                         ) : null}
                         <span className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-800 dark:text-white/90">{p.name}</span>
-                        <span className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
+                        <span className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-300">
                           {/* "from" when the tap will ask which size.
                               The sizes are NOT drawn on the tile — the shop asked
                               for them in the sheet only, and a wall of chips under
@@ -2905,7 +2984,7 @@ export default function PosPage() {
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-400">
+                        <div className="text-[14px] font-bold tabular-nums text-brand-600 dark:text-brand-300">
                           {money(sellingPrice(p))}
                           {p.sold_by === "weight" && p.unit ? <span className="text-[11px] font-normal text-gray-500 dark:text-gray-400">/{p.unit}</span> : null}
                         </div>
@@ -3146,9 +3225,12 @@ export default function PosPage() {
                         const rate = effectiveTaxRate(l, taxRate);
                         // Same inclusive/exclusive rule as the cart total.
                         const lineShare = subtotal > 0 ? lineNet(l) * (taxableBase / subtotal) : 0;
-                        const lineTax = rate > 0
+                        // Rounded for the eye. The TOTAL's tax is the engine's and is
+                        // not this figure summed — this is one line's share of it, and
+                        // unrounded it read "Rs 750.861", a third decimal no coin pays.
+                        const lineTax = round2(rate > 0
                           ? (taxInclusive ? lineShare - lineShare / (1 + rate / 100) : (lineShare * rate) / 100)
-                          : 0;
+                          : 0);
                         const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
                         return (
                           <tr key={l.key} data-cart-row onClick={() => { setEditKey(l.key); lineEditModal.openModal(); }}
@@ -3463,14 +3545,22 @@ export default function PosPage() {
             single largest pale block on the till directly under a navy
             catalogue. Its plates stay light — money is still the brightest
             thing on the screen, which is the rule the cart already follows. */}
-        <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-white/10 bg-pos-ground p-2 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 lg:gap-2.5 lg:p-2.5 dark:border-gray-800 dark:bg-gray-900/40">
+        <div className="grid shrink-0 grid-cols-1 gap-2 border-t border-white/10 bg-pos-ground p-2 md:grid-cols-3 lg:col-span-12 lg:grid-cols-4 lg:gap-2.5 lg:p-2.5 xl:grid-cols-12 dark:border-gray-800 dark:bg-gray-900/40">
             {/* Eight figures used to carry identical weight, so "Charges
                 Rs 0" shouted as loudly as the subtotal and the eye had to
                 read all eight to find the two that moved. A zero is now
                 greyed, money is the only thing set bold, and the customer —
                 which is not a number — loses the tabular figures it never
                 should have had. */}
-            <div className="grid grid-cols-4 gap-x-3 gap-y-0.5 rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 sm:gap-x-4 sm:gap-y-1 sm:px-3 sm:py-2 md:col-span-2 lg:col-span-3 lg:gap-y-2 lg:px-4 lg:py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+            {/* ONE ROW ON A DESKTOP (xl).
+                Two rows of four made this strip — and the total beside it —
+                about 150px tall, on a 768px laptop that is a fifth of the
+                screen spent on eight small figures while the cart above it
+                scrolled. Eight across is half that, and the height goes to
+                the list of what is being sold. A tablet keeps its two rows:
+                there a figure needs the width more than the cart needs the
+                height. */}
+            <div className="grid grid-cols-4 gap-x-3 gap-y-0.5 rounded-xl border border-gray-200 bg-white px-2.5 py-1.5 sm:gap-x-4 sm:gap-y-1 sm:px-3 sm:py-2 md:col-span-2 lg:col-span-3 lg:gap-y-2 lg:px-4 lg:py-3 xl:col-span-8 xl:grid-cols-8 xl:items-center xl:gap-x-3 xl:py-2.5 dark:border-gray-800 dark:bg-white/[0.02]">
               {(() => {
                 const discountTotal = cartDiscount + lineDiscountTotal;
                 const cells: Array<{ k: string; v: string; num?: boolean; tone?: "discount" | "muted" }> = [
@@ -3510,24 +3600,30 @@ export default function PosPage() {
                 together. Side by side it is half that, and the height goes
                 where a cashier needs it, which is the list of what they are
                 selling. Nothing is dropped or made smaller than a thumb. */}
-            <div className="flex flex-row items-center justify-between gap-3 rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 md:flex-col md:items-stretch md:justify-center dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
+            <div className="flex flex-row items-center justify-between gap-3 rounded-xl border border-brand-200 bg-gradient-to-br from-brand-100 to-brand-50 px-4 py-3 md:flex-col md:items-stretch md:justify-center xl:col-span-4 xl:flex-row xl:items-center xl:justify-between xl:py-2.5 dark:border-brand-500/30 dark:from-brand-500/15 dark:to-brand-500/5">
               <div className="min-w-0">
                 <div className="text-[10px] font-semibold uppercase leading-tight tracking-wider text-brand-600 dark:text-brand-400">Grand Total</div>
-                <div className="mt-1 truncate text-3xl font-extrabold leading-none tabular-nums text-gray-900 md:mb-2 md:text-4xl dark:text-white">{money(total)}</div>
+                <div className="mt-1 truncate text-3xl font-extrabold leading-none tabular-nums text-gray-900 md:mb-2 md:text-4xl xl:mb-0 xl:text-3xl 2xl:text-4xl dark:text-white">{money(total)}</div>
               </div>
+              {/* Button and its reason travel together, so the reason sits
+                  under the button in every arrangement — a third loose child
+                  here landed beside the total once the block went sideways. */}
+              <div className="flex shrink-0 flex-col md:shrink">
               <button type="button" disabled={cart.length === 0 || !canRing}
                 onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
-                className="flex w-auto shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40 md:w-full md:px-0">
+                title={keyTitle("pay")}
+                className="flex w-auto shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40 md:w-full md:px-0 xl:w-auto xl:px-7">
                 <CardGlyph /> Tender / Pay
                   {/* Hidden below xl: a counter tablet has no keyboard, and a
                       key hint nobody can press is a promise the screen breaks. */}
-                  <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">F9</kbd>
+                  <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">{keyLabel("pay")}</kbd>
               </button>
               {!canRing && (
                 <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">
                   {whyCannotRing(session.data ?? null, requireShift)}
                 </p>
               )}
+              </div>
             </div>
         </div>
       </div>
@@ -3544,7 +3640,12 @@ export default function PosPage() {
           and nothing on screen said they were there.
           Now it wraps instead of scrolling (a phone gets two honest rows), and
           the half that gives way is the half nobody presses. */}
-      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 bg-gray-900 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2 sm:px-4 xl:px-10 2xl:px-16">
+      {/* A SIZE UP FROM lg. Asked for directly: the bar and its words were the
+          smallest things on a desktop till — 13px labels in 36px buttons under
+          a 36px total — while being the row a hand reaches for on every sale.
+          48px buttons and 16px words from a sideways tablet up; a phone and an
+          upright tablet keep what fits them. */}
+      <div className="flex shrink-0 flex-col gap-1.5 border-t border-white/10 bg-gray-900 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 sm:gap-y-2 sm:px-4 lg:gap-x-3.5 lg:py-3 xl:px-10 2xl:px-16">
         {/* The footer's left half was empty while the top bar was fighting for
             room. The two things that belong here are the ones a cashier never
             acts on and only ever glances at: what this screen is, and whether
@@ -3559,7 +3660,7 @@ export default function PosPage() {
             {/* The wordmark is the first thing to go. A cashier standing at the
                 till knows what screen they are on; the connection pill is the
                 one indicator they actually decide anything by, so it stays. */}
-            <span className="hidden text-xl font-bold tracking-tight text-white lg:inline">Point of Sale</span>
+            <span className="hidden text-2xl font-bold tracking-tight text-white lg:inline">Point of Sale</span>
             {/* Connection. This used to be a green dot that said "Online" no
                 matter what — the one indicator that must never lie, since the
                 cashier decides whether to re-ring a sale by looking at it. */}
@@ -3584,7 +3685,7 @@ export default function PosPage() {
                
                  The label is already short — "Offline", "1 still to send" — and
                  the bar it sits in wraps, so it costs a phone one line at most. */
-              className={`flex min-h-9 min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:px-3 ${
+              className={`flex min-h-9 min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-theme-xs font-semibold transition hover:brightness-110 disabled:cursor-progress sm:px-3 lg:min-h-11 lg:gap-2 lg:px-4 lg:text-theme-sm ${
                 connected
                   ? "border-success-500/40 bg-success-500/15 text-success-300"
                   : "border-error-500/50 bg-error-500/15 text-error-300"
@@ -3645,35 +3746,35 @@ export default function PosPage() {
           {/* A hold is for the next five minutes; this is for the next five
               weeks. Sits beside Hold because the cashier reaches for it in the
               same moment — "the customer isn't buying today". */}
-          <button
+          {sellsQuotes && <button
             onClick={documentModal.openModal}
             disabled={cart.length === 0}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-2.5 py-1.5 text-theme-xs sm:order-6 sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40"
-            title="Quotation or advance booking (F7)"
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/15 px-2.5 py-1.5 text-theme-xs sm:order-6 sm:px-3.5 sm:py-2 sm:text-theme-sm lg:px-5 lg:py-3 lg:text-base font-semibold text-success-300 transition hover:bg-success-500/25 disabled:opacity-40`}
+            title={keyTitle("document")}
           >
             {/* NOT `ListIcon`. Drafts uses that, and below `sm` both buttons
                 lose their words — two identical glyphs a thumb apart, telling
                 a cashier apart only by hue. `DocsIcon` is what the sidebar
                 already gives Quotes & Advances, so the till and the menu name
                 the same thing the same way. */}
-            <DocsIcon className="h-4 w-4" />
+            <DocsIcon className="h-4 w-4 lg:h-5 lg:w-5" />
             {/* "Advance" is the half a phone gives up. It shares its row with
                 the connection pill and Reset; the full name is back from `sm`
                 up, and the title says it at every width. */}
             <span className="sm:hidden">Quote</span>
             <span className="hidden sm:inline">Quote / Advance</span>
-            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F7</kbd>
-          </button>
+            <kbd className="hidden rounded bg-white/15 px-1.5 py-0.5 font-sans text-xs font-bold xl:inline">{keyLabel("document")}</kbd>
+          </button>}
           {/* Reset lives with the others now, but keeps its own gap and a red
               hover: near enough to reach, far enough that the hand going for
               Hold doesn't land on the one that empties the basket. */}
           <button
             onClick={clearSale}
             disabled={cart.length === 0}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-2.5 py-1.5 text-theme-xs font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40 sm:order-1 sm:ml-auto sm:mr-2 sm:px-3.5 sm:py-2 sm:text-theme-sm"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-error-500/50 bg-error-500/15 px-2.5 py-1.5 text-theme-xs font-semibold text-error-300 transition hover:border-error-600 hover:bg-error-600 hover:text-white disabled:opacity-40 sm:order-1 sm:ml-auto sm:mr-2 sm:px-3.5 sm:py-2 sm:text-theme-sm lg:px-5 lg:py-3 lg:text-base"
             title="Empty this ticket"
           >
-            <TrashBinIcon className="h-4 w-4" />
+            <TrashBinIcon className="h-4 w-4 lg:h-5 lg:w-5" />
             {/* THE WORD GOES, THE BUTTON STAYS. Below `sm` these five labels
                 came to 553px of text in a bar 366px wide, so the row wrapped
                 to three — four at 360 — and ate a fifth of a phone screen that
@@ -3693,13 +3794,13 @@ export default function PosPage() {
             type="button"
             onClick={discountModal.openModal}
             title="Discount / coupon"
-            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-theme-xs font-semibold transition sm:order-2 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-theme-xs font-semibold transition sm:order-2 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm lg:px-5 lg:py-3 lg:text-base ${
               Number(discount) > 0 || couponCode
                 ? "border-success-400 bg-success-500/25 text-success-200"
-                : "border-warning-500/50 bg-warning-500/15 text-warning-300 hover:border-warning-400 hover:bg-warning-500/25 hover:text-warning-200"
+                : `border-warning-500/50 bg-warning-500/15 text-warning-300 hover:border-warning-400 hover:bg-warning-500/25 hover:text-warning-200`
             }`}
           >
-            <PlusIcon className="h-4 w-4" />
+            <PlusIcon className="h-4 w-4 lg:h-5 lg:w-5" />
             {/* The MONEY never hides. "Add discount" is an invitation and can
                 be an icon on a phone; "−Rs 500" is a fact about what the
                 customer is being charged, and a cashier reading the total
@@ -3727,27 +3828,27 @@ export default function PosPage() {
           <button
             onClick={askHold}
             disabled={cart.length === 0 || heldMut.hold.isPending}
-            className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-2 py-1.5 text-theme-xs sm:order-4 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40"
-            title="Hold this ticket (F4)"
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-warning-500/40 bg-warning-500/15 px-2 py-1.5 text-theme-xs sm:order-4 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm lg:px-5 lg:py-3 lg:text-base font-semibold text-warning-300 transition hover:bg-warning-500/25 disabled:opacity-40`}
+            title={keyTitle("hold")}
           >
             <PauseGlyph />
             Hold
-            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F4</kbd>
+            <kbd className="hidden rounded bg-white/15 px-1.5 py-0.5 font-sans text-xs font-bold xl:inline">{keyLabel("hold")}</kbd>
           </button>
 
           <button
             onClick={() => { held.refetch(); heldModal.openModal(); }}
-            className="flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-2 py-1.5 text-theme-xs sm:order-5 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm font-semibold text-orange-300 transition hover:bg-orange-500/25"
-            title="Open a parked ticket (F6)"
+            className={`flex min-w-0 items-center justify-center gap-1.5 rounded-lg border border-orange-500/40 bg-orange-500/15 px-2 py-1.5 text-theme-xs sm:order-5 sm:justify-start sm:px-3.5 sm:py-2 sm:text-theme-sm lg:px-5 lg:py-3 lg:text-base font-semibold text-orange-300 transition hover:bg-orange-500/25`}
+            title={keyTitle("openHeld")}
           >
-            <ListIcon className="h-4 w-4" />
+            <ListIcon className="h-4 w-4 lg:h-5 lg:w-5" />
             Drafts
             {/* The badge stays at every width: "there are 3 tickets parked" is
                 the only reason to look at this button. */}
             {held.data?.length ? (
               <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{held.data.length}</span>
             ) : null}
-            <kbd className="hidden rounded bg-white/15 px-1 py-px font-sans text-[10px] font-bold xl:inline">F6</kbd>
+            <kbd className="hidden rounded bg-white/15 px-1.5 py-0.5 font-sans text-xs font-bold xl:inline">{keyLabel("openHeld")}</kbd>
           </button>
 
         </div>
@@ -3796,12 +3897,13 @@ export default function PosPage() {
 
       {/* Discount & coupon */}
       <Modal isOpen={discountModal.isOpen} onClose={discountModal.closeModal} className="max-w-sm p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Discount &amp; coupon</h3>
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{hasOffers ? <>Discount &amp; coupon</> : "Discount"}</h3>
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Manual discount (Rs)</label>
             <Input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
           </div>
+          {hasOffers && (
           <div>
             <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Coupon code</label>
             {couponCode ? (
@@ -3818,6 +3920,7 @@ export default function PosPage() {
             )}
             {couponMsg && <p className="mt-1 text-theme-xs text-error-500">{couponMsg}</p>}
           </div>
+          )}
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={() => { setDiscount(""); clearCoupon(); }}>Clear</Button>
@@ -3857,12 +3960,12 @@ export default function PosPage() {
                     layout around it moves. */}
                 <span data-testid="tender-amount-due" className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">
                   {/*
-                    The server's `amount_due` is ALREADY net of the bank's
-                    share and of cash rounding — it is what will be accepted,
-                    whole. Taking the bank discount off it again would show
-                    a figure the server would refuse a second time.
+                    `payable` is the figure before the bank's share whether it
+                    is the till's own or the server's correction — the server
+                    states `payable`, not `amount_due`, for exactly this — so
+                    the bank's share comes off it the same way in both cases.
                   */}
-                  {money(serverDue ?? Math.max(0, payable - bankDiscount))}
+                  {money(Math.max(0, payable - bankDiscount))}
                 </span>
               </div>
               {/* The bank's share, said out loud. The figure above has already
@@ -3991,7 +4094,10 @@ export default function PosPage() {
                 dropped and the selection used to vanish for sighted users too. */}
             <div id="tender-method-label" className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
             <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {(["cash", "card", "wallet", "credit", "split"] as const).map((m) => (
+              {/* Khata is the customers module's: the debt it writes can only
+                  be seen and collected on the Customers screen. A shop without
+                  that screen must not be able to lend into it. */}
+              {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).map((m) => (
                 <button key={m} type="button" onClick={() => setMethod(m)}
                   aria-pressed={method === m}
                   className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-theme-sm font-medium transition ${method === m ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
@@ -4001,7 +4107,7 @@ export default function PosPage() {
                 </button>
               ))}
             </div>
-            <BankOfferRow
+            {hasBankOffers && <BankOfferRow
               cardAmount={
                 method === "card"
                   ? payable
@@ -4018,7 +4124,7 @@ export default function PosPage() {
               cardType={cardType}
               onCardType={setCardType}
               onQuote={setBankDiscount}
-            />
+            />}
             {method === "cash" && (
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
@@ -4078,7 +4184,7 @@ export default function PosPage() {
                   <div key={i} className="flex items-center gap-2">
                     <select value={t.method} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, method: e.target.value as typeof x.method } : x)))}
                       className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                      <option value="cash">Cash</option><option value="card">Card</option><option value="wallet">Wallet</option><option value="bank_transfer">Transfer</option><option value="credit">Credit (khata)</option>
+                      <option value="cash">Cash</option><option value="card">Card</option><option value="wallet">Wallet</option><option value="bank_transfer">Transfer</option>{hasKhata && <option value="credit">Credit (khata)</option>}
                     </select>
                     <div className="flex-1"><Input type="number" min="0" value={t.amount} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} placeholder="Amount" /></div>
                     {tenders.length > 1 && <button onClick={() => setTenders((ts) => ts.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove tender"><CloseIcon className="h-4 w-4" /></button>}

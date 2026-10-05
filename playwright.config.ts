@@ -25,7 +25,8 @@ const RESTAURANT_ONLY = /food\..*\.spec\.ts|recipe-size\.spec\.ts/;
 // Screens that live behind a trade the mart fixture does not have. Each is
 // walked by a project signed in as a shop that HAS that trade — asking the mart
 // would be refused and skip, and a guaranteed skip is a check deleted quietly.
-const TRADE_ONLY = /trade\.chrome\.spec\.ts/;
+// Every `trade.*.spec.ts` runs once per trade, signed in as that trade's owner.
+const TRADE_ONLY = /trade\..*\.spec\.ts/;
 
 /**
  * The storefront, walked by a STRANGER.

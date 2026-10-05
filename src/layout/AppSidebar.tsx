@@ -703,13 +703,13 @@ const AppSidebar: React.FC = () => {
                         the icon carries a dot. Losing the count is fine;
                         losing the fact that somebody is waiting is not. */}
                     {!showLabels && (nav.badge ?? 0) > 0 && (
-                      <span className="absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-gray-900" />
+                      <span className="rail-count absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-gray-900" />
                     )}
                   </span>
                   {showLabels && <span className="menu-item-text truncate">{nav.name}</span>}
                   {showLabels && (nav.badge ?? 0) > 0 && (
                     <span
-                      className="ml-auto grid min-w-5 shrink-0 place-items-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white"
+                      className="rail-count ml-auto grid min-w-5 shrink-0 place-items-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white"
                       aria-label={`${nav.badge} waiting`}
                     >
                       {(nav.badge ?? 0) > 99 ? "99+" : nav.badge}
@@ -780,8 +780,15 @@ const AppSidebar: React.FC = () => {
   // class on the rail itself so every nav item's existing dark: variant lights
   // up — a dark rail in light mode with no per-item overrides. The rail's OWN
   // colours are set explicitly, since it isn't a descendant of itself.
+  //
+  // "primary" is the shop's own colour, edge to edge. It carries `dark` too —
+  // white writing is what a coloured ground needs — and `rail-primary`, whose
+  // rules in index.css repaint the handful of things that would otherwise be
+  // brand-on-brand. The ground itself comes from that class, not from here.
   const railClass =
-    sidebarStyle === "dark"
+    sidebarStyle === "primary"
+      ? "dark rail-primary"
+      : sidebarStyle === "dark"
       ? "dark bg-gray-900 border-gray-800"
       : sidebarStyle === "tinted"
         ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
@@ -817,7 +824,7 @@ const AppSidebar: React.FC = () => {
         }`}
       >
         <Link to={homeForRole(role)} className="flex items-center">
-          {showLabels ? <Wordmark /> : <BrandMark />}
+          {showLabels ? <Wordmark tone={sidebarStyle === "primary" ? "onBrand" : "auto"} /> : <BrandMark />}
         </Link>
         {/* Close, on the drawer itself.
             The only way out used to be the header's toggle, which the drawer
@@ -858,9 +865,9 @@ const AppSidebar: React.FC = () => {
         {renderMenuItems(navItems, "main")}
 
         {othersItems.length > 0 && (
-          <div className="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+          <div className="rail-rule mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
             {showLabels && (
-              <p className="mb-2 px-3 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
+              <p className="rail-heading mb-2 px-3 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
                 Platform
               </p>
             )}
@@ -877,13 +884,13 @@ const AppSidebar: React.FC = () => {
           can't find half their modules needs to SEE the switch that hid them —
           a quiet control at the bottom of a scroller reads as decoration. */}
       {!isAdmin && (
-        <div className="shrink-0 border-t border-gray-100 px-4 py-4 dark:border-gray-800">
+        <div className="rail-rule shrink-0 border-t border-gray-100 px-4 py-4 dark:border-gray-800">
           {showLabels ? (
             <>
-              <p className="mb-2 px-1 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
+              <p className="rail-heading mb-2 px-1 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
                 Menu view
               </p>
-              <div className="flex items-center gap-1 rounded-xl border border-brand-100 bg-brand-50 p-1.5 dark:border-brand-500/25 dark:bg-brand-500/10">
+              <div className="rail-switch flex items-center gap-1 rounded-xl border border-brand-100 bg-brand-50 p-1.5 dark:border-brand-500/25 dark:bg-brand-500/10">
                 {(["basic", "advanced"] as const).map((m) => (
                   <button
                     key={m}
@@ -891,15 +898,15 @@ const AppSidebar: React.FC = () => {
                     onClick={() => mode !== m && toggleMode()}
                     className={`flex-1 rounded-lg py-2.5 text-theme-sm font-semibold transition-colors ${
                       mode === m
-                        ? "bg-brand-500 text-white shadow-theme-xs"
-                        : "text-brand-600 hover:bg-white/70 dark:text-brand-300 dark:hover:bg-white/[0.06]"
+                        ? "rail-switch-on bg-brand-500 text-white shadow-theme-xs"
+                        : "rail-switch-off text-brand-600 hover:bg-white/70 dark:text-brand-300 dark:hover:bg-white/[0.06]"
                     }`}
                   >
                     {m === "basic" ? "Simple" : "Full view"}
                   </button>
                 ))}
               </div>
-              <p className="mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
+              <p className="rail-heading mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
                 {mode === "basic"
                   ? "The screens your day runs on. Switch to Full view for every module."
                   : "Every module this shop has."}
@@ -910,7 +917,7 @@ const AppSidebar: React.FC = () => {
               type="button"
               onClick={toggleMode}
               title={mode === "basic" ? "Switch to full view" : "Switch to simple menu"}
-              className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:hover:bg-brand-500/25"
+              className="rail-switch-off mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:hover:bg-brand-500/25"
             >
               {mode === "basic" ? <ListIcon className="size-5" /> : <GridIcon className="size-5" />}
             </button>

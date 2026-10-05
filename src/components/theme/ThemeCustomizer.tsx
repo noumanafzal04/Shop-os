@@ -146,7 +146,9 @@ function Choice<T extends string>({
 /** Miniature of the shell, so a sidebar choice is judged by shape not words. */
 function SidebarPreview({ variant }: { variant: SidebarStyle }) {
   const rail =
-    variant === "dark"
+    variant === "primary"
+      ? "bg-brand-600"
+      : variant === "dark"
       ? "bg-gray-800"
       : variant === "tinted"
         ? "bg-gray-200 dark:bg-gray-700"
@@ -472,13 +474,15 @@ export default function ThemeCustomizer() {
             </label>
           </Group>
 
-          <Group title="Sidebar" hint="The navigation rail's surface.">
+          <Group title="Sidebar" hint="The menu's colour: white, a soft tint, your brand colour, or dark.">
             <Choice<SidebarStyle>
               value={sidebar}
               onChange={setSidebar}
               options={[
-                { value: "light", label: "Light", preview: <SidebarPreview variant="light" /> },
+                { value: "light", label: "White", preview: <SidebarPreview variant="light" /> },
                 { value: "tinted", label: "Tinted", preview: <SidebarPreview variant="tinted" /> },
+                // The shop's own colour, edge to edge, white writing on it.
+                { value: "primary", label: "Primary", preview: <SidebarPreview variant="primary" /> },
                 { value: "dark", label: "Dark", preview: <SidebarPreview variant="dark" /> },
               ]}
             />

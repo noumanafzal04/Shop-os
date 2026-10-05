@@ -182,16 +182,52 @@ export function useCoverMutations() {
  *
  * `enabled` is the caller's answer to "is a shift open AND is anyone looking" —
  * the endpoint 409s without a drawer, and the figure is worthless the moment a
- * sale is rung, so it is never served from cache (staleTime 0 → reopening the
- * panel refetches).
+ * sale is rung, so it is never served from cache.
+ *
+ * ── "Never", and it was not ──────────────────────────────────────────
+ *
+ * `staleTime: 0` only means the sheet REFETCHES when it opens. Until that
+ * answer arrives it draws what it held last time — so a cashier who rang two
+ * sales and opened the drawer was shown "Expected Rs 2,000 · Sales 0", the
+ * figure from before either of them, and the count sheet beside it worked out
+ * a variance against the same old number. For a few hundred milliseconds on a
+ * good line; for as long as the sheet stayed open on a bad one, because a
+ * refetch that fails leaves the old data in place and raises no error.
+ *
+ * `gcTime: 0` is the other half: when the last sheet closes, the figure is
+ * thrown away. The next one to open starts with nothing, shows that it is
+ * loading, and can only ever draw what the server has just said.
  */
 export function useSessionReport(enabled: boolean) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["pos", "session", "report"],
     queryFn: async () => (await posService.sessionReport()).data,
     enabled,
     staleTime: 0,
+    gcTime: 0,
   });
+
+  /**
+   * WHILE THE ANSWER IS ON ITS WAY, THERE IS NO FIGURE.
+   *
+   * `gcTime: 0` alone was not enough, and the browser spec proved it the same
+   * afternoon: the sheets stay MOUNTED while shut — they are switched off with
+   * `enabled`, not removed — so their observer keeps the old report alive and
+   * the cache is never collected. Reopened, the sheet still drew the figure
+   * from before the last two sales.
+   *
+   * So the rule is stated where both sheets read it: a report being fetched is
+   * not a report. `data` is withheld and the sheet says it is loading, which
+   * it already knew how to do. A stale drawer figure is worse than a spinner —
+   * it is a number somebody counts cash against.
+   */
+  const waiting = query.isFetching;
+
+  return {
+    ...query,
+    data: waiting ? undefined : query.data,
+    isPending: query.isPending || waiting,
+  };
 }
 
 export function useCashMovementMutation() {

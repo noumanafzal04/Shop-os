@@ -37,7 +37,7 @@ const SOURCE = Object.entries(
 const ROW = (): string[] => {
   const at = SOURCE.indexOf('aria-labelledby="tender-method-label"');
   if (at === -1) throw new Error("the tender row moved — find it before trusting this file");
-  const list = SOURCE.slice(at).match(/\(\[([^\]]*)\] as const\)\.map/);
+  const list = SOURCE.slice(at).match(/\(\[([^\]]*)\] as const\)\.(?:filter\([^\n]*\)\.)?map/);
   if (list === null) throw new Error("the tender row is no longer a literal array");
 
   return [...list[1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);

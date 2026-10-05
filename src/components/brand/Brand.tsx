@@ -89,11 +89,14 @@ export function Wordmark({ className = "", tone = "auto", size = 32 }: {
    * dark whatever the viewer has chosen, so the theme-following colours would
    * put near-black letters on a near-black ground there.
    */
-  tone?: "auto" | "onDark";
+  tone?: "auto" | "onDark" | "onBrand";
   size?: number;
 }) {
-  const name = tone === "onDark" ? "text-white" : "text-gray-900 dark:text-white";
-  const half = tone === "onDark" ? "text-brand-400" : "text-brand-500";
+  // `onBrand`: the ground IS the brand colour (the Primary sidebar), so the
+  // half that is normally set in the brand would be invisible on it. Both
+  // halves go white and the second is only softened — still two tones.
+  const name = tone === "auto" ? "text-gray-900 dark:text-white" : "text-white";
+  const half = tone === "onBrand" ? "text-white/70" : tone === "onDark" ? "text-brand-400" : "text-brand-500";
 
   /**
    * THE TWO-TONE SPLIT, TAKEN FROM THE NAME RATHER THAN TYPED.
@@ -115,7 +118,8 @@ export function Wordmark({ className = "", tone = "auto", size = 32 }: {
 
   return (
     <span className={`flex items-center gap-2 ${className}`}>
-      <BrandMark size={size} tone={tone} />
+      {/* A brand ground is a dark ground as far as the mark is concerned. */}
+      <BrandMark size={size} tone={tone === "auto" ? "auto" : "onDark"} />
       <span
         className={`font-bold italic tracking-tight ${name}`}
         style={{ fontSize: size * 0.66, lineHeight: 1.1 }}

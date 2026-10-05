@@ -62,7 +62,12 @@ layer(base);
      hue. Tried the same-hue version: it made the bars read as part of the
      workspace, and the point of chrome is that it is not — the near-black
      bars are what stop the coloured workspace running to the screen edge. */
-  --color-pos-ground: #212a45;
+  /* RE-TUNED 2026-10-05, still fixed. #212a45 was an indigo navy chosen
+     against the OLD indigo brand. The brand is the Meadow strip's ocean now,
+     and an indigo ground under teal buttons read as two palettes on one
+     screen. Same lightness, same three layers, the brand's own hue — and
+     still a constant, so a shop that picks red does not get a red till. */
+  --color-pos-ground: #14283a;
 
   /* The SHELF, one step below the cart.
      Product cards and the cart were the same `bg-white`, so a four-column grid
@@ -75,18 +80,18 @@ layer(base);
   --color-pos-card: #f2f4f7;
 
   /* The product list's plate, and it is LIGHTER than the ground it sits on
-     (#212a45), not darker. A card darker than its background reads as a hole
+     (#14283a), not darker. A card darker than its background reads as a hole
      punched in the surface; a card lighter than it reads as something resting
      on top, which is what a product tile is. gray-900 — the console's ordinary
      dark card — is darker than this ground, which is why the list could not
      simply borrow it. */
-  --color-pos-plate: #2b3553;
-  --color-pos-plate-hover: #34405f;
+  --color-pos-plate: #1c3850;
+  --color-pos-plate-hover: #244663;
   /* The SELECTED row, solid. `bg-brand-500/15` over the plate is the same
      colour to the eye and translucent to the guard — and the guard is right:
      a tint has no findable edge, which is the whole reason these became plates
      in the first place. This is that blend, computed and frozen. */
-  --color-pos-plate-active: #2f3b6d;
+  --color-pos-plate-active: #1b4a6c;
 
   /* ── THE BRAND: the Meadow strip's ocean ─────────────────────────
      500 is #1A759F — `meadowThemes.light.primary`, the same hex the two
@@ -1047,4 +1052,86 @@ span.flatpickr-weekday,
   .ring-expands::before { animation: none; opacity: 0; }
   .shine-crosses { animation: none; opacity: 0; }
   .grows-up { animation: none; transform: none; }
+}
+
+/* ── THE PRIMARY RAIL ──────────────────────────────────────────────────
+   Appearance → Sidebar → Primary. The whole rail in the shop's own colour,
+   white writing on it, and the screen you are on as a white plate.
+
+   The rail also carries `dark`, so everything inside it that already has a
+   dark variant turns light without being told to. These rules are the part a
+   dark variant gets WRONG on a coloured ground: anything that was brand-on-
+   dark is brand-on-brand here, and would vanish.
+
+   Deliberately outside every @layer: an unlayered rule outranks the utility
+   layer whatever the specificity, which is the only way to answer `dark:`
+   variants without `!important`.
+
+   `--rail-primary` is set by applyTenantTheme() to the first shade of the
+   shop's ramp that carries white at 4.5:1 — see `railPrimaryFor`. */
+.rail-primary {
+  background-color: var(--rail-primary, var(--color-brand-600));
+  border-color: color-mix(in srgb, #000 22%, var(--rail-primary, var(--color-brand-600)));
+}
+.rail-primary .menu-item-inactive,
+.rail-primary .menu-dropdown-item-inactive {
+  color: rgb(255 255 255 / 0.9);
+}
+.rail-primary .menu-item-inactive:hover,
+.rail-primary .menu-dropdown-item-inactive:hover {
+  background-color: rgb(255 255 255 / 0.12);
+  color: #fff;
+}
+.rail-primary .menu-item-icon-inactive,
+.rail-primary .menu-item-arrow-inactive {
+  color: rgb(255 255 255 / 0.72);
+}
+.rail-primary .group:hover .menu-item-icon-inactive,
+.rail-primary .group:hover .menu-item-arrow-inactive {
+  color: #fff;
+}
+/* Where you are: the one white plate on the rail. */
+.rail-primary .menu-item-active {
+  background-color: #fff;
+  color: var(--rail-primary, var(--color-brand-600));
+}
+.rail-primary .menu-item-icon-active,
+.rail-primary .menu-item-arrow-active {
+  color: var(--rail-primary, var(--color-brand-600));
+}
+/* A screen INSIDE an open group: lit, not a second plate under the first. */
+.rail-primary .menu-dropdown-item-active {
+  background-color: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+.rail-primary .menu-dropdown-badge {
+  background-color: rgb(255 255 255 / 0.2);
+  color: #fff;
+}
+.rail-primary .rail-heading {
+  color: rgb(255 255 255 / 0.62);
+}
+.rail-primary .rail-rule {
+  border-color: rgb(255 255 255 / 0.16);
+}
+.rail-primary .rail-count {
+  background-color: #fff;
+  color: var(--rail-primary, var(--color-brand-600));
+  --tw-ring-color: var(--rail-primary, var(--color-brand-600));
+}
+.rail-primary .rail-switch {
+  background-color: rgb(0 0 0 / 0.16);
+  border-color: rgb(255 255 255 / 0.18);
+}
+.rail-primary .rail-switch-on {
+  background-color: #fff;
+  color: var(--rail-primary, var(--color-brand-600));
+}
+.rail-primary .rail-switch-off {
+  background-color: transparent;
+  color: rgb(255 255 255 / 0.88);
+}
+.rail-primary .rail-switch-off:hover {
+  background-color: rgb(255 255 255 / 0.14);
+  color: #fff;
 }
