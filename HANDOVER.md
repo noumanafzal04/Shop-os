@@ -8117,3 +8117,18 @@ module checks was started and its report is pending. Push is blocked: the
 saved GitHub credential is rejected.
 
 **3,027 backend tests (3,007 passed, 20 skipped) · 1,745 panel tests.**
+
+### The module audit, second round (2026-10-05)
+
+A read-only audit of every module check (`docs/qa/2026-10-05-module-audit.md`)
+found the till's fault on nine more default-configuration surfaces. All the
+blockers and majors and most minors are fixed: dashboard New sale, Sales
+Exchange, three refused `pos` requests on every screen for shops without a
+till, sidebar Transfers, the command palette, Settings → Delivery, the staff
+form's permission boxes and jobs, five Help articles, and the full-screen
+till never refreshing its module map. Open: the cosmetic ones listed there,
+and the decision on whether the SERVER should stop applying a withdrawn
+module's rules.
+
+**3,030 backend tests (3,010 passed, 20 skipped) · 1,754 panel tests · till
+browser specs green as a mart, a restaurant and four other trades.**

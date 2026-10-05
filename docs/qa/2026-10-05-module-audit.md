@@ -17,24 +17,33 @@ re-verified by hand before fixing.
 | A4 | 3 refused `pos` requests on every screen for online/finance shops | `useOfflineBoot` / `useKeepInSync` only with `pos` |
 | A5 | `GET /collections` refused on every product-editor open without marketplace | `useCollections(marketplaceEnabled)` |
 
-## Still open — in priority order
+## Fixed in the second round (same day)
+
+| # | Was | Fix |
+|---|---|---|
+| A6 | Sidebar "Transfers" on plan alone | also needs `inventory` |
+| A7 | Help "Open this screen" to a refused/redirected screen (5 articles) | article gates corrected; `screenNeeds` + `canOpenScreen` |
+| A8 | ⌘K offered Customers / Suppliers / Products without the module | `GlobalSearchService` asks the module too |
+| A9 | Settings showed Delivery without the module; Save refused for the whole form | switch not drawn; Pickup cannot be turned off |
+| A10 | "Quotes & advances" settings without `documents` | sub-tab needs `documents` |
+| A11–13 | Reorder → PO, "Sent back to supplier" (2 sheets) without `purchasing` | gated |
+| A14–15 | Orders asked `/riders`; Take order defaulted to Delivery | gated on `delivery` |
+| A16 | Pharmacy substitute sheet without `inventory` | gated |
+| B3 | Expenses asked `/suppliers` on `inventory` | `purchasing` |
+| B4–6 | Staff form offered permission boxes / jobs for modules the shop lacks | `Permissions::NEEDS_MODULE`, `StaffPresets` re-keyed |
+| B7 | "Scale barcodes" (a till setting) behind `labels` | tab opens on `labels` OR `pos` |
+| B11 | Full-screen till / floor / kitchen never refreshed the module map | `useMe()` in `TenantThemed` |
+
+## Still open
 
 | # | Sev | Where | What happens |
 |---|---|---|---|
-| A6 | major | `AppSidebar.tsx:99-104` | "Branches → Transfers" shown on plan alone; needs `inventory` |
-| A7 | major | `help/content.ts` (work board, online shop, labels ×2, New sale) | "Open this screen" lands on a refused or redirected screen |
-| A8 | major | `CommandPalette.tsx:182` | ⌘K offers Customers without `customers` |
-| A9 | major | `ShopSettingsPage.tsx:620-712` | Order fulfillment shows Delivery for shops without `delivery`; Save refused `FULFILLMENT_REQUIRED` |
-| A10 | minor | `settingsTabs.ts:83` | Quotes & advances switches without `documents` |
-| A11–13 | minor | Inventory reorder / dispose / write-off | supplier calls need `purchasing` |
-| A14–15 | minor | Orders page / Take order | riders + Delivery default need `delivery` |
-| A16 | minor | `PosPage.tsx:1702` | pharmacy substitute sheet needs `inventory` |
 | A17 | minor | `notifications/deepLink.ts:55-73` | expiry/low-stock links to screens the shop lacks |
 | A18–22 | minor | Subscription, Settings, Reports, Income/Expenses, Product editor | visible, no bounce, wrong module |
-| B4–6 | major/minor | `Permissions.php:377-392`, `StaffPresets.php` | Staff form offers permission boxes / jobs for modules the shop lacks |
-| B7 | minor | `settingsTabs.ts:56` | "Scale barcodes" (a till setting) behind `labels` |
-| B11 | major after a module change | `useMe()` only in `AppLayout` | POS/floor/kitchen opened full-screen never refresh the module map |
-| B10 | minor | `TenantResource.php:69` | sends the raw map, not the dependency-walked one the server enforces |
+| B2 | minor | Workshop route | gated on `pos` + trade; its API needs `documents` |
+| B9 | minor | dashboard / search | a delivery-only shop has Orders but no dashboard link |
+| B10 | minor | `TenantResource.php:69` | sends the raw map, not the dependency-walked one |
+| B13–14 | minor | stocktake hook, `DashboardService` | looser key than the route; harmless today |
 
 **Guard blind spots:** `panel/src/test/tradeFeatures.ts` has no `online`
 entry; `offeredIsReachable.test.ts` mounts only QuickActions + MoneyPanel and
