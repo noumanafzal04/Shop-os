@@ -67,3 +67,25 @@ export async function memberDiscountFor(phone: string | null | undefined): Promi
 
   return Number(group?.discount_percent ?? 0) || 0;
 }
+
+/**
+ * The group the SALE will find for this phone number, from the till's copy.
+ *
+ * Matched EXACTLY, trimmed — the way `CreateSaleAction` matches it — and not
+ * on the last ten digits like `memberDiscountFor` above. That one only ever
+ * decides to REFUSE, and refusing a near-match is safe. This one PRICES: a
+ * line rung at wholesale for a number the server does not recognise syncs as
+ * a sale short by the difference, and is refused after the customer has gone.
+ */
+export async function memberGroupFor(phone: string | null | undefined): Promise<CatalogCustomerGroup | null> {
+  const wanted = (phone ?? "").trim();
+  if (wanted === "") return null;
+
+  const customers = await getAll<CatalogCustomer>(STORE.CUSTOMERS);
+  const match = customers.find((c) => c.phone != null && c.phone.trim() === wanted);
+  if (match?.customer_group_id == null) return null;
+
+  const groups = await getAll<CatalogCustomerGroup>(STORE.CUSTOMER_GROUPS);
+
+  return groups.find((g) => g.id === match.customer_group_id) ?? null;
+}

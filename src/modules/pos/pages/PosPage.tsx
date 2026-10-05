@@ -18,7 +18,14 @@ import StorageWarning from "../../offline/storage/StorageWarning";
 import { shiftBlocker } from "../../offline/storage/persist";
 import { syncDetail, syncLabel, useManualSync } from "../../offline/sync/useManualSync";
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
-import { completeOffline, linesFromCatalog } from "../../offline/outbox/offlineCheckout";
+import { effectiveTaxRate } from "../../offline/pricing/priceCart";
+import { round2 } from "../../offline/pricing/money";
+import { taxFieldsOf } from "../taxFields";
+import { lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine } from "../lineMath";
+import { followLevel, tillBill, type BillGroup } from "../tillBill";
+import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
+import { billKey, serverDueFrom } from "../tenderRecovery";
+import { completeOffline, linesFromCatalog, promotionLocally } from "../../offline/outbox/offlineCheckout";
 import { queueTally } from "../../offline/db/repo";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
@@ -65,8 +72,8 @@ import { useTerminalStore } from "../../../stores/terminalStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
-import { memberDiscountFor } from "../../offline/lookup/memberDiscount";
-import { asProduct, loadShelf, shelfRows } from "../../offline/lookup/browse";
+import { memberDiscountFor, memberGroupFor } from "../../offline/lookup/memberDiscount";
+import { asProduct, loadShelf, loadTaxRates, shelfRows } from "../../offline/lookup/browse";
 import { findByCode } from "../../offline/lookup/findByCode";
 import { onSale, sellingPrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
@@ -111,9 +118,18 @@ interface CartLine {
   // Price level (price list): "wholesale" uses wholesale_price when present.
   price_level?: "retail" | "wholesale";
   wholesale_price?: number | null;
-  // Effective tax rate: null = use the shop default; a number (incl. 0 = exempt)
-  // overrides it. Mirrors the server's per-product tax computation.
+  // The product's OWN tax rate: null = it has none. A number (incl. 0 =
+  // exempt) is a rate. NOT the effective rate on its own — see below.
   tax_rate?: number | null;
+  /**
+   * The rate of the tax GROUP the item is on, which beats `tax_rate`.
+   *
+   * This line used to carry only the field above, so a product on a group
+   * (17,140 of them, against 124 with a rate of their own) was taxed at the
+   * shop default and the sale came back refused. Both fields are read
+   * together through `effectiveTaxRate`; neither is meaningful alone.
+   */
+  tax_group_rate?: number | null;
   // Pharmacy: this line is a prescription-required medicine — the POS prompts
   // for prescription details before checkout.
   requires_prescription?: boolean;
@@ -213,64 +229,13 @@ const METHOD_LABEL: Record<PayMethod, string> = {
   split: "Split",
 };
 
-/** Price for one of a pack: explicit pack price, else base price × factor. */
-const packPrice = (basePrice: number, u: ProductUnit): number =>
-  u.price != null && u.price !== "" ? Number(u.price) : Math.round(basePrice * Number(u.factor) * 100) / 100;
-
-/** The retail-or-wholesale per-base-unit rate for a line (mirrors the server). */
-const levelBase = (l: CartLine): number => {
-  const retail = l.base_price ?? l.unit_price;
-  const w = l.wholesale_price;
-  return l.price_level === "wholesale" && w != null && Number(w) > 0 ? Math.min(Number(w), retail) : retail;
-};
-
-/** Recompute a line's display unit_price from its level + selected pack. */
-const recalcLine = (l: CartLine, patch: Partial<CartLine>): CartLine => {
-  const next = { ...l, ...patch };
-  const base = levelBase(next);
-  const u = next.product_unit_id ? next.units?.find((x) => x.id === next.product_unit_id) : undefined;
-  next.unit_price = u ? packPrice(base, u) : base;
-  return next;
-};
-
-/** Effective per-unit price for a line: deepest qty tier reached, else base. */
-const lineUnit = (l: CartLine): number => {
-  // A pack line is priced explicitly (pack price), and a wholesale line uses
-  // the flat wholesale rate — quantity tiers apply to plain retail sales only.
-  if (l.product_unit_id || l.price_level === "wholesale") return l.unit_price;
-  let best: number | null = null;
-  let bestMin = 0;
-  for (const t of l.price_tiers ?? []) {
-    const min = Number(t.min_qty);
-    const price = Number(t.price);
-    if (min > 0 && price > 0 && l.quantity >= min && min > bestMin) { best = price; bestMin = min; }
-  }
-  return best ?? l.unit_price;
-};
-
 const fmtQty = (n: number) => String(parseFloat(n.toFixed(3)));
 
-/**
- * Gross line value before any per-line discount.
- *
- * For a line that named money, that IS the money — not `unit × quantity`
- * recomputed from it. Rs 2,000 at 268.50/L is 7.449 litres, and 7.449 × 268.50
- * is Rs 2,000.06: six paisa the customer never handed over. The server refuses
- * such a sale outright (the tender no longer covers the bill), and a cart that
- * showed the recomputed figure would be asking the cashier for money that
- * isn't owed.
- */
-const lineGross = (l: CartLine): number =>
-  l.amountAsked !== undefined ? l.amountAsked : lineUnit(l) * l.quantity;
-/** Per-line discount amount (clamped to the line), mirroring the server. */
-const lineDiscountAmt = (l: CartLine): number => {
-  const v = l.discountValue ?? 0;
-  if (v <= 0) return 0;
-  const gross = lineGross(l);
-  return l.discountMode === "pct" ? Math.round(gross * Math.min(v, 100)) / 100 : Math.min(v, gross);
-};
-/** Line value the customer pays after its per-line discount. */
-const lineNet = (l: CartLine): number => Math.max(0, lineGross(l) - lineDiscountAmt(l));
+// The line arithmetic — `packPrice`, `recalcLine`, `lineUnit`, `lineGross`,
+// `lineDiscountAmt`, `lineNet` — lived here, as constants nothing outside this
+// file could call and therefore nothing tested. It is in `../lineMath` now,
+// where it is held to the pricing engine. See that file for the paisa it was
+// getting wrong.
 
 
 export default function PosPage() {
@@ -700,6 +665,8 @@ export default function PosPage() {
   const [bankDiscount, setBankDiscount] = useState(0);
   const [tenders, setTenders] = useState<Array<{ method: "cash" | "card" | "bank_transfer" | "wallet" | "credit"; amount: string }>>([{ method: "cash", amount: "" }]);
   const [tendered, setTendered] = useState("");
+  /** The server's figure for this bill, after a short tender. See `payable`. */
+  const [serverDue, setServerDue] = useState<number | null>(null);
   /**
    * Goods taken in part-payment: the dead battery, the worn set of tyres.
    *
@@ -758,6 +725,11 @@ export default function PosPage() {
   const [couponMsg, setCouponMsg] = useState<string | null>(null);
   // Loyalty: the attached customer's point balance + points being redeemed.
   const [customerPoints, setCustomerPoints] = useState<number | null>(null);
+  /**
+   * The customer's group, as the SALE will find it: by this phone number.
+   * Null for nobody, for a walk-in, and while the lookup is still out.
+   */
+  const [customerGroup, setCustomerGroup] = useState<(BillGroup & { name: string }) | null>(null);
   const [redeemPts, setRedeemPts] = useState("");
   // Promotions: the best auto-promo for the current cart (server preview).
   const [promo, setPromo] = useState<PromoPreview | null>(null);
@@ -908,17 +880,34 @@ export default function PosPage() {
       name: cfgSize ? `${cfg.name} / ${cfgSize.name}` : cfg.name,
       unit_price: cfgPrice, quantity: 1, modifier_option_ids: optionIds,
       modifiers_label: chosen.join(", ") || undefined,
+      /*
+        THE TAX FIELDS, which this path used to leave off entirely.
+
+        A product reaches the cart by two doors — `addLine` for a plain item
+        and this one for anything with sizes or modifiers. Only the first
+        carried a tax rate, so every configured dish was taxed at the shop
+        default whatever the product said. In a restaurant that is most of
+        the menu.
+      */
+      ...taxFieldsOf(cfg),
     }]);
     closeConfig();
   };
 
-  const grossSubtotal = useMemo(() => cart.reduce((s, l) => s + lineGross(l), 0), [cart]);
-  const lineDiscountTotal = useMemo(() => cart.reduce((s, l) => s + lineDiscountAmt(l), 0), [cart]);
-  // Net of per-line discounts — cart/coupon discounts and tax apply on top.
-  const subtotal = useMemo(() => cart.reduce((s, l) => s + lineNet(l), 0), [cart]);
-  // Tax is SERVER-authoritative; we mirror it here so the cashier's total
-  // matches the printed receipt. Per line: product.tax_rate (else the shop
-  // default; 0 = exempt) applied to the line's share of the DISCOUNTED base.
+  /**
+   * The cart AT THE LEVEL EACH LINE IS CHARGED AT.
+   *
+   * A line the cashier never touched follows the customer: a trade customer's
+   * unmarked lines are rung at wholesale, exactly as the sale will ring them.
+   * Everything the screen draws and adds up reads these, never `cart` — the
+   * cart holds what the cashier CHOSE, and is what the sale is sent from.
+   */
+  const billLines = useMemo(() => cart.map((l) => followLevel(l, customerGroup)), [cart, customerGroup]);
+  const grossSubtotal = useMemo(() => billLines.reduce((s, l) => round2(s + lineGross(l)), 0), [billLines]);
+  const lineDiscountTotal = useMemo(() => billLines.reduce((s, l) => round2(s + lineDiscountAmt(l)), 0), [billLines]);
+  // Tax is SERVER-authoritative; the till mirrors it so the cashier's total
+  // matches the printed receipt. Per line, from the line's own rate, applied
+  // to its share of the DISCOUNTED base — see `tillBill`.
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
   // Loyalty: redeemed points become a discount (points × redeem_value),
   // mirrored here so the cashier's total matches the server-priced sale.
@@ -927,57 +916,117 @@ export default function PosPage() {
   const earnPer = Number(settings.data?.loyalty_earn_per_amount ?? 0);
   const minRedeem = Number(settings.data?.loyalty_min_redeem ?? 0);
   const redeemPtsNum = loyaltyOn ? Math.max(0, Math.floor(Number(redeemPts) || 0)) : 0;
-  const loyaltyDiscount = redeemPtsNum * redeemValue;
   // Auto-promo discount (server preview) — folded in like a coupon.
   const promoDiscount = promo?.discount ?? 0;
-  const cartDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount + loyaltyDiscount;
-  const taxableBase = Math.max(0, subtotal - cartDiscount);
   // INCLUSIVE mode ("prices already include tax"): the tax already sits INSIDE
-  // each price, so it is EXTRACTED for display (share − share ÷ (1+rate)) and
-  // must NOT be added on top — mirrors CreateSaleAction. Adding it here charged
-  // the customer subtotal+tax on a card/exact tender while the sale recorded
-  // only subtotal, and handed back a phantom "change" nobody paid.
+  // each price, so it is EXTRACTED for display and must NOT be added on top.
   const taxInclusive = !!settings.data?.tax_inclusive;
-  const taxAmount = subtotal > 0
-    ? Math.round(cart.reduce((s, l) => {
-        const rate = l.tax_rate == null ? taxRate : l.tax_rate;
-        if (rate <= 0) return s;
-        const share = lineNet(l) * (taxableBase / subtotal);
-        return s + (taxInclusive ? share - share / (1 + rate / 100) : (share * rate) / 100);
-      }, 0) * 100) / 100
-    : 0;
-  const total = Math.max(0, taxInclusive ? taxableBase : taxableBase + taxAmount);
-  // Cap redemption to the customer's balance and to the bill (after other
-  // discounts); estimate points this sale will earn on the net merchandise.
-  const otherDiscount = (Number(discount) || 0) + couponDiscount + promoDiscount;
-  const maxRedeemable = Math.max(0, Math.min(customerPoints ?? 0, Math.floor((subtotal - otherDiscount) / (redeemValue || 1))));
-  const earnEst = loyaltyOn && earnPer > 0 && customerPhone.trim() !== "" ? Math.floor(Math.max(0, subtotal - cartDiscount) / earnPer) : 0;
-  const splitPaid = tenders.reduce((s, t) => s + (Number(t.amount) || 0), 0);
   const tradeInTotal = tradeIns.reduce(
     (s, t) => s + (Number(t.quantity) || 1) * (Number(t.unit_allowance) || 0), 0,
   );
-  // What the customer still hands over in rupees. Every tender comparison
-  // below works off THIS, not the bill — the goods have already settled their
-  // share, and asking for the full total again would refuse a paid sale.
-  const exactPayable = Math.max(0, Math.round((total - tradeInTotal) * 100) / 100);
   // ── Settling in coins that exist ────────────────────────────────
   // A bill of Rs 1,238.15 has no exact cash tender: sub-rupee coins don't
   // circulate and plenty of counters can't break a five. The shop states the
-  // smallest coin it handles and a CASH bill settles to it — the till has to
-  // show the cashier the figure they will actually take, or they compute it in
-  // their head at the counter and the drawer stops matching. Card and split
-  // are exact, so they see the exact number. Mirrors CashRounding on the
-  // server, which is the authority; this only has to agree with it on screen.
+  // smallest coin it handles and a bill paid ENTIRELY in cash settles to it.
+  // Mirrors CashRounding on the server, which is the authority.
   const roundingStep = Number(settings.data?.cash_rounding ?? 0);
-  const roundCash = (n: number) => {
-    if (!roundingStep) return n;
-    const units = n / roundingStep;
-    const floor = Math.floor(units);
-    // A tie goes down, in the customer's favour — same rule as the server.
-    return ((units - floor > 0.5 ? floor + 1 : floor) * roundingStep);
-  };
-  const payable = method === "cash" ? roundCash(exactPayable) : exactPayable;
-  const rounding = Math.round((payable - exactPayable) * 100) / 100;
+  // Every way money is arriving. The server rounds only when every one of
+  // them is cash, so a split of two cash tenders rounds and cash beside a
+  // card does not — and the till has to agree on both.
+  //
+  // Held as one string so the bill below is re-made when the METHODS change
+  // and not on every render that builds a new array of the same ones.
+  const tenderKey = (method === "split"
+    ? tenders.filter((t) => Number(t.amount) > 0).map((t) => t.method)
+    : [method]).join(",");
+  /**
+   * THE BILL, from the one implementation — `tillBill`.
+   *
+   * This block used to BE the implementation, inline, and it was a copy of
+   * the server's rules that had drifted from them in five places:
+   *
+   *   the tax rate     two steps where the server takes three. It had never
+   *                    heard of a tax group, so it showed "Amount due
+   *                    Rs 12,610" for a sale the server made Rs 14,023.94.
+   *   the rounding     summed raw and rounded once; the server rounds at every
+   *                    addition, and a card tender has no change to absorb
+   *                    the paisa that leaves.
+   *   a member         neither the group's percentage nor its price level.
+   *                    A trade customer was shown retail, refused on a card,
+   *                    and on cash charged a figure nobody saw.
+   *   goods + cash     rounded to the coin; the server settles it exactly.
+   *   a cash split     not rounded; the server rounds it.
+   *
+   * `tillBill` is held to the server by bills rung through the real endpoint
+   * (fixtures/till-bill.json). This page only gathers what goes into it.
+   */
+  const bill = useMemo(() => tillBill({
+    lines: billLines,
+    group: customerGroup,
+    defaultTaxRate: taxRate,
+    taxInclusive,
+    discount: Number(discount) || 0,
+    couponDiscount,
+    promoDiscount,
+    redeemPoints: redeemPtsNum,
+    redeemValue,
+    tradeIn: tradeInTotal,
+    tenders: tenderKey === "" ? [] : tenderKey.split(","),
+    cashRounding: roundingStep,
+  }), [billLines, customerGroup, taxRate, taxInclusive, discount, couponDiscount, promoDiscount,
+    redeemPtsNum, redeemValue, tradeInTotal, tenderKey, roundingStep]);
+  const subtotal = bill.subtotal;
+  const loyaltyDiscount = bill.loyaltyDiscount;
+  const cartDiscount = bill.discount;
+  const taxableBase = bill.taxableBase;
+  const taxAmount = bill.tax;
+  const total = bill.total;
+  // Cap redemption to the customer's balance and to what every OTHER discount
+  // left of the bill — the member's percentage included, which comes first.
+  const otherDiscount = round2(bill.discount - bill.loyaltyDiscount);
+  const maxRedeemable = Math.max(0, Math.min(customerPoints ?? 0, Math.floor((subtotal - otherDiscount) / (redeemValue || 1))));
+  const earnEst = loyaltyOn && earnPer > 0 && customerPhone.trim() !== "" ? Math.floor(Math.max(0, subtotal - cartDiscount) / earnPer) : 0;
+  const splitPaid = tenders.reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  /**
+   * The server's figure is true of the cart it was given for and nothing
+   * else. Any change to what defines the bill drops it, so a corrected total
+   * can never be carried onto a different cart with the server's name on it.
+   */
+  const currentBill = billKey({
+    lines: cart,
+    discount: Number(discount) || 0,
+    couponDiscount,
+    promoDiscount,
+    redeemPoints: redeemPtsNum,
+    method,
+    splitMethods: tenders.map((t) => t.method),
+    tradeInTotal,
+    bankId,
+    customerPhone,
+  });
+  useEffect(() => {
+    setServerDue(null);
+  }, [currentBill]);
+  // The bill less what the goods on the counter settle, before any coin
+  // rounding — the "Bill" line in the tender modal.
+  const exactPayable = Math.max(0, round2(total - tradeInTotal));
+  /** What THIS TILL makes the amount to collect. Usually the whole story. */
+  const localPayable = bill.payable;
+  /**
+   * The bill as the SERVER states it, once it has refused the till's figure.
+   *
+   * `localPayable` is a mirror of the server's arithmetic and a mirror can be
+   * wrong. When it is, the cashier used to get "Sale failed" beside a button
+   * that would be refused every time it was pressed. Now the refusal carries
+   * the figure, it lands here, and every comparison below — the amount due,
+   * the change, whether Complete is enabled — works off it instead.
+   *
+   * Dropped the moment the bill changes; see `billKey`.
+   */
+  const payable = serverDue ?? localPayable;
+  // The cash rounding is a fact about the till's own figure. Taken from
+  // `payable` it would report the whole server correction as "rounding".
+  const rounding = bill.rounding;
   const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - payable)
     : method === "split" ? Math.max(0, splitPaid - payable) : 0;
 
@@ -1009,29 +1058,81 @@ export default function PosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal]);
 
-  // Loyalty: look up the attached customer's point balance by phone so the
-  // till can show it and offer redemption. Cleared when no/short phone.
+  // The attached customer, looked up by phone: their point balance (so the
+  // till can offer redemption) and their GROUP (so the bill is the one the
+  // sale will make). Cleared when there is no phone, or too little of one.
+  //
+  // Not gated on loyalty any more. It was, because points were all it was
+  // for — and so a shop without loyalty never learned a customer's group,
+  // which is most shops with trade customers.
   useEffect(() => {
     const phone = customerPhone.trim();
-    if (!loyaltyOn || phone.length < 7) { setCustomerPoints(null); setRedeemPts(""); return; }
+    if (phone.length < 7) { setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null); return; }
     let alive = true;
-    apiGet<{ loyalty_points: number } | null>("/customers-lookup", { params: { phone } })
-      .then(({ data }) => { if (alive) setCustomerPoints(data?.loyalty_points ?? 0); })
-      .catch(() => { if (alive) setCustomerPoints(null); });
+    apiGet<CustomerAtTill | null>("/customers-lookup", { params: { phone } })
+      .then(({ data }) => {
+        if (!alive) return;
+        setCustomerPoints(loyaltyOn ? data?.loyalty_points ?? 0 : null);
+        setCustomerGroup(groupAtTill(data?.group));
+      })
+      // Offline, from the till's own copy — matched exactly as the sale will
+      // match it, or the sale it queues is priced at a level sync will not.
+      .catch(async () => {
+        if (!alive) return;
+        setCustomerPoints(null);
+        const cached = await memberGroupFor(phone);
+        if (alive) setCustomerGroup(groupAtTill(cached));
+      });
     return () => { alive = false; };
   }, [customerPhone, loyaltyOn]);
 
-  // Promotions: preview the best auto-promo whenever the cart changes. The
-  // server re-applies it authoritatively at checkout — this is display only.
+  /**
+   * Promotions: the best automatic one for THIS cart, as it will be charged.
+   *
+   * Two things were wrong with the first version, and both made the screen
+   * show a promotion the sale would not give:
+   *
+   *   the cart   it sent products and quantities, and the server previewed
+   *              against shelf price × quantity. A percentage promotion on a
+   *              line at a quantity break, a trade price or a line discount
+   *              was a percentage of a number nobody was paying.
+   *   offline    there was nobody to ask, so the screen showed NO promotion —
+   *              while the sale it queued applied one from the till's own
+   *              copy. The cashier took the full price for a discounted sale.
+   *
+   * So each line goes with what the till makes it, and offline the answer
+   * comes from the same engine the queued sale is priced by.
+   */
+  const promoKey = billLines
+    .map((l) => `${l.product_id}:${l.variant_id ?? ""}:${l.quantity}:${lineNet(l)}`)
+    .join("|");
   useEffect(() => {
-    if (cart.length === 0) { setPromo(null); return; }
+    if (billLines.length === 0) { setPromo(null); return; }
     let alive = true;
     promotionsService
-      .preview(cart.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity })))
+      .preview(billLines.map((l) => ({
+        product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity, line_total: lineNet(l),
+      })))
       .then(({ data }) => { if (alive) setPromo(data); })
-      .catch(() => { if (alive) setPromo(null); });
+      .catch(async () => {
+        const local = await linesFromCatalog(billLines.map((l) => ({
+          product_id: l.product_id,
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+          amountAsked: l.amountAsked,
+          price_level: l.price_level === "wholesale" ? ("wholesale" as const) : ("retail" as const),
+          discountValue: l.discountValue,
+          discountMode: l.discountMode,
+        })))
+          .then(({ lines }) => promotionLocally(lines, Number(discount) || 0))
+          .catch(() => null);
+        if (alive) setPromo(local === null ? null : { promotion_id: local.id, name: local.name, discount: local.discount });
+      });
     return () => { alive = false; };
-  }, [cart]);
+    // Keyed on what the lines COST, not on the array: a customer's group
+    // arriving re-prices every line without the cart itself changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promoKey]);
 
   const clearSale = () => {
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
@@ -1057,7 +1158,7 @@ export default function PosPage() {
    */
   const ringOffline = async (payload: Record<string, unknown>) => {
     const { lines, guardLines } = await linesFromCatalog(
-      cart.map((l) => ({
+      billLines.map((l) => ({
         product_id: l.product_id,
         variant_id: l.variant_id,
         quantity: l.quantity,
@@ -1066,6 +1167,8 @@ export default function PosPage() {
         // amount — and the sale it queued would be REFUSED on sync, because
         // the tender no longer covers the bill. See priceCart's amountAsked.
         amountAsked: l.amountAsked,
+        // The level it is CHARGED at: a line following a trade customer is
+        // wholesale here, as it will be when the sale syncs.
         price_level: l.price_level === "wholesale" ? ("wholesale" as const) : ("retail" as const),
         discountValue: l.discountValue,
         discountMode: l.discountMode,
@@ -1171,7 +1274,12 @@ export default function PosPage() {
           // wrong one half the time.
           ...(l.amountAsked !== undefined ? { amount: l.amountAsked } : { quantity: l.quantity }),
           product_unit_id: l.product_unit_id || undefined,
-          price_level: l.price_level === "wholesale" ? "wholesale" : undefined,
+          // What the CASHIER chose, or nothing — and nothing means "follow the
+          // customer", which the server does from the same phone number this
+          // till looked up. A retail line used to be sent as nothing too, so
+          // a cashier who put a trade customer's line back to retail had it
+          // rung at wholesale anyway.
+          price_level: l.price_level,
           // No unit_price sent: the SERVER prices every line (sale price, qty
           // tiers, modifier deltas) — the cart shows an estimate only. A
           // per-line discount is sent as intent; the server validates it.
@@ -1235,12 +1343,37 @@ export default function PosPage() {
       // — see `ringOffline`.
       if (!connected) return { data: await ringOffline(payload as unknown as Record<string, unknown>) };
 
-      return salesService.create(payload);
+      // What the cashier was SHOWN, so the sale is made at that figure or not
+      // at all. Online only: a queued sale already happened, and refusing it
+      // at sync would lose the record of money that changed hands.
+      return salesService.create({ ...payload, expected_payable: payable });
+    },
+    /**
+     * A SHORT TENDER IS A QUESTION, NOT A FAILURE.
+     *
+     * When the server refuses because the money does not cover the bill, it
+     * says what the bill is. That figure goes on screen and the cashier
+     * decides — it is never retried from here. A till that quietly rang the
+     * sale again at a higher price would be taking money nobody agreed to.
+     *
+     * Every other refusal leaves `serverDue` alone: none of them is about
+     * the amount.
+     */
+    onError: (error: unknown) => {
+      const due = serverDueFrom(error);
+      if (due === null) return;
+
+      setServerDue(due);
+      // A cash tender typed for the old figure is now short. Cleared rather
+      // than left: "12610" sitting in the box under a bill of 14,024 is an
+      // invitation to press Complete and be refused a second time.
+      setTendered("");
+      posSound.error();
     },
     onSuccess: ({ data }) => {
       // Captured BEFORE clearSale(), which empties both — the shadow check
       // below needs the cart that was actually rung, not the empty one.
-      const soldLines = cart;
+      const soldLines = billLines;
       const discountAtCheckout = Number(discount || 0);
 
       // An offline sale has no server row behind it yet, so everything that
@@ -1366,9 +1499,10 @@ export default function PosPage() {
         unit_factor: selUnit ? Number(selUnit.factor) : 1,
         units: packs && packs.length ? packs : undefined,
         base_price: basePrice,
-        price_level: "retail",
+        // Unset: the line follows the customer until the cashier picks one.
+        price_level: undefined,
         wholesale_price: "wholesale_price" in p && p.wholesale_price != null ? Number(p.wholesale_price) : null,
-        tax_rate: "tax_rate" in p && p.tax_rate != null ? Number(p.tax_rate) : null,
+        ...taxFieldsOf(p),
         requires_prescription: "requires_prescription" in p ? !!p.requires_prescription : false,
         tracks_serial: "tracks_serial" in p ? !!p.tracks_serial : false,
         warranty_months: "warranty_months" in p && p.warranty_months != null ? Number(p.warranty_months) : null,
@@ -1413,7 +1547,10 @@ export default function PosPage() {
         return;
       }
 
-      const product = asProduct(hit.item);
+      // WITH the tax rates. The shelf already holds them when it has loaded;
+      // a scan that beats the shelf to it reads them directly rather than
+      // adding a line that does not know what it will be taxed at.
+      const product = asProduct(hit.item, offlineShelf.data?.taxRates ?? (await loadTaxRates()));
       const scanned = hit.variantId ? (product.variants ?? []).find((x) => x.id === hit.variantId) ?? null : null;
 
       // The scanner used to be the one door with no fence at all — it would ring
@@ -1628,7 +1765,9 @@ export default function PosPage() {
   const setAmount = (key: string, amount: number) =>
     setCart((c) => c.map((l) => {
       if (l.key !== key) return l;
-      const rate = lineUnit(l);
+      // At the level it is CHARGED at — a trade customer's litres are bought
+      // at the trade price, so the same money buys more of them.
+      const rate = lineUnit(followLevel(l, customerGroup));
       if (!(rate > 0)) return l;
       return { ...l, amountAsked: amount, quantity: Math.max(0.001, Math.round((amount / rate) * 1000) / 1000) };
     }));
@@ -1886,9 +2025,15 @@ export default function PosPage() {
       unit_factor: (l as Partial<CartLine>).unit_factor ?? 1,
       units: (l as Partial<CartLine>).units,
       base_price: (l as Partial<CartLine>).base_price,
-      price_level: (l as Partial<CartLine>).price_level ?? "retail",
+      // As parked — including unset, which follows whoever is attached now.
+      price_level: (l as Partial<CartLine>).price_level,
       wholesale_price: (l as Partial<CartLine>).wholesale_price ?? null,
       tax_rate: (l as Partial<CartLine>).tax_rate ?? null,
+      // Absent on a ticket parked before this field existed. `undefined`
+      // rather than a guessed number: `effectiveTaxRate` reads a missing
+      // value as "no opinion", and if that leaves the till short the
+      // server's refusal now carries the real figure — see `recoverTender`.
+      tax_group_rate: (l as Partial<CartLine>).tax_group_rate ?? null,
       discountValue: l.discountValue, discountMode: l.discountMode,
       modifier_option_ids: l.modifier_option_ids, modifiers_label: l.modifiers_label,
     })));
@@ -1999,7 +2144,11 @@ export default function PosPage() {
 
                 return;
               }
-              addLine({ id: alt.id, name: alt.name, price: alt.price });
+              // The FULL product when the fetch landed. Adding the bare
+              // `{ id, name, price }` threw away everything else it knew —
+              // its tax rate among them — so a substituted medicine was
+              // taxed at the shop default whatever it was really on.
+              addLine(full ?? { id: alt.id, name: alt.name, price: alt.price });
               setPosNotice(`Substituted with ${alt.name}`);
               posSound.success();
             });
@@ -2016,7 +2165,7 @@ export default function PosPage() {
           product_id: l.product_id,
           variant_id: l.variant_id,
           product_unit_id: l.product_unit_id || undefined,
-          price_level: l.price_level === "wholesale" ? "wholesale" : undefined,
+          price_level: l.price_level,
           quantity: l.quantity,
           ...(l.discountValue && l.discountValue > 0
             ? l.discountMode === "pct"
@@ -2984,14 +3133,17 @@ export default function PosPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {cart.map((l, idx) => {
+                      {billLines.map((l, idx) => {
                         const eff = lineUnit(l);
                         const isWeight = l.sold_by === "weight";
                         const step = isWeight ? 0.25 : 1;
                         const disc = lineDiscountAmt(l);
                         const gross = lineGross(l);
                         const discPct = disc > 0 && gross > 0 ? Math.round((disc / gross) * 100) : 0;
-                        const rate = l.tax_rate == null ? taxRate : l.tax_rate;
+                        // The SAME rule the total uses. A line showing one
+                        // rate under a total computed at another is a receipt
+                        // that does not add up in front of the customer.
+                        const rate = effectiveTaxRate(l, taxRate);
                         // Same inclusive/exclusive rule as the cart total.
                         const lineShare = subtotal > 0 ? lineNet(l) * (taxableBase / subtotal) : 0;
                         const lineTax = rate > 0
@@ -3329,7 +3481,9 @@ export default function PosPage() {
                   { k: "Taxable", v: money(taxableBase), num: true, tone: taxableBase ? undefined : "muted" },
                   { k: "Tax", v: money(taxAmount), num: true, tone: taxAmount ? undefined : "muted" },
                   { k: "Charges", v: money(0), num: true, tone: "muted" },
-                  { k: "Customer", v: customer || customerPhone || "Walk-in", tone: (customer || customerPhone) ? undefined : "muted" },
+                  // The group is named because it changes the bill. A cashier reading a
+                  // figure lower than the shelf price needs to see why.
+                  { k: "Customer", v: `${customer || customerPhone || "Walk-in"}${customerGroup ? ` · ${customerGroup.name}` : ""}`, tone: (customer || customerPhone) ? undefined : "muted" },
                 ];
                 return cells.map((c, i) => (
                   <div key={i} className="min-w-0">
@@ -3697,8 +3851,18 @@ export default function PosPage() {
                 <span className="text-theme-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
                   {tradeInTotal > 0 ? "To pay" : "Amount due"}
                 </span>
-                <span className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">
-                  {money(Math.max(0, payable - bankDiscount))}
+                {/* Named for the browser suite: this is THE figure — the one a
+                    cashier reads out — and a test that finds it by its
+                    neighbours would be reading a different number the day the
+                    layout around it moves. */}
+                <span data-testid="tender-amount-due" className="text-3xl font-extrabold tabular-nums text-gray-900 dark:text-white">
+                  {/*
+                    The server's `amount_due` is ALREADY net of the bank's
+                    share and of cash rounding — it is what will be accepted,
+                    whole. Taking the bank discount off it again would show
+                    a figure the server would refuse a second time.
+                  */}
+                  {money(serverDue ?? Math.max(0, payable - bankDiscount))}
                 </span>
               </div>
               {/* The bank's share, said out loud. The figure above has already
@@ -3880,7 +4044,12 @@ export default function PosPage() {
                   {quickTenders.map((v) => (
                     <button key={v} onClick={() => setTendered(String(v))}
                       className={`rounded-lg border px-3.5 py-2 text-theme-sm font-semibold tabular-nums ${Number(tendered) === v ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
-                      {v === total ? `Exact · ${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
+                      {/* `payable`, not `total`. The first quick tender IS the
+                          payable figure — after cash rounding, a trade-in, or
+                          a correction from the server — and comparing it to
+                          the unrounded bill meant the one button that is
+                          exactly right stopped saying so. */}
+                      {v === payable ? `Exact · ${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
                     </button>
                   ))}
                 </div>
@@ -3931,7 +4100,25 @@ export default function PosPage() {
                 spinner, no message, no sale. On the one screen where a person
                 is standing at a counter with a customer waiting, silence is the
                 worst thing this app can do. */}
-            {checkout.error instanceof Error && (
+            {/*
+              THE BILL WAS CORRECTED — said plainly, in place of "Sale failed".
+
+              Nothing failed. The till worked the bill out one way, the
+              server another, and the server's is the one that is charged.
+              The amount above has already changed; this says why, what the
+              till had, and that no money has moved — which is the question a
+              cashier holding a customer's card actually has.
+            */}
+            {serverDue !== null && (
+              <div className="mt-3" data-testid="tender-corrected">
+                <Alert
+                  variant="warning"
+                  title={`The bill is ${money(serverDue)}`}
+                  message={`This till made it ${money(Math.max(0, localPayable - bankDiscount))}. The server's figure is the one that is charged, so the amount above has been corrected. Nothing has been taken yet — check it with the customer and complete the sale.`}
+                />
+              </div>
+            )}
+            {serverDue === null && checkout.error instanceof Error && (
               <div className="mt-3">
                 <Alert
                   variant="error"
@@ -4397,7 +4584,7 @@ export default function PosPage() {
       {/* Per-line edit — price level, sale unit, discount (server prices the sale) */}
       <Modal isOpen={lineEditModal.isOpen} onClose={lineEditModal.closeModal} showCloseButton={false} className="max-w-lg p-6">
         {(() => {
-          const l = editKey ? cart.find((x) => x.key === editKey) : null;
+          const l = editKey ? billLines.find((x) => x.key === editKey) : null;
           if (!l) return null;
           const hasWholesale = l.wholesale_price != null && Number(l.wholesale_price) > 0;
           const selectCls = "h-11 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90 disabled:opacity-50";
@@ -4475,7 +4662,7 @@ export default function PosPage() {
           stepper, and the OS keyboard is exactly what these terminals lack. */}
       <Modal isOpen={padLine !== null} onClose={() => setPadLine(null)} className="max-w-xs p-5">
         {padLine && (() => {
-          const line = cart.find((x) => x.key === padLine.key);
+          const line = billLines.find((x) => x.key === padLine.key);
           const byAmount = padLine.weight && padMode === "amount";
           const commit = () => {
             const n = Number(padQty);

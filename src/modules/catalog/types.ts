@@ -124,6 +124,24 @@ export interface Product {
   sold_by: "unit" | "weight";
   tax_rate: string | number | null;
   tax_group_id: string | null;
+  /**
+   * THE RATE OF THE TAX GROUP THIS ITEM IS ON, or null when it is on none.
+   *
+   * The server charges a product on a group at the GROUP's rate — it wins
+   * even when `tax_rate` is also set. This field is what tells a client that,
+   * and it did not exist: a till was handed `tax_group_id` and no way to turn
+   * it into a percentage, because the endpoint that lists tax groups sits
+   * behind `products.manage` and a cashier does not hold it.
+   *
+   * So the counter taxed the line at the shop default, showed an amount due,
+   * and the sale was refused for being short by exactly the group's tax.
+   *
+   * Optional in the TYPE because a product cached before the server sent it
+   * has no such key. Read it through `effectiveTaxRate`, which treats a
+   * missing value as "no opinion" — never as zero, which is a rate and means
+   * exempt.
+   */
+  tax_group_rate?: string | number | null;
   stock_quantity: number;
   low_stock_threshold: number | null;
   track_inventory: boolean;
@@ -303,6 +321,8 @@ export interface ProductInput {
   sold_by?: "unit" | "weight";
   tax_rate?: number | string | null;
   tax_group_id?: string | null;
+  /** The group's rate — see `Product.tax_group_rate`. */
+  tax_group_rate?: number | string | null;
   track_inventory?: boolean;
   sold_out?: boolean;
   sold_out_at?: string | null;

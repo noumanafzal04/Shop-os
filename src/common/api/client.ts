@@ -153,7 +153,10 @@ api.interceptors.response.use(
       }
     }
 
-    throw new ApiError(body?.message ?? fallback, status, code, body?.errors ?? {});
+    // `meta` rides along. It is where the server puts a figure a screen can
+    // ACT on — the amount a short tender has to reach, for one — and dropping
+    // it here is what left the till with only a sentence to show.
+    throw new ApiError(body?.message ?? fallback, status, code, body?.errors ?? {}, body?.meta ?? {});
   },
 );
 

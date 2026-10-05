@@ -218,6 +218,44 @@ export async function priceLocally(
   lines: CartLine[],
   cartDiscount: number,
 ): Promise<{ subtotal: number; discount: number; tax: number; total: number }> {
+  const priced = await pricedFromCache(lines, cartDiscount);
+
+  return {
+    subtotal: priced.subtotal,
+    discount: priced.discount,
+    tax: priced.tax,
+    total: priced.total,
+  };
+}
+
+/**
+ * The promotion this till would apply to the cart, from what it holds.
+ *
+ * ── Why the SCREEN needs this and not only the receipt ───────────────────
+ *
+ * The counter shows a promotion by asking the server to preview one. Offline
+ * there is nobody to ask, so the screen showed no promotion at all — while
+ * `priceLocally`, a few lines up, applied it to the sale it queued. The
+ * cashier read out the full price, took it, and the receipt recorded less.
+ *
+ * Same engine, same clock, same cached promotions as the sale itself, so the
+ * figure on the screen and the figure that is queued cannot differ.
+ *
+ * Null when there is none — and null when the till cannot tell, because a
+ * promotion drawn from a guess is a discount the customer was promised.
+ */
+export async function promotionLocally(
+  lines: CartLine[],
+  cartDiscount: number,
+): Promise<{ id: string; name: string; discount: number } | null> {
+  try {
+    return (await pricedFromCache(lines, cartDiscount)).promotion;
+  } catch {
+    return null;
+  }
+}
+
+async function pricedFromCache(lines: CartLine[], cartDiscount: number) {
   const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
   if (settings === undefined) {
     throw new OfflineRefused([
@@ -225,7 +263,7 @@ export async function priceLocally(
     ]);
   }
 
-  const priced = priceCart(
+  return priceCart(
     lines,
     {
       default_tax_rate: Number(settings.default_tax_rate ?? 0),
@@ -239,13 +277,6 @@ export async function priceLocally(
     },
     cartDiscount,
   );
-
-  return {
-    subtotal: priced.subtotal,
-    discount: priced.discount,
-    tax: priced.tax,
-    total: priced.total,
-  };
 }
 
 /**

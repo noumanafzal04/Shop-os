@@ -197,6 +197,11 @@ export interface SaleInput {
   // Single tender — required unless `payments` (a split) is sent.
   payment_method?: PaymentMethod;
   amount_paid?: number;
+  /**
+   * The amount the till SHOWED as to collect. Compared, never used: a sale is
+   * made at this figure or refused with the real one (BILL_MISMATCH).
+   */
+  expected_payable?: number;
   // Multi-tender / split payment; when present it replaces the single tender.
   payments?: TenderInput[];
   /**

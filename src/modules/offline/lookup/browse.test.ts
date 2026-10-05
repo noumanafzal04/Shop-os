@@ -62,10 +62,15 @@ const category = (id: string, name: string, sort = 0): CatalogCategory => ({
   sort_order: sort,
 });
 
-const shelf = (items: CatalogItem[], categories: CatalogCategory[] = []): Shelf => ({
+const shelf = (
+  items: CatalogItem[],
+  categories: CatalogCategory[] = [],
+  taxRates: Map<string, number> = new Map(),
+): Shelf => ({
   items,
   categories,
   categoryNames: new Map(categories.map((c) => [c.id, c.name.toLowerCase()])),
+  taxRates,
 });
 
 const names = (rows: ReturnType<typeof shelfRows>) => rows.map((r) => r.name);

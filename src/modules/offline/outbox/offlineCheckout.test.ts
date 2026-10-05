@@ -7,7 +7,7 @@ import { putMany, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogItem } from "../sync/catalogService";
 import type { OfflineCart } from "./canSellOffline";
-import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally } from "./offlineCheckout";
+import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally, promotionLocally } from "./offlineCheckout";
 import { allRows, OUTBOX_STATUS } from "./outbox";
 
 /**
@@ -556,3 +556,51 @@ describe("what the queued row carries about WHEN and WHO", () => {
   });
 });
 
+
+describe("the promotion on the screen, when there is nobody to ask", () => {
+  /**
+   * Online the till asks the server to preview a promotion. Offline it asked
+   * nobody and showed none — while the sale it queued applied one from the
+   * till's own copy. The cashier took the full price for a discounted sale.
+   *
+   * So the screen asks the SAME engine the queued sale is priced by, and these
+   * hold the two to one answer.
+   */
+  const promotion = (over: Record<string, unknown> = {}) => ({
+    id: "promo-1", name: "Ten off", is_active: true, type: "percent", value: 10, scope: "order",
+    category_id: null, product_ids: null, min_spend: null, min_qty: null, max_discount: null,
+    starts_on: null, ends_on: null, days_of_week: null, start_time: null, end_time: null,
+    priority: 0, buy_qty: null, get_qty: null, get_discount_pct: null,
+    ...over,
+  });
+
+  it("is the promotion the queued sale applies, to the paisa", async () => {
+    await seed([item({ id: "p1", price: 1000, price_tiers: [{ min_qty: 3, price: 900 }] })]);
+    await putMany(STORE.PROMOTIONS, [promotion()]);
+
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 3 }]);
+
+    const shown = await promotionLocally(lines, 0);
+    const queued = await priceLocally(lines, 0);
+
+    // Ten percent of 3 × 900 — the break price, not the shelf price.
+    expect(shown).toEqual({ id: "promo-1", name: "Ten off", discount: 270 });
+    expect(queued.discount).toBe(shown?.discount);
+  });
+
+  it("is nothing when the shop has no promotion running", async () => {
+    await seed([item({ id: "p1", price: 1000 })]);
+
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 1 }]);
+
+    expect(await promotionLocally(lines, 0)).toBeNull();
+  });
+
+  it("is nothing — not a guess — on a till that cannot price yet", async () => {
+    // No settings pulled. `priceLocally` refuses the SALE for this; the
+    // screen must not draw a discount the till could never honour.
+    await putMany(STORE.PROMOTIONS, [promotion()]);
+
+    expect(await promotionLocally([], 0)).toBeNull();
+  });
+});

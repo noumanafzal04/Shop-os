@@ -1,7 +1,7 @@
 import type { Product as CatalogProduct } from "../../catalog/types";
 import { getAll } from "../db/repo";
 import { STORE } from "../db/schema";
-import type { CatalogCategory, CatalogItem } from "../sync/catalogService";
+import type { CatalogCategory, CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { withLocalStock } from "../outbox/localStock";
 import { categoryIndex, searchCatalog } from "./search";
 
@@ -45,7 +45,37 @@ import { categoryIndex, searchCatalog } from "./search";
  * and the POS asks the coarse question ("does this hold stock?") which is the
  * same question the server derives the same way.
  */
-export function asProduct(item: CatalogItem): CatalogProduct {
+/**
+ * A tax group's id → the rate it charges, read from the device.
+ *
+ * The till keeps tax groups in a small store of their own rather than
+ * stamping a rate onto every item, and that is deliberate: re-rating a group
+ * is ONE row to re-send. A rate copied onto twenty thousand items would go
+ * stale the moment the group changed, because nothing about the items did.
+ *
+ * So the rate is resolved when a row is READ — which the offline checkout
+ * has always done, and the screen never did. See `asProduct`.
+ */
+export async function loadTaxRates(): Promise<Map<string, number>> {
+  const groups = await getAll<CatalogTaxGroup>(STORE.TAX_CONFIG);
+
+  return new Map(groups.map((g) => [g.id, Number(g.rate)]));
+}
+
+/**
+ * `taxRates` IS HOW AN OFFLINE TILL LEARNS WHAT IT WILL CHARGE.
+ *
+ * A cached item carries `tax_group_id` and not the rate behind it. The
+ * offline CHECKOUT translates the id and prices the sale correctly; this
+ * function, which feeds the SCREEN, passed the id through untranslated — so
+ * the cashier read a total with no group tax in it, took that much money, and
+ * queued a sale the server would later refuse for being short. Offline, the
+ * refusal arrives hours afterwards, with the customer long gone.
+ *
+ * Optional, because a caller that only wants to DRAW a row does not need it.
+ * Anything that puts the row in a cart does, and both such callers pass it.
+ */
+export function asProduct(item: CatalogItem, taxRates?: ReadonlyMap<string, number>): CatalogProduct {
   return {
     id: item.id,
     name: item.name,
@@ -64,6 +94,10 @@ export function asProduct(item: CatalogItem): CatalogProduct {
     min_order_qty: item.min_order_qty,
     tax_rate: item.tax_rate,
     tax_group_id: item.tax_group_id,
+    // TRANSLATED here — see the note on this function. `null` when the item
+    // is on no group OR the group is not on the device: either way "no
+    // opinion", never 0, which is a rate and means exempt.
+    tax_group_rate: item.tax_group_id ? (taxRates?.get(item.tax_group_id) ?? null) : null,
     track_inventory: item.track_inventory,
     stock_quantity: item.stock,
     low_stock_threshold: item.low_stock_threshold,
@@ -121,6 +155,9 @@ export interface Shelf {
   categories: CatalogCategory[];
   /** category id → name, built once so search can match on it. */
   categoryNames: Map<string, string>;
+  /** tax group id → rate. Read with the shelf so every row can say what it
+   *  will be taxed at without a second trip to storage. */
+  taxRates: Map<string, number>;
 }
 
 /**
@@ -131,9 +168,10 @@ export interface Shelf {
  * scanning it in memory beats a round trip to IndexedDB on every letter.
  */
 export async function loadShelf(): Promise<Shelf> {
-  const [raw, categories] = await Promise.all([
+  const [raw, categories, taxRates] = await Promise.all([
     getAll<CatalogItem>(STORE.CATALOG),
     getAll<CatalogCategory>(STORE.CATEGORIES),
+    loadTaxRates(),
   ]);
 
   // What is ACTUALLY left, not what the server last said.
@@ -152,6 +190,7 @@ export async function loadShelf(): Promise<Shelf> {
     // themselves the moment the line drops.
     categories: [...categories].sort((a, b) => a.sort_order - b.sort_order),
     categoryNames: categoryIndex(categories),
+    taxRates,
   };
 }
 
@@ -179,5 +218,9 @@ export function shelfRows(
     ? searchCatalog(inCategory, needle, { categories: shelf.categoryNames, limit })
     : [...inCategory].sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
 
-  return rows.map(asProduct);
+  // NOT `rows.map(asProduct)`. `map` passes the INDEX as a second argument,
+  // and `asProduct`'s second parameter is the tax rates — so the point-free
+  // form compiles, hands a number where a Map is expected, and every row
+  // loses its group rate with nothing to say so.
+  return rows.map((item) => asProduct(item, shelf.taxRates));
 }

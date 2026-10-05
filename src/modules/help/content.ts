@@ -679,7 +679,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     modules: ["pos"],
     permission: "sales.manage",
     screen: "/tenant/pos",
-    keywords: ["till", "checkout", "sell", "scan", "barcode", "pay", "shift", "drawer", "float"],
+    keywords: ["till", "checkout", "sell", "scan", "barcode", "pay", "shift", "drawer", "float", "tax group", "customer group", "wholesale", "amount due"],
     body: [
       {
         type: "h", text: "What the till is",
@@ -764,6 +764,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "warn",
         text: "Prices are decided by the server, never by the browser. That is why a discount past your ceiling needs a supervisor, and why nothing on the page can change what a customer is charged.",
       },
+      { type: "h", text: "The amount on the screen is the amount charged" },
+      { type: "p", text: "Whatever the till shows as the amount due is exactly what the sale is made at — to the paisa, on every tender. Tax comes from each item's tax group (or its own rate, or your shop default, in that order), and a cash bill settles to the smallest coin you handle only when the WHOLE bill is paid in cash." },
+      { type: "p", text: "Attach a customer by phone and the till looks them up. If they are in a customer group, the group is named next to them under the cart, and the bill changes the way the sale will: a group's percentage comes off before the tax, and a trade group rings every line at its wholesale price. A line you set back to Retail yourself stays at retail." },
+      { type: "note", text: "An automatic promotion is named on the cart as soon as it applies, and is worked out on what each line actually costs — after a quantity break, a trade price or a line discount — which is exactly what the sale gives. It shows when the till is offline too." },
+      { type: "note", text: "A battery or any other goods traded in settle part of the bill, so the rest is taken exactly — no coin rounding — even when it is paid in cash." },
+      { type: "warn", text: "If the server ever makes the bill different from the screen — a customer whose group the till could not look up, say — nothing is charged. The tender sheet shows the real bill in its place with a yellow note. Check it with the customer and press Complete again." },
       { type: "note", text: "Your ceiling follows the bill, not the screen. It applies to a line discount on a dine-in tab and to a discount keyed when the tab is settled, exactly as it does at the counter — and it is judged on the whole bill, so ten lines at ten percent are treated as the ten percent they add up to." },
       { type: "h", text: "Served by" },
       { type: "p", text: "If your shop has switched this on, a Served by box sits above the payment methods. Pick the person who actually sold it — which is not necessarily you, if you are the one at the counter. It starts on Nobody and stays there unless you change it." },

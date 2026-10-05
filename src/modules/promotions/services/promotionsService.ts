@@ -62,6 +62,13 @@ export const promotionsService = {
   update: (id: string, payload: Partial<PromotionInput>) => apiPut<Promotion>(`/promotions/${id}`, payload),
   remove: (id: string) => apiDelete<null>(`/promotions/${id}`),
   // POS live preview — best promotion for the current cart (display-only).
-  preview: (items: Array<{ product_id: string; variant_id?: string | null; quantity: number }>) =>
+  //
+  // `line_total` is what the till makes each line — after a quantity break, a
+  // trade price, a pack, a line discount. Without it the server previewed
+  // against shelf price × quantity, which is a different cart from the one
+  // being rung whenever any of those apply, and a percentage promotion came
+  // back as a percentage of the wrong number. Display only: the sale itself
+  // never reads it.
+  preview: (items: Array<{ product_id: string; variant_id?: string | null; quantity: number; line_total?: number }>) =>
     apiPost<PromoPreview | null>("/promotions/preview", { items }),
 };

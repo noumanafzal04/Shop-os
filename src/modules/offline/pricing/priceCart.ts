@@ -177,13 +177,85 @@ function priceForLevel(item: PricedItem, level: PriceLevel, qty: number): number
   return priceForQty(item, qty);
 }
 
-/** A tax group's rate beats the item's own; the shop default is the fallback. */
-function effectiveTaxRate(item: PricedItem, shopDefault: number): number {
+/**
+ * WHAT RATE A LINE IS TAXED AT — the one copy of this rule in the panel.
+ *
+ * A tax group's rate beats the item's own; the shop default is the fallback.
+ * Three steps, in that order, and they are `Product::effectiveTaxRate` on the
+ * server step for step.
+ *
+ * ── Exported, because the counter screen had a second copy ──────────
+ *
+ * `PosPage` used to work this out itself: `l.tax_rate == null ? shopDefault :
+ * l.tax_rate`. Two steps, not three — it had never heard of a tax group. So
+ * the engine in this file was correct, was held to the server by golden
+ * fixtures, and was used only as a SHADOW; the number a cashier actually read
+ * came from the other copy. The reported failure is that copy:
+ *
+ *     Amount due   Rs 12,610
+ *     Sale failed  Amount paid (12,610.00) is less than the total (14,023.94)
+ *
+ * Short by exactly the tax the group charges, on a database where 17,140
+ * products are on a group and 124 carry a rate of their own.
+ *
+ * Accepts `undefined` as well as `null` for both rates. A cart line restored
+ * from a held sale written before this field existed has neither, and "the
+ * field is missing" must read as "no opinion", never as zero — zero is a
+ * rate, and it means exempt.
+ */
+export function effectiveTaxRate(
+  item: { tax_rate?: number | null; tax_group_rate?: number | null },
+  shopDefault: number,
+): number {
   if (item.tax_group_rate !== null && item.tax_group_rate !== undefined) {
     return item.tax_group_rate;
   }
 
-  return item.tax_rate !== null ? item.tax_rate : shopDefault;
+  return item.tax_rate !== null && item.tax_rate !== undefined ? item.tax_rate : shopDefault;
+}
+
+/**
+ * THE TAX ON A PRICED CART — also the one copy.
+ *
+ * Each line's share of what is actually being paid, so a cart discount
+ * reduces the tax proportionally rather than coming off one line.
+ *
+ * ── Rounded at every addition, and that is not fussiness ────────────
+ *
+ * The server accumulates `round($tax + ..., 2)` line by line. The counter
+ * screen summed the raw figures and rounded ONCE at the end — a tidier way to
+ * do the same arithmetic, and a different answer on a long cart. A paisa of
+ * difference is enough: a card tender has no change to absorb it, so the sale
+ * is refused for being 0.01 short. Same failure as the tax-group one, at a
+ * hundredth of the size and much harder to notice.
+ *
+ * So both callers go through here, and the order of operations is the
+ * server's rather than anybody's preference.
+ */
+export function taxOnLines(
+  lines: ReadonlyArray<{ line_total: number; tax_rate: number }>,
+  subtotal: number,
+  taxableBase: number,
+  taxInclusive: boolean,
+): number {
+  let tax = 0;
+
+  for (const line of lines) {
+    const rate = line.tax_rate;
+    if (rate <= 0 || subtotal <= 0) continue;
+
+    const share = line.line_total * (taxableBase / subtotal);
+
+    if (taxInclusive) {
+      // The price already holds the tax; take out the portion within it.
+      const net = share / (1 + rate / 100);
+      tax = round2(tax + (share - net));
+    } else {
+      tax = round2(tax + (share * rate) / 100);
+    }
+  }
+
+  return tax;
 }
 
 /**
@@ -259,23 +331,8 @@ export function priceCart(lines: CartLine[], shop: ShopPricing, discount = 0): P
   const cartDiscount = promoDiscount > 0 ? round2(keyed + promoDiscount) : keyed;
   const taxableBase = subtotal - cartDiscount;
 
-  let tax = 0;
-  for (const line of priced) {
-    const rate = line.tax_rate;
-    if (rate <= 0 || subtotal <= 0) continue;
-
-    // Each line's share of what is actually being paid, so a cart discount
-    // reduces the tax proportionally rather than coming off one line.
-    const share = line.line_total * (taxableBase / subtotal);
-
-    if (shop.tax_inclusive) {
-      // The price already holds the tax; take out the portion within it.
-      const net = share / (1 + rate / 100);
-      tax = round2(tax + (share - net));
-    } else {
-      tax = round2(tax + (share * rate) / 100);
-    }
-  }
+  // One implementation, shared with the counter screen — see `taxOnLines`.
+  const tax = taxOnLines(priced, subtotal, taxableBase, shop.tax_inclusive);
 
   // Inclusive: the tax is already in the price and is not added again.
   const total = shop.tax_inclusive

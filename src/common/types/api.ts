@@ -56,9 +56,38 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly errorCode?: string,
     public readonly errors: Record<string, string[]> = {},
+    /**
+     * FIGURES THE SERVER SENT WITH THE REFUSAL, when it sent any.
+     *
+     * A refusal is a sentence for a person and, sometimes, a number for a
+     * program. "Amount paid (12,610.00) is less than the total (14,023.94)"
+     * was a good sentence the till could do nothing with: the one figure that
+     * would have let the cashier finish the sale was inside a formatted
+     * string, and reading money out of prose is one thousands separator away
+     * from a wrong charge.
+     *
+     * So it travels as data. Empty for every refusal with nothing to add,
+     * which is nearly all of them — read it through `figure()` below rather
+     * than directly, because `meta` is whatever the server put there.
+     */
+    public readonly meta: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = "ApiError";
+  }
+
+  /**
+   * A numeric figure from the refusal, or null.
+   *
+   * Narrowed here, once: a missing key, a string and a NaN all come back as
+   * null, so a caller can write `error.figure("amount_due") ?? fallback`
+   * without knowing which of the three it was.
+   */
+  figure(key: string): number | null {
+    const value = this.meta[key];
+    const n = typeof value === "string" ? Number(value) : value;
+
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
   }
 
   /** First field-level validation message, if any. */
