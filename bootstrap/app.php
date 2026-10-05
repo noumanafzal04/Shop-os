@@ -116,7 +116,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Every API error uses the same envelope: {success,message,data,errors,meta}.
         $exceptions->renderable(function (DomainException $e, Request $request) {
             if ($request->is('api/*')) {
-                return ApiResponse::error($e->getMessage(), $e->status, code: $e->errorCode);
+                return ApiResponse::error($e->getMessage(), $e->status, code: $e->errorCode, meta: $e->context);
             }
         });
 

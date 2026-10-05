@@ -979,12 +979,94 @@ class CreateSaleAction
                     : 0.0;
                 $due = round($due + $rounding, 2);
 
+                /**
+                 * THE BILL, STATED THE WAY A TILL HOLDS IT.
+                 *
+                 * `$due` is what every tender together must cover, after the
+                 * bank's help. A till does not think in that figure. It shows
+                 * "what the customer hands over", which is the bill with the
+                 * traded-in goods already off it and the bank's share still
+                 * on — the bank's share is quoted separately, and the card
+                 * slice is sent BEFORE it (see the offer above).
+                 *
+                 * The first version of the refusal below sent `amount_due`
+                 * alone and the till treated it as its own figure. Two ways
+                 * that was wrong, both found by reading rather than by a
+                 * customer:
+                 *
+                 *   a trade-in   the till asked for the WHOLE bill in rupees
+                 *                on top of the battery already on the counter.
+                 *   a bank offer the till sent the reduced figure back as the
+                 *                card slice, the offer came off it a second
+                 *                time, and the sale was refused for ever.
+                 *
+                 * So the figure a till needs is named for what it is.
+                 */
+                $payable = round($due + $bankDiscount - $tradeInTotal, 2);
+
+                $figures = [
+                    'payable' => $payable,
+                    'amount_due' => $due,
+                    'amount_paid' => $amountPaid,
+                    'bank_discount' => $bankDiscount,
+                    'trade_in' => $tradeInTotal,
+                    'rounding' => $rounding,
+                    'subtotal' => $subtotal,
+                    'discount' => $discount,
+                    'total' => $total,
+                    'tax' => $tax,
+                ];
+
+                /**
+                 * THE CASHIER TAKES THE FIGURE ON THE SCREEN.
+                 *
+                 * A till prices the cart itself so it can show an amount
+                 * before anything is sent. That is a mirror, and it has been
+                 * wrong in both directions: short by the tax a tax group
+                 * charges, and over by everything a customer's group takes
+                 * off. Short was refused. Over was worse — on cash it was
+                 * recorded at a number nobody at the counter saw.
+                 *
+                 * So a till may say what it showed, and a sale is only made
+                 * at that figure. It is compared, never used: the bill is
+                 * still the server's. Opt-in, so nothing that does not send
+                 * it is affected, and never on a trusted replay.
+                 */
+                if (! $trusted && isset($data['expected_payable'])) {
+                    $shown = round((float) $data['expected_payable'], 2);
+
+                    if (abs($shown - $payable) > 0.004) {
+                        throw DomainException::unprocessable(
+                            'The bill is '.number_format($payable, 2).', not the '.number_format($shown, 2)
+                                .' this till showed. Nothing has been charged.',
+                            'BILL_MISMATCH',
+                            $figures,
+                        );
+                    }
+                }
+
                 if ($amountPaid < $due) {
                     throw DomainException::unprocessable(
                         $tip > 0
                             ? 'Amount paid ('.number_format($amountPaid, 2).') is less than the total plus tip ('.number_format($due, 2).').'
                             : 'Amount paid ('.number_format($amountPaid, 2).') is less than the total ('.number_format($due, 2).').',
                         'PAYMENT_INSUFFICIENT',
+                        /*
+                         * THE FIGURE THAT LETS THE CASHIER FINISH THE SALE.
+                         *
+                         * A till prices the cart itself so it can show an
+                         * amount due before anything is sent. It is a mirror,
+                         * and a mirror can be wrong — it was, by exactly the
+                         * tax a tax group charges, and the sale was refused
+                         * with the right answer buried in a sentence.
+                         *
+                         * `amount_due` is what THIS server will accept, for
+                         * THIS tender, after rounding. A client that receives
+                         * it can show the cashier the real bill and let them
+                         * take it, instead of a dead end at the counter with
+                         * a customer waiting.
+                         */
+                        $figures,
                     );
                 }
 
@@ -1043,6 +1125,11 @@ class CreateSaleAction
                                 : 'Change cannot be more than the cash handed over ('
                                     .number_format($cashIn, 2).').',
                             'CHANGE_WITHOUT_CASH',
+                            // The same figures a short tender gets. A till
+                            // that charged MORE than the bill is as stuck as
+                            // one that charged less, and deserves the same way
+                            // out.
+                            $figures,
                         );
                     }
                 }

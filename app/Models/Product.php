@@ -8,6 +8,8 @@ use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
 use App\Support\ItemTypes;
 use App\Support\SoldOut;
+use App\Support\TaxGroupRates;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -23,6 +25,22 @@ class Product extends BaseModel
     use Auditable;
     use BelongsToTenant;
     use HidesCostPrice;
+
+    /**
+     * EVERY PRODUCT SAYS WHAT IT WILL BE TAXED AT.
+     *
+     * `tax_group_rate` rides on every serialised product, not on the two or
+     * three endpoints somebody remembered. Eight controllers hand a product
+     * to a client, and a rule added to some of them is the "half a rule"
+     * shape this codebase keeps paying for — the missed one is always the
+     * one a till happens to read.
+     *
+     * It is cheap to do everywhere: see `TaxGroupRates`, which asks once per
+     * group per request rather than once per row.
+     *
+     * Not a secret, either. It is the percentage printed on the receipt.
+     */
+    protected $appends = ['tax_group_rate'];
 
     /**
      * WHAT THIS ITEM USED TO COST THE CUSTOMER, AND WHO MOVED IT.
@@ -188,14 +206,35 @@ class Product extends BaseModel
      */
     public function effectiveTaxRate(float $default = 0.0): float
     {
-        if ($this->tax_group_id !== null) {
-            $rate = $this->taxGroup?->rate;
-            if ($rate !== null) {
-                return (float) $rate;
-            }
+        // ONE read of the group's rate, shared with the payload below. The
+        // figure a till is told and the figure a sale is charged come from
+        // the same line, so they cannot describe two different rates.
+        $group = $this->tax_group_rate;
+
+        if ($group !== null) {
+            return $group;
         }
 
         return $this->tax_rate !== null ? (float) $this->tax_rate : $default;
+    }
+
+    /**
+     * The rate of this product's tax group, or null when it is not on one.
+     *
+     * ── The bug this closes ──────────────────────────────────────────
+     *
+     * A client was handed `tax_group_id` and nothing that turned it into a
+     * percentage. The counter screen therefore taxed the line at the shop's
+     * default, showed an amount due, and had the sale refused for being
+     * short — by exactly the tax the group charges. The translation existed
+     * behind `products.manage`, which the person at the till does not hold.
+     *
+     * A client's whole rule is now three steps and they are the three steps
+     * `effectiveTaxRate` takes: this, else `tax_rate`, else the shop default.
+     */
+    protected function taxGroupRate(): Attribute
+    {
+        return Attribute::get(fn (): ?float => app(TaxGroupRates::class)->for($this));
     }
 
     public function collections(): BelongsToMany

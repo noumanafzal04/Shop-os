@@ -186,7 +186,26 @@ class PromotionService
                     $unit = (float) $variant->price;
                 }
             }
-            $lineTotal = round($unit * $qty, 2);
+            /*
+             * THE CART BEING RUNG, NOT THE ONE ON THE SHELF.
+             *
+             * Shelf price × quantity is right for a plain line and wrong for
+             * every other kind: a quantity break, a trade price, a pack, a
+             * line the cashier marked down, a dish with extras. The sale
+             * hands `best()` each line's REAL total, so a percentage
+             * promotion previewed here was a percentage of a different
+             * number — the till showed one discount and the sale gave
+             * another.
+             *
+             * So a till may say what it makes the line. This is a preview
+             * and decides nothing: the sale prices every line itself, takes
+             * no figure from anyone, and is only made at the amount the till
+             * showed (BILL_MISMATCH). A till that lied here would be shown
+             * the wrong promotion and then refused.
+             */
+            $lineTotal = isset($item['line_total'])
+                ? round((float) $item['line_total'], 2)
+                : round($unit * $qty, 2);
             $subtotal = round($subtotal + $lineTotal, 2);
             $lines[] = ['product' => $product, 'quantity' => $qty, 'line_total' => $lineTotal];
         }

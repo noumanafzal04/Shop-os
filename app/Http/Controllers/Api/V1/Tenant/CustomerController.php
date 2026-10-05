@@ -84,6 +84,22 @@ class CustomerController extends Controller
 
         $customer = Customer::query()->where('phone', $phone)->first();
 
+        /*
+         * WHAT THE GROUP WILL DO TO THE BILL.
+         *
+         * A sale reads the customer's group off this same phone number and
+         * acts on it twice: it prices unmarked lines at the group's level and
+         * takes the group's percentage off the bill. The till was told
+         * neither, so it showed a member the full retail figure, the cashier
+         * read it out, the card was charged it — and the sale then recorded
+         * the lower one with the difference as "change" nobody was handed.
+         *
+         * Resolved exactly as CreateSaleAction resolves it (`->group`, no
+         * extra conditions), because a till told about a group the sale
+         * would not apply is the same bug in the other direction.
+         */
+        $group = $customer?->group;
+
         return ApiResponse::ok($customer === null ? null : [
             'id' => $customer->id,
             'name' => $customer->name,
@@ -91,6 +107,12 @@ class CustomerController extends Controller
             'loyalty_points' => (int) $customer->loyalty_points,
             'credit_balance' => (float) $customer->credit_balance,
             'credit_limit' => $customer->credit_limit !== null ? (float) $customer->credit_limit : null,
+            'group' => $group === null ? null : [
+                'id' => $group->id,
+                'name' => $group->name,
+                'price_level' => $group->price_level === 'wholesale' ? 'wholesale' : 'retail',
+                'discount_percent' => $group->discount_percent !== null ? (float) $group->discount_percent : 0.0,
+            ],
         ]);
     }
 

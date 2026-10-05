@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Support\BranchContext;
 use App\Support\RegisterContext;
+use App\Support\TaxGroupRates;
 use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -22,6 +23,11 @@ class AppServiceProvider extends ServiceProvider
         // Active operating branch — same per-request lifecycle as the tenant.
         $this->app->scoped(BranchContext::class);
         $this->app->scoped(RegisterContext::class);
+        // A tax group's rate, remembered for ONE request so a page of
+        // products does not ask once per row. Scoped rather than a
+        // singleton: a rate held across requests is a re-rated group charged
+        // at its old figure until the worker restarts.
+        $this->app->scoped(TaxGroupRates::class);
     }
 
     /**

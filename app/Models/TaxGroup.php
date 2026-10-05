@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\TaxGroupRates;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -33,5 +34,21 @@ class TaxGroup extends BaseModel
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
+    }
+
+    /**
+     * A re-rated group must be re-read, not remembered.
+     *
+     * `TaxGroupRates` memoises a group's rate for the length of a request so
+     * a page of products does not ask once per row. The sale's own tax
+     * reads through the same memo — so without this, changing a rate and
+     * ringing a sale in one request would charge the OLD rate.
+     */
+    protected static function booted(): void
+    {
+        $forget = static fn () => app(TaxGroupRates::class)->forget();
+
+        static::saved($forget);
+        static::deleted($forget);
     }
 }

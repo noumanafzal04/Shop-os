@@ -10,10 +10,25 @@ use Exception;
  */
 class DomainException extends Exception
 {
+    /**
+     * @param  array<string, mixed>  $context  FIGURES A CLIENT CAN ACT ON.
+     *
+     * A refusal is a sentence for a person and, sometimes, a number for a
+     * program. "Amount paid (12,610.00) is less than the total (14,023.94)"
+     * is a perfectly good sentence and a till could do nothing with it: the
+     * one figure that would let the cashier finish the sale was inside a
+     * formatted string. Parsing prose for money is how a comma in a
+     * thousands separator becomes a wrong charge.
+     *
+     * So the figures travel as data, in the envelope's `meta`, beside the
+     * `error_code` that says what kind of refusal this is. Empty for every
+     * refusal that has nothing to add, which is nearly all of them.
+     */
     public function __construct(
         string $message,
         public readonly int $status = 400,
         public readonly ?string $errorCode = null,
+        public readonly array $context = [],
     ) {
         parent::__construct($message);
     }
@@ -33,8 +48,9 @@ class DomainException extends Exception
         return new self($message, 409, $code);
     }
 
-    public static function unprocessable(string $message, ?string $code = null): self
+    /** @param  array<string, mixed>  $context */
+    public static function unprocessable(string $message, ?string $code = null, array $context = []): self
     {
-        return new self($message, 422, $code);
+        return new self($message, 422, $code, $context);
     }
 }

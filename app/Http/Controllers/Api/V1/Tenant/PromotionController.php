@@ -56,6 +56,9 @@ class PromotionController extends Controller
             'items.*.product_id' => ['required', 'uuid'],
             'items.*.variant_id' => ['nullable', 'uuid'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            // What the till makes this line. A PREVIEW may be told; a sale
+            // never is — see PromotionService::preview.
+            'items.*.line_total' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
 
         return ApiResponse::ok(

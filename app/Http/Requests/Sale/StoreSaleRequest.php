@@ -132,6 +132,12 @@ class StoreSaleRequest extends FormRequest
             // customer's balance (needs a linked customer; enforced in the action).
             'payment_method' => ['required_without:payments', Rule::in(PaymentMethod::counterOrCredit())],
             'amount_paid' => ['required_without:payments', 'numeric', 'min:0'],
+            // What the till SHOWED the cashier as the amount to collect. Not a
+            // price and never used as one — the server still works the bill
+            // out itself. It is compared, and a till whose figure differs is
+            // told the real one instead of having its sale quietly recorded
+            // at a number nobody at the counter saw.
+            'expected_payable' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             // Multi-tender / split payment: part cash + part card (+ part credit)
             // etc. When present it overrides the single tender above; amount_paid
             // becomes the sum of tenders.

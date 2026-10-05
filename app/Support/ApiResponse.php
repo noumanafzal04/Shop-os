@@ -58,14 +58,21 @@ class ApiResponse
         );
     }
 
-    public static function error(string $message, int $status = 400, array $errors = [], ?string $code = null): JsonResponse
+    /**
+     * @param  array<string, mixed>  $meta  Figures a client can act on — see
+     *                                      `DomainException::$context`.
+     */
+    public static function error(string $message, int $status = 400, array $errors = [], ?string $code = null, array $meta = []): JsonResponse
     {
         return response()->json([
             'success' => false,
             'message' => $message,
             'data' => null,
             'errors' => (object) $errors,
-            'meta' => (object) array_filter(['error_code' => $code]),
+            // Merged AFTER the filter, not inside it: `array_filter` drops
+            // falsy values, and a tax of 0 or a balance of 0.0 is a figure,
+            // not an absence.
+            'meta' => (object) (array_filter(['error_code' => $code]) + $meta),
         ], $status);
     }
 
