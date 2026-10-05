@@ -44,6 +44,14 @@ const STOREFRONT_ONLY = /market\.spec\.ts/;
 // would quadruple the cost and quadruple the same answer.
 const DOORS_ONLY = /four-doors\.spec\.ts/;
 
+/**
+ * THE JOURNEY — one business, from the admin creating it to the books
+ * agreeing with the day. Its files are STAGES that depend on the ones before
+ * them, so they run in their own project, in order, and nowhere else.
+ * See docs/qa/journey/CASES.md.
+ */
+const JOURNEY_ONLY = /journey\/.*\.spec\.ts/;
+
 // The screens at the size a REAL shop is — six thousand products, 1,440
 // customers, ninety-one closed shifts. Its own sign-in, because every other
 // fixture here is a twenty-eight-product sweep shop, and almost everything
@@ -105,13 +113,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -123,13 +131,13 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
     },
@@ -267,6 +275,16 @@ export default defineConfig({
 
     // One per trade. Cheap — a handful of page loads each — and the only way
     // these screens are looked at by anything at all.
+    {
+      name: "journey",
+      testMatch: JOURNEY_ONLY,
+      // No saved sign-in: signing in IS the first case of each stage.
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 }, actionTimeout: 20_000 },
+      // A case is one thing a person does. Two minutes is a long time to do
+      // one thing; five was hiding a missing control behind a slow failure.
+      timeout: 120_000,
+    },
+
     ...TRADES.map((trade) => ({
       name: `trade-${trade}`,
       testMatch: TRADE_ONLY,
@@ -275,10 +293,14 @@ export default defineConfig({
     })),
   ],
 
-  webServer: {
-    command: "npm run build && npm run preview -- --port 4173 --strictPort",
-    url: "http://localhost:4173",
-    reuseExistingServer: true,
-    timeout: 180_000,
-  },
+  // With E2E_BASE_URL set the suite is pointed at a server that is already
+  // running (a dev server, usually) and must not spend a minute building one.
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: "npm run build && npm run preview -- --port 4173 --strictPort",
+        url: "http://localhost:4173",
+        reuseExistingServer: true,
+        timeout: 180_000,
+      },
 });

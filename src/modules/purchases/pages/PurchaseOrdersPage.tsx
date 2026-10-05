@@ -248,11 +248,11 @@ export default function PurchaseOrdersPage() {
         {createErr && <div className="mb-3"><Alert variant="error" title="Couldn't create" message={createErr} /></div>}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <select className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+          <select aria-label="Supplier" className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
             <option value="">Select supplier…</option>
             {(suppliers.data?.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-          <Input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
+          <Input aria-label="Order date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
         </div>
 
         {/* Product picker */}
@@ -280,6 +280,7 @@ export default function PurchaseOrdersPage() {
               <div className="col-span-2">
                 {l.units && l.units.length > 0 ? (
                   <select
+                    aria-label={`Unit for ${l.product_name}`}
                     value={l.product_unit_id ?? ""}
                     onChange={(e) => setLine(l.key, { product_unit_id: e.target.value || null })}
                     className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 focus:outline-hidden dark:border-gray-700 dark:text-gray-200"
@@ -293,9 +294,9 @@ export default function PurchaseOrdersPage() {
                   <span className="text-theme-xs text-gray-400">each</span>
                 )}
               </div>
-              <div className="col-span-2"><Input type="number" min="1" value={String(l.quantity)} onChange={(e) => setLine(l.key, { quantity: Number(e.target.value) })} /></div>
-              <div className="col-span-3"><Input type="number" min="0" value={String(l.unit_cost)} onChange={(e) => setLine(l.key, { unit_cost: Number(e.target.value) })} /></div>
-              <button type="button" className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>✕</button>
+              <div className="col-span-2"><Input aria-label={`Quantity of ${l.product_name}`} type="number" min="1" value={String(l.quantity)} onChange={(e) => setLine(l.key, { quantity: Number(e.target.value) })} /></div>
+              <div className="col-span-3"><Input aria-label={`Cost each for ${l.product_name}`} type="number" min="0" value={String(l.unit_cost)} onChange={(e) => setLine(l.key, { unit_cost: Number(e.target.value) })} /></div>
+              <button type="button" aria-label={`Remove ${l.product_name}`} className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>✕</button>
             </div>
           ))}
         </div>

@@ -148,7 +148,7 @@ export default function CouponsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2"><Input placeholder="CODE (e.g. EID20)" value={form.code ?? ""} onChange={(e) => set("code", e.target.value.toUpperCase())} /></div>
           <div>
-            <Select defaultValue={form.type} options={[{ value: "percent", label: "Percentage %" }, { value: "fixed", label: "Fixed Rs" }]} placeholder="Type" onChange={(v) => set("type", v)} />
+            <Select aria-label="Coupon type" defaultValue={form.type} options={[{ value: "percent", label: "Percentage %" }, { value: "fixed", label: "Fixed Rs" }]} placeholder="Type" onChange={(v) => set("type", v)} />
           </div>
           <Input type="number" min="0" placeholder={form.type === "percent" ? "Value %" : "Value Rs"} value={form.value ?? ""} onChange={(e) => set("value", e.target.value)} />
           <Input type="number" min="0" placeholder="Min spend (optional)" value={form.min_spend ?? ""} onChange={(e) => set("min_spend", e.target.value)} />

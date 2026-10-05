@@ -1573,12 +1573,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       ) : (
                         units.map((u, i) => (
                           <div key={i} className="mb-2 flex flex-wrap items-center gap-2">
-                            <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" className="max-w-40" />
+                            <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" aria-label={`Pack ${i + 1}: name`} className="max-w-40" />
                             <span className="text-theme-xs text-gray-400">=</span>
-                            <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" className="max-w-24" />
+                            <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" aria-label={`Pack ${i + 1}: how many base units`} className="max-w-24" />
                             <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
-                            <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" className="max-w-32" />
-                            <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" className="max-w-40" />
+                            <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" aria-label={`Pack ${i + 1}: price`} className="max-w-32" />
+                            <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" aria-label={`Pack ${i + 1}: barcode`} className="max-w-40" />
                             <button type="button" className={ROW_ACTION_DANGER} onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                           </div>
                         ))
@@ -1611,14 +1611,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         + Add tier
                       </button>
                     </div>
-                    <p className="mb-3 text-theme-xs text-gray-400">Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The deepest tier the quantity reaches wins.</p>
+                    <p className="mb-3 text-theme-xs text-gray-400">Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The cheapest tier the quantity reaches is charged, and never more than the normal price.</p>
                     {tiers.map((t, i) => (
                       <div key={i} className="mb-2 flex items-center gap-2">
                         <span className="text-theme-xs text-gray-400">From qty</span>
-                        <Input type="number" min="0" step={0.001} value={t.min_qty} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, min_qty: e.target.value } : x)))} className="max-w-28" />
+                        <Input aria-label={`Tier ${i + 1}: from quantity`} type="number" min="0" step={0.001} value={t.min_qty} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, min_qty: e.target.value } : x)))} className="max-w-28" />
                         <span className="text-theme-xs text-gray-400">price each</span>
-                        <Input type="number" min="0" step={0.01} value={t.price} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="max-w-28" />
-                        <button type="button" className={ROW_ACTION_DANGER} onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                        <Input aria-label={`Tier ${i + 1}: price each`} type="number" min="0" step={0.01} value={t.price} onChange={(e) => setTiers((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} className="max-w-28" />
+                        <button type="button" aria-label={`Remove tier ${i + 1}`} className={ROW_ACTION_DANGER} onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                       </div>
                     ))}
                     {marketplaceEnabled && (

@@ -254,7 +254,7 @@ export default function CustomersPage() {
             </p>
           </div>
           <div className="sm:col-span-2">
-            <Select value={form.customer_group_id ?? ""} options={groupOptions} onChange={(v) => set("customer_group_id", v)} />
+            <Select aria-label="Customer group" value={form.customer_group_id ?? ""} options={groupOptions} onChange={(v) => set("customer_group_id", v)} />
             <p className="mt-1 text-theme-xs text-gray-400">Pricing tier — a group can sell at wholesale and/or give a members' discount automatically.</p>
           </div>
         </div>
@@ -289,7 +289,7 @@ export default function CustomersPage() {
         <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800 sm:grid-cols-3">
           <div className="sm:col-span-3 text-theme-xs font-medium uppercase text-gray-400">{groupDraft.id ? "Edit group" : "New group"}</div>
           <div className="sm:col-span-3"><Input placeholder="Group name (e.g. Wholesale)" value={groupDraft.name} onChange={(e) => setGroupDraft((d) => ({ ...d, name: e.target.value }))} /></div>
-          <Select value={groupDraft.price_level} options={[{ value: "retail", label: "Retail price" }, { value: "wholesale", label: "Wholesale price" }]} onChange={(v) => setGroupDraft((d) => ({ ...d, price_level: v as PriceLevel }))} />
+          <Select aria-label="Price level" value={groupDraft.price_level} options={[{ value: "retail", label: "Retail price" }, { value: "wholesale", label: "Wholesale price" }]} onChange={(v) => setGroupDraft((d) => ({ ...d, price_level: v as PriceLevel }))} />
           <Input type="number" min="0" max="100" placeholder="Members' discount %" value={groupDraft.discount_percent} onChange={(e) => setGroupDraft((d) => ({ ...d, discount_percent: e.target.value }))} />
           <Button size="sm" onClick={saveGroup} disabled={!groupDraft.name.trim() || groupMutations.create.isPending || groupMutations.update.isPending}>{groupDraft.id ? "Save" : "Add"}</Button>
         </div>
