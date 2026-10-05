@@ -8080,3 +8080,40 @@ Fixtures are fixed-name and idempotent (`e2e/taxedShelf.ts`).
 
 **3,026 backend tests (3,006 passed, 20 skipped) · 1,699 panel tests ·
 17 browser money checks on each of 4 screen sizes (desktop, both tablets, phone) · 0 lint errors.**
+
+## The till, lived through, 2026-10-05 (second pass)
+
+After the bill fix the shop asked for the POS to be gone over as "the heart of
+the system". Done in a browser against the server, and it found six more:
+
+| Found | Where | Now |
+|---|---|---|
+| Quote/Advance, coupon box, Khata, bank offers shown to shops WITHOUT the module | `PosPage.tsx` | gated on `documents` / `promotions` / `customers` / `bank_offers` |
+| Drawer + Close-shift sheets drew the X-read from before the last sales | `useSessionReport` | `data` withheld while fetching |
+| F9 needed an open shift; the Pay button did not | `actionsRef.pay` | both ask `canRing`; a key that cannot act says why |
+| F-keys are media keys on a Mac | `shortcuts.ts` | Alt/Option + S/H/D/Q/P as well |
+| Selected tile: white name on a pale plate | tile `className` | dark half added |
+| Per-line tax printed to 3 decimals; money as "Rs 437.4" | `money()` | the shared `formatMoney` |
+| 6 of 7 colour presets had a "600" lighter than their 500 | `buildRamp` | lightness relative to the colour |
+| Activity → "Credit limits" also returned customer-group changes | `AuditLog::scopeAbout` | exact type, both trails |
+
+Also built: Appearance → Sidebar → **Primary** (`theme_sidebar: primary`), a
+bigger bottom bar on the till, the money bar in one row on a desktop, and the
+till's ground re-tuned from indigo to the ocean family.
+
+**Kept on purpose (the shop reversed me):** the till's buttons and the F-key
+legend stay colourful and stay where they are. See
+`docs/memory/shopos-pos-look-is-the-shops.md`.
+
+New browser specs: `till-drawer` (a whole shift), `till-keys`, `till-offers` +
+`trade.till-offers` + `food.till-offers` (every trade). The sweep harness had
+two faults of its own (`Api.login` returned a dead token; a FEFO date typed in
+as 2026-10-01) — fixed; sweep is 2,012 ok.
+
+**Not done:** `CreateSaleAction` still applies promotions / coupons / group
+pricing / khata without checking the module (matters only for data left behind
+by a module switched off later). A read-only audit of every other screen's
+module checks was started and its report is pending. Push is blocked: the
+saved GitHub credential is rejected.
+
+**3,027 backend tests (3,007 passed, 20 skipped) · 1,745 panel tests.**

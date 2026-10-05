@@ -19,10 +19,19 @@ Four, in order of how much a wrong answer costs the shopkeeper:
 
 import uuid
 
+import datetime
+
 from api import Api, Report
 
-NEAR = "2026-10-01"    # first out of the door
-FAR = "2031-01-01"
+# COMPUTED, NOT WRITTEN DOWN.
+#
+# These were "2026-10-01" and "2031-01-01", and on 2026-10-05 the near lot had
+# been EXPIRED for four days. FEFO correctly refuses an expired lot and took
+# the far one, and this phase reported that as "FEFO TAKES THE EARLIEST EXPIRY
+# FIRST" — a product bug, about the product being right. A date typed into a
+# test is a test with a date it stops working on.
+NEAR = (datetime.date.today() + datetime.timedelta(days=45)).isoformat()    # first out of the door
+FAR = (datetime.date.today() + datetime.timedelta(days=365 * 4)).isoformat()
 
 
 def run(api: Api, rep: Report, sold: dict) -> dict:

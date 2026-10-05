@@ -214,7 +214,16 @@ class Api:
         """A token for this identity, asking the server only when it must."""
         cached = self._cache.get(email)
         if cached and self._alive(cached):
-            return cached
+            # What the cache holds NOW, not what it held a line ago.
+            #
+            # `_alive` asks /auth/me, and a 401 there is renewed in passing by
+            # `call()` — new token minted, cache updated, the question retried
+            # and answered 200. So "alive" came back True about a token that
+            # was dead, and this returned the dead one. Every call after it
+            # was a 401 whose token was no longer in the cache, so it could
+            # not be renewed either, and a whole run ended at its sixth line
+            # reporting itself blind. Found on the first run after a month.
+            return self._cache.get(email) or cached
 
         token = self._login_fresh(email, password)
         if token:
