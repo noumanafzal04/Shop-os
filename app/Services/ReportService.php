@@ -157,6 +157,30 @@ class ReportService
         $cogs = round($cogs - $returnedCost, 2);
         $kept = round($revenue - $refunds, 2);
 
+        /*
+         * THE TAX IS NOT THE SHOP'S MONEY.
+         *
+         * `revenue` is what customers paid, tax and all, and both profits were
+         * struck straight from it — so every rupee of sales tax a shop
+         * collected was reported as profit. A shop on an 18% group selling at
+         * a 15% margin was shown a healthy business and was running at a loss.
+         *
+         * The tax is held for the government and comes OFF before anything is
+         * called profit: what was charged on the period's sales, less what
+         * was handed back on its returns. It is the same in both pricing
+         * modes — "prices include tax" changes where the tax sits in the
+         * price, not whose it is. `sales.tax` and `sale_returns.refund_tax`
+         * already hold both figures; nothing here re-derives a rate.
+         *
+         * Stated on its own line so the row still adds up on screen:
+         *   revenue − refunds − tax − cost of goods = gross profit.
+         */
+        $taxCollected = (float) (clone $completedSales)->sum('tax');
+        $taxRefunded = (float) Takings::refunds($tenantId, $branchId)
+            ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->sum('refund_tax');
+        $tax = round($taxCollected - $taxRefunded, 2);
+
         return [
             'period' => ['from' => $from, 'to' => $to, 'granularity' => $granularity],
             'totals' => [
@@ -164,10 +188,11 @@ class ReportService
                 'revenue' => round($revenue, 2),
                 'refunds' => round($refunds, 2),
                 'other_income' => round($otherIncome, 2),
+                'tax' => $tax,
                 'cogs' => round($cogs, 2),
-                'gross_profit' => round($kept - $cogs, 2),
+                'gross_profit' => round($kept - $tax - $cogs, 2),
                 'expenses' => round($expensesTotal, 2),
-                'net_profit' => round($kept + $otherIncome - $cogs - $expensesTotal, 2),
+                'net_profit' => round($kept - $tax + $otherIncome - $cogs - $expensesTotal, 2),
             ],
             'series' => $this->series($tenantId, $branchId, $fromStart, $toEnd, $granularity),
             'top_products' => $this->topProducts($tenantId, $branchId, $fromStart, $toEnd),
@@ -258,7 +283,9 @@ class ReportService
             ->get()
             ->map(fn ($row) => [
                 'name' => $row->variant_name ? "{$row->product_name} / {$row->variant_name}" : $row->product_name,
-                'units' => (int) $row->units,
+                // A number, not an integer: sugar is sold by the kilo, and 3.5 kg
+                // cast to (int) is "3" beside a revenue that is plainly 3.5 of them.
+                'units' => round((float) $row->units, 3),
                 'revenue' => round((float) $row->revenue, 2),
             ])
             ->all();
@@ -552,12 +579,23 @@ class ReportService
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
+        // WHAT WAS HANDED BACK. A return refunds the tax with the goods, and
+        // this report — the one a shop files from — showed only what was
+        // charged. A bag returned was tax the shop no longer holds and was
+        // still being told it owed.
+        $collected = round((float) (clone $sales)->sum('tax'), 2);
+        $refunded = round((float) Takings::refunds($tenantId, $branchId)
+            ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->sum('refund_tax'), 2);
+
         return [
             'period' => ['from' => $from, 'to' => $to],
             'totals' => [
                 'taxable_sales' => (clone $sales)->where('tax', '>', 0)->count(),
                 'net_sales' => round((float) (clone $sales)->sum('subtotal') - (float) (clone $sales)->sum('discount'), 2),
-                'tax_collected' => round((float) (clone $sales)->sum('tax'), 2),
+                'tax_collected' => $collected,
+                'tax_refunded' => $refunded,
+                'tax_payable' => round($collected - $refunded, 2),
                 'gross_sales' => round((float) (clone $sales)->sum('total'), 2),
             ],
         ];

@@ -92,6 +92,10 @@ class DashboardService
         // and rolled up at all because until now they agreed on a profit that
         // took no account of anything handed back.
         $refundsByDay = $sells ? $this->dailyRefunds($tenant, $branchId, $weekStart) : [];
+        // The sales tax held for the government, day by day: what was charged
+        // less what was handed back. Revenue includes it and profit must not —
+        // see ReportService::summary, which had the same fault and the same fix.
+        $taxByDay = $sells ? $this->dailyTax($tenant, $branchId, $weekStart) : [];
 
         $revenue = $salesByDay[$today]['revenue'] ?? 0.0;
         $expensesToday = $expensesByDay[$today] ?? 0.0;
@@ -101,12 +105,12 @@ class DashboardService
         // − cost of goods (line snapshots) − expenses. Leaving income out made
         // this the Cashbook's answer minus the whole of what the business
         // earned — for a books-only tenant, a permanent loss.
-        $profit = $revenue - $refundsToday + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
+        $profit = $revenue - $refundsToday - ($taxByDay[$today] ?? 0.0) + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
 
         $prevRevenue = $salesByDay[$yesterday]['revenue'] ?? 0.0;
         $prevExpenses = $expensesByDay[$yesterday] ?? 0.0;
         $prevIncome = $incomeByDay[$yesterday] ?? 0.0;
-        $prevProfit = $prevRevenue - ($refundsByDay[$yesterday] ?? 0.0)
+        $prevProfit = $prevRevenue - ($refundsByDay[$yesterday] ?? 0.0) - ($taxByDay[$yesterday] ?? 0.0)
             + $prevIncome - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
 
         // Computed once, published twice: as the legacy top-level counts and
@@ -179,7 +183,7 @@ class DashboardService
                 : 0,
             // Last 7 days, oldest first, zero-filled — the line chart never has
             // a hole for a day the shop was shut.
-            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay),
+            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay, $taxByDay),
             // This month's spend per category — the donut beside the chart.
             'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthStart) : [],
             'inventory' => [
@@ -330,6 +334,46 @@ class DashboardService
             ->all();
     }
 
+    /**
+     * Sales tax still held, per day: charged on that day's sales, less what
+     * that day's returns handed back.
+     *
+     * @return array<string, float>
+     */
+    private function dailyTax(Tenant $tenant, ?string $branchId, Carbon $from): array
+    {
+        $sold = $this->dayExpression('sold_at');
+        $charged = Sale::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('status', Takings::COUNTED)
+            ->where('sold_at', '>=', $from)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->selectRaw("{$sold} as day, COALESCE(SUM(tax), 0) as total")
+            ->groupByRaw($sold)
+            ->toBase()
+            ->get();
+
+        $back = $this->dayExpression('returned_at');
+        $returned = SaleReturn::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->where('returned_at', '>=', $from)
+            ->selectRaw("{$back} as day, COALESCE(SUM(refund_tax), 0) as total")
+            ->groupByRaw($back)
+            ->toBase()
+            ->get();
+
+        $byDay = [];
+        foreach ($charged as $row) {
+            $byDay[$row->day] = (float) $row->total;
+        }
+        foreach ($returned as $row) {
+            $byDay[$row->day] = ($byDay[$row->day] ?? 0.0) - (float) $row->total;
+        }
+
+        return $byDay;
+    }
+
     private function dailyExpenses(Tenant $tenant, ?string $branchId, Carbon $from): array
     {
         $day = $this->dayExpression('expense_date');
@@ -391,6 +435,7 @@ class DashboardService
         array $expensesByDay,
         array $incomeByDay,
         array $refundsByDay,
+        array $taxByDay = [],
     ): array {
         $series = [];
         $cursor = $from->copy();
@@ -411,7 +456,7 @@ class DashboardService
                 'expenses' => round($expenses, 2),
                 // Same definition as today's profit tile, so the last point of
                 // the chart always equals the number in the tile.
-                'profit' => round($revenue - $refunds + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
+                'profit' => round($revenue - $refunds - ($taxByDay[$key] ?? 0.0) + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
             ];
 
             $cursor = $cursor->addDay();
