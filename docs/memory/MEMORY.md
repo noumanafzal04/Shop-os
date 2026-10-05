@@ -233,3 +233,4 @@
 - [Fixture On No Plan](shopos-fixture-on-no-plan.md) — STANDING: a fixture that over-provisions everything measures nothing
 - [HRM Is A Module](shopos-hrm-is-a-module.md) — `hrm` key added before the feature; off for every trade, so the area is optional
 - [A Check That Cannot Fail](shopos-check-that-cannot-fail.md) — STANDING: an absence assertion passed twice with the guard removed
+- [Till Bill = Server Bill](shopos-till-bill-is-server-bill.md) — STANDING: amount due only from tillBill.ts (22 server fixtures); refusals read `payable` not `amount_due`

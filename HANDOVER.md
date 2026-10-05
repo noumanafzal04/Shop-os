@@ -8027,3 +8027,56 @@ dependencies or its data. 41 assertions, mutation-proven.
 **2,976 backend tests · 1,575 panel tests · 42 browser checks (32 volume,
 10 admin) · 413 audit checks, EMPTY: nothing · 0 lint errors.**
 
+
+## The amount on the screen is the amount charged, 2026-10-05
+
+Reported from the till: *"Amount due Rs 12,610 … Sale failed — Amount paid
+(12,610.00) is less than the total (14,023.94)"* and *"u did not properly
+test pos screen in detailed."* Full account in
+`docs/decisions/shopos-the-amount-on-the-screen.md`.
+
+`PosPage.tsx` priced the cart with an inline copy of the server's rules; the
+tested engine ran beside it as a shadow. The copy was wrong six ways, in both
+directions:
+
+| | effect at the counter |
+|---|---|
+| tax group ignored | short → **sale refused** (the report) |
+| tax summed raw, rounded once | a paisa short on a long cart → refused on a card |
+| customer group % never applied | over → refused on a card, wrong figure on cash |
+| customer group price level never applied | same |
+| cash + trade-in rounded to the coin | short → refused |
+| promotion previewed at shelf price | short at any quantity break / trade price / line discount |
+
+### What it is now
+
+- `panel/src/modules/pos/tillBill.ts` is the only bill. `lineMath.ts` is the
+  only line arithmetic. The page gathers inputs.
+- **Fixtures from real sales.** `TillBillFixturesTest` rings 22 bills through
+  `POST /sales` → `backend/tests/fixtures/till-bill.json` → copy to
+  `panel/src/modules/pos/fixtures/`. Regenerate with `SHOPOS_WRITE_FIXTURES=1`.
+- **`expected_payable`** — the till says what it showed (online only). A sale
+  is made at that figure or refused `BILL_MISMATCH`.
+- **`meta.payable`** on `PAYMENT_INSUFFICIENT`, `CHANGE_WITHOUT_CASH`,
+  `BILL_MISMATCH`. The till shows the corrected bill; the cashier presses
+  Complete again. Read `payable`, never `amount_due` (after the bank's share,
+  includes a trade-in).
+- `/customers-lookup` returns the customer's `group`; no longer gated on loyalty.
+- `/promotions/preview` accepts display-only `items.*.line_total`.
+- `products.tax_group_rate` is appended to every product payload
+  (`TaxGroupRates`, scoped, forgotten when a group is saved).
+
+### Deploy order
+
+**Backend first, then the panel.** The new panel reads `tax_group_rate`,
+`group` and `payable` from the server; against an old backend it falls back
+to the old figures and the old error sentence, no worse than before.
+
+### Browser money specs (new)
+
+`e2e/till-tax`, `till-tenders`, `till-members`, `till-promo` — every case
+rings TAXED goods and pays the EXACT figure shown, against the real server.
+Fixtures are fixed-name and idempotent (`e2e/taxedShelf.ts`).
+
+**3,026 backend tests (3,006 passed, 20 skipped) · 1,699 panel tests ·
+17 browser money checks on each of 4 screen sizes (desktop, both tablets, phone) · 0 lint errors.**
