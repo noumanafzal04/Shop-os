@@ -43,11 +43,17 @@ class GlobalSearchService
         // they may edit it. Asking the write question here quietly deleted the
         // Products section from the search box for every cashier and waiter in
         // the shop — the search still worked, it just never found a product.
-        if ($user->hasAnyPermission(Permissions::READS_CATALOG)) {
+        if ($user->hasAnyPermission(Permissions::READS_CATALOG)
+            && ($tenant->featureEnabled('products') || $tenant->featureEnabled('services'))) {
             $groups[] = $this->group('product', 'Products', $this->products($q));
         }
 
-        if ($user->hasPermission(Permissions::CUSTOMERS_MANAGE)) {
+        // A MODULE, as well as a permission. Every phone number typed at a till
+        // or on an online order becomes a customer row, so a shop without the
+        // Customers screen still has a book — and the search box offered it,
+        // landing on the dashboard when picked. Orders already asked this
+        // question, two blocks down; it was the only group that did.
+        if ($user->hasPermission(Permissions::CUSTOMERS_MANAGE) && $tenant->featureEnabled('customers')) {
             $groups[] = $this->group('customer', 'Customers', $this->customers($q));
         }
 
@@ -60,7 +66,7 @@ class GlobalSearchService
             $groups[] = $this->group('order', 'Orders', $this->orders($q));
         }
 
-        if ($user->hasAnyPermission(Permissions::READS_SUPPLIERS)) {
+        if ($user->hasAnyPermission(Permissions::READS_SUPPLIERS) && $tenant->featureEnabled('purchasing')) {
             $groups[] = $this->group('supplier', 'Suppliers', $this->suppliers($q));
         }
 

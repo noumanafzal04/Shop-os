@@ -369,24 +369,38 @@ class Permissions
      *
      * ANY-of, like the presets: a permission is relevant when the shop holds
      * at least one of the modules named here. A key absent from this map is
-     * relevant to every shop — staff, customers, expenses, settings and
-     * reports are not about a module at all.
+     * relevant to every shop — staff, settings and reports are not about a
+     * module at all.
      *
      * @var array<string, string[]>
      */
     public const NEEDS_MODULE = [
         self::PRODUCTS_MANAGE => ['products', 'services'],
         self::INVENTORY_MANAGE => ['inventory'],
-        self::SUPPLIERS_MANAGE => ['inventory'],
-        self::PURCHASES_MANAGE => ['inventory'],
+        // `purchasing`, not `inventory`: Suppliers & Purchases was split out
+        // of Inventory, and a shop that counts stock without buying through
+        // the system was still offered both boxes — permissions that open a
+        // screen the shop does not have.
+        self::SUPPLIERS_MANAGE => ['purchasing'],
+        self::PURCHASES_MANAGE => ['purchasing'],
         self::SALES_MANAGE => ['pos', 'marketplace', 'dine_in'],
-        self::KITCHEN_MANAGE => ['dine_in'],
+        // The board is the `kitchen` module's. Keyed on `dine_in` it was
+        // withheld from a takeaway counter that fires dockets and has no
+        // tables — the one shop whose cook most needs it.
+        self::KITCHEN_MANAGE => ['kitchen'],
         self::DISCOUNTS_APPLY => ['pos', 'marketplace', 'dine_in'],
         self::DISCOUNTS_OVERRIDE => ['pos', 'marketplace', 'dine_in'],
         self::SALES_VOID => ['pos', 'marketplace', 'dine_in'],
         self::SALES_REFUND => ['pos', 'marketplace', 'dine_in'],
         self::TABLES_SERVE_ANY => ['dine_in'],
-        self::COUPONS_MANAGE => ['pos', 'marketplace'],
+        // The screens this opens: Coupons, Promotions, Bank offers. It was
+        // keyed on "can sell at all", so six of nine trades were offered a
+        // box with nothing behind it.
+        self::COUPONS_MANAGE => ['promotions', 'bank_offers'],
+        // These two WERE absent, on the note above that customers and
+        // expenses "are not about a module at all". Both are modules now.
+        self::CUSTOMERS_MANAGE => ['customers'],
+        self::EXPENSES_MANAGE => ['expenses'],
         self::RESERVATIONS_MANAGE => ['reservations'],
         self::ORDERS_MANAGE => ['marketplace', 'delivery'],
     ];

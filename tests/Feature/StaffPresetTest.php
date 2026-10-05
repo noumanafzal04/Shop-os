@@ -88,8 +88,11 @@ class StaffPresetTest extends TestCase
 
     public function test_a_restaurant_is_offered_the_kitchen_and_the_floor(): void
     {
+        // `kitchen` as well: Dine-in DEPENDS on it, so a map with tables and
+        // no kitchen is one the server never stores. This fixture had one, and
+        // it passed only because the Kitchen board was keyed on `dine_in`.
         $food = $this->tenantWith(
-            ['pos' => true, 'products' => true, 'dine_in' => true],
+            ['pos' => true, 'products' => true, 'kitchen' => true, 'dine_in' => true],
             'food',
         );
 
@@ -97,6 +100,58 @@ class StaffPresetTest extends TestCase
 
         $this->assertContains(Permissions::KITCHEN_MANAGE, $offered);
         $this->assertContains(Permissions::TABLES_SERVE_ANY, $offered);
+    }
+
+    public function test_a_takeaway_counter_with_a_kitchen_and_no_tables_gets_the_board_and_not_the_floor(): void
+    {
+        // The shop the old key failed: it fires dockets to a cook and has no
+        // floor. Keyed on `dine_in`, its cook could not be given the board.
+        $takeaway = $this->tenantWith(['pos' => true, 'products' => true, 'kitchen' => true], 'food');
+
+        $offered = $this->offered($takeaway);
+
+        $this->assertContains(Permissions::KITCHEN_MANAGE, $offered);
+        $this->assertNotContains(Permissions::TABLES_SERVE_ANY, $offered);
+    }
+
+    public function test_a_box_is_offered_only_where_its_screens_exist(): void
+    {
+        /*
+         * Found by a read-only audit of every module check. Each of these
+         * was offered on "can this shop sell" or on nothing at all, so a
+         * shop was shown boxes that open no screen it has:
+         *
+         *   Coupons & promotions   six of nine trades have neither module
+         *   Customers              an online shop has no Customers screen
+         *   Suppliers, Purchases   keyed on Inventory, which they left
+         */
+        $counter = $this->tenantWith(['pos' => true, 'products' => true, 'inventory' => true], 'pharmacy');
+        $offered = $this->offered($counter);
+
+        $this->assertNotContains(Permissions::COUPONS_MANAGE, $offered);
+        $this->assertNotContains(Permissions::CUSTOMERS_MANAGE, $offered);
+        $this->assertNotContains(Permissions::EXPENSES_MANAGE, $offered);
+        $this->assertNotContains(Permissions::SUPPLIERS_MANAGE, $offered);
+        $this->assertNotContains(Permissions::PURCHASES_MANAGE, $offered);
+        // Still a filter and not an empty list.
+        $this->assertContains(Permissions::INVENTORY_MANAGE, $offered);
+
+        $full = $this->tenantWith([
+            'pos' => true, 'products' => true, 'inventory' => true, 'purchasing' => true,
+            'customers' => true, 'promotions' => true, 'expenses' => true,
+        ], 'mart');
+        $offered = $this->offered($full);
+
+        foreach ([
+            Permissions::COUPONS_MANAGE, Permissions::CUSTOMERS_MANAGE, Permissions::EXPENSES_MANAGE,
+            Permissions::SUPPLIERS_MANAGE, Permissions::PURCHASES_MANAGE,
+        ] as $permission) {
+            $this->assertContains($permission, $offered, "{$permission} has its module and was not offered");
+        }
+
+        // Bank offers alone is enough for the coupons box: it opens that screen too.
+        $bank = $this->tenantWith(['pos' => true, 'products' => true, 'promotions' => true, 'bank_offers' => true], 'mart');
+        $this->assertContains(Permissions::COUPONS_MANAGE, $this->offered($bank));
     }
 
     public function test_a_shop_that_does_not_sell_online_is_not_offered_online_orders(): void
@@ -110,15 +165,17 @@ class StaffPresetTest extends TestCase
 
     public function test_permissions_that_belong_to_no_module_are_offered_to_everybody(): void
     {
-        // Staff, customers, expenses, reports and settings are not about a
-        // module at all, and a shop with almost nothing switched on still
-        // needs to be able to hire somebody.
+        // Staff, reports and settings are not about a module at all, and a
+        // shop with almost nothing switched on still needs to be able to hire
+        // somebody. Customers and Expenses used to be on this list; both are
+        // modules a shop may not have — see the test above.
         $bare = $this->tenantWith(['expenses' => true], 'mart');
+
+        // It HAS expenses, so that box is its own.
+        $this->assertContains(Permissions::EXPENSES_MANAGE, $this->offered($bare));
 
         foreach ([
             Permissions::STAFF_MANAGE,
-            Permissions::CUSTOMERS_MANAGE,
-            Permissions::EXPENSES_MANAGE,
             Permissions::REPORTS_VIEW,
             Permissions::SETTINGS_MANAGE,
         ] as $always) {

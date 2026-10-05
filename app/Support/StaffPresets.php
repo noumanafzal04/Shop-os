@@ -117,7 +117,7 @@ class StaffPresets
                 'permissions' => [
                     Permissions::KITCHEN_MANAGE,
                 ],
-                'modules' => ['dine_in'],
+                'modules' => ['kitchen'],
                 'trades' => [],
             ],
             [
@@ -155,7 +155,7 @@ class StaffPresets
                 // `stock_keeper` keeps both, and correctly: half of what it
                 // describes is keeping the catalog straight, which is real work
                 // in a kitchen that counts no stock.
-                'modules' => ['inventory'],
+                'modules' => ['purchasing'],
                 'trades' => [],
             ],
             [

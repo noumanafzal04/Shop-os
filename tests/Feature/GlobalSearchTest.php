@@ -173,6 +173,30 @@ class GlobalSearchTest extends TestCase
         $this->assertNotContains('product', $types);
     }
 
+    public function test_customers_are_not_offered_to_a_shop_without_the_customers_module(): void
+    {
+        /*
+         * Every phone number typed at a till or on an online order becomes a
+         * customer row, so a shop without the Customers screen still has a
+         * book. The search box offered it on permission alone, and picking a
+         * result landed on the dashboard — the screen is a module the shop
+         * does not have. Orders already asked this question; nothing else did.
+         */
+        Customer::query()->create([
+            'tenant_id' => $this->tenant->id, 'name' => 'Zainab Traders', 'phone' => '03001112223',
+        ]);
+
+        $with = $this->actingAsUser($this->owner)->getJson('/api/v1/search?q=Zainab')->assertOk()->json('data.groups');
+        $this->assertContains('customer', array_column($with, 'type'), 'a shop WITH the module lost its customers');
+
+        $features = $this->tenant->features;
+        $features['customers'] = false;
+        $this->tenant->forceFill(['features' => $features])->save();
+
+        $without = $this->actingAsUser($this->owner)->getJson('/api/v1/search?q=Zainab')->assertOk()->json('data.groups');
+        $this->assertNotContains('customer', array_column($without, 'type'));
+    }
+
     public function test_orders_group_is_hidden_when_the_shop_has_no_marketplace(): void
     {
         $order = $this->makeOrder('ORD-000042', 'Ayesha');
