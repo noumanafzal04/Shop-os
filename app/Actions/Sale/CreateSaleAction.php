@@ -1293,7 +1293,30 @@ class CreateSaleAction
                 if (! empty($data['customer_phone'])) {
                     $customer = Customer::capture($tenantId, $data['customer_phone'], $data['customer_name'] ?? null);
                     if ($customer !== null) {
-                        $sale->forceFill(['customer_id' => $customer->id])->save();
+                        /*
+                         * THE SALE SAYS WHO, NOT ONLY WHICH RECORD.
+                         *
+                         * A cashier attaches a customer by PHONE — that is
+                         * how the till finds a khata — and types no name,
+                         * because the shop already knows it. The sale was
+                         * linked to the right customer and stored a blank
+                         * name, so the sales ledger printed "Walk-in" beside
+                         * a Rs 18,900 credit sale that a named trader owes,
+                         * and so did the invoice handed to him.
+                         *
+                         * The name is copied onto the sale, as every other
+                         * figure on a sale is: it must still say who bought
+                         * it after the customer record is renamed or removed.
+                         * A name the cashier DID type wins, and the
+                         * placeholder a first-time phone number is filed
+                         * under ("Customer") is nobody's name.
+                         */
+                        $known = $customer->name !== 'Customer' ? $customer->name : null;
+
+                        $sale->forceFill([
+                            'customer_id' => $customer->id,
+                            'customer_name' => filled($sale->customer_name) ? $sale->customer_name : $known,
+                        ])->save();
                     }
                 }
 
