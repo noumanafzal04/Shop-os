@@ -93,10 +93,12 @@ export function useOrderActions() {
   return { advance, cancel, assignRider };
 }
 
-export function useRiders() {
+export function useRiders(enabled = true) {
   return useQuery({
     queryKey: ["riders"],
     queryFn: async () => (await ordersService.riders()).data,
+    // `/riders` is the Delivery module's — see the Orders screen.
+    enabled,
   });
 }
 

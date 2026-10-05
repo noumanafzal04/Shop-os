@@ -619,16 +619,31 @@ export default function ShopSettingsPage() {
 
                     <SectionCard icon={<TruckGlyph />} title="Order fulfillment" description="How customers get their orders. They only see the options you enable.">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <ToggleRow checked={!!prefs.pickup_enabled} onChange={(v) => setP("pickup_enabled", v)} label="Pickup" hint="The customer collects from your counter." />
-                        <ToggleRow checked={!!prefs.delivery_enabled} onChange={(v) => setP("delivery_enabled", v)} label="Delivery" hint="You take it to them, within the limits set below." />
+                        {/* DELIVERY IS A MODULE. A shop without it was shown the
+                            switch ON (the stored default), could turn Pickup off
+                            beside it — and Save was then refused, "enable at
+                            least one fulfillment option", for the whole form:
+                            one Save sends every preference, so nothing else on
+                            the page saved either. Without the module Pickup is
+                            the only way an order leaves, so it cannot be turned
+                            off, and the Delivery switch is not drawn. */}
+                        <ToggleRow
+                          checked={!!prefs.pickup_enabled || !tenantFeatures.delivery}
+                          onChange={(v) => { if (v || tenantFeatures.delivery) setP("pickup_enabled", v); }}
+                          label="Pickup"
+                          hint={tenantFeatures.delivery ? "The customer collects from your counter." : "The customer collects from your counter. This is how your orders leave — Delivery is not switched on for your shop."}
+                        />
+                        {tenantFeatures.delivery && (
+                          <ToggleRow checked={!!prefs.delivery_enabled} onChange={(v) => setP("delivery_enabled", v)} label="Delivery" hint="You take it to them, within the limits set below." />
+                        )}
                       </div>
-                      {!prefs.pickup_enabled && !prefs.delivery_enabled && (
+                      {tenantFeatures.delivery && !prefs.pickup_enabled && !prefs.delivery_enabled && (
                         <p className="text-theme-xs font-medium text-error-500">At least one option must stay on — with both off, nobody can order.</p>
                       )}
                       <Field label="Service area (service businesses)">
                         <Input value={String(prefs.service_area ?? "")} onChange={(e) => setP("service_area", e.target.value)} placeholder="e.g. We serve Gulberg, DHA, Model Town" />
                       </Field>
-                      {!!prefs.delivery_enabled && (
+                      {tenantFeatures.delivery && !!prefs.delivery_enabled && (
                         <>
                         {/* WHO CARRIES IT — the setting the offer engine reads.
                             It existed in the backend, was documented, validated

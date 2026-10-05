@@ -1,3 +1,4 @@
+import { useAuthStore } from "../../../stores/authStore";
 import { useEffect, useMemo, useState } from "react";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -58,7 +59,11 @@ export function WriteOffModal({ open, onClose }: { open: boolean; onClose: () =>
   const sizes = detail.data?.variants ?? [];
   const needsASize = sizes.length > 0;
 
-  const suppliers = useSuppliers({ is_active: true }, { enabled: disposition === "returned_to_supplier" });
+  // "Sent back to the supplier" names a SUPPLIER, and suppliers are the
+  // Purchasing module's. Without it the list was empty and the choice could
+  // never be completed — so it is not offered.
+  const buysThroughSystem = !!useAuthStore((s) => s.user?.tenant?.features?.purchasing);
+  const suppliers = useSuppliers({ is_active: true }, { enabled: buysThroughSystem && disposition === "returned_to_supplier" });
 
   const reset = () => {
     setTyped(""); setSearch(""); setPicked(null); setVariantId("");
@@ -220,7 +225,7 @@ export function WriteOffModal({ open, onClose }: { open: boolean; onClose: () =>
                 className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm dark:border-gray-700 dark:bg-gray-900"
               >
                 <option value="written_off">Binned — the money is gone</option>
-                <option value="returned_to_supplier">Back to the supplier — expecting credit</option>
+                {buysThroughSystem && <option value="returned_to_supplier">Back to the supplier — expecting credit</option>}
               </select>
             </div>
 

@@ -53,7 +53,12 @@ export const SETTINGS_TABS = [
   // itself — it used to say `products`, which was true until printing labels
   // became a module a shop can decline, and would have left a settings tab for
   // a screen the shop can no longer open.
-  { key: "barcode", label: "Barcodes", needs: ["labels"] },
+  //
+  // …OR the till. "Scale barcodes" lives on this tab and is a setting of the
+  // counter scanner, not of label printing; behind `labels` alone, five trades
+  // that weigh at the till were told by the product editor to "enable scale
+  // barcodes in Settings" on a tab they could not see. `needs` is ANY-of.
+  { key: "barcode", label: "Barcodes", needs: ["labels", "pos"] },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["key"];
@@ -80,7 +85,9 @@ export function settingsTabsFor(features: Record<string, boolean> | undefined) {
 export const POS_SUBTABS = [
   { key: "till", label: "Counter" },
   { key: "registers", label: "Lanes & PINs" },
-  { key: "selling", label: "Quotes & advances" },
+  // Its own module. Shown to every till, four trades were offered two
+  // switches — both ON by default — for a feature they do not have.
+  { key: "selling", label: "Quotes & advances", needs: "documents" },
   // THE KITCHEN, NOT THE FLOOR. This asked for `dine_in` until the pass became
   // a module of its own — which is the whole point of the split: a takeaway
   // café has a kitchen and no tables. Gated on the floor, such a shop was given

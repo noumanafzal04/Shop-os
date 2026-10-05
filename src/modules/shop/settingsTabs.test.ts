@@ -89,8 +89,13 @@ describe("the rules hold for every module combination", () => {
                 expect(tabs, where).not.toContain(t);
               }
             }
-            if (!labels) {
+            // Barcodes holds the LABEL settings and the till's scale-barcode
+            // setting, so either module opens it — and neither does not.
+            if (!labels && !pos) {
               expect(tabs, where).not.toContain("barcode");
+            }
+            if (pos || labels) {
+              expect(tabs, where).toContain("barcode");
             }
           }
         }
@@ -124,9 +129,16 @@ describe("the till's kitchen settings follow the kitchen, not the floor", () => 
     expect(subKeys({ pos: true, inventory: true })).not.toContain("kitchen");
   });
 
-  it("leaves the three universal ones alone", () => {
+  it("leaves the two universal ones alone", () => {
     // If the filter ever ate everything, every assertion above about a missing
     // tab would pass for the wrong reason.
-    expect(subKeys({})).toEqual(["till", "registers", "selling"]);
+    expect(subKeys({})).toEqual(["till", "registers"]);
+  });
+
+  it("Quotes & advances follows its own module", () => {
+    // Shown to every till, four trades were offered two switches — both ON by
+    // default — for a feature they do not have.
+    expect(subKeys({ pos: true })).not.toContain("selling");
+    expect(subKeys({ pos: true, documents: true })).toContain("selling");
   });
 });

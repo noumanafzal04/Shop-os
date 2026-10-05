@@ -109,6 +109,14 @@ export function shopNav(
   // up with a Dine-in link.
   const has = (key: string) => features?.[key] ?? false;
 
+  // Transfers move STOCK between branches, and the screen and its API are the
+  // Inventory module's. The entry followed the plan alone, so a two-branch
+  // restaurant or online shop that counts nothing was offered a link that
+  // dropped it on the dashboard.
+  if (!has("inventory")) {
+    branchItem.subItems = branchItem.subItems?.filter((s) => s.path !== "/tenant/transfers");
+  }
+
   // A books-only tenant (Finance Manager) sells nothing and has no till, so it
   // must not see a Sales ledger or a Catalog it can never fill. Derive both
   // from capability, not business type — a shop that later buys the POS module

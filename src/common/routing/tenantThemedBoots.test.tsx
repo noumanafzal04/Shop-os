@@ -32,6 +32,9 @@ vi.mock("virtual:pwa-register/react", () => ({
 // Theming pulls the shop's settings over the network; irrelevant here.
 vi.mock("../../modules/shop/hooks/useShop", () => ({ useTenantTheme: () => {} }));
 vi.mock("../../components/theme/ThemeCustomizer", () => ({ default: () => null }));
+// Who-am-I is asked on every shop screen now; it needs a query client and a
+// server, and neither is what this file is about.
+vi.mock("../../modules/auth/hooks/useAuth", () => ({ useMe: () => undefined }));
 
 const envelope = <T,>(data: T) => ({ success: true, message: "", data, errors: {}, meta: {} });
 

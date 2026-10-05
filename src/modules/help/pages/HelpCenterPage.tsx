@@ -9,7 +9,7 @@ import {
   articlesFor,
   searchArticles,
   type HelpBlock,
-} from "../content";
+ canOpenScreen } from "../content";
 import { PRODUCT } from "../../../common/brand";
 
 /** A heading's anchor id — stable, so a deep link survives a reload. */
@@ -307,7 +307,7 @@ export default function HelpCenterPage() {
 
             {/* Only offered when the reader can actually open it — the same
                 check that decided they may read this article at all. */}
-            {article.screen && (
+            {article.screen && canOpenScreen(article, features) && (
               <Link
                 to={article.screen}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-theme-sm font-semibold text-white transition-colors hover:bg-brand-600"

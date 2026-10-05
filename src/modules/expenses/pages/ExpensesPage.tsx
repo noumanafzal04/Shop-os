@@ -229,7 +229,10 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   const canSeeSuppliers = useAuthStore((s) =>
     ["suppliers.manage", "purchases.manage", "inventory.manage"].some((p) => s.hasPermission(p)),
   );
-  const stocksGoods = !!useAuthStore((s) => s.user?.tenant?.features?.inventory);
+  // `purchasing`, which owns /suppliers — not `inventory`, which it left. A
+  // shop that counts stock without buying through the system got a refused
+  // request on every load of this screen.
+  const stocksGoods = !!useAuthStore((s) => s.user?.tenant?.features?.purchasing);
   const suppliersOffered = stocksGoods && canSeeSuppliers;
   const suppliers = useSuppliers({ is_active: true }, { enabled: suppliersOffered });
   const supplierOptions = suppliersOffered

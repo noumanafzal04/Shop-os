@@ -39,6 +39,7 @@ export default function InventoryPage() {
   const debounced = useDebouncedValue(search, 350);
   const navigate = useNavigate();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  const buysThroughSystem = !!useAuthStore((s) => s.user?.tenant?.features?.purchasing);
 
   /**
    * The reorder view. Driven by the URL so the dashboard can send the
@@ -355,7 +356,9 @@ export default function InventoryPage() {
           </Button>
 
           {/* Only offered to whoever can actually raise the order. */}
-          {reorderOnly && lowRows.length > 0 && hasPermission("purchases.manage") && (
+          {/* …and only in a shop that HAS purchase orders: the button posts
+              to the Purchasing module, which Inventory no longer implies. */}
+          {reorderOnly && lowRows.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
             <Button size="sm" variant="outline" onClick={orderTheseItems}>
               Order these {lowRows.length} item{lowRows.length > 1 ? "s" : ""}
             </Button>

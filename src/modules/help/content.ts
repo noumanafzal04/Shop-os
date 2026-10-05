@@ -40,6 +40,15 @@ export interface HelpArticle {
   permission?: string;
   /** Where the screen actually is, so the article can offer to open it. */
   screen?: string;
+  /**
+   * Modules the SCREEN needs, when that is more than the article does.
+   *
+   * "Your online shop" is for every shop that sells online; the Portfolio it
+   * links to is a services screen. Without this the button was offered to a
+   * mart and a restaurant and sent them to their dashboard. ALL of these must
+   * be on for the button to be drawn; the article itself is unaffected.
+   */
+  screenNeeds?: string[];
   /** Words a person might search that aren't in the title. */
   keywords?: string[];
   /**
@@ -1326,6 +1335,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     modules: ["marketplace"],
     permission: "settings.manage",
     screen: "/tenant/portfolio",
+    // The Portfolio is a services screen; the article is for every online shop.
+    screenNeeds: ["services"],
     keywords: ["online", "storefront", "marketplace", "portfolio", "review", "rating", "reply", "listing"],
     body: [
       { type: "h", text: "Getting listed" },
@@ -1476,7 +1487,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "Shelf labels & barcodes",
     summary: "Printing price labels and barcode stickers.",
     group: "Catalog & stock",
-    modules: ["products"],
+    // Its own module since the split; `products` offered it to five trades
+    // whose label screen redirects.
+    modules: ["labels"],
     permission: "products.manage",
     screen: "/tenant/labels",
     keywords: ["label", "barcode", "sticker", "print", "shelf", "price tag"],
@@ -1629,7 +1642,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: "Printing price labels and barcode stickers.",
     group: "Catalog & stock",
     parent: "products",
-    modules: ["products"],
+    // Its own module since the split; `products` offered it to five trades
+    // whose label screen redirects.
+    modules: ["labels"],
     permission: "products.manage",
     screen: "/tenant/labels",
     keywords: ["label", "sticker", "price tag", "print barcode"],
@@ -1694,6 +1709,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: "The board of work taken in",
     summary: "Everything in the shop right now, and what stage it is at.",
     group: "Selling",
+    // The board lists and takes in sale documents — the Quotes module.
+    modules: ["documents"],
     permission: "sales.manage",
     screen: "/tenant/workshop",
     keywords: ["workshop", "job card", "bay", "board", "car", "vehicle", "repair", "mechanic", "ready", "laundry", "tailor", "job"],
@@ -1802,7 +1819,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: "A sale without the till — for an invoice or a phone order.",
     group: "Selling",
     parent: "sales",
-    modules: ["pos", "marketplace"],
+    // `pos` alone: the form posts to a route only the till module opens.
+    modules: ["pos"],
     permission: "sales.manage",
     screen: "/tenant/sales/new",
     keywords: ["manual sale", "invoice", "new sale", "phone order", "credit sale"],
@@ -2268,4 +2286,11 @@ export function searchArticles(articles: HelpArticle[], query: string): HelpArti
   return articles.filter((a) =>
     [a.title, a.summary, ...(a.keywords ?? [])].some((s) => s.toLowerCase().includes(q)),
   );
+}
+
+/** May this shop open the screen the article points at? */
+export function canOpenScreen(article: HelpArticle, features: Record<string, boolean> | undefined): boolean {
+  if (!article.screen) return false;
+
+  return (article.screenNeeds ?? []).every((m) => features?.[m]);
 }

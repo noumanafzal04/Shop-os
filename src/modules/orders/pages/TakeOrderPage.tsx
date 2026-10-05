@@ -1,3 +1,4 @@
+import { useAuthStore } from "../../../stores/authStore";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -73,7 +74,10 @@ export default function TakeOrderPage() {
   const [channel, setChannel] = useState("phone");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
+  // Delivery is a module. A shop without it was started on Delivery and
+  // refused at save — "this shop does not offer delivery".
+  const delivers = !!useAuthStore((st) => st.user?.tenant?.features?.delivery);
+  const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">(delivers ? "delivery" : "pickup");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -391,7 +395,7 @@ export default function TakeOrderPage() {
             <div>
               <Label>Fulfilment</Label>
               <div className="flex gap-1.5">
-                {(["delivery", "pickup"] as const).map((f) => (
+                {(["delivery", "pickup"] as const).filter((f) => f !== "delivery" || delivers).map((f) => (
                   <button
                     key={f}
                     type="button"

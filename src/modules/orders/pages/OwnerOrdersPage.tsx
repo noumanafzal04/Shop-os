@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuthStore } from "../../../stores/authStore";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
@@ -104,7 +105,9 @@ export default function OwnerOrdersPage() {
     page,
   });
   const { advance, cancel, assignRider } = useOrderActions();
-  const riders = useRiders();
+  // /riders needs `delivery`. A pickup-only online shop asked on every load.
+  const deliversOrders = !!useAuthStore((s) => s.user?.tenant?.features?.delivery);
+  const riders = useRiders(deliversOrders);
   const activeRiders = (riders.data ?? []).filter((r) => r.is_active);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);

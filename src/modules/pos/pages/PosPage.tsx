@@ -1699,7 +1699,10 @@ export default function PosPage() {
       // At a chemist an out-of-stock brand is rarely the end of the sale: the
       // customer needs the SALT, and something else on the shelf usually has
       // it. Offer that instead of just refusing.
-      if (isPharmacy) {
+      // The equivalents lookup is the Inventory module's (it reads stock by
+      // salt). A chemist without it gets the plain message, not a sheet that
+      // is refused the moment it opens.
+      if (isPharmacy && has("inventory")) {
         setSubstituteFor(p.id);
         setPosNotice(`${p.name} is out of stock — checking for an equivalent`);
       } else {

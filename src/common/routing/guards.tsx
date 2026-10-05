@@ -7,6 +7,7 @@ import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
 import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
+import { useMe } from "../../modules/auth/hooks/useAuth";
 import type { UserRole } from "../../modules/auth/types";
 import { canVisitAdmin } from "./adminScreenPermissions";
 import { canBeAt } from "./screenPermissions";
@@ -201,6 +202,14 @@ export function TenantThemed() {
   // bootstrap and its catalog are all `pos` routes, so an online-only shop
   // and a books-only one fired three refused requests on every screen —
   // again on reconnect, on tab focus and every fifteen minutes.
+  // WHO AM I, AND WHAT DOES MY SHOP HAVE — asked on every shop screen.
+  //
+  // `useMe()` lived only in AppLayout, the shell with the sidebar. The till,
+  // the floor, a tab and the kitchen board render OUTSIDE that shell, and the
+  // installed app opens straight on the till — so a counter machine kept the
+  // module map from its last sign-in for as long as nobody visited another
+  // screen. Every "does this shop have X" check on the till read that copy.
+  useMe();
   const hasTill = useAuthStore((st) => st.user?.tenant?.features?.pos ?? false);
   useOfflineBoot(hasTill);
   // …and keeps it current afterwards: on reconnect, on a slow heartbeat, and

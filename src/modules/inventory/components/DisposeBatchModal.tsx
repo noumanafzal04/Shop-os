@@ -1,3 +1,4 @@
+import { useAuthStore } from "../../../stores/authStore";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -60,6 +61,10 @@ export function DisposeBatchModal({ batch, productName, busy, onClose, onConfirm
   const [credit, setCredit] = useState("");
   const [notes, setNotes] = useState("");
 
+  // "Sent back to the supplier" names a SUPPLIER, and suppliers are the
+  // Purchasing module's. Without it the list was empty and the choice could
+  // never be completed — so it is not offered.
+  const buysThroughSystem = !!useAuthStore((s) => s.user?.tenant?.features?.purchasing);
   const returning = disposition === "returned_to_supplier";
 
   // Only fetched when it can be needed — a shop binning stock has no reason to
@@ -88,7 +93,7 @@ export function DisposeBatchModal({ batch, productName, busy, onClose, onConfirm
           {([
             ["written_off", "Written off", "Binned. A loss."],
             ["returned_to_supplier", "Sent back", "A claim to chase."],
-          ] as const).map(([key, label, hint]) => (
+          ] as const).filter(([key]) => key !== "returned_to_supplier" || buysThroughSystem).map(([key, label, hint]) => (
             <button
               key={key}
               type="button"
