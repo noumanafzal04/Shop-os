@@ -330,7 +330,7 @@ export default function CustomersPage() {
               {Number(d.credit_balance ?? 0) > 0 && (
                 <div className="mt-3 flex items-end gap-2">
                   <div className="flex-1"><Input type="number" min="0" placeholder="Payment amount" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} /></div>
-                  <select value={payMethod} onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
+                  <select aria-label="Paid by" value={payMethod} onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
                     className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>

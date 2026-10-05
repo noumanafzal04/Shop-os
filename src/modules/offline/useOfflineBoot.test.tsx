@@ -7,6 +7,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { resetDbCache } from "./db/open";
 import { deviceService } from "./device/deviceService";
 import { useOfflineStore } from "./offlineStore";
+import { useAuthStore } from "../../stores/authStore";
 import { useOfflineBoot } from "./useOfflineBoot";
 import type { StorageHealth } from "./storage/persist";
 
@@ -63,6 +64,9 @@ beforeEach(() => {
   resetDbCache();
   localStorage.clear();
   reset();
+  // The OWNER, who may read the device roster. A cashier is never asked on
+  // their behalf — see "a cashier's boot" below.
+  useAuthStore.setState({ user: { role: "shop_owner", permissions: [], tenant: { features: { pos: true } } } } as never);
 
   vi.spyOn(deviceService, "register").mockResolvedValue(envelope(okDevice));
   vi.spyOn(deviceService, "list").mockResolvedValue(envelope({ devices: [], offline_days: 3 }));
@@ -229,5 +233,35 @@ describe("the order the steps run in", () => {
 
     await waitFor(() => expect(useOfflineStore.getState().registered).toBe(true));
     expect(order).toEqual(["storage", "register"]);
+  });
+});
+
+describe("a cashier's boot", () => {
+  /**
+   * The roster needs `settings.manage`. It used to be asked for everybody and
+   * the refusal swallowed — a 403 on every screen a cashier opened. Found by
+   * the first browser test that walked the shop as somebody other than its
+   * owner. The cashier loses nothing: they never learned the number anyway.
+   */
+  it("does not ask for a roster the cashier may not read", async () => {
+    useAuthStore.setState({ user: { role: "tenant_staff", permissions: ["sales.manage"], tenant: { features: { pos: true } } } } as never);
+    const list = vi.spyOn(deviceService, "list");
+    list.mockClear();
+
+    renderHook(() => useOfflineBoot(true));
+
+    // The rest of the boot still runs — the device is still announced.
+    await waitFor(() => expect(deviceService.register).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 150));
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("asks when the person may", async () => {
+    const list = vi.spyOn(deviceService, "list");
+    list.mockClear();
+
+    renderHook(() => useOfflineBoot(true));
+
+    await waitFor(() => expect(list).toHaveBeenCalled());
   });
 });

@@ -45,6 +45,21 @@ describe("the X-read hook", () => {
     expect(hook).toMatch(/const waiting = query\.isFetching;/);
   });
 
+  it("does not ask about a shift that is closed", () => {
+    /**
+     * Every close ended with one more X-read request, answered 409 "you have
+     * no open shift": the count sheet is still up for an instant after the
+     * server says closed, and its report was being refreshed, not dropped.
+     */
+    expect(hook).toMatch(/enabled: enabled && session\.data !== null,/);
+    const closed = HOOKS.slice(HOOKS.indexOf("const closed = () => {"), HOOKS.indexOf("const open = useMutation"));
+    expect(closed).toMatch(/qc\.setQueryData\(\["pos", "session"\], null\);/);
+    expect(closed).toMatch(/qc\.removeQueries\(\{ queryKey: \["pos", "session", "report"\] \}\);/);
+    // …and it is the CLOSE that uses it.
+    const close = HOOKS.slice(HOOKS.indexOf("const close = useMutation"), HOOKS.indexOf("const close = useMutation") + 2200);
+    expect(close).toMatch(/onSuccess: closed,/);
+  });
+
   it("is the one both sheets read, so neither can hold its own copy", () => {
     const sources = import.meta.glob("./components/*.tsx", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
     const readers = Object.entries(sources).filter(([, src]) => /useSessionReport\(/.test(src)).map(([file]) => file.split("/").pop());

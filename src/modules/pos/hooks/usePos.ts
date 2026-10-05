@@ -74,6 +74,30 @@ export function useShiftMutations() {
   };
 
   /**
+   * AFTER A CLOSE, THE X-READ IS NOT STALE — IT NO LONGER EXISTS.
+   *
+   * `invalidate` above marks everything under ["pos","session"] stale, the
+   * X-read included, and a stale query with a sheet still showing is fetched
+   * again. The count sheet IS still showing for the instant between the
+   * server saying "closed" and the sheet going away — so every shift ended
+   * with one more request for a drawer report, answered 409 "you have no open
+   * shift". Nothing was drawn wrong; the shop's server log simply got a
+   * refusal for every close of every till, every day. Found by the first
+   * test that closed a shift while listening for refusals.
+   *
+   * So the readers are told there is no shift BEFORE anything refetches
+   * (`useSessionReport` will not ask without one), and the old report is
+   * dropped rather than refreshed.
+   */
+  const closed = () => {
+    qc.setQueryData(["pos", "session"], null);
+    qc.removeQueries({ queryKey: ["pos", "session", "report"] });
+    qc.invalidateQueries({ queryKey: ["pos", "session"], exact: true });
+    qc.invalidateQueries({ queryKey: ["pos", "lanes"] });
+    qc.invalidateQueries({ queryKey: ["pos", "terminal"] });
+  };
+
+  /**
    * Opening a shift, with or without a server.
    *
    * The offline path is not a convenience. A shop whose line is already down
@@ -146,7 +170,7 @@ export function useShiftMutations() {
         throw error;
       }
     },
-    onSuccess: invalidate,
+    onSuccess: closed,
   });
   return { open, move, close };
 }
@@ -199,10 +223,15 @@ export function useCoverMutations() {
  * loading, and can only ever draw what the server has just said.
  */
 export function useSessionReport(enabled: boolean) {
+  // Is there a shift to report on? Read off the session the till already
+  // keeps — watched, never fetched from here. `null` is "none"; `undefined` is
+  // "not known yet", and a sheet opened that early may still ask.
+  const session = useQuery<SessionState>({ queryKey: ["pos", "session"], enabled: false });
+
   const query = useQuery({
     queryKey: ["pos", "session", "report"],
     queryFn: async () => (await posService.sessionReport()).data,
-    enabled,
+    enabled: enabled && session.data !== null,
     staleTime: 0,
     gcTime: 0,
   });

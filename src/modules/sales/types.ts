@@ -120,7 +120,12 @@ export interface SaleReturnItem {
   sale_item_id: string | null;
   product_name: string;
   variant_name: string | null;
-  quantity: number;
+  /**
+   * A decimal STRING on the wire ("1.000"), like every quantity the server
+   * sends. This said `number`, which is what let `sum + item.quantity`
+   * compile — and concatenate. Convert before doing arithmetic.
+   */
+  quantity: number | string;
   unit_price: string;
   line_total: string;
 }

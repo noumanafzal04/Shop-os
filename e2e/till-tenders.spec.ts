@@ -169,7 +169,9 @@ test("a parked ticket comes back knowing what it will be taxed at", async ({ pag
 
   const before = rupees(await page.locator("text=Grand Total").locator("..").innerText());
 
-  await page.getByTitle(/Hold this ticket/).click();
+  // By its NAME, not its tooltip: the tooltip now names the keys ("Hold · F4
+  // or Alt+H"), and a test hanging off a title broke the day it was reworded.
+  await page.getByRole("button", { name: /^Hold\b/ }).click();
   const label = "E2E tax ticket";
   await page.getByPlaceholder(/Customer name, or/).fill(label);
   await page.getByRole("button", { name: "Hold ticket" }).click();

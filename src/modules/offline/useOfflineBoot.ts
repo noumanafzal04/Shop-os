@@ -1,3 +1,4 @@
+import { useAuthStore } from "../../stores/authStore";
 import { useEffect, useRef } from "react";
 
 import { ApiError } from "../../common/types/api";
@@ -146,10 +147,20 @@ export function useOfflineBoot(enabled: boolean): void {
       // The shop's ceiling is a separate call because it needs a permission the
       // cashier may not hold. A cashier simply never learns the number, which
       // is fine — nothing they can do depends on it until Phase 3.
-      try {
-        const { data } = await deviceService.list();
-        setPolicy(data.offline_days);
-      } catch {
+      //
+      // …so it is not ASKED on their behalf. It used to be asked for everybody
+      // and the refusal thrown away, which is a 403 on every screen a cashier
+      // opens: harmless to the cashier, and a wall of refused requests to
+      // whoever reads the server's log looking for a real one. Found by the
+      // first test that walked the shop as somebody other than its owner.
+      if (useAuthStore.getState().hasPermission("settings.manage")) {
+        try {
+          const { data } = await deviceService.list();
+          setPolicy(data.offline_days);
+        } catch {
+          setPolicy(null);
+        }
+      } else {
         setPolicy(null);
       }
 

@@ -81,6 +81,18 @@ const SALE_PAYMENTS = [
   { value: "other", label: "Other" },
 ];
 
+/**
+ * A status as a person reads it: "partially_refunded" is a database value.
+ *
+ * It was printed as it is stored — on the ledger, and on a sale's own sheet,
+ * where it was also long enough to run under the close button.
+ */
+const statusLabel = (status: string): string => {
+  const words = status.replace(/_/g, " ");
+
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
 const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info"> = {
   completed: "success",
   partially_refunded: "warning",
@@ -222,12 +234,19 @@ export default function SalesPage() {
   };
 
   // Units still returnable per sale item = sold - already returned.
-  const remainingToReturn = (saleItemId: string, soldQty: number) => {
+  //
+  // AS NUMBERS. The server sends a quantity as a decimal STRING ("1.000"),
+  // whatever the type says, and `0 + "1.000"` is the text "01.000". One return
+  // still came out right, because subtracting coerces it back. A SECOND
+  // return of the same line made "01.0001.000", which is not a number: the
+  // sheet read "NaN returnable" and the box would not take a quantity — so a
+  // customer bringing back the second of two items could not be refunded.
+  const remainingToReturn = (saleItemId: string, soldQty: number | string) => {
     const returned = (detail.data?.returns ?? [])
       .flatMap((r) => r.items ?? [])
       .filter((ri) => ri.sale_item_id === saleItemId)
-      .reduce((s, ri) => s + ri.quantity, 0);
-    return soldQty - returned;
+      .reduce((s, ri) => s + Number(ri.quantity), 0);
+    return Number(soldQty) - returned;
   };
 
   const doReturn = () => {
@@ -468,12 +487,16 @@ export default function SalesPage() {
                     {multiBranch && (
                       <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{s.branch?.name ?? "—"}</td>
                     )}
-                    <td className="px-6 py-4">{s.customer_name ?? "Walk-in"}</td>
+                    {/* A sale found by phone used to store no name and read
+                        "Walk-in" here — beside a credit sale a named trader
+                        owed. The server names it now; the phone is the answer
+                        for an older sale, or a first-time number. */}
+                    <td className="px-6 py-4">{s.customer_name || s.customer_phone || "Walk-in"}</td>
                     <td className="px-6 py-4">{s.items_count}</td>
                     <td className="px-6 py-4">{money(s.total)}</td>
                     <td className="px-6 py-4">
                       <Badge size="sm" color={STATUS_COLOR[s.status]}>
-                        {s.status}
+                        {statusLabel(s.status)}
                       </Badge>
                     </td>
                   </tr>
@@ -498,7 +521,7 @@ export default function SalesPage() {
           <div className="h-40 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
         ) : (
           <>
-            <div className="mb-4 flex items-start justify-between">
+            <div className="mb-4 flex items-start justify-between gap-3 pr-10">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
                   {detail.data.invoice_number}
@@ -514,7 +537,7 @@ export default function SalesPage() {
                 </p>
               </div>
               <Badge color={STATUS_COLOR[detail.data.status]}>
-                {detail.data.status}
+                {statusLabel(detail.data.status)}
               </Badge>
             </div>
 
@@ -534,7 +557,9 @@ export default function SalesPage() {
                         {item.variant_name && <span className="text-gray-400"> ({item.variant_name})</span>}
                       </td>
                       <td className="px-4 py-2 text-right">
-                        {item.quantity} × {money(item.unit_price)}
+                        {/* As a NUMBER: the server sends "2.000", and a shop
+                            reads that as two thousand. 2.5 kg stays 2.5. */}
+                        {Number(item.quantity)} × {money(item.unit_price)}
                       </td>
                       <td className="px-4 py-2 text-right font-medium">{money(item.line_total)}</td>
                     </tr>
@@ -546,6 +571,10 @@ export default function SalesPage() {
             <div className="mb-6 space-y-1 text-right text-theme-sm text-gray-700 dark:text-gray-300">
               <div>Subtotal: {money(detail.data.subtotal)}</div>
               {Number(detail.data.discount) > 0 && <div>Discount: -{money(detail.data.discount)}</div>}
+              {/* THE TAX, said. This went Subtotal 3,900 → Total 4,095 with
+                  nothing between them, so the sheet a shop opens to answer
+                  "why is this more than the price?" could not answer it. */}
+              {Number(detail.data.tax) > 0 && <div>Tax: {money(detail.data.tax ?? 0)}</div>}
               <div className="text-base font-bold text-gray-800 dark:text-white/90">
                 Total: {money(detail.data.total)}
               </div>
@@ -561,7 +590,7 @@ export default function SalesPage() {
                 <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">Refunds</p>
                 {(detail.data.returns ?? []).map((r) => (
                   <div key={r.id} className="flex justify-between text-theme-sm text-gray-600 dark:text-gray-300">
-                    <span>{r.return_number} · {(r.items ?? []).reduce((s, i) => s + i.quantity, 0)} item(s){r.reason ? ` · ${r.reason}` : ""}</span>
+                    <span>{r.return_number} · {(r.items ?? []).reduce((s, i) => s + Number(i.quantity), 0)} item(s){r.reason ? ` · ${r.reason}` : ""}</span>
                     <span className="font-medium text-error-500">-{money(r.refund_total)}</span>
                   </div>
                 ))}
@@ -642,6 +671,7 @@ export default function SalesPage() {
                           <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
                         </span>
                         <Input
+                          aria-label={`How many ${item.product_name} to return`}
                           type="number" min="0" max={String(max)}
                           value={String(returnQty[item.id] ?? 0)}
                           onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))}

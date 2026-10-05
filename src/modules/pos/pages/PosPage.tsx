@@ -763,6 +763,8 @@ export default function PosPage() {
    * Null for nobody, for a walk-in, and while the lookup is still out.
    */
   const [customerGroup, setCustomerGroup] = useState<(BillGroup & { name: string }) | null>(null);
+  /** The name the phone lookup last put in the customer box, so it can be replaced by the next one. */
+  const namedByLookup = useRef("");
   const [redeemPts, setRedeemPts] = useState("");
   // Promotions: the best auto-promo for the current cart (server preview).
   const [promo, setPromo] = useState<PromoPreview | null>(null);
@@ -1102,13 +1104,31 @@ export default function PosPage() {
   useEffect(() => {
     const phone = customerPhone.trim();
     // Customers & Khata is a module. Without it there is no record to find.
-    if (phone.length < 7 || !hasKhata) { setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null); return; }
+    if (phone.length < 7 || !hasKhata) {
+      setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null);
+      // The number is gone, so the name it brought goes with it.
+      setCustomer((typed) => (typed !== "" && typed === namedByLookup.current ? "" : typed));
+      namedByLookup.current = "";
+      return;
+    }
     let alive = true;
     apiGet<CustomerAtTill | null>("/customers-lookup", { params: { phone } })
       .then(({ data }) => {
         if (!alive) return;
         setCustomerPoints(loyaltyOn ? data?.loyalty_points ?? 0 : null);
         setCustomerGroup(groupAtTill(data?.group));
+        // WHO THIS IS. The cashier types a phone; the shop already knows the
+        // name. It was never shown, so the chip read "0300…" and the sale went
+        // out with no name on it. Filled in when the box is empty or still
+        // holds the LAST customer this lookup named — never over a name
+        // somebody typed.
+        const known = data?.name && data.name !== "Customer" ? data.name : "";
+        setCustomer((typed) => {
+          const next = typed.trim() === "" || typed === namedByLookup.current ? known : typed;
+          namedByLookup.current = known;
+
+          return next;
+        });
       })
       // Offline, from the till's own copy — matched exactly as the sale will
       // match it, or the sale it queues is priced at a level sync will not.
