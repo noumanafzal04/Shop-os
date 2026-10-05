@@ -65,7 +65,7 @@ class StaffController extends Controller
             ->when($request->query('permission'), fn ($q, $key) => $q->whereJsonContains('permissions', $key))
             ->when($request->query('job'), fn ($q, $job) => $q->whereIn('id', $this->doingTheJob($job)))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated(UserResource::collection($staff));
     }

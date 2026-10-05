@@ -32,7 +32,7 @@ class ForecourtShiftController extends Controller
             ->when($request->filled('from'), fn ($q) => $q->whereDate('opened_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('opened_at', '<=', $request->date('to')))
             ->orderByDesc('opened_at')
-            ->paginate(20);
+            ->stably()->paginate(20);
 
         return ApiResponse::paginated($shifts);
     }

@@ -28,7 +28,7 @@ class CustomerController extends Controller
                 $q->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%");
             }))
             ->orderByDesc('last_seen_at')
-            ->paginate(min((int) $request->query('per_page', 20), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100));
 
         return ApiResponse::paginated($customers);
     }

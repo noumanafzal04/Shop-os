@@ -24,7 +24,7 @@ class ReviewController extends Controller
             ->where('is_published', true)
             ->with('customer:id,name')
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 10), 50))
+            ->stably()->paginate(min((int) $request->query('per_page', 10), 50))
             ->through(fn (Review $r) => [
                 'id' => $r->id,
                 'rating' => $r->rating,

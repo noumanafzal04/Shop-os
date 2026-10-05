@@ -23,7 +23,7 @@ class CustomerOrderController extends Controller
             ->where('customer_id', $request->user()->id)
             ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->orderByDesc('placed_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
 
         return ApiResponse::paginated($orders);

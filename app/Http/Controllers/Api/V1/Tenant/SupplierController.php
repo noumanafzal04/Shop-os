@@ -23,7 +23,7 @@ class SupplierController extends Controller
             }))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             ->orderBy('name')
-            ->paginate(min((int) $request->query('per_page', 20), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100));
 
         return ApiResponse::paginated($suppliers);
     }

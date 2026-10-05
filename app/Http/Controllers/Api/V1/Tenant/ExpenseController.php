@@ -39,7 +39,7 @@ class ExpenseController extends Controller
         // is the difference between a book and a list.
         $totals = MoneyEntryFilters::totals($query);
 
-        $expenses = $query->paginate(min((int) $request->query('per_page', 15), 100));
+        $expenses = $query->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated($expenses, 'OK', array_filter([
             'totals' => $totals,

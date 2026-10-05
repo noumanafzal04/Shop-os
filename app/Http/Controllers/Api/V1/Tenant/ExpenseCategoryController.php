@@ -42,7 +42,7 @@ class ExpenseCategoryController extends Controller
         // does. `per_page` is what a management screen sends once it grows past
         // one screenful.
         if ($request->filled('per_page')) {
-            $page = $query->paginate(min((int) $request->query('per_page'), 100));
+            $page = $query->stably()->paginate(min((int) $request->query('per_page'), 100));
             $page->setCollection($this->withTotals($page->getCollection()));
 
             return ApiResponse::paginated($page);

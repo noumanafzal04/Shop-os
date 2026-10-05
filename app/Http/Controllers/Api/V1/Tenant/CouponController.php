@@ -31,7 +31,7 @@ class CouponController extends Controller
             Coupon::query()
                 ->when($request->query('search'), fn ($q, $s) => $q->where('code', 'like', '%'.$s.'%'))
                 ->orderByDesc('created_at')
-                ->paginate(min((int) $request->query('per_page', 30), 100)),
+                ->stably()->paginate(min((int) $request->query('per_page', 30), 100)),
         );
     }
 

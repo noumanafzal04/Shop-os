@@ -31,7 +31,7 @@ class SaleController extends Controller
     {
         $sales = $this->filtered($request, $branch)
             ->orderByDesc('sold_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         // What the plan keeps online, said on every read and not only on the
         // one that hits the wall. A shopkeeper who scrolls to the bottom of

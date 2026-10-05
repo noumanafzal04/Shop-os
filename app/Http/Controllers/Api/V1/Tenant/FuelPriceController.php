@@ -19,7 +19,7 @@ class FuelPriceController extends Controller
             ->with(['product:id,name', 'changedBy:id,name'])
             ->when($request->filled('product_id'), fn ($q) => $q->where('product_id', $request->string('product_id')))
             ->orderByDesc('effective_at')
-            ->paginate(30);
+            ->stably()->paginate(30);
 
         return ApiResponse::paginated($changes);
     }

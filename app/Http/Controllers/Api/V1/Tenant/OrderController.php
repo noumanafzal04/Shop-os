@@ -88,7 +88,7 @@ class OrderController extends Controller
         $orders = $scoped()
             ->with('items', 'rider', 'branch')
             ->orderByDesc('placed_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated($orders, meta: [
             'status_counts' => $this->stageCounts($scoped('status')),

@@ -35,7 +35,7 @@ class StockCountController extends Controller
             ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->when($request->query('status'), fn ($q, $s) => $q->where('status', $s))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 25), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 25), 100));
 
         return ApiResponse::paginated($counts);
     }

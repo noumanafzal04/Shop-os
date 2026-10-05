@@ -79,7 +79,7 @@ class SaleDocumentController extends Controller
         }
 
         $documents = $query->orderByDesc('created_at')
-            ->paginate($filters['per_page'] ?? 25);
+            ->stably()->paginate($filters['per_page'] ?? 25);
 
         return ApiResponse::paginated($documents);
     }

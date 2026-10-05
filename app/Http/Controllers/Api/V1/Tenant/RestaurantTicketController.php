@@ -55,7 +55,7 @@ class RestaurantTicketController extends Controller
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->with(['table', 'items', 'waiter:id,name'])
             ->orderByDesc('opened_at')
-            ->paginate((int) $request->input('per_page', 30));
+            ->stably()->paginate((int) $request->input('per_page', 30));
 
         return ApiResponse::paginated($tickets);
     }

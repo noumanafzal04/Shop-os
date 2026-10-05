@@ -22,7 +22,7 @@ class TenantReviewController extends Controller
             ->with('customer:id,name')
             ->when($request->query('rating'), fn ($q, $rating) => $q->where('rating', $rating))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated($reviews, 'OK');
     }

@@ -40,7 +40,7 @@ class EnquiryController extends Controller
             ->when(in_array($status, Enquiry::STATUSES, true), fn ($q) => $q->where('status', $status))
             ->when(in_array($kind, Enquiry::KINDS, true), fn ($q) => $q->where('kind', $kind))
             ->orderBy('created_at')
-            ->paginate(25);
+            ->stably()->paginate(25);
 
         return ApiResponse::paginated($rows);
     }

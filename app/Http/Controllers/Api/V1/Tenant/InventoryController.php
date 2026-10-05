@@ -63,7 +63,7 @@ class InventoryController extends Controller
             ->when($request->query('product_id'), fn ($q, $id) => $q->where('product_id', $id))
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 20), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100));
 
         return ApiResponse::paginated($movements);
     }
@@ -122,6 +122,10 @@ class InventoryController extends Controller
         $products = $query
             ->with(['category:id,name', 'variants'])
             ->orderBy('stock_quantity')
+            // Three hundred things at nought is ordinary in a new shop, and a
+            // cap that cuts through a tie keeps a different two hundred on
+            // every refresh. The key settles which.
+            ->orderBy('products.id')
             ->limit(self::REORDER_LINES)
             ->get();
 

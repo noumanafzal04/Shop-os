@@ -7,6 +7,8 @@ use App\Support\RegisterContext;
 use App\Support\TaxGroupRates;
 use App\Support\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +38,67 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->pagesHoldStill();
+    }
+
+    /**
+     * A PAGED LIST HAS ONE ORDER, AND IT IS THE SAME ON EVERY PAGE.
+     *
+     * Almost every list here is sorted by a date — `created_at`, `sold_at`,
+     * `placed_at` — and a date is not unique. When two rows share one, the
+     * database may hand them back in either order, and it may choose
+     * DIFFERENTLY for page two than it did for page one. A row on the boundary
+     * is then shown twice, or not at all.
+     *
+     * It needs many rows with the same timestamp to show, which is exactly
+     * what a bulk action makes: 2,000 products imported from one CSV arrive in
+     * the same second. Paged through, 1,989 of them could be reached. Eleven
+     * were on no page. A day of offline sales synced at once, or a seeded
+     * catalogue, does the same to every other list.
+     *
+     * `->stably()` goes immediately before `->stably()->paginate()` and adds the row's
+     * own key as the LAST word on order, so ties are broken the same way every
+     * time. It changes nothing a person asked for: the date still sorts first.
+     *
+     * Skipped for a grouped or DISTINCT query, where there is no single row's
+     * key to order by, and when the key is already in the order.
+     * `PagesHoldStillTest` fails if a list is paged without it.
+     */
+    private function pagesHoldStill(): void
+    {
+        EloquentBuilder::macro('stably', function () {
+            /** @var EloquentBuilder $this */
+            $base = $this->getQuery();
+            if (! empty($base->groups) || $base->distinct) {
+                return $this;
+            }
+
+            $model = $this->getModel();
+            $key = $model->getQualifiedKeyName();
+            foreach ($base->orders ?? [] as $order) {
+                if (in_array($order['column'] ?? null, [$key, $model->getKeyName()], true)) {
+                    return $this;
+                }
+            }
+
+            return $this->orderBy($key);
+        });
+
+        /*
+         * The same promise for a query with no model behind it — the ledger is
+         * five tables in a union. There is no key to look up, so the caller
+         * names the column that is unique, and has to.
+         */
+        QueryBuilder::macro('stably', function (string $column) {
+            /** @var QueryBuilder $this */
+            foreach ($this->orders ?? [] as $order) {
+                if (($order['column'] ?? null) === $column) {
+                    return $this;
+                }
+            }
+
+            return $this->orderBy($column);
+        });
     }
 
     private function configureRateLimiting(): void

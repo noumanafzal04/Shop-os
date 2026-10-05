@@ -53,7 +53,7 @@ class BillingController extends Controller
         $payments = $filtered()
             ->with('tenant:id,business_name,slug')
             ->orderByDesc('paid_at')
-            ->paginate(min((int) $request->query('per_page', 20), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100))
             ->through(fn (SubscriptionPayment $p) => [
                 'id' => $p->id,
                 'tenant' => ['id' => $p->tenant?->id, 'business_name' => $p->tenant?->business_name],

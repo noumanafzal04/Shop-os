@@ -67,7 +67,7 @@ class ProductController extends Controller
             // inventory screen answered the same question differently.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         static::stampBranchFigures($products, $products->items(), $branch->id());
 

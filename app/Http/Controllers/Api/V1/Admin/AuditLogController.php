@@ -47,7 +47,7 @@ class AuditLogController extends Controller
         $logs = $filtered()
             ->with('user:id,name,email')
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 25), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 25), 100))
             ->through(fn (AuditLog $log) => [
                 'id' => $log->id,
                 'event' => $log->event,

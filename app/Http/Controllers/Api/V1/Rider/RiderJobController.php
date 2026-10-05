@@ -103,13 +103,13 @@ class RiderJobController extends Controller
         $cards = $profile->cards()->pluck('id')->all();
 
         $orders = $cards === []
-            ? Order::withoutTenancy()->whereRaw('1 = 0')->paginate(20)
+            ? Order::withoutTenancy()->whereRaw('1 = 0')->stably()->paginate(20)
             : Order::withoutTenancy()
                 ->whereIn('rider_id', $cards)
                 ->whereNotNull('delivered_at')
                 ->with(RiderService::JOB_RELATIONS)
                 ->orderByDesc('delivered_at')
-                ->paginate(20);
+                ->stably()->paginate(20);
 
         $orders->through(fn (Order $o) => RiderJobView::job($o, $profile));
 

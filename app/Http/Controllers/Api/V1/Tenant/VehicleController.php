@@ -43,7 +43,7 @@ class VehicleController extends Controller
             ->when($request->query('customer_id'), fn ($q, $id) => $q->where('customer_id', $id))
             ->when(! $request->boolean('with_inactive'), fn ($q) => $q->where('is_active', true))
             ->orderByDesc('updated_at')
-            ->paginate(min((int) $request->query('per_page', 25), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 25), 100));
 
         return ApiResponse::paginated($vehicles);
     }

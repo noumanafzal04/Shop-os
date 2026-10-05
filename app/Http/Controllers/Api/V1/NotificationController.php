@@ -22,7 +22,7 @@ class NotificationController extends Controller
         $notifications = $query
             ->when($request->boolean('unread_only'), fn ($q) => $q->whereNull('read_at'))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 50));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 50));
 
         $response = ApiResponse::paginated($notifications);
         $payload = $response->getData(true);

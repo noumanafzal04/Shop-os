@@ -80,7 +80,7 @@ class LedgerService
             ->orderBy('entry_date')
             ->orderBy('sort_at')
             ->orderBy('id')
-            ->paginate($perPage, ['*'], 'page', $page);
+            ->stably('id')->paginate($perPage, ['*'], 'page', $page);
 
         // Everything on earlier PAGES, so row one of page three continues from
         // where page two ended rather than restarting at the opening balance.

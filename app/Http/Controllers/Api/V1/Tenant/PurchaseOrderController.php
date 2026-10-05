@@ -35,7 +35,7 @@ class PurchaseOrderController extends Controller
             // — see App\Support\Retention on why a balance never is.
             ->tap(fn (Builder $q) => Retention::fence($q, 'purchase_orders.created_at'))
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100));
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated($orders, meta: array_filter([
             'retention' => Retention::notice($request->query('from')),

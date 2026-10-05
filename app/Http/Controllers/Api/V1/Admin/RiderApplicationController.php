@@ -59,7 +59,7 @@ class RiderApplicationController extends Controller
                     ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $term)->orWhere('phone', 'like', $term)));
             })
             ->orderByRaw('applied_at is null, applied_at asc')
-            ->paginate(20);
+            ->stably()->paginate(20);
 
         $riders->through(fn (RiderProfile $p) => $this->serialize($p));
 

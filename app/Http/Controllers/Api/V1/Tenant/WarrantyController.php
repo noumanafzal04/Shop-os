@@ -106,7 +106,7 @@ class WarrantyController extends Controller
             // weeks is the one somebody is waiting on.
             ->orderByRaw('CASE WHEN resolution IS NULL THEN 0 ELSE 1 END')
             ->orderBy('created_at', $status === 'resolved' ? 'desc' : 'asc')
-            ->paginate(min(100, (int) $request->query('per_page', 25)));
+            ->stably()->paginate(min(100, (int) $request->query('per_page', 25)));
 
         return ApiResponse::paginated($claims);
     }

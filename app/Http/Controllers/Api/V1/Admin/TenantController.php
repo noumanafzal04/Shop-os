@@ -125,7 +125,7 @@ class TenantController extends Controller
             $scoped()->with(['city', 'plan'])->withCount(['branches', 'users']),
             (string) $request->query('sort', 'newest'),
         )
-            ->paginate(min((int) $request->query('per_page', 15), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->withQueryString();
 
         // Counted against the SAME filters minus payment_status — a search for

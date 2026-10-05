@@ -267,7 +267,7 @@ class MarketplaceController extends Controller
         }
 
         $shops = $query
-            ->paginate(min((int) $request->query('per_page', 20), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100))
             ->through(fn (Tenant $t) => $this->publicShop($t) + [
                 'distance_km' => isset($t->distance_km) && $t->distance_km !== null ? round((float) $t->distance_km, 2) : null,
                 // The same name the shop DETAIL payload has used since the
@@ -341,7 +341,7 @@ class MarketplaceController extends Controller
                 'variants' => fn ($q) => $q->where('is_active', true),
                 'modifierGroups' => fn ($q) => $q->with(['options' => fn ($o) => $o->where('is_active', true)]),
             ])
-            ->paginate(min((int) $request->query('per_page', 24), 60));
+            ->stably()->paginate(min((int) $request->query('per_page', 24), 60));
 
         // The shops these products belong to, in ONE query rather than one per
         // row — a page of twenty-four products from twelve shops is twelve
@@ -816,7 +816,7 @@ class MarketplaceController extends Controller
                 ->select('name')
                 ->whereColumn('categories.id', 'products.category_id'))
             ->orderBy('name')
-            ->paginate(min((int) $request->query('per_page', 20), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 20), 100))
             ->through(fn (Product $p) => $this->publicProduct($p, $tenant->timezone));
 
         return ApiResponse::paginated($products);

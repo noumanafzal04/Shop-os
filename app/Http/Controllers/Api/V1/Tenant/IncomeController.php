@@ -35,7 +35,7 @@ class IncomeController extends Controller
         $query = $this->filtered($request)->with('category:id,name');
         $totals = MoneyEntryFilters::totals($query);
 
-        $incomes = $query->paginate(min((int) $request->query('per_page', 15), 100));
+        $incomes = $query->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
         return ApiResponse::paginated($incomes, 'OK', array_filter([
             'totals' => $totals,

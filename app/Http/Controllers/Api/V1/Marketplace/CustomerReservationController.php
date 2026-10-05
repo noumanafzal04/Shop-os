@@ -18,7 +18,7 @@ class CustomerReservationController extends Controller
             ->where('customer_id', $request->user()->id)
             ->with('tenant:id,business_name,slug')
             ->orderByDesc('created_at')
-            ->paginate(min((int) $request->query('per_page', 15), 100))
+            ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Reservation $r) => [
                 'id' => $r->id,
                 'shop' => [

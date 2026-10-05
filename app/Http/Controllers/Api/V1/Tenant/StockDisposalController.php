@@ -51,7 +51,7 @@ class StockDisposalController extends Controller
             ->when(isset($data['from']), fn ($q) => $q->whereDate('disposed_at', '>=', $data['from']))
             ->when(isset($data['to']), fn ($q) => $q->whereDate('disposed_at', '<=', $data['to']))
             ->orderByDesc('disposed_at')
-            ->paginate(30);
+            ->stably()->paginate(30);
 
         return ApiResponse::paginated($rows);
     }

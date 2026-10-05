@@ -21,7 +21,7 @@ class FuelDeliveryController extends Controller
             ->when($request->filled('from'), fn ($q) => $q->whereDate('received_at', '>=', $request->date('from')))
             ->when($request->filled('to'), fn ($q) => $q->whereDate('received_at', '<=', $request->date('to')))
             ->orderByDesc('received_at')
-            ->paginate(20);
+            ->stably()->paginate(20);
 
         return ApiResponse::paginated($deliveries);
     }

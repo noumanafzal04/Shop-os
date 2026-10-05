@@ -18,7 +18,7 @@ class TransferController extends Controller
         $transfers = StockTransfer::query()
             ->with(['fromBranch:id,name', 'toBranch:id,name', 'items:id,stock_transfer_id,product_name,quantity'])
             ->latest()
-            ->paginate(20);
+            ->stably()->paginate(20);
 
         return ApiResponse::paginated($transfers);
     }

@@ -153,7 +153,7 @@ class BusinessDayController extends Controller
             // see its own open till.
             ->tap(fn (Builder $q) => Retention::fence($q, 'trading_date'))
             ->orderByDesc('trading_date')
-            ->paginate(30);
+            ->stably()->paginate(30);
 
         return ApiResponse::paginated($days, meta: array_filter([
             'retention' => Retention::notice($request->query('from')),
@@ -206,7 +206,7 @@ class BusinessDayController extends Controller
             ->when($request->filled('to'), fn ($q) => $q->whereDate('deposited_at', '<=', $request->date('to')))
             ->tap(fn (Builder $q) => Retention::fence($q, 'deposited_at'))
             ->orderByDesc('deposited_at')
-            ->paginate(30);
+            ->stably()->paginate(30);
 
         return ApiResponse::paginated($deposits, meta: array_filter([
             'retention' => Retention::notice($request->query('from')),

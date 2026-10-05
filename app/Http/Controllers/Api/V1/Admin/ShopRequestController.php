@@ -32,7 +32,7 @@ class ShopRequestController extends Controller
             )
             // The person who has waited longest is the person to answer next.
             ->orderBy('requested_at')
-            ->paginate(25);
+            ->stably()->paginate(25);
 
         return ApiResponse::paginated($rows);
     }
