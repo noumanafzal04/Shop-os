@@ -124,10 +124,19 @@ export default function SalesPage() {
    * in it. A control offering no options is not a smaller feature; it is a
    * feature that looks broken.
    */
+  // Counter sales need the POS module — an online-only shop sees only history.
+  // `?? false`: a missing key is OFF here as everywhere else; this one line
+  // used to read it as ON.
+  const hasPos = useAuthStore(
+    (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? false,
+  );
   const sellers = useQuery({
     queryKey: ["pos", "sellers"],
     queryFn: async () => (await posService.sellers()).data,
     staleTime: 30 * 60 * 1000,
+    // The sellers list is the till's. Asked by a shop without one, it was a
+    // refused request on every load of this screen.
+    enabled: hasPos,
   });
   const sellerOptions = (sellers.data ?? []).map((p) => ({ value: p.id, label: p.name }));
 
@@ -165,10 +174,6 @@ export default function SalesPage() {
    * already told a customer they would get their money back.
    */
   const connected = useConnectionStore((s) => s.online && s.reachable);
-  // Counter sales need the POS module — an online-only shop sees only history.
-  const hasPos = useAuthStore(
-    (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? true,
-  );
   // Show a Branch column only for multi-branch shops.
   const shopSettings = useShopSettings();
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
@@ -768,7 +773,8 @@ export default function SalesPage() {
                     Return / Refund
                   </Button>
                 )}
-                {(detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
+                {/* An exchange rings a new counter sale (POST …/exchange needs `pos`). */}
+                {hasPos && (detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
                   <Button size="sm" variant="outline" onClick={() => setExchanging(true)}>
                     Exchange
                   </Button>

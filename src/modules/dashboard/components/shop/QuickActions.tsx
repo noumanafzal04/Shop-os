@@ -25,7 +25,9 @@ export function QuickActions({ caps }: { caps: Capabilities }) {
 
   if (caps.pos) actions.push({ label: "Open POS", to: "/tenant/pos", icon: <DollarLineIcon className="size-4" /> });
   if (caps.dineIn) actions.push({ label: "Dine-in floor", to: "/tenant/dine-in", icon: <TableIcon className="size-4" /> });
-  if (caps.canSell) actions.push({ label: "New sale", to: "/tenant/sales/new", icon: <TaskIcon className="size-4" /> });
+  // `pos`, not `canSell`: an online shop can sell, but not by hand — the form
+  // posts to a route only the till module opens, and it said so at Complete.
+  if (caps.pos) actions.push({ label: "New sale", to: "/tenant/sales/new", icon: <TaskIcon className="size-4" /> });
   if (caps.catalog) {
     actions.push({
       label: caps.products ? "Add product" : "Add service",

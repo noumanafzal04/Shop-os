@@ -406,7 +406,11 @@ export default function App() {
                   </Route>
                   <Route element={<RequireTenantScreen />}>
                     <Route path="sales" element={<SalesPage />} />
-                    <Route path="sales/new" element={<NewSalePage />} />
+                    {/* POST /sales needs `pos`. An online-only shop has Sales
+                        as HISTORY and was sent to a form that always refused. */}
+                    <Route element={<RequireFeature feature="pos" />}>
+                      <Route path="sales/new" element={<NewSalePage />} />
+                    </Route>
                   </Route>
                   {/* Quotations & advance bookings — counter documents that end
                       in a till transaction, hence the POS module. */}

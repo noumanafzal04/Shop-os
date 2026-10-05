@@ -53,10 +53,13 @@ export function useCategoryMutations() {
 
 // ── Collections ───────────────────────────────────────────────────
 
-export function useCollections() {
+export function useCollections(enabled = true) {
   return useQuery({
     queryKey: ["collections"],
     queryFn: async () => (await catalogService.collections()).data,
+    // `/collections` needs `marketplace`. The product editor asks for them on
+    // every open, so a shop with no online store got a refusal each time.
+    enabled,
   });
 }
 

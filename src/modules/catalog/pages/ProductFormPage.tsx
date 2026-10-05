@@ -124,7 +124,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const taxGroups = useTaxGroups();
   const itemTypesQ = useItemTypes();
   const businessTypesQ = useBusinessTypes();
-  const collectionsQ = useCollections();
+  const collectionsQ = useCollections(marketplaceEnabled);
   const existing = useProduct(id);
   const { create, update } = useProductMutations();
   const images = useProductImages(id);

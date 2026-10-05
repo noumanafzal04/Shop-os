@@ -196,10 +196,16 @@ export function TenantThemed() {
   useTenantTheme();
   // Shop-side only. An admin browsing the platform console has no till, no
   // device identity to announce and nothing queued to protect.
-  useOfflineBoot(true);
+  //
+  // And only for a shop WITH a till. Device registration, the till's
+  // bootstrap and its catalog are all `pos` routes, so an online-only shop
+  // and a books-only one fired three refused requests on every screen —
+  // again on reconnect, on tab focus and every fifteen minutes.
+  const hasTill = useAuthStore((st) => st.user?.tenant?.features?.pos ?? false);
+  useOfflineBoot(hasTill);
   // …and keeps it current afterwards: on reconnect, on a slow heartbeat, and
   // when the tab comes back to the front.
-  useKeepInSync(true);
+  useKeepInSync(hasTill);
 
   return (
     <>

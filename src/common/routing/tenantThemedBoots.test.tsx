@@ -8,6 +8,7 @@ import { TenantThemed } from "./guards";
 import { deviceService } from "../../modules/offline/device/deviceService";
 import { useOfflineStore } from "../../modules/offline/offlineStore";
 import { resetDbCache } from "../../modules/offline/db/open";
+import { useAuthStore } from "../../stores/authStore";
 
 /**
  * The offline boot is actually WIRED UP.
@@ -39,6 +40,9 @@ beforeEach(() => {
   resetDbCache();
   localStorage.clear();
   useOfflineStore.setState({ deviceId: null, registered: false, offlineDays: null });
+  // A shop WITH a till. The boot is the till's, and a shop without one no
+  // longer runs it — see the case at the end of this file.
+  useAuthStore.setState({ user: { tenant: { features: { pos: true } } } } as never);
 
   vi.spyOn(deviceService, "register").mockResolvedValue(
     envelope({
@@ -102,5 +106,28 @@ describe("every shop screen boots the till", () => {
     );
 
     expect(getByText("till")).toBeInTheDocument();
+  });
+
+  it("does not boot a till for a shop that has none", async () => {
+    // An online-only or books-only shop fired three refused `pos` requests on
+    // every screen: device registration, the device list and the bootstrap.
+    useAuthStore.setState({ user: { tenant: { features: { pos: false, marketplace: true } } } } as never);
+    // The spy outlives a test, and the case before this one leaves a boot
+    // in flight that lands after it ends. Let it land, then count from zero.
+    await new Promise((r) => setTimeout(r, 300));
+    vi.mocked(deviceService.register).mockClear();
+
+    render(
+      <MemoryRouter initialEntries={["/tenant"]}>
+        <Routes>
+          <Route element={<TenantThemed />}>
+            <Route path="/tenant" element={<div>dashboard</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect(deviceService.register).not.toHaveBeenCalled();
   });
 });
