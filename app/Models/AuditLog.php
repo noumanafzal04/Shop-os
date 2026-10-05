@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -70,5 +71,24 @@ class AuditLog extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Rows about ONE kind of record, named the way the screens name it.
+     *
+     * Both trails filtered with `LIKE %Customer%`, and "Customer" is also the
+     * first eight letters of CustomerGroup. So "Credit limits" on the shop's
+     * Activity screen — which asks for Customer — came back with every change
+     * to a customer GROUP mixed into it. A filter that returns more than it
+     * was asked for reads as a trail with entries nobody made, and the next
+     * model named with another one's prefix would have done it again.
+     *
+     * Exact, on the class the row was written with. A basename is what the
+     * screens send and what `entity` hands back, so that is what is accepted;
+     * a full class name works too, for a caller that has one.
+     */
+    public function scopeAbout(Builder $query, string $type): Builder
+    {
+        return $query->whereIn('auditable_type', [$type, 'App\\Models\\'.class_basename($type)]);
     }
 }

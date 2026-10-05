@@ -31,7 +31,8 @@ class AuditLogController extends Controller
         $filtered = fn () => AuditLog::query()
             ->when($request->query('tenant_id'), fn ($q, $id) => $q->where('tenant_id', $id))
             ->when($request->query('event'), fn ($q, $e) => $q->where('event', $e))
-            ->when($request->query('type'), fn ($q, $t) => $q->where('auditable_type', 'like', "%{$t}%"))
+            // Exact, not LIKE: "Customer" is not also CustomerGroup. See AuditLog::scopeAbout.
+            ->when($request->query('type'), fn ($q, $t) => $q->about((string) $t))
             ->when($request->query('from'), fn ($q, $from) => $q->where('created_at', '>=', $from))
             // The whole of the day it names. Comparing against midnight would
             // drop everything that happened during it — and "today" is the

@@ -52,7 +52,8 @@ class AuditLogController extends Controller
             ->where('tenant_id', $this->context->id())
             ->with('user:id,name,email')
             ->when($request->query('event'), fn ($q, $e) => $q->where('event', $e))
-            ->when($request->query('type'), fn ($q, $t) => $q->where('auditable_type', 'like', "%{$t}%"))
+            // Exact, not LIKE: "Customer" is not also CustomerGroup. See AuditLog::scopeAbout.
+            ->when($request->query('type'), fn ($q, $t) => $q->about((string) $t))
             // ONE record's history — "what has this item's price done", asked
             // from the item itself. The trail could be filtered by KIND and by
             // person and by date, and not by subject, so the one question a

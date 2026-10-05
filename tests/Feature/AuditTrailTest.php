@@ -255,6 +255,38 @@ class AuditTrailTest extends TestCase
         $this->assertSame('Coupon', $rows[0]['entity']);
     }
 
+    public function test_asking_about_customers_does_not_answer_about_their_groups(): void
+    {
+        /*
+         * The filter was `LIKE %Customer%`, and "Customer" is the first eight
+         * letters of CustomerGroup. The Activity screen offers both — "Credit
+         * limits" asks for Customer, "Customer groups" for CustomerGroup — so
+         * picking the first returned the second mixed into it.
+         *
+         * The test above this one asked for Coupon, which is a prefix of
+         * nothing, and so could not see it. Found by the standing sweep the
+         * first time a shop it runs against had a customer group at all.
+         */
+        $this->creditedCustomer($this->shop, 1000);
+        $group = CustomerGroup::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'name' => 'Wholesale',
+            'discount_percent' => 5, 'is_active' => true,
+        ]);
+        $this->login()->putJson("/api/v1/customer-groups/{$group->id}", [
+            'name' => 'Wholesale', 'discount_percent' => 40,
+        ])->assertOk();
+
+        $customers = $this->login()->getJson('/api/v1/audit-logs?type=Customer')->assertOk()->json('data');
+        $groups = $this->login()->getJson('/api/v1/audit-logs?type=CustomerGroup')->assertOk()->json('data');
+
+        // Both questions have an answer — or neither assertion below says anything.
+        $this->assertNotEmpty($customers);
+        $this->assertNotEmpty($groups);
+
+        $this->assertSame(['Customer'], array_values(array_unique(array_column($customers, 'entity'))));
+        $this->assertSame(['CustomerGroup'], array_values(array_unique(array_column($groups, 'entity'))));
+    }
+
     // ── helpers ──────────────────────────────────────────────────────
 
     /** A customer given credit — which IS an audit event, and stays in the trail. */

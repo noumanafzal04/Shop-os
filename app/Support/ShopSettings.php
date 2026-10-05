@@ -43,7 +43,7 @@ class ShopSettings
             'theme_tint' => 'subtle',   // none | subtle | strong
             // The sidebar's surface. 'dark' keeps a dark rail even in light
             // mode — the look most POS/admin products ship with.
-            'theme_sidebar' => 'light', // light | tinted | dark
+            'theme_sidebar' => 'light', // light | tinted | primary | dark
 
             // Service businesses (salon/workshop): coverage area shown on the storefront
             'service_area' => null,
@@ -283,7 +283,7 @@ class ShopSettings
             'theme_primary' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'theme_secondary' => ['sometimes', 'nullable', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'theme_tint' => ['sometimes', 'in:none,subtle,strong'],
-            'theme_sidebar' => ['sometimes', 'in:light,tinted,dark'],
+            'theme_sidebar' => ['sometimes', 'in:light,tinted,primary,dark'],
             'service_area' => ['sometimes', 'nullable', 'string', 'max:300'],
             'pickup_enabled' => ['sometimes', 'boolean'],
             'delivery_enabled' => ['sometimes', 'boolean'],
