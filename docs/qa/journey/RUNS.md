@@ -7,9 +7,27 @@ run as the product's fault twice.
 | Date | Trade | Shop | Stages | Cases | Result |
 |---|---|---|---|---|---|
 | 2026-10-05 → 06 | mart | QA Mart 1005-231446 | 01–12 (A–G) | 105 — stages 01–09: 55 · 10: 13 · 11: 7 · 12: 30 | every stage green on its last run |
+| 2026-10-06 | mart | QA Mart 1006-132842 (new, from stage 01, one sitting) | 01–12 (A–G) | 105 | 103 passed · 2 not run (see below) · 0 product failures |
 
-Not yet run: a FRESH mart journey from stage 01 on a new shop (stages 10–12
-were built against the shop stages 01–09 made), and the other eight trades.
+Not yet run: the other eight trades.
+
+### The fresh run, from the top, in one sitting (2026-10-06)
+
+A new business created by the admin and lived through to the end of stage G
+without stopping: 2,006 products, 1,500 volume sales, every setting.
+
+- **103 of 105 passed.** No product fault.
+- **2 not run, by the product's own rule.** Stage C closes the shop's day; in
+  one sitting, stage G arrives the same afternoon, and a closed day takes no
+  more shifts ("Trading on 2026-10-06 has already been closed off"). The two
+  cases that close a shift need a new day. The till said exactly that, in
+  words, and stayed shut — correct.
+- **One thing it showed that a shop should be told sooner.** "Close off the
+  day" said only that the figures freeze. It did not say no shift can be
+  opened again today — and a shop that requires an open shift to sell could
+  not ring another sale until tomorrow. The sheet now says so before the
+  button. **There is no way to reopen a day closed by mistake**; that is left
+  as a decision (below).
 
 ## Mart, 2026-10-05 → 06
 
@@ -33,6 +51,13 @@ were built against the shop stages 01–09 made), and the other eight trades.
 | 14 | G6/G7 | Four text areas had no accessible name | `NamedTextarea` + a guard |
 | 15 | G12 | **Offline, a scale's label rang nothing** — a mart could not sell what it weighs with the line down | the till reads the label itself, held to server fixtures |
 | 16 | G13 | The device form offered seven connections as if the till used them | the form and Help say what each really does |
+| 17 | reported | **"The POS invoice comes out like a kitchen receipt."** It was the kitchen ticket: printed the moment a counter sale is paid, with nothing saying whose paper it was | the sale sheet says which paper went out; the slip says KITCHEN COPY; receipt first, then the slip |
+| 18 | reported (same picture) | The kitchen ticket was cut across two slips, the last modifier alone on the second — a regression from fix 7 the same day: measured wider than it printed | measured at the paper's own width |
+| 19 | reported (same picture) | The ticket printed itself on load, so one sale could raise two windows; with both auto-prints on, one of the two papers could be dropped | one print at a time; a document may not print itself |
+| 20 | reported | "Invoices are stuck to the edges." A roll's 3mm page margin was inside what an 80mm head cannot print, and "Margins: None" in the print window removed it altogether | 5mm kept by the document itself, on every side |
+| 21 | while there | The roll invoice was set in the kitchen ticket's typewriter face, in grey a thermal head cannot print | a document's face, black only, a title band, a ruled total |
+| 22 | while there | Sales and customers CSV exports were timed in UTC | on the shop's clock |
+| 23 | deploy | **Three type errors reached the server and stopped a build.** Checked with `tsc --noEmit -p tsconfig.json`; the build runs `tsc -b`, which also reads the specs and refuses unused locals | fixed; `npm run build` is run before a push |
 
 ### Harness faults (the test was wrong)
 
@@ -48,3 +73,4 @@ were built against the shop stages 01–09 made), and the other eight trades.
 1. **When does a shop's day end?** Reports, the dashboard and the ledger cut days at midnight UTC — 5 AM in Pakistan. A sale at 1 AM is in the previous day's figures; its receipt (now) says today's date. Sensible by accident for a shop that closes at 2 AM; wrong for a zone that is not +5, and wrong at the month's first five hours. Recommended: a shop-local day boundary, stated in Settings.
 2. **A scale's PRICE label is read as hundredths** (02700 = Rs 27.00), so a label cannot say more than Rs 999.99 — less than a kilo of meat. Scales here are usually set to whole rupees. Recommended: a "decimals on the label" setting (0 or 2).
 3. Printed terms / stations boxes and the label-field chips now have names and states; a page-wide `main` landmark is still missing.
+4. **A day closed off by mistake cannot be reopened.** With "Require open shift" on, the shop cannot sell again until tomorrow. Recommended: an owner-only "reopen today" that is allowed only while nothing has been banked against the day, and is written to the activity trail.
