@@ -45,12 +45,12 @@
     ];
 @endphp
 <!doctype html>
-<html lang="en">
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width, 3) !!}>
 <head>
 <meta charset="utf-8">
 <title>Z-Read {{ $session->id }}</title>
 <style>
-    @page { size: {{ $roll ? $rollMm.' auto' : 'A4' }}; margin: {{ $roll ? '3mm' : '14mm' }}; }
+    @page { size: {{ \App\Support\PrintPaper::pageSize($width) }}; margin: {{ $roll ? '3mm' : '14mm' }}; }
     * { box-sizing: border-box; }
     body {
         font-family: {{ $roll ? "'Courier New', monospace" : "-apple-system, 'Segoe UI', Roboto, sans-serif" }};

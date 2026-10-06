@@ -259,7 +259,12 @@ class ReceiptTest extends TestCase
 
         $this->fetchReceipt($sale)->assertOk()
             // The roll layout sizes the page to the paper; the sheet never does.
-            ->assertSee('size: 58mm auto', false)
+            //
+            // This line used to read `size: 58mm auto`, and passed — it held
+            // the template to the exact string that browsers throw away. See
+            // ARollIsARollTest, which asks what a browser will accept.
+            ->assertSee('size: 58mm 297mm', false)
+            ->assertSee('data-roll-mm="58"', false)
             ->assertDontSee('Customer signature');
     }
 
@@ -435,7 +440,7 @@ class ReceiptTest extends TestCase
             ->assertSee('Since 1998', false)
             ->assertSee('No returns without a receipt', false)
             ->assertSee('NTN 9988776-5', false)
-            ->assertSee('size: 80mm auto', false)
+            ->assertSee('size: 80mm 297mm', false)
             ->assertSee('Sample data', false);
 
         $this->assertSame(0, ReceiptPrint::withoutTenancy()->count());
@@ -507,7 +512,7 @@ class ReceiptTest extends TestCase
         $this->printerOn(null, '58mm');
 
         $this->fetchReceipt($this->ringSale())->assertOk()
-            ->assertSee('size: 58mm auto', false);
+            ->assertSee('size: 58mm 297mm', false);
     }
 
     public function test_a_printer_with_no_paper_size_leaves_the_shop_default_alone(): void
@@ -519,7 +524,7 @@ class ReceiptTest extends TestCase
         $this->printerOn(null, null);
 
         $this->fetchReceipt($this->ringSale())->assertOk()
-            ->assertSee('size: 58mm auto', false);
+            ->assertSee('size: 58mm 297mm', false);
     }
 
     public function test_a_shop_with_no_registered_printer_is_untouched(): void
@@ -529,7 +534,7 @@ class ReceiptTest extends TestCase
         $this->tenant->update(['settings' => ['receipt_width' => 'thermal_80']]);
 
         $this->fetchReceipt($this->ringSale())->assertOk()
-            ->assertSee('size: 80mm auto', false);
+            ->assertSee('size: 80mm 297mm', false);
     }
 
     public function test_an_a4_printer_beats_a_thermal_shop_default(): void
@@ -540,7 +545,7 @@ class ReceiptTest extends TestCase
         $this->printerOn(null, 'a4');
 
         $this->fetchReceipt($this->ringSale())->assertOk()
-            ->assertDontSee('size: 58mm auto', false);
+            ->assertDontSee('size: 58mm 297mm', false);
     }
 
     /**
@@ -564,7 +569,7 @@ class ReceiptTest extends TestCase
             ->assertOk()
             ->assertHeader('X-Receipt-Paper', 'thermal_80')
             // …and it agrees with the page itself, which is the point.
-            ->assertSee('size: 80mm auto', false);
+            ->assertSee('size: 80mm 297mm', false);
     }
 
     public function test_the_paper_header_follows_the_lane_not_the_shop(): void

@@ -165,6 +165,10 @@ class ReachableTest extends TestCase
             $this->phpFiles("{$root}/database"),
             $this->phpFiles("{$root}/config"),
             $this->phpFiles("{$root}/bootstrap"),
+            // A template calls methods too. The receipt asks PrintPaper what
+            // size its page is, and this rule called that "reachable by
+            // nobody" because it had never read a view.
+            $this->phpFiles("{$root}/resources/views"),
         );
 
         // Stripped once per file rather than once per lookup: the panel's

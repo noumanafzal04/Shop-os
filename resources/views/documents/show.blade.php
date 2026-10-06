@@ -45,7 +45,7 @@
     $payments      = $document->relationLoaded('payments') ? $document->payments : collect();
 @endphp
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width, 2) !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -122,7 +122,7 @@
         @media print {
             body { background:#fff; padding:0; }
             .doc { box-shadow:none; width:auto; padding:{{ $roll ? '0' : '12mm' }}; }
-            @page { margin:{{ $roll ? '2mm' : '10mm' }}; size:{{ $roll ? $width === 'thermal_58' ? '58mm auto' : '80mm auto' : 'A4' }}; }
+            @page { margin:{{ $roll ? '2mm' : '10mm' }}; size:{{ \App\Support\PrintPaper::pageSize($width) }}; }
         }
     </style>
 </head>

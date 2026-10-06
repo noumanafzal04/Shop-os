@@ -15,7 +15,6 @@
 @php
     $width   = ($paper ?? null) ?: ($settings['receipt_width'] ?? 'standard');
     $roll    = in_array($width, ['thermal_58', 'thermal_80'], true);
-    $paperMm = $width === 'thermal_58' ? '58mm' : ($width === 'thermal_80' ? '80mm' : 'auto');
     $rollMm  = $width === 'thermal_58' ? '48mm' : '72mm';
 
     $cur     = $settings['currency_symbol'] ?? 'Rs';
@@ -64,7 +63,7 @@
     $anyDiscount   = $lineDiscounts > 0 || (float) $sale->discount > 0 || (float) $sale->promo_discount > 0;
 @endphp
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width, 3) !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -198,7 +197,8 @@
             body.has-toolbar { padding-top: 0; }
             .doc { width: auto; box-shadow: none; padding: {{ $roll ? '0' : '0' }}; border-radius: 0; }
             .no-print { display: none !important; }
-            @page { size: {{ $paperMm === 'auto' ? 'A4' : $paperMm.' auto' }}; margin: {{ $roll ? '3mm' : '14mm' }}; }
+            {{-- A valid size. `80mm auto` is not one: browsers dropped it and printed A4. See PrintPaper. --}}
+            @page { size: {{ \App\Support\PrintPaper::pageSize($width) }}; margin: {{ $roll ? '3mm' : '14mm' }}; }
         }
     </style>
 </head>

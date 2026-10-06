@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes('thermal_80', 4) !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -45,7 +45,7 @@
         .note { padding-left: 14px; font-size: 13px; font-weight: 700; text-transform: uppercase; }
         @media print {
             body { width: auto; }
-            @page { margin: 4mm; }
+            @page { size: {{ \App\Support\PrintPaper::pageSize('thermal_80') }}; margin: 4mm; }
         }
     </style>
 </head>
