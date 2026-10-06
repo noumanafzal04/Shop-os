@@ -167,6 +167,23 @@ Stages A–G run for each type with ALL modules on. Each adds its own cases:
 | Online | no till: orders only, storefront listing |
 | Finance | books only: expenses, income, cashbook, ledger |
 
+## Stage H — a restaurant's own day (`20-food-the-floor.spec.ts`, `JOURNEY_TRADE=food`)
+
+Run after stages A and B for a food shop. Figures worked out in the spec:
+2 × biryani (450) + 1 × lemonade (180) = 1,080; tax at 5% = 54; bill 1,134.
+A takeaway biryani at the counter = 472.50.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| H1 | Settings | Two stations (Kitchen, Bar) and 5% tax, saved through the screen | the server holds both |
+| H2 | Products | A dish for each station | "Add item" opens as a DISH; "Made at" offers the stations; saved with price and station |
+| H3 | Dine-in | Two tables laid out | adding one leaves "+ Add table" at hand for the next; both read Free |
+| H4 | Tab | Seat two, order, note, send | two taps on a dish = ONE line of 2; the tile counts; a kitchen note; "Send to kitchen (3)" → two tickets, one per station; each printed slip has only its own dishes, the note on the cook's only, no prices; the floor tile says In kitchen, the bill and the guests |
+| H5 | Kitchen | Work both tickets off the board | each starts in New; one row saying 2, with the note; Start cooking → Ready → Served moves it lane to lane; at Ready the floor tile turns "Food ready" |
+| H6 | Tab | Settle | Whole bill 1,080 · Tax 54 · Bill 1,134; the sale is dine-in for 1,134; the table is Free |
+| H7 | Till → Kitchen | A takeaway paid at the counter | 472.50; its kitchen slip prints; its card on the board is headed by the RECEIPT NUMBER; it is not a tab on the floor |
+| H8 | Reports | The books | 2 sales, revenue 1,606.50, tax held 76.50 |
+
 ## Results
 
 Recorded per run in `docs/qa/journey/RUNS.md`: date, type, cases passed,

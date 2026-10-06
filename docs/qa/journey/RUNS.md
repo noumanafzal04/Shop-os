@@ -67,6 +67,10 @@ without stopping: 2,006 products, 1,500 volume sales, every setting.
 | 29 | while there | **Every "Try the demo" shop was stocked with items of an invalid type** — a restaurant demo's menu was empty to its own screens, and it had no tables | built through the product form's own action; a floor, sections and stations |
 | 30 | harness | `food.chrome.spec` took "the first dish"; the first became a pizza that needs a crust, the refusal was not read, and all twelve checks failed about a board with nothing wrong | chooses a dish that can be ordered as it is, and reads the answer |
 
+| 31 | H2 | **"Add item" opened as a Physical product in a restaurant** (and at a chemist's): stock tracked at nought, no "Made at", no recipe — a dish added without noticing the type row could not be sold | the form opens on the FIRST kind the shop is offered, which is its trade's own |
+| 32 | H7 | An unnamed takeaway's kitchen card was headed "Takeaway" like every other one, and the receipt number — the one thing that tells two apart — was not on it | headed by the receipt number; a named one carries it beside the name |
+| 33 | H3 | After the first table was added, "+ Add table" vanished with the empty floor | adding a table leaves the layout open until Done |
+
 ### Harness faults (the test was wrong)
 
 - Stage E: an Inventory quantity is printed "4999", not "4,999" — the shop's quantity format has no separators on purpose.
@@ -103,3 +107,24 @@ business, the owner signs in, and every screen the trade is offered is opened.
 64 of 64. Nothing refused, no page error, no blank screen. This is breadth
 only — each trade's own flows (the floor, the dispensary, the forecourt, the
 bay board) are stage 20 onward and are not run yet.
+
+
+## Stage H — a restaurant's own day (2026-10-06)
+
+`JOURNEY_TRADE=food … e2e/journey/01 e2e/journey/02 e2e/journey/20`, a fresh
+shop ("QA Food 1006-…"), one sitting.
+
+| Stage | Cases | Result |
+|---|---|---|
+| A — the admin creates it | 6 | 6 passed |
+| B — the owner opens it | 2 | 2 passed |
+| H — the floor, the tab, the pass, the bill | 8 | 8 passed |
+
+16 of 16, after three product faults (31–33 above) were fixed on the way: H2
+stopped the first run, H7 the second, H3 the fresh one. Each was fixed and
+the stage continued on the same shop from the case that had stopped — a
+journey is lived once, so a stage is not re-run from its top on a shop that
+has already settled its bill.
+
+Not in this stage yet, from the list in CASES.md: sizes and modifiers on a
+dish, recipes, splitting a bill, moving and merging tabs.

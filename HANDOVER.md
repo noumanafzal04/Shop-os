@@ -8264,3 +8264,22 @@ Decision: `shopos-the-front-page-shows-the-product`. Panel only.
 load-test restaurant (`restaurant@loadtest.test`) is now "Zaiqa Grill House"
 (was "Karahi House"), its owner account is displayed as "Ahmed Raza", and it
 has nine more expenses dated across 30 Sep – 6 Oct.
+
+## A restaurant's own day — the journey's stage H, 2026-10-06 (late)
+
+`panel/e2e/journey/20-food-the-floor.spec.ts`, cases in
+`docs/qa/journey/CASES.md` (Stage H), run in `RUNS.md`. 16 of 16 with stages
+A and B on a fresh food shop. Decision:
+`shopos-add-item-opens-as-the-trades-own`.
+
+| Found by | Fault | Now |
+|---|---|---|
+| H2 | "Add item" opened as a Physical product in a restaurant and at a chemist's — tracked at nought, unsellable, no station | opens on the trade's own kind (`startingItemType`) |
+| H7 | An unnamed takeaway's kitchen card said "Takeaway" like every other; no receipt number on it | headed by the receipt number (`customer_name` sent, null when none) |
+| H3 | After the first table, "+ Add table" vanished | adding a table leaves the layout open |
+
+Backend: one field added to the kitchen board's row. No migration.
+
+**Next for the journey:** the rest of the food list (sizes and modifiers,
+recipes, split bill, move / merge), then pharmacy (batches, FEFO, Rx), retail
+(serials, warranty), auto, petroleum, services, online, finance.

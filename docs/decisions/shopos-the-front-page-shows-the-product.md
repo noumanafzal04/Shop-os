@@ -13,21 +13,46 @@ said "CartZe" in its rail.
 
 ## Now
 
-`ProductShots` — one window, two tabs, real photographs:
+`ProductShot` (`components/ProductShots.tsx`) is one picture: a window with
+the real screen in it, leaning back a few degrees like a laptop's lid, and a
+phone standing upright in front of it showing **the same screen**.
 
-| Tab | Picture |
+| Where | Picture |
 |---|---|
-| Dashboard | a working restaurant's dashboard: the status line, the four action tiles, today's sales / expenses / profit, the floor |
-| Point of sale | the till with a sale half rung — five dishes in the cart, tax worked out, the total ready to take |
+| Hero | the dashboard, and only the dashboard — in the window and on the phone |
+| "At the counter" (new section, after the offline argument) | the till with a sale half rung — on the screen and on a phone |
+| "The owner's day" | the phone dashboard, large |
 
-Below `sm` the same two screens are shown as a PHONE draws them. A
-1600-wide screenshot in a 390-wide column is a smudge; a phone's own picture
-is legible, and is the truth about how it is used there. The "owner's day"
-section's phone carries the real phone dashboard too.
+Below `sm` the window holds the screen as a PHONE draws it, and no second
+phone is drawn. A 1600-wide screenshot in a 390-wide column is a smudge.
 
 Files: `panel/public/landing/{dashboard,pos}.webp` (2560w),
-`…-1280.webp`, `…-phone.webp` (804w). 42–118 KB each. WebP is not in the
+`…-1280.webp`, `…-phone.webp` (804w). 42–120 KB each. WebP is not in the
 service worker's precache pattern, so they add nothing to the installed app.
+
+### What the owner sent back, the same evening
+
+It took four rounds, and each one is in the shape of the thing now:
+
+1. **"Hero section now not looks good, you not handle properly."** Two
+   faults. The picture sat in a scroll-reveal that hides a block until a
+   share of its own height is on screen; the block was 800px tall and began
+   near the bottom of a laptop screen, so at **1366 × 768 it never showed** —
+   the page opened on a headline, two buttons and an empty dark band. And the
+   window had a 70px black bar of tabs across its top and a hard bottom edge
+   through the middle of a panel. → What is above the fold is not
+   scroll-revealed. The window's bar is thin, and it fades out over its last
+   seventh (no more: the till's total sits low on the screen).
+2. **"POS ke sath POS mobile ki lagao."** The phone first carried the OTHER
+   screen, on the theory that two screens say more than one. The same screen
+   at two sizes is the better picture: it is the claim itself.
+3. **"Top banner ko thora tilt … jaise laptop hota."** `perspective` on the
+   parent, `rotateX(11deg)` on the window, hinged at its bottom edge. The
+   phone stays upright, which is what puts it in front. A pointer resting on
+   the window brings it nearly upright (not when reduced motion is asked for).
+4. **"Hero main dashboard ki hi lagayen gy image."** The two tabs are gone.
+   The first thing after the headline was a choice, and whichever screen was
+   not chosen was never seen. The till has a section of its own.
 
 ## How they were taken
 

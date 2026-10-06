@@ -1,7 +1,8 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 late: ALL PUSHED (kitchen/floor/tab, rail, dashboard, theme, landing); NEXT food journey stage (draft uses OLD names)
-- [Landing Real Screens](shopos-landing-real-screens.md) — hero = real Dashboard/POS shots; loadtest restaurant renamed "Zaiqa Grill House" at user's word; retake script
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 ~23:50: ALL PUSHED; food journey stage H 16/16; NEXT more food cases, then pharmacy & other trades
+- [Food Journey Stage H](shopos-food-journey-stage-h.md) — 8 restaurant cases green; found Add-item opening as Physical product in food/pharmacy; a journey is lived once
+- [Landing Real Screens](shopos-landing-real-screens.md) — hero = dashboard ONLY, tilted + same screen on phone; POS own section; NOTHING above the fold in a scroll-reveal; check 1366×768
 - [Dashboard, Rail, Theme](shopos-dashboard-rail-theme-oct06.md) — one status line, 4 tiles, filled sales card; rail sections; black line = scroller; theme cached; NO shop card in rail
 - [UI Direction Oct-06](shopos-ui-direction-oct06.md) — user likes COLOURFUL; DineFlow ref = inspiration only; landing = Dashboard+POS shots, after dashboard
 - [The Pass Is Tonight's](shopos-pass-is-tonights.md) — kitchen = this service (ServiceDay 05:00 + 6h); one-press clear as `cleared` not `served`; floor payload
