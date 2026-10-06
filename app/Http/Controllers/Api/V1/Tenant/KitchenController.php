@@ -375,6 +375,15 @@ class KitchenController extends Controller
                     ? trim($ticket->customer_name)
                     : 'Takeaway')
                 : $ticket?->table?->name,
+            // THE NAME ITSELF, or null — said apart from `table_name`, whose
+            // fallback is the WORD "Takeaway". A card has to be able to tell
+            // "this order is called Takeaway" from "nobody gave a name", or a
+            // walk-up's card is headed by a word that every other walk-up's
+            // card is headed by too, with the one thing that tells them apart
+            // — the receipt number in the customer's hand — nowhere on it.
+            'customer_name' => ($ticket?->customer_name !== null && trim((string) $ticket->customer_name) !== '')
+                ? trim((string) $ticket->customer_name)
+                : null,
             // So the card can say WHICH it is even when the headline is a name.
             'order_type' => $ticket?->order_type,
             'guest_count' => $ticket?->guest_count,

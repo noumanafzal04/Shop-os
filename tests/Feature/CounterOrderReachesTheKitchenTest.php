@@ -128,6 +128,10 @@ class CounterOrderReachesTheKitchenTest extends TestCase
         $sale = $this->ring([[$this->biryani, 1]]);
 
         $this->assertSame($sale['invoice_number'], $this->board()[0]['ticket_number']);
+        // Nobody gave a name, and the card is TOLD so — the word "Takeaway"
+        // in `table_name` is a fallback, not somebody called Takeaway. The
+        // screen heads such a card with the receipt number instead.
+        $this->assertNull($this->board()[0]['customer_name']);
     }
 
     public function test_the_docket_carries_only_what_a_kitchen_makes(): void
