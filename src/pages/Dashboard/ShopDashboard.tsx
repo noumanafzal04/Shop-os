@@ -17,6 +17,8 @@ import { ChartSkeleton, SalesTrendChart } from "../../modules/dashboard/componen
 import { EmptyPanel, PanelSkeleton, SectionCard } from "../../modules/dashboard/components/shop/SectionCard";
 import { BayPanel, DispensingPanel, FloorPanel } from "../../modules/dashboard/components/shop/TradePanel";
 import { useCapabilities } from "../../modules/dashboard/components/shop/capabilities";
+import { shopStatus } from "../../modules/dashboard/components/shop/status";
+import { tradeProfile } from "../../modules/dashboard/components/shop/trade";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import { useUiMode } from "../../context/UiModeContext";
@@ -76,6 +78,9 @@ export default function ShopDashboard() {
     : null;
 
   const shopName = user?.tenant?.business_name ?? "Dashboard";
+  // The trade's own words for a sale and a customer — a restaurant has
+  // "orders" and "guests", a chemist "prescriptions".
+  const trade = tradeProfile(caps.businessType);
   const now = new Date();
 
   return (
@@ -92,6 +97,21 @@ export default function ShopDashboard() {
           year: "numeric",
         })}
         initials={initials(shopName)}
+        logo={user?.tenant?.logo_url}
+        status={data ? shopStatus(data, caps) : null}
+        loadingStatus={isLoading}
+        // In Simple view only. Full view carries these two as tiles of their
+        // own a row below, and the same figure twice on one screen is a
+        // question about whether they differ.
+        chips={
+          data && caps.sells && basic
+            ? [
+                { label: trade.orders, value: data.today.sales_count.toLocaleString() },
+                { label: trade.customers, value: data.today.customers_count.toLocaleString() },
+              ]
+            : undefined
+        }
+        loadingChips={caps.sells && basic ? 2 : 0}
         aside={
           branchName ? (
             <span className="flex items-center gap-2 rounded-full bg-white/12 px-3.5 py-1.5 text-theme-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur">
@@ -132,6 +152,14 @@ export default function ShopDashboard() {
           />
         </div>
       )}
+
+      {/* WHAT A SHOP DOES FIRST, directly under the head of the page. These
+          were small pills at the very bottom, after the charts and the
+          tables. Drawn from the shop's own modules, so they need no payload
+          and are there before the figures are. */}
+      <div className="mb-5 md:mb-6">
+        <QuickActions caps={caps} show="top" />
+      </div>
 
       {isLoading || !data ? (
         <div className="space-y-5 md:space-y-6">
@@ -256,7 +284,7 @@ export default function ShopDashboard() {
 
           {!basic && <ActivityTimeline rows={data.activity} />}
 
-          <QuickActions caps={caps} />
+          <QuickActions caps={caps} show="rest" />
         </div>
       )}
     </>

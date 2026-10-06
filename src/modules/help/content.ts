@@ -271,6 +271,20 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "If a screen has gone missing, check this switch before anything else. It is the one reason a screen can vanish that has nothing to do with modules, trade or permissions.",
       },
+      { type: "h", text: "How the menu is laid out" },
+      {
+        type: "p",
+        text: "The menu is in three parts, each under its own heading: Daily work (the till, the floor, sales, the day's banking), Manage (the catalogue, stock, the books, branches) and Your shop (settings, your plan, this Help Centre). The screen you are on is the solid row in your shop's colour. Opening a group scrolls it into view, so its screens are never hidden under the bottom of the window.",
+      },
+      {
+        type: "note",
+        text: "If you chose the coloured or the dark sidebar under Appearance, a near-black stripe used to appear down the right of the menu whenever a group was opened — it was the scroll bar, drawn for a white menu. It now shows only while you are using the menu, in a colour that suits it.",
+      },
+      { type: "h", text: "Your colours are there the moment the page opens" },
+      {
+        type: "p",
+        text: "Each device remembers the colours your shop last had on it, and dark mode if you use it. Reloading no longer opens in the standard blue and then changes a moment later. If you change the colours on another device, this one shows the old ones for an instant, picks up the new ones, and remembers them.",
+      },
       { type: "h", text: "The menu on the floor and in the kitchen" },
       {
         type: "p",
@@ -1263,8 +1277,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: "What the numbers on your home screen mean.",
     group: "Start here",
     screen: "/tenant",
-    keywords: ["home", "dashboard", "today", "profit", "kpi", "alerts"],
+    keywords: ["home", "dashboard", "today", "profit", "kpi", "alerts", "shortcuts", "logo"],
     body: [
+      { type: "h", text: "The top of the page" },
+      { type: "p", text: "The band at the top says ONE thing: the most pressing thing that is true right now. Food waiting on the pass comes first, then an order nobody has accepted, then a day left open, then the kitchen and the floor, then stock that has run out or is running low. \u201cEverything is moving\u201d is only said once something has actually been sold today \u2014 it is read off your figures, never a mood." },
+      { type: "p", text: "The dot beside it is amber when something needs somebody, blue when the shop is simply busy, green when nothing needs you. If your shop has uploaded a logo (Settings \u2192 Shop), the band shows it; otherwise it shows your shop's initials." },
+      { type: "p", text: "Under the band are the four things your shop does first \u2014 Open POS, the Dine-in floor, Online orders, Record expense, whichever of them you have and may open. They used to be small buttons at the very bottom of the page. The rest are still down there, under \u201cMore shortcuts\u201d." },
+      { type: "note", text: "The filled card is today's sales, with the last seven days as bars behind it and today's bar solid. A day that took nothing is a thin line; a week that took nothing draws no bars at all, rather than seven that look equal." },
       { type: "h", text: "Today's figures" },
       { type: "p", text: "Everything on the dashboard is for TODAY unless it says otherwise, and each figure is compared against yesterday. A percentage is only shown when yesterday had something to compare against — on your first day there is no honest percentage, so none is printed." },
       {

@@ -79,6 +79,8 @@ describe("the name lives in one place", () => {
     "shopos-install-dismissed",
     "shopos-outbox-flush",
     "shopos-product-images",
+    // The shop's colours as this device last saw them — rememberedTheme.ts.
+    "shopos-theme",
     // A CSS class the map library is told to use.
     "shopos-map-pin",
     // Dismissal flags and a walkthrough marker — browser keys, same rule.

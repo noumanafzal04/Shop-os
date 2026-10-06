@@ -28,15 +28,40 @@ interface Props {
   eyebrow: string;
   title: string;
   subtitle?: string;
-  /** Two letters. A mark, not an avatar upload. */
+  /** Two letters — what stands in the mark when the shop has uploaded no logo. */
   initials?: string;
+  /**
+   * The shop's own logo, when it has one.
+   *
+   * The mark was two letters for every shop, including the ones that had
+   * uploaded a logo and saw it on their receipts and their shop page — and
+   * nowhere on the screen they open every morning.
+   */
+  logo?: string | null;
   icon?: ReactNode;
   chips?: Chip[];
   /** Skeleton chips, sized like the real ones so the band cannot grow a row. */
   loadingChips?: number;
   /** Anything else the band should carry — the shop's branch pill. */
   aside?: ReactNode;
+  /**
+   * The one thing to know, in a sentence — see `shop/status.ts`.
+   *
+   * The band used to carry a greeting and a date, two things the reader
+   * already had. This is what they came for: whether anything needs them.
+   * `loadingStatus` draws a placeholder of the same height, so the band does
+   * not grow a line when the answer lands.
+   */
+  status?: { tone: "alert" | "busy" | "calm"; text: string } | null;
+  loadingStatus?: boolean;
 }
+
+/** The dot beside the status line. Colour says how pressing; the words say what. */
+const STATUS_DOT: Record<"alert" | "busy" | "calm", string> = {
+  alert: "bg-warning-400 ring-warning-300/40",
+  busy: "bg-blue-light-300 ring-blue-light-300/40",
+  calm: "bg-success-400 ring-success-300/40",
+};
 
 const CHIP_TONE: Record<NonNullable<Chip["tone"]>, string> = {
   good: "bg-success-400/20 text-success-100 ring-success-300/30",
@@ -49,10 +74,13 @@ export function DashboardHero({
   title,
   subtitle,
   initials,
+  logo,
   icon,
   chips,
   loadingChips = 0,
   aside,
+  status,
+  loadingStatus = false,
 }: Props) {
   return (
     <header className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 p-6 text-white shadow-lg shadow-brand-900/20 md:mb-6 sm:p-7">
@@ -65,8 +93,14 @@ export function DashboardHero({
       </div>
 
       <div className="relative flex flex-wrap items-center justify-between gap-5">
-        <div className="flex min-w-0 items-center gap-4">
-          {(initials || icon) && (
+        <div className="flex min-w-0 items-start gap-4">
+          {logo ? (
+            // On a white plate: a logo is drawn for paper, and most of them
+            // vanish on a coloured ground.
+            <span className="flex size-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white ring-1 ring-white/40 sm:size-14">
+              <img src={logo} alt="" className="size-full object-contain p-1" />
+            </span>
+          ) : (initials || icon) && (
             <span className="flex size-13 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-theme-xl font-bold text-white ring-1 ring-white/25 backdrop-blur sm:size-14">
               {initials ?? icon}
             </span>
@@ -79,6 +113,13 @@ export function DashboardHero({
               {title}
             </h2>
             {subtitle && <p className="mt-1 text-theme-sm text-white/65">{subtitle}</p>}
+            {status && (
+              <p className="mt-3 flex items-start gap-2.5 text-theme-sm font-medium leading-snug text-white sm:text-base" data-testid="hero-status">
+                <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ring-4 ${STATUS_DOT[status.tone]}`} aria-hidden />
+                <span className="min-w-0 text-pretty">{status.text}</span>
+              </p>
+            )}
+            {!status && loadingStatus && <span className="mt-3 block h-5 w-64 max-w-full animate-pulse rounded bg-white/15" />}
           </div>
         </div>
 

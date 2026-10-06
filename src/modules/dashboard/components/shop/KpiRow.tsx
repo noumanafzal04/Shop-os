@@ -30,6 +30,7 @@ interface TileProps {
   caption?: string;
   /** Last 7 days of this same figure, straight from `sales_series`. */
   spark?: number[];
+  featured?: boolean;
 }
 
 type TileSpec = TileProps & { key: string };
@@ -86,6 +87,9 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
       spark: spark((d) => d.revenue),
+      // What the shop is for, and the first thing on the page.
+      featured: true,
+      caption: series.length > 1 ? "Last seven days — today solid" : undefined,
     });
 
     // Only when the shop actually handed something back. Today's Sales is
@@ -214,6 +218,8 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
       spark: spark((d) => d.other_income),
+      featured: true,
+      caption: series.length > 1 ? "Last seven days — today solid" : undefined,
     });
 
     tiles.push({

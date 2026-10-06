@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { applyTenantTheme } from "../../../common/theme/tenantTheme";
+import { recallTenantTheme, rememberTenantTheme } from "../../../common/theme/rememberedTheme";
 import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
 import { formatMoney } from "../../../common/format/money";
@@ -41,14 +42,35 @@ export function useShopSettings() {
  */
 export function useTenantTheme() {
   const settings = useShopSettings();
+  const tenantId = useAuthStore((s) => s.user?.tenant?.id ?? null);
+  const loaded = settings.data !== undefined;
   const primary = settings.data?.theme_primary ?? null;
   const secondary = settings.data?.theme_secondary ?? null;
   const tint = settings.data?.theme_tint ?? "subtle";
   const sidebar = settings.data?.theme_sidebar ?? "light";
 
   useEffect(() => {
-    applyTenantTheme({ primary, secondary, tint, sidebar });
-  }, [primary, secondary, tint, sidebar]);
+    // UNTIL THE SETTINGS ARRIVE, the page keeps what this device remembers.
+    //
+    // This effect used to run with `data` still undefined, which read as "no
+    // colour chosen" and painted the house blue — every reload, for as long
+    // as the request took — and then painted the shop's own when it landed.
+    // See rememberedTheme.ts.
+    if (!loaded) {
+      const kept = recallTenantTheme(tenantId);
+      if (kept) applyTenantTheme(kept);
+
+      return;
+    }
+
+    const theme = { primary, secondary, tint, sidebar };
+    applyTenantTheme(theme);
+    rememberTenantTheme(tenantId, theme);
+  }, [loaded, tenantId, primary, secondary, tint, sidebar]);
+
+  // Leaving the shop's screens takes its colours off. The platform console
+  // and the front page are not this shop's to dress.
+  useEffect(() => () => applyTenantTheme({}), []);
 }
 
 /**

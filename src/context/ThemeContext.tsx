@@ -15,15 +15,20 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [theme, setTheme] = useState<Theme>("light");
+  // READ ON THE FIRST RENDER, not one paint later. This started every session
+  // as "light" and switched in an effect, so somebody who works in dark mode
+  // was shown a white page on every reload. `bootTheme` (main.tsx) has
+  // already put the class on <html>; this keeps React's idea of it in step.
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      return localStorage.getItem("theme") === "dark" ? "dark" : "light";
+    } catch {
+      return "light";
+    }
+  });
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    // This code will only run on the client side
-    const savedTheme = localStorage.getItem("theme") as Theme | null;
-    const initialTheme = savedTheme || "light"; // Default to light theme
-
-    setTheme(initialTheme);
     setIsInitialized(true);
   }, []);
 

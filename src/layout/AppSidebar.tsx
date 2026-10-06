@@ -60,7 +60,25 @@ export type NavItem = {
    * mark on the rail that doing the job cannot clear.
    */
   badge?: number;
+  /**
+   * Which part of the rail this row belongs to. Rows that share one are drawn
+   * together under its heading; a change of section is a heading (or, on a
+   * rail of icons, a hairline).
+   *
+   * The shop's menu was one unbroken column — sixteen rows in Full view with
+   * nothing to say where "what I do all day" stops and "what I set up once"
+   * begins. Three parts, in the order a day uses them.
+   */
+  section?: string;
 };
+
+/** Put a run of rows under one heading. */
+const under = (section: string, items: NavItem[]): NavItem[] => items.map((i) => ({ ...i, section }));
+
+/** The shop rail's three parts, in the order a day uses them. */
+const DAILY = "Daily work";
+const MANAGE = "Manage";
+const SHOP = "Your shop";
 
 /**
  * Tenant nav for first-time users: the five daily-use modules are direct
@@ -193,6 +211,7 @@ export function shopNav(
   // at all — the screens those shops spend the whole day on.
   if (mode === "basic") {
     return filterByPermission([
+      ...under(DAILY, [
       { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
       ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
       ...(has("dine_in") ? [{ icon: <TableIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
@@ -203,18 +222,24 @@ export function shopNav(
       // close a day off or record what went to the bank.
       ...(has("pos") ? [{ icon: <CalenderIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
       ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
+      ]),
+      ...under(MANAGE, [
       ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
       ...(has("expenses") ? [expenseManager] : []),
       ...(multiBranch ? [branchItem] : []),
+      ]),
+      ...under(SHOP, [
       { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
     // Last, and never gated: anyone in the shop can get stuck, and what
     // the Help Centre SHOWS is already filtered to this shop's modules
     // and to what the reader can open.
     { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
+      ]),
     ], can);
   }
 
   return filterByPermission([
+    ...under(DAILY, [
     // ── Daily essentials ──────────────────────────────────────────
     { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
     // POS till is only for shops on a plan that includes it (not online-only).
@@ -239,6 +264,8 @@ export function shopNav(
     ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
     ...(has("delivery") ? [{ icon: <UserIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     ...forecourt,
+    ]),
+    ...under(MANAGE, [
     // Expense & Income module — one home for all money in/out.
     ...(has("expenses") ? [expenseManager] : []),
     // Multi-branch: a locations manager appears only when the plan allows >1.
@@ -404,12 +431,15 @@ export function shopNav(
     // Settings + subscription stand alone at the bottom — one click away.
     // Subscription carries no permission because the server asks for none:
     // what the shop pays is not a secret from the people who work in it.
+    ]),
+    ...under(SHOP, [
     { icon: <ShootingStarIcon />, name: "Subscription", path: "/tenant/subscription" },
     { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
     // Last, and never gated: anyone in the shop can get stuck, and what
     // the Help Centre SHOWS is already filtered to this shop's modules
     // and to what the reader can open.
     { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
+    ]),
   ], can);
 }
 
@@ -639,6 +669,23 @@ const AppSidebar: React.FC = () => {
     }
   }, [location, isActive]);
 
+  // AN OPENED GROUP IS BROUGHT INTO VIEW.
+  //
+  // The rail is as tall as the window and the menu is often taller. Opening a
+  // group near the bottom grew it downwards, out of sight — the row turned its
+  // chevron over and, as far as anyone could see, nothing else happened.
+  useEffect(() => {
+    if (openSubmenu === null) return;
+    // After the drawer has finished growing: its height is what has to fit.
+    const t = window.setTimeout(() => {
+      document
+        .querySelector(`[data-rail-group="${openSubmenu.type}-${openSubmenu.index}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }, 320);
+
+    return () => window.clearTimeout(t);
+  }, [openSubmenu]);
+
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     // ON A RAIL OF ICONS, A GROUP HAS NOWHERE TO OPEN.
     //
@@ -672,9 +719,20 @@ const AppSidebar: React.FC = () => {
         // A collapsed rail hides the children, so the parent has to carry the
         // "you are here" pill itself.
         const childActive = nav.subItems?.some((sub) => isActive(sub.path)) ?? false;
+        // A new part of the rail starts here. Said in words when there is
+        // room for words; a hairline on a rail of icons, where a heading
+        // would be three letters and an ellipsis.
+        const opens = nav.section !== undefined && nav.section !== items[index - 1]?.section;
 
         return (
-          <li key={nav.name}>
+          <li key={nav.name} data-rail-group={nav.subItems ? `${menuType}-${index}` : undefined}>
+            {opens && (showLabels ? (
+              <p className={`rail-heading px-3 pb-1.5 text-[11px] font-semibold uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500 ${index === 0 ? "" : "pt-4"}`}>
+                {nav.section}
+              </p>
+            ) : (
+              index > 0 && <div className="rail-rule mx-4 my-2 border-t border-gray-200 dark:border-white/10" aria-hidden />
+            ))}
             {nav.subItems ? (
               <button
                 type="button"
@@ -751,7 +809,7 @@ const AppSidebar: React.FC = () => {
                 className="grid transition-[grid-template-rows] duration-300 ease-out"
                 style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
               >
-                <ul className="ml-6 space-y-0.5 overflow-hidden border-l border-gray-200 pl-3 dark:border-gray-800">
+                <ul className="rail-guide ml-6 space-y-0.5 overflow-hidden border-l border-gray-200 pl-3 dark:border-white/15">
                   {nav.subItems.map((subItem) => (
                     <li key={subItem.name} className="first:mt-1 last:mb-1">
                       <Link
@@ -890,10 +948,23 @@ const AppSidebar: React.FC = () => {
       </div>
 
       {/* The ONLY scroller: min-h-0 lets it shrink inside the flex column, so a
-          long module list stays reachable at any viewport height. */}
-      <nav
-        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-4 [scrollbar-color:var(--color-gray-300)_transparent] [scrollbar-width:thin] dark:[scrollbar-color:var(--color-gray-700)_transparent]"
-      >
+          long module list stays reachable at any viewport height.
+       *
+       * `rail-scroll`, and what it is for:
+       *
+       *     "jb menu open kr, right side black vertical line ati jo proper
+       *      show ni hoti"
+       *
+       * Opening a group makes the list longer than the rail, and a scroller
+       * appears down its right edge. On a dark rail its thumb was `gray-700`
+       * — and the PRIMARY rail carries `dark` too, so on a rail painted in
+       * the shop's own colour the thumb was a near-black stripe that came
+       * and went with every submenu. The guide line beside an open group was
+       * `gray-800`, for the same reason.
+       *
+       * The scroller now shows only while the rail is being used, in a
+       * colour that belongs to the ground it is on. See index.css. */}
+      <nav className="rail-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 pb-4">
         {renderMenuItems(navItems, "main")}
 
         {othersItems.length > 0 && (

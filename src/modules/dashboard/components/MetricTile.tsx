@@ -97,6 +97,40 @@ interface MetricTileProps {
    * shape under a number is read as that number's history.
    */
   spark?: number[];
+  /**
+   * THE figure of the strip, drawn as a filled card in the shop's colour.
+   *
+   * One per strip, and it is what the business is FOR — what came in today.
+   * Every tile was a white card with a small coloured icon, so the strip had
+   * no first thing to look at. The week behind it is drawn as bars, today's
+   * solid, where the others draw a line.
+   */
+  featured?: boolean;
+}
+
+/**
+ * The week as bars, the last one — today — solid.
+ *
+ * Heights are a share of the week's best day. A week of nothing draws
+ * nothing: seven stubs of equal height would read as seven equal days.
+ */
+function WeekBars({ points }: { points: number[] }) {
+  const top = Math.max(...points.map((p) => Math.max(0, p)));
+  if (top <= 0) return null;
+
+  return (
+    <span className="flex h-12 shrink-0 items-end gap-1.5" aria-hidden>
+      {points.map((p, i) => (
+        <span
+          key={i}
+          // Never less than a sliver: a day that took a little must not be
+          // drawn the same as a day that took nothing.
+          style={{ height: `${p > 0 ? Math.max(8, Math.round((p / top) * 100)) : 4}%` }}
+          className={`w-3 rounded-t-sm sm:w-3.5 ${i === points.length - 1 ? "bg-white" : "bg-white/35"}`}
+        />
+      ))}
+    </span>
+  );
 }
 
 export function MetricTile({
@@ -110,7 +144,37 @@ export function MetricTile({
   emphasis = false,
   caption,
   spark,
+  featured = false,
 }: MetricTileProps) {
+  if (featured) {
+    return (
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 p-4 text-white shadow-lg shadow-brand-900/15 transition-all duration-200 hover:-translate-y-0.5 sm:p-5">
+        <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-white/10 blur-2xl" />
+        {/* `justify-between`: in a strip the tiles are stretched to one
+            height, and this one has no line under it to fill the difference —
+            so the figure and the week sit on the card's floor, not halfway. */}
+        <div className="relative flex h-full flex-col justify-between gap-4">
+          <div className="flex items-start justify-between gap-2">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25">
+              {icon}
+            </span>
+            <DeltaPill delta={delta} invert={invertDelta} title={deltaTitle} />
+          </div>
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-[1.6rem] font-bold leading-tight tracking-[-0.025em] tabular-nums sm:text-[1.75rem]" title={value}>
+                {value}
+              </p>
+              <p className="mt-2 text-theme-sm font-semibold leading-snug text-white/90" title={label}>{label}</p>
+              {caption && <p className="mt-0.5 text-theme-xs leading-snug text-white/70" title={caption}>{caption}</p>}
+            </div>
+            {hasShape(spark) && <WeekBars points={spark} />}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`relative overflow-hidden rounded-3xl border p-4 shadow-theme-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-theme-md sm:p-5 ${

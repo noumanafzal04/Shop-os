@@ -265,8 +265,14 @@ layer(base);
   @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm;
 }
 
+/* WHERE YOU ARE, as a solid plate in the shop's own colour.
+   It was a pale tint with brand-coloured writing — the quietest row on the
+   rail was the one that says where you are. The ground is `--rail-primary`:
+   the first shade of the shop's ramp that carries white at 4.5:1, so a shop
+   that picked yellow still gets a row it can read. */
 @utility menu-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  background-color: var(--rail-primary, var(--color-brand-600));
+  color: #fff;
 }
 
 @utility menu-item-inactive {
@@ -278,7 +284,7 @@ layer(base);
 }
 
 @utility menu-item-icon-active {
-  @apply text-brand-500 dark:text-brand-400;
+  color: #fff;
 }
 
 @utility menu-item-icon-size {
@@ -307,8 +313,9 @@ layer(base);
   @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
 }
 
+/* A screen INSIDE an open group: lit, not a second plate under the first. */
 @utility menu-dropdown-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply bg-brand-50 font-semibold text-brand-600 dark:bg-white/10 dark:text-white;
 }
 
 @utility menu-dropdown-item-inactive {
@@ -1054,6 +1061,62 @@ span.flatpickr-weekday,
   .grows-up { animation: none; transform: none; }
 }
 
+/* ── THE RAIL'S SCROLLER ───────────────────────────────────────────────
+   Opening a group makes the menu longer than the rail, and a scroller
+   appears down its right edge. On a dark rail its thumb was `gray-700` — and
+   the primary rail carries `dark` too, so on a rail painted in the shop's
+   own colour it was a near-black stripe that came and went with every
+   submenu. ("right side black vertical line ati jo proper show ni hoti")
+
+   Nothing at rest; a thumb only while the rail is being used, in a colour
+   that belongs to the ground it sits on. Standard properties first; the
+   `::-webkit-` rules are for Safari, which reads only those.
+
+   Outside every @layer for the same reason as the primary rail below. */
+.rail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.rail-scroll:hover,
+.rail-scroll:focus-within {
+  scrollbar-color: var(--color-gray-300) transparent;
+}
+.dark .rail-scroll:hover,
+.dark .rail-scroll:focus-within {
+  scrollbar-color: rgb(255 255 255 / 0.28) transparent;
+}
+.rail-primary .rail-scroll:hover,
+.rail-primary .rail-scroll:focus-within {
+  scrollbar-color: rgb(255 255 255 / 0.45) transparent;
+}
+.rail-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.rail-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.rail-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: transparent;
+}
+.rail-scroll:hover::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+}
+.dark .rail-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.28);
+}
+.rail-primary .rail-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.45);
+}
+
+/* A count on the row you are on: the plate is the brand, so the count is
+   the other way round — or it is a brand dot on a brand ground. */
+.menu-item-active .rail-count {
+  background-color: #fff;
+  color: var(--rail-primary, var(--color-brand-600));
+  --tw-ring-color: var(--rail-primary, var(--color-brand-600));
+}
+
 /* ── THE PRIMARY RAIL ──────────────────────────────────────────────────
    Appearance → Sidebar → Primary. The whole rail in the shop's own colour,
    white writing on it, and the screen you are on as a white plate.
@@ -1113,6 +1176,18 @@ span.flatpickr-weekday,
 }
 .rail-primary .rail-rule {
   border-color: rgb(255 255 255 / 0.16);
+}
+/* The line beside an open group's screens. It was `gray-800` here — the
+   dark variant of a line drawn for a white rail — which on the shop's own
+   colour is a black stripe down the menu. */
+.rail-primary .rail-guide {
+  border-color: rgb(255 255 255 / 0.28);
+}
+/* On the white plate the count goes back to the rail's colour. */
+.rail-primary .menu-item-active .rail-count {
+  background-color: var(--rail-primary, var(--color-brand-600));
+  color: #fff;
+  --tw-ring-color: #fff;
 }
 .rail-primary .rail-count {
   background-color: #fff;
