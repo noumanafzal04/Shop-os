@@ -1,6 +1,9 @@
 # Memory Index
 
 - [RESUME HERE](shopos-resume-here.md) — 2026-10-06 13:40: mart journey 12 stages green, 16 fixes pushed; next = fresh run, 8 trades, 2 decisions
+- [Which Paper Is Which](shopos-which-paper-is-which.md) — "invoice looks like kitchen receipt" = KOT auto-print; roll: no page margin, 5mm own padding, measured as printed
+- [Day Closed, No Reopen](shopos-day-closed-no-reopen.md) — OPEN: closed day takes no shifts & cannot be reopened; warning added; same-day journey = 103/105
+- [Build Check Is tsc -b](shopos-build-check-is-tsc-b.md) — STANDING: `npm run build` before every panel push; my quick tsc missed 3 errors that broke a deploy
 - [Settings: What Listens](shopos-settings-what-listens.md) — stage G, 30 cases; tips at counter, stale Save, wrong PIN ×2, stations box; hardware truth
 - [Paper Reads The Shop's Clock](shopos-paper-reads-shops-clock.md) — STANDING: ShopTime::show() for printed times; OPEN: report days are UTC (5 AM PKT)
 - [A Roll Is A Roll](shopos-roll-is-a-roll.md) — `size: 80mm auto` is invalid CSS → A4; PrintPaper + fitRoll; never assert a CSS string
