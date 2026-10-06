@@ -18,6 +18,7 @@ use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\Retention;
+use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -60,7 +61,10 @@ class SaleController extends Controller
                 // needs to reconcile by hand — a day's takings that arrived
                 // late, against the slips that were printed at the time.
                 $s->offline_number,
-                $s->sold_at?->toDateTimeString(),
+                // By the shop's clock. This column was UTC: the file an
+                // accountant is handed said a sale rung at 12:47 was at 07:47,
+                // and filed an after-midnight sale under the day before.
+                ShopTime::show($s->sold_at, 'Y-m-d H:i:s'),
                 $s->branch?->name,
                 $s->channel?->value,
                 $s->status?->value,
@@ -80,7 +84,7 @@ class SaleController extends Controller
             ])
             ->all();
 
-        return CsvExport::stream('sales-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('sales-'.ShopTime::show(now(), 'Y-m-d').'.csv', $header, $rows);
     }
 
     /**

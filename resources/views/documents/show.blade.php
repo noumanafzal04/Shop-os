@@ -45,13 +45,17 @@
     $payments      = $document->relationLoaded('payments') ? $document->payments : collect();
 @endphp
 <!DOCTYPE html>
-<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width, 2) !!}>
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width) !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $document->number }} — {{ $tenant->business_name }}</title>
     <style>
         :root { --ink:#101828; --soft:#667085; --rule:#d0d5dd; --hair:#eaecf0; }
+        @if($roll)
+        /* A thermal head has no grey. On a roll everything is ink. */
+        :root { --ink:#000; --soft:#000; --rule:#000; --hair:#000; }
+        @endif
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
         body {
@@ -59,8 +63,9 @@
             background: {{ $roll ? '#fff' : '#f2f4f7' }};
             -webkit-print-color-adjust: exact; print-color-adjust: exact;
             @if($roll)
-                font: 12px/1.45 "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
-                padding: 8px 6px 20px;
+                /* A document's face, not a typewriter's — as the receipt. */
+                font: 12px/1.45 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                padding: {{ \App\Support\PrintPaper::rollEdge() }};
             @else
                 font: 13px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                 padding: 24px 16px 40px;
@@ -120,9 +125,9 @@
         .terms { font-size:{{ $roll ? '10px' : '11px' }}; color:var(--soft); white-space:pre-line; }
 
         @media print {
-            body { background:#fff; padding:0; }
+            body { background:#fff; padding:{{ $roll ? \App\Support\PrintPaper::rollEdge() : '0' }}; }
             .doc { box-shadow:none; width:auto; padding:{{ $roll ? '0' : '12mm' }}; }
-            @page { margin:{{ $roll ? '2mm' : '10mm' }}; size:{{ \App\Support\PrintPaper::pageSize($width) }}; }
+            @page { margin:{{ \App\Support\PrintPaper::pageMargin($width, '10mm') }}; size:{{ \App\Support\PrintPaper::pageSize($width) }}; }
         }
     </style>
 </head>

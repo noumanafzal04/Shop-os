@@ -111,7 +111,7 @@ class ARollIsARollTest extends TestCase
             $this->assertStringStartsWith('80mm', $size);
         }
         // …and tells whatever prints it which roll to fit the page to.
-        $this->assertStringContainsString('<html lang="en" data-roll-mm="80" data-roll-margin-mm="3">', $html);
+        $this->assertStringContainsString('<html lang="en" data-roll-mm="80" data-roll-margin-mm="0">', $html);
     }
 
     public function test_a_58mm_roll_is_58mm(): void

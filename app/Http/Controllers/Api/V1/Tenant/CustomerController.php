@@ -13,6 +13,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Support\ApiResponse;
 use App\Support\CsvExport;
+use App\Support\ShopTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -55,12 +56,12 @@ class CustomerController extends Controller
                 $c->credit_limit,
                 $c->sales_count,
                 $c->sales_total ?? 0,
-                $c->last_seen_at?->toDateTimeString(),
+                ShopTime::show($c->last_seen_at, 'Y-m-d H:i:s'),
                 $c->notes,
             ])
             ->all();
 
-        return CsvExport::stream('customers-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('customers-'.ShopTime::show(now(), 'Y-m-d').'.csv', $header, $rows);
     }
 
     public function store(StoreCustomerRequest $request): JsonResponse

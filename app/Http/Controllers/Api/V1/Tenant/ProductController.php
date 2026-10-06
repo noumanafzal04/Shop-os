@@ -27,6 +27,7 @@ use App\Support\ItemTypes;
 use App\Support\LowStock;
 use App\Support\ProductCsv;
 use App\Support\RecipeCost;
+use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -341,7 +342,7 @@ class ProductController extends Controller
             ])
             ->all();
 
-        return CsvExport::stream('products-'.now()->format('Y-m-d').'.csv', $header, $rows);
+        return CsvExport::stream('products-'.ShopTime::show(now(), 'Y-m-d').'.csv', $header, $rows);
     }
 
     public function show(string $id): JsonResponse

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes('thermal_80', 4) !!}>
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes('thermal_80') !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,7 +12,7 @@
         body {
             font-family: "Courier New", ui-monospace, monospace;
             margin: 0;
-            padding: 10px 12px;
+            padding: {{ \App\Support\PrintPaper::rollEdge() }};
             color: #000;
             width: 80mm;
             font-size: 15px;
@@ -45,11 +45,16 @@
         .note { padding-left: 14px; font-size: 13px; font-weight: 700; text-transform: uppercase; }
         @media print {
             body { width: auto; }
-            @page { size: {{ \App\Support\PrintPaper::pageSize('thermal_80') }}; margin: 4mm; }
+            @page { size: {{ \App\Support\PrintPaper::pageSize('thermal_80') }}; margin: {{ \App\Support\PrintPaper::pageMargin('thermal_80', '0') }}; }
         }
     </style>
 </head>
-<body onload="window.print()">
+{{-- No `onload="window.print()"`. This used to print itself, from when it was
+     opened in a tab of its own. It is printed through the panel's one print
+     door now, which fits the page to the ticket first — so a ticket that
+     printed itself printed TWICE: once on the unfitted page, once on the
+     fitted one. --}}
+<body>
     <div class="center">
         {{-- Nothing prints above the station, not even the shop name — this is
              the one line that decides whether the food gets cooked at all. No
@@ -112,5 +117,14 @@
         <div class="rule"></div>
         <div class="note">** {{ $kot->notes }}</div>
     @endif
+
+    {{-- WHOSE PAPER THIS IS. At a counter with one printer this slip comes
+         out first, straight after "Complete sale", and was taken for the
+         customer's invoice: "the POS invoice is coming out like a kitchen
+         receipt". It has no prices and no shop details because the kitchen
+         needs neither — so it says, at the bottom where it costs the cook
+         nothing, that it is the kitchen's copy. --}}
+    <div class="rule"></div>
+    <div class="center muted">KITCHEN COPY — NOT A RECEIPT</div>
 </body>
 </html>

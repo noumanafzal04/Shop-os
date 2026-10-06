@@ -63,7 +63,7 @@
     $anyDiscount   = $lineDiscounts > 0 || (float) $sale->discount > 0 || (float) $sale->promo_discount > 0;
 @endphp
 <!DOCTYPE html>
-<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width, 3) !!}>
+<html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width) !!}>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -75,6 +75,15 @@
             --rule: #d0d5dd;
             --hair: #eaecf0;
         }
+        @if($roll)
+        /* A ROLL IS BLACK OR IT IS NOTHING. A thermal head has no grey: a
+           colour that is 40% ink on a screen is a scatter of dots on the
+           paper, and the lines that were "soft" — the address, the tax
+           numbers, what each item cost — are the ones a customer squints at.
+           So on a roll everything is ink, and what was told apart by colour
+           is told apart by size and weight instead. */
+        :root { --ink: #000; --soft: #000; --rule: #000; --hair: #000; }
+        @endif
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; }
         body {
@@ -82,8 +91,15 @@
             background: {{ $roll ? '#fff' : '#f2f4f7' }};
             -webkit-print-color-adjust: exact; print-color-adjust: exact;
             @if($roll)
-                font: 12px/1.45 "Menlo", "Consolas", "DejaVu Sans Mono", monospace;
-                padding: 8px 6px 20px;
+                /* The same face as the sheet. It was a typewriter's — the face
+                   the kitchen ticket is set in — and a customer's invoice in
+                   it read as a second kitchen slip: "the POS invoice is coming
+                   out like a kitchen receipt". An invoice is a document; the
+                   figures stay in line because they are tabular, not because
+                   every letter is the same width. */
+                font: 12px/1.45 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                /* The paper's edge, kept by the document itself. See PrintPaper. */
+                padding: {{ \App\Support\PrintPaper::rollEdge() }};
             @else
                 font: 13px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                 padding: 24px 16px 40px;
@@ -103,13 +119,26 @@
         .soft { color: var(--soft); }
         .b { font-weight: 700; }
         .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .rule { border: 0; border-top: 1px {{ $roll ? 'dashed' : 'solid' }} var(--rule); margin: {{ $roll ? '7px 0' : '20px 0' }}; }
-        .hair { border: 0; border-top: 1px solid var(--hair); margin: {{ $roll ? '5px 0' : '12px 0' }}; }
+        .rule { border: 0; border-top: 1px solid var(--rule); margin: {{ $roll ? '7px 0' : '20px 0' }}; }
+        .hair { border: 0; border-top: 1px {{ $roll ? 'dotted' : 'solid' }} var(--hair); margin: {{ $roll ? '5px 0' : '12px 0' }}; }
 
         /* ── Masthead ─────────────────────────────────────────────── */
         .logo { max-height: {{ $roll ? '48px' : '64px' }}; max-width: 100%; margin-bottom: 6px; }
-        .shop { font-size: {{ $roll ? '15px' : '22px' }}; font-weight: 700; margin: 0; letter-spacing: {{ $roll ? '.02em' : '-.01em' }}; }
+        .shop { font-size: {{ $roll ? '18px' : '22px' }}; font-weight: 800; margin: 0; line-height: 1.2; letter-spacing: {{ $roll ? '0' : '-.01em' }}; }
         .doctype { font-size: {{ $roll ? '11px' : '12px' }}; text-transform: uppercase; letter-spacing: .12em; color: var(--soft); }
+        @if($roll)
+        /* What this paper IS, in a band of its own under the masthead: the
+           first thing that tells it from every other slip a printer makes. */
+        .doctype {
+            display: block; margin-top: 7px; padding: 3px 0; font-weight: 700;
+            border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;
+        }
+        .soft { font-size: 11px; }
+        /* The band is its own rule: the one that used to follow the masthead
+           would be a second line a hair below it. */
+        .masthead + .rule { display: none; }
+        .masthead { margin-bottom: 8px; }
+        @endif
         .taxids { font-size: {{ $roll ? '10px' : '11px' }}; color: var(--soft); }
 
         /* ── The copy stamp ───────────────────────────────────────── */
@@ -153,7 +182,10 @@
             padding: {{ $roll ? '3px 0' : '0 8px 8px' }};
             border-bottom: 1px solid var(--rule);
         }
-        table.items td { padding: {{ $roll ? '3px 0' : '9px 8px' }}; vertical-align: top; }
+        /* A heading sits over what it heads. `.r` lost to the rule above, so
+           "Amount" stood at the left of a column of right-aligned figures. */
+        table.items th.r { text-align: right; }
+        table.items td { padding: {{ $roll ? '4px 0' : '9px 8px' }}; vertical-align: top; }
         @if(! $roll)
             table.items tbody tr + tr td { border-top: 1px solid var(--hair); }
             table.items th:first-child, table.items td:first-child { padding-left: 0; }
@@ -169,10 +201,19 @@
                  border-left: 2px solid #000; padding-left: 4px; margin-top: 2px; }
 
         /* ── Totals ───────────────────────────────────────────────── */
-        .totals { width: {{ $roll ? '100%' : '300px' }}; margin-left: auto; font-size: {{ $roll ? '12px' : '13px' }}; }
+        /* Collapsed, so the rule over the total is ONE line across both
+           columns and not two with a gap where the cells meet. */
+        .totals { width: {{ $roll ? '100%' : '300px' }}; margin-left: auto; font-size: {{ $roll ? '12px' : '13px' }}; border-collapse: collapse; }
         .totals tr td { padding: {{ $roll ? '2px 0' : '5px 0' }}; }
         .totals tr td:last-child { text-align: right; }
-        .grand td { font-size: {{ $roll ? '15px' : '18px' }}; font-weight: 700; padding-top: {{ $roll ? '6px' : '10px' }} !important; border-top: 1.5px solid var(--ink); }
+        .grand td { font-size: {{ $roll ? '16px' : '18px' }}; font-weight: {{ $roll ? '800' : '700' }}; padding-top: {{ $roll ? '6px' : '10px' }} !important; border-top: 1.5px solid var(--ink); }
+        @if($roll)
+        /* The figure the customer came for, ruled above AND below. */
+        .grand td { padding-bottom: 5px !important; border-bottom: 1.5px solid #000; }
+        .totals .soft { font-size: 12px; }
+        .lname { font-weight: 700; }
+        table.items tbody tr + tr td { border-top: 1px dotted #000; }
+        @endif
         .tender td { color: var(--soft); }
         .tender.change td { color: var(--ink); font-weight: 600; }
 
@@ -193,12 +234,12 @@
         body.has-toolbar { padding-top: 52px; }
 
         @media print {
-            body { background: #fff; padding: 0; }
+            body { background: #fff; padding: {{ $roll ? \App\Support\PrintPaper::rollEdge() : '0' }}; }
             body.has-toolbar { padding-top: 0; }
             .doc { width: auto; box-shadow: none; padding: {{ $roll ? '0' : '0' }}; border-radius: 0; }
             .no-print { display: none !important; }
             {{-- A valid size. `80mm auto` is not one: browsers dropped it and printed A4. See PrintPaper. --}}
-            @page { size: {{ \App\Support\PrintPaper::pageSize($width) }}; margin: {{ $roll ? '3mm' : '14mm' }}; }
+            @page { size: {{ \App\Support\PrintPaper::pageSize($width) }}; margin: {{ \App\Support\PrintPaper::pageMargin($width, '14mm') }}; }
         }
     </style>
 </head>
@@ -222,7 +263,7 @@
 
     {{-- ══ Masthead ══════════════════════════════════════════════ --}}
     @if($roll)
-        <div class="c">
+        <div class="c masthead">
             @if(($settings['invoice_show_logo'] ?? true) && $tenant->logo_path)
                 <img class="logo" src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($tenant->logo_path) }}" alt="">
             @endif

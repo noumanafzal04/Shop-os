@@ -194,6 +194,27 @@ class ThePaperReadsTheShopsClockTest extends TestCase
         $this->assertSame('Bilal Traders', $named['customer_name']);
     }
 
+    public function test_the_sales_file_an_accountant_is_handed_is_on_the_shops_clock(): void
+    {
+        // The same fault, in a file instead of on a slip: `sold_at` was written
+        // to the CSV as UTC, so the export disagreed with every receipt in it.
+        Carbon::setTestNow(Carbon::parse('2026-10-06 21:00:00', 'UTC'));   // 02:00 on the 7th, locally
+
+        $this->as()->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash', 'amount_paid' => 1000,
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $response = $this->as()->get('/api/v1/sales/export');
+        $response->assertOk();
+        $csv = $response->streamedContent();
+
+        $this->assertStringContainsString('2026-10-07 02:00:00', $csv);
+        $this->assertStringNotContainsString('2026-10-06 21:00:00', $csv, 'the sales export is in UTC');
+        // …and the file is named for the shop's day, not the server's.
+        $this->assertStringContainsString('sales-2026-10-07.csv', (string) $response->headers->get('content-disposition'));
+    }
+
     public function test_a_moment_that_never_happened_prints_nothing(): void
     {
         $this->assertSame('', ShopTime::show(null, 'd M Y, H:i', $this->tenant));
