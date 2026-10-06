@@ -20,7 +20,6 @@ import type {
   HardwareDevice,
   HardwareType,
 } from "../services/hardwareService";
-import { PRODUCT } from "../../../common/brand";
 
 const TYPE_LABEL: Record<HardwareType, string> = {
   receipt_printer: "Receipt printer",

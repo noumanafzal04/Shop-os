@@ -266,8 +266,6 @@ test("F3 · suspended: the owner is out, and is told why", async ({ page, browse
 
 test("F3 · activated: the owner is back in, and the shop is as it was", async ({ page, browser }) => {
   test.setTimeout(300_000);
-  const r = record();
-
   await tenantPage(page);
   await page.getByRole("button", { name: "Activate", exact: true }).click();
   await expect(page.getByText("Tenant activated")).toBeVisible({ timeout: 20_000 });

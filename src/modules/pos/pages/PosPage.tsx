@@ -695,6 +695,13 @@ export default function PosPage() {
    * cashier's own consent implied.
    */
   const [servedBy, setServedBy] = useState<string | null>(null);
+  // The kitchen's slip for the sale just rung, so the sale sheet can say
+  // which paper is which. Null for a sale with nothing to cook.
+  const [kitchenSlip, setKitchenSlip] = useState<{
+    ticketId: string;
+    kots: Array<{ id: string; kot_number: number; station: string | null }>;
+    printed: boolean;
+  } | null>(null);
   // A TIP, at the counter.
   //
   // Settings → Point of Sale → "Ask for a tip at checkout" says, in so many
@@ -1489,7 +1496,16 @@ export default function PosPage() {
       // Printing asks the SERVER to render the receipt, so offline it would
       // fail — and would be the one failure a cashier sees at the exact moment
       // the shop is proving it can trade without a connection.
-      if (settings.data?.pos_auto_print && !isOffline) void printReceipt(data.id);
+      //
+      // THE CUSTOMER'S PAPER FIRST. The receipt and the kitchen's slip were
+      // started side by side, each after its own fetch, so which window came
+      // up first was whichever answer arrived first — and the other could be
+      // dropped altogether (a browser shows one print window at a time). The
+      // person at the counter is the one waiting, so theirs goes first and
+      // the kitchen's follows it.
+      const receiptPrinted = settings.data?.pos_auto_print && !isOffline
+        ? printReceipt(data.id)
+        : Promise.resolve();
 
       // ── AND THE KITCHEN'S OWN SLIP ────────────────────────────────────
       //
@@ -1503,9 +1519,22 @@ export default function PosPage() {
       // Same shape as the receipt above: server-rendered, so skipped offline,
       // and a failure is said out loud rather than swallowed — the board still
       // has the order, and that is the sentence the cashier needs.
-      if (!isOffline && data.kitchen_ticket && settings.data?.kot_auto_print !== false) {
-        void dineInService
-          .printKots(data.kitchen_ticket.ticket_id, data.kitchen_ticket.kots)
+      //
+      // …AND THE CASHIER IS TOLD WHICH PAPER IS WHICH. A print window opening
+      // on a slip with no prices, straight after "Complete sale", reads as
+      // "this is the invoice, and it has come out wrong" — reported in exactly
+      // those words. The sale sheet now says what was sent and to whom.
+      const kitchen = !isOffline ? data.kitchen_ticket ?? null : null;
+      const printsKitchenSlip = kitchen !== null && settings.data?.kot_auto_print !== false;
+      setKitchenSlip(kitchen === null ? null : {
+        ticketId: kitchen.ticket_id,
+        kots: kitchen.kots,
+        printed: printsKitchenSlip,
+      });
+      if (kitchen !== null && printsKitchenSlip) {
+        void receiptPrinted
+          .catch(() => undefined)
+          .then(() => dineInService.printKots(kitchen.ticket_id, kitchen.kots))
           .catch(() => setPosNotice(
             "The kitchen slip didn't print — the order is on the kitchen screen.",
           ));
@@ -4142,8 +4171,7 @@ export default function PosPage() {
                   id="till-tip"
                   type="number"
                   min="0"
-                  step="1"
-                  inputMode="decimal"
+                  step={1}
                   placeholder="0"
                   value={tip}
                   onChange={(e) => setTip(e.target.value)}
@@ -4647,11 +4675,36 @@ export default function PosPage() {
               </div>
             )}
 
+            {/* WHICH PAPER IS WHICH. In a kitchen that works off paper the
+                first thing to come out after a sale is the kitchen's slip:
+                large type, no prices, no shop details. It is not the invoice
+                and was being taken for one. */}
+            {kitchenSlip && (
+              <div data-testid="kitchen-slip-note" className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-center text-theme-xs text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
+                {kitchenSlip.printed ? (
+                  <>
+                    <span className="font-medium text-gray-800 dark:text-white/90">
+                      Kitchen slip {kitchenSlip.kots.map((k) => `#${k.kot_number}`).join(", ")} sent to the printer.
+                    </span>{" "}
+                    That one is for the kitchen — no prices on it. The customer&rsquo;s invoice is <span className="font-medium">Print receipt</span>.
+                  </>
+                ) : (
+                  <>Order {kitchenSlip.kots.map((k) => `#${k.kot_number}`).join(", ")} is on the kitchen screen. No kitchen slip was printed — this shop has them switched off.</>
+                )}
+              </div>
+            )}
+
             <div className="mt-3 flex justify-center gap-4 text-theme-xs">
               <button type="button" className={ROW_ACTION} disabled={printing}
                 onClick={() => printReceipt(lastSale.id, "gift")}>
                 Gift receipt
               </button>
+              {kitchenSlip && (
+                <button type="button" className={ROW_ACTION}
+                  onClick={() => void dineInService.printKots(kitchenSlip.ticketId, kitchenSlip.kots).catch(() => setPosNotice("The kitchen slip didn't print — the order is on the kitchen screen."))}>
+                  Kitchen slip
+                </button>
+              )}
               <button type="button" className={ROW_ACTION}
                 onClick={() => void openDrawer()}>
                 Open drawer

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitRoll, rollOf, rollPageRule, rollWidthIn } from "./print";
+import { fitRoll, measuringWidthMm, rollMarginIn, rollOf, rollPageRule, rollWidthIn, withoutSelfPrint } from "./print";
 import { testPageHtml } from "../modules/hardware/testPage";
 
 /**
@@ -111,5 +111,51 @@ describe("the hardware test page", () => {
 
   it("does not let a device's name write markup into the page", () => {
     expect(testPageHtml({ name: "<script>x</script>" })).not.toContain("<script>x");
+  });
+});
+
+describe("the frame a roll is measured in", () => {
+  /**
+   * The kitchen ticket came out on TWO slips, its last modifier alone on the
+   * second. It was measured at the roll's full width and printed eight
+   * millimetres narrower, so a dish name that fitted one line on screen took
+   * two on paper and the page had been cut for the shorter layout.
+   */
+  it("is the paper's width less both margins — the width the words will have", () => {
+    expect(measuringWidthMm(80, 4)).toBe(72);
+    expect(measuringWidthMm(80, 3)).toBe(74);
+    expect(measuringWidthMm(58, 3)).toBe(52);
+  });
+
+  it("is never wider than the roll, whatever the margin", () => {
+    for (const margin of [0, 2, 3, 4, 8]) expect(measuringWidthMm(80, margin)).toBeLessThanOrEqual(80);
+  });
+
+  it("reads the margin off the document before it is a document", () => {
+    expect(rollMarginIn('<html lang="en" data-roll-mm="80" data-roll-margin-mm="4">')).toBe(4);
+    expect(rollMarginIn('<html lang="en" data-roll-mm="80">')).toBe(3);
+  });
+
+  it("lets go of a width the template pinned for the screen, while it measures", () => {
+    const doc = documentFrom('<!doctype html><html data-roll-mm="80" data-roll-margin-mm="4"><head><style>body{width:80mm}</style></head><body><p>Karahi</p></body></html>');
+
+    fitRoll(doc);
+
+    // Nothing of the measuring is left behind in what gets printed.
+    expect([...doc.head.querySelectorAll("style")].some((st) => /width: auto !important/.test(st.textContent ?? ""))).toBe(false);
+    expect(doc.getElementById("roll-page")).not.toBeNull();
+  });
+});
+
+describe("a document that prints itself", () => {
+  it("is not allowed to — the door decides when, after the page is fitted", () => {
+    expect(withoutSelfPrint('<body onload="window.print()">')).toBe("<body>");
+    expect(withoutSelfPrint("<body onload='window.print();'>")).toBe("<body>");
+    expect(withoutSelfPrint('<body class="x" onload = "window.print()" >')).toBe('<body class="x" >');
+  });
+
+  it("leaves every other handler and every other document alone", () => {
+    expect(withoutSelfPrint('<body onload="start()">')).toBe('<body onload="start()">');
+    expect(withoutSelfPrint('<button onclick="window.print()">Print</button>')).toBe('<button onclick="window.print()">Print</button>');
   });
 });
