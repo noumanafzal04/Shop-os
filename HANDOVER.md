@@ -8132,3 +8132,48 @@ module's rules.
 
 **3,030 backend tests (3,010 passed, 20 skipped) · 1,754 panel tests · till
 browser specs green as a mart, a restaurant and four other trades.**
+
+
+## The QA journey: volume, the admin's return, settings — 2026-10-06
+
+The journey (`panel/e2e/journey`, cases in `docs/qa/journey/CASES.md`, runs in
+`docs/qa/journey/RUNS.md`) now has twelve stages and 105 cases for a mart.
+Stages 10–12 are new: the shop with thousands in it, the admin coming back,
+and every Settings tab. Two POS faults the shop reported were fixed on the
+way. Everything below is pushed.
+
+### What a shop would have met
+
+| Fault | Where | Now |
+|---|---|---|
+| Paging lost rows: 2,000 imported products paged back as 1,989 | 45 lists sorted by a date alone | `->stably()` before every `paginate()`; `PagesHoldStillTest` |
+| A switched-off module's rules still fired (till 630, server 504) | `CreateSaleAction`, `OrderService`, offline engine | promotions/coupons need `promotions`; group price + discount, khata, loyalty need `customers` |
+| Admin audit log did not say which shop | `Admin\AuditLogController`, `Auditable` | `business` on every row, search by business, sign-ins not logged, JSON columns recorded as maps |
+| **A discount on one cart row landed on another** (also quantity, and REMOVE) | cart line keys restarted at c1 after a reload | `lineKeys.ts`; a restored cart is re-keyed |
+| **Thermal 80mm printed A4** | `@page { size: 80mm auto }` in four templates + the test print | `PrintPaper` (server) + `fitRoll` (panel): roll's width, receipt's length |
+| **Every printed time was UTC** — 12:47 PM printed "07:47 AM" | receipt, quotation, Z-read, kitchen ticket | `ShopTime::show()`; a view formatting a clock time fails a guard |
+| "Ask for a tip" did nothing at the counter | `tips_enabled` read only by the dine-in tab | Tip box in the tender sheet; `tillBill` held to 3 server fixtures |
+| Settings Save put back changes made elsewhere | whole-snapshot PUT | sends only the keys touched on the screen |
+| One wrong PIN counted as two | client refreshed + retried on every 401 | only a 401 naming the session is retried |
+| Kitchen stations could not be typed on two lines | controlled textarea re-parsed per keystroke | `StationsField` |
+| Offline, a scale's label rang nothing | settings shipped, read by nobody | `scaleLabel.ts`, held to `scale-labels.json` |
+| Kitchen ticket never named the shop; a quote printed "Customer Customer" | `->name` on a tenant; the phone-only placeholder | `business_name`; `Customer::knownName()` |
+| Device form implied the till connects over Bluetooth / LAN | seven options, two do anything | the form and Help say what each really does |
+
+### Deploy order
+
+Backend first, then panel. No migration in this batch. Two fixture files are
+shared and must match on both sides: `till-bill.json` (version 2) and
+`scale-labels.json` (version 1).
+
+### Open, for a decision
+
+1. **When does a shop's day end?** Reports / dashboard / ledger days are UTC
+   days — 5 AM to 5 AM in Pakistan. Receipts now print local time, so a 1 AM
+   sale is dated today on paper and yesterday in the books.
+2. **Scale PRICE labels are read as hundredths** (max Rs 999.99 a label).
+3. The same 401-retry rule lives in `core/src/api/client.ts` (mobile) and was
+   NOT changed: no secret-bearing call is made there while signed in today.
+
+**3,074 backend tests (3,054 passed, 20 skipped) · 1,828 panel unit tests ·
+journey 105 cases · till browser specs `till-lines`, `till-print` added.**

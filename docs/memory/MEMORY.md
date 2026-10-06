@@ -1,5 +1,14 @@
 # Memory Index
 
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 13:40: mart journey 12 stages green, 16 fixes pushed; next = fresh run, 8 trades, 2 decisions
+- [Settings: What Listens](shopos-settings-what-listens.md) — stage G, 30 cases; tips at counter, stale Save, wrong PIN ×2, stations box; hardware truth
+- [Paper Reads The Shop's Clock](shopos-paper-reads-shops-clock.md) — STANDING: ShopTime::show() for printed times; OPEN: report days are UTC (5 AM PKT)
+- [A Roll Is A Roll](shopos-roll-is-a-roll.md) — `size: 80mm auto` is invalid CSS → A4; PrintPaper + fitRoll; never assert a CSS string
+- [Line Keys](shopos-line-keys.md) — FIXED: after a reload two cart rows shared a key (discount/qty/REMOVE hit both); rekeyed()
+- [Withdrawn Module, No Rules](shopos-withdrawn-module-no-rules.md) — DECIDED: off module's rules don't act; auto = skipped, named = refused; 3 places
+- [Offline Scale Label](shopos-offline-scale-label.md) — FIXED: scale label rang nothing offline; fixtures; OPEN: price label decimals
+- [The Journey](shopos-the-journey.md) — UI QA journey: 11 stages, admin→owner→sales→books→volume→admin; how to run; watched cases
+- [Pages Hold Still](shopos-pages-hold-still.md) — STANDING: ->stably() before every paginate(); the obvious paging test cannot fail
 - [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu
 - [ShopOS Mobile Design](shopos-mobile-design.md) — green+ink flat theme (NO shadows), cart-FAB footer, customer app build state
 - [ShopOS Delivery/Rider Flow](shopos-delivery-rider-flow.md) — FUTURE: 3-app model (customer/vendor/rider), assignment engine, live GPS,…
