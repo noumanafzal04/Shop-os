@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { printHtmlDocument } from "../../../common/print";
 import { testPageHtml } from "../testPage";
+import { ADDRESS_HINT, connectionMeans } from "../connection";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import Button from "../../../components/ui/button/Button";
@@ -261,7 +262,15 @@ export default function HardwareDevices() {
             <div>
               <Label>Address / device ID <span className="font-normal text-gray-400">(optional)</span></Label>
               <Input value={draft.connection_value} onChange={(e) => setDraft((d) => ({ ...d, connection_value: e.target.value }))} placeholder="e.g. 192.168.1.50:9100" />
+              <p className="mt-1 text-theme-xs text-gray-400">{ADDRESS_HINT}</p>
             </div>
+            {/* WHAT THIS CHOICE WILL REALLY DO. Seven connections are offered
+                and the till can use two of them for anything; a shop that
+                picked "Network" and typed an address was waiting for a
+                printer the till was never going to talk to. */}
+            <p data-testid="connection-means" className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-theme-xs text-gray-600 sm:col-span-2 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
+              {connectionMeans(draft.type, draft.connection_type)}
+            </p>
             <div>
               <Label>Brand</Label>
               <Input value={draft.brand} onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))} placeholder="e.g. XPrinter" />

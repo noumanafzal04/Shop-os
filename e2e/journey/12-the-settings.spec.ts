@@ -720,6 +720,388 @@ test("G7 · Kitchen: stations are typed one to a line, and stay as typed", async
   await restore(request, { kitchen_stations: before.kitchen_stations ?? [], kot_auto_print: before.kot_auto_print ?? true });
 });
 
+// ── G8: Tax & Delivery ───────────────────────────────────────────────
+
+test("G8 · Default tax: an item with no rate of its own is taxed at what the shop says today", async ({ page, request }) => {
+  const before = Number((await held(request)).default_tax_rate);
+  expect(before, "the journey's shop is taxed at five percent").toBe(5);
+
+  await choose(page, request, { tab: "Tax & Delivery" },
+    (p) => p.getByLabel("Default tax %").fill("8"),
+    { default_tax_rate: 8 },
+    async (p) => { await expect(p.getByLabel("Default tax %")).toHaveValue("8"); },
+  );
+
+  // Rice has no group and no rate of its own: 1,950 at 8% = 2,106 (it was 2,047.50).
+  await openTill(page);
+  await ring(page, item("rice").name);
+  expect(await tender(page, "Card")).toBe(2106);
+  // Oil is on a group of its own and does not move: 3,363 either way.
+  await page.keyboard.press("Escape");
+  await ring(page, item("oil").name);
+  expect(await tender(page, "Card")).toBe(2106 + 3363);
+
+  await restore(request, { default_tax_rate: before });
+});
+
+test("G8 · Prices already include tax: the price on the shelf is the price paid", async ({ page, request }) => {
+  await choose(page, request, { tab: "Tax & Delivery" },
+    (p) => setSwitch(p, "Prices already include tax", true),
+    { tax_inclusive: true },
+    async (p) => { await expect(toggle(p, "Prices already include tax")).toHaveAttribute("aria-checked", "true"); },
+  );
+
+  // Oil, 2,850 with 18% already inside it: the customer pays 2,850 and
+  // 434.75 of that is the tax (2,850 − 2,850 ÷ 1.18).
+  await openTill(page);
+  await ring(page, item("oil").name);
+  expect(await tender(page, "Card")).toBe(2850);
+  const sale = await complete(page, request);
+  expect(Number(sale.total)).toBe(2850);
+  expect(Number(sale.tax)).toBe(434.75);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+
+  await restore(request, { tax_inclusive: false });
+});
+
+test("G8 · Delivery: the limits a shop sets are the limits a customer is shown", async ({ page, request }) => {
+  const before = await held(request);
+  const shop = await ask<{ slug: string }>(request, "owner", "/shop");
+
+  await choose(page, request, { tab: "Tax & Delivery" },
+    async (p) => {
+      await p.getByLabel("Delivery radius (km)").fill("7");
+      await p.getByLabel("Prep time (min)").fill("25");
+      await p.getByLabel("Minimum order (Rs)").fill("500");
+      await p.getByLabel("Free delivery above (Rs)").fill("2000");
+    },
+    { delivery_radius_km: 7, prep_time_minutes: 25, min_order_amount: 500, free_delivery_threshold: 2000 },
+    async (p) => {
+      await expect(p.getByLabel("Delivery radius (km)")).toHaveValue("7");
+      await expect(p.getByLabel("Prep time (min)")).toHaveValue("25");
+      await expect(p.getByLabel("Minimum order (Rs)")).toHaveValue("500");
+      await expect(p.getByLabel("Free delivery above (Rs)")).toHaveValue("2000");
+    },
+  );
+
+  // What a customer's app is told about this shop — no sign-in, as they have none.
+  const seen = await request.get(`${API}/shops/${shop.slug}`, { headers: { Accept: "application/json" } });
+  if (seen.ok()) {
+    const data = ((await seen.json()) as { data: Record<string, unknown> }).data;
+    expect(data.prep_time_minutes).toBe(25);
+    expect(data.free_delivery_threshold).toBe(2000);
+    expect(data.delivery_radius_km).toBe(7);
+    expect(data.min_order_amount).toBe(500);
+  } else {
+    // Not listed (its online shop is closed): the shop cannot be seen at all,
+    // which is its own answer — but then this case has not checked the limits.
+    expect(seen.status(), "the shop's public page failed for a reason other than not being listed").toBe(404);
+    test.info().annotations.push({ type: "not-checked", description: "the shop is not listed online, so the customer-facing limits were not read back" });
+  }
+
+  await restore(request, {
+    delivery_radius_km: before.delivery_radius_km ?? null, prep_time_minutes: before.prep_time_minutes ?? null,
+    min_order_amount: before.min_order_amount ?? null, free_delivery_threshold: before.free_delivery_threshold ?? null,
+  });
+});
+
+test("G8 · A shop must be reachable somehow: pickup and delivery cannot both be off", async ({ page, request, watch }) => {
+  watch.expect(/FULFILLMENT_REQUIRED/);
+
+  await openSettings(page, "Tax & Delivery");
+  await setSwitch(page, "Pickup", false);
+  await setSwitch(page, "Delivery", false);
+  await page.getByRole("button", { name: "Save preferences" }).click();
+
+  // Refused, and in words — not "Settings saved." over a shop nobody can order from.
+  await expect(page.getByText(/Enable at least one fulfillment option/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Settings saved.")).toHaveCount(0);
+  const now = await held(request);
+  expect([now.pickup_enabled, now.delivery_enabled]).not.toEqual([false, false]);
+});
+
+// ── G10: Loyalty ─────────────────────────────────────────────────────
+
+test("G10 · Loyalty: points are earned on what was bought and are worth what the shop says", async ({ page, request }) => {
+  const walkin = "03001110001"; // QA Ali Raza — in no group, so the bill is the items'.
+  const points = async () => (await ask<{ loyalty_points: number }>(request, "owner", `/customers-lookup?phone=${walkin}`)).loyalty_points;
+
+  await openSettings(page, "Loyalty");
+  await setSwitch(page, "Enable loyalty points", true);
+  await page.getByLabel("Earn: Rs per point").fill("100");
+  await page.getByLabel("Redeem: Rs per point").fill("2");
+  await page.getByLabel("Minimum to redeem").fill("10");
+  await save(page);
+  expect(await held(request)).toMatchObject({ loyalty_enabled: true, loyalty_earn_per_amount: 100, loyalty_redeem_value: 2, loyalty_min_redeem: 10 });
+  await openSettings(page, "Loyalty");
+  await expect(page.getByLabel("Redeem: Rs per point")).toHaveValue("2");
+
+  const had = await points();
+
+  // Oil: 2,850 of goods → 28 points (one per Rs 100; the tax earns nothing).
+  await openTill(page);
+  await ring(page, item("oil").name);
+  await page.getByTitle(/No customer attached|Customer:/).first().click();
+  const who = page.getByRole("dialog").filter({ hasText: "Leave blank for a walk-in sale" });
+  await who.getByPlaceholder("03xx-xxxxxxx").fill(walkin);
+  await who.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByText(`${had} available`), "the till does not show the customer's points").toBeVisible({ timeout: 15_000 });
+  expect(await tender(page, "Card")).toBe(3363);
+  await complete(page, request);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+  expect(await points()).toBe(had + 28);
+
+  // Twenty of them, at Rs 2 each, take Rs 40 off the goods: 2,810 at 18% = 3,315.80.
+  await ring(page, item("oil").name);
+  await page.getByTitle(/No customer attached|Customer:/).first().click();
+  await who.getByPlaceholder("03xx-xxxxxxx").fill(walkin);
+  await who.getByRole("button", { name: "Done" }).click();
+  await page.getByPlaceholder("Redeem points").fill("20");
+  // Said twice on purpose: beside the box, and in the Discount figure on the money bar.
+  await expect(page.getByText("−Rs 40").first()).toBeVisible();
+  expect(await tender(page, "Card")).toBe(3315.8);
+  const sale = await complete(page, request);
+  expect(Number(sale.total)).toBe(3315.8);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+  // Spent twenty; earned on what was left (2,810 → 28).
+  expect(await points()).toBe(had + 28 - 20 + 28);
+
+  await restore(request, { loyalty_enabled: false });
+});
+
+// ── G11: Receipt ─────────────────────────────────────────────────────
+
+const PAPER = {
+  header: "QA HEADER — open 9 to 9",
+  footer: "QA FOOTER — no returns without this slip",
+  ntn: "1234567-8",
+  strn: "32-77-8761-234-56",
+  fbr: "POS-998877",
+} as const;
+
+test("G11 · Receipt: what is typed is on the preview at once, and on the paper after", async ({ page, request }) => {
+  const before = await held(request);
+
+  await openSettings(page, "Receipt");
+  await page.getByLabel("Invoice header line").fill(PAPER.header);
+  await page.getByLabel("Invoice footer").fill(PAPER.footer);
+  await page.getByLabel("NTN").fill(PAPER.ntn);
+  await page.getByLabel("STRN").fill(PAPER.strn);
+  await page.getByLabel("FBR POS ID").fill(PAPER.fbr);
+  await page.getByLabel("Receipt size").selectOption({ label: /80/ } as never).catch(async () => {
+    const options = await page.getByLabel("Receipt size").locator("option").allTextContents();
+    await page.getByLabel("Receipt size").selectOption({ label: options.find((o) => o.includes("80"))! });
+  });
+
+  // BEFORE saving: the preview is the question "what will this look like if I keep it".
+  const preview = page.frameLocator('iframe[title="Receipt preview"]');
+  await expect(preview.locator("body"), "the preview did not follow what was typed").toContainText(PAPER.header, { timeout: 20_000 });
+  await expect(preview.locator("body")).toContainText(PAPER.footer);
+  await expect(preview.locator("body")).toContainText(PAPER.ntn);
+  await expect(preview.locator("html")).toHaveAttribute("data-roll-mm", "80");
+
+  await save(page);
+  expect(await held(request)).toMatchObject({
+    invoice_header: PAPER.header, invoice_footer: PAPER.footer, invoice_ntn: PAPER.ntn,
+    invoice_strn: PAPER.strn, invoice_fbr_pos_id: PAPER.fbr, receipt_width: "thermal_80",
+  });
+
+  // A real sale's real receipt.
+  await openTill(page);
+  await ring(page, item("soap").name);
+  await tender(page, "Card");
+  const sale = await complete(page, request);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+  const paper = await request.get(`${API}/sales/${String(sale.id)}/invoice`, { headers: { Accept: "text/html", Authorization: `Bearer ${token()}` } });
+  const html = await paper.text();
+  for (const line of Object.values(PAPER)) expect(html, `the receipt does not carry "${line}"`).toContain(line);
+  expect(html).toContain('data-roll-mm="80"');
+  // …and it names who served, which the shop has left switched on.
+  expect(html).toContain(record().ownerName);
+
+  // Switched off, the name comes off the paper.
+  await openSettings(page, "Receipt");
+  await setSwitch(page, "Show who served", false);
+  await save(page);
+  const again = await (await request.get(`${API}/sales/${String(sale.id)}/invoice`, { headers: { Accept: "text/html", Authorization: `Bearer ${token()}` } })).text();
+  expect(again).not.toContain(record().ownerName);
+
+  await restore(request, {
+    invoice_header: before.invoice_header ?? null, invoice_footer: before.invoice_footer ?? null,
+    invoice_ntn: before.invoice_ntn ?? null, invoice_strn: before.invoice_strn ?? null,
+    invoice_fbr_pos_id: before.invoice_fbr_pos_id ?? null, receipt_width: before.receipt_width ?? "standard",
+    receipt_show_cashier: before.receipt_show_cashier ?? true,
+  });
+});
+
+// ── G12: Barcodes ────────────────────────────────────────────────────
+
+test("G12 · Barcode labels: what the shop switched off is not on the label it prints", async ({ page, request }) => {
+  await choose(page, request, { tab: "Barcodes" },
+    async (p) => { await setSwitch(p, "Show name", true); await setSwitch(p, "Show price", false); },
+    { barcode_show_name: true, barcode_show_price: false },
+    async (p) => { await expect(toggle(p, "Show price")).toHaveAttribute("aria-checked", "false"); },
+  );
+
+  await page.goto("/tenant/labels");
+  await settled(page);
+  const options = page.getByRole("button", { name: /options|what to print|customi[sz]e/i }).first();
+  if (await options.isVisible().catch(() => false)) await options.click();
+  await expect(page.getByRole("button", { name: "Product name", exact: true }), "the Labels screen ignored the shop's choice").toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Price", exact: true })).toHaveAttribute("aria-pressed", "false");
+
+  await restore(request, { barcode_show_price: true });
+});
+
+test("G12 · Scale barcodes: a label from the scale rings the item at the weight on it", async ({ page, request, watch }) => {
+  const sugar = (await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent(item("sugar").name)}`))[0];
+
+  // The scale's own number for sugar, on the item. Set on the item's own
+  // screen once; this stage only reads it back.
+  if (!sugar.plu_code) {
+    await page.goto(`/tenant/products/${String(sugar.id)}/edit`);
+    const editor = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: /^Edit / }) });
+    await expect(editor).toBeVisible({ timeout: 20_000 });
+    await editor.getByRole("button", { name: "Codes & packs" }).click();
+    await editor.getByLabel("Scale PLU code").fill("21");
+    await editor.getByRole("button", { name: /^Save/ }).click();
+    await expect(editor).toBeHidden({ timeout: 20_000 });
+  }
+
+  await openSettings(page, "Barcodes");
+  await setSwitch(page, "Read weighing-scale labels", true);
+  await page.getByLabel("Prefix").fill("2");
+  // By value: the box's greyed-out hint is also the word "Weight".
+  await page.getByLabel("Label encodes").selectOption("weight");
+  await save(page);
+  expect(await held(request)).toMatchObject({ scale_barcode_enabled: true, scale_barcode_prefix: "2", scale_barcode_mode: "weight" });
+
+  // 2 · 000021 · 01500 · 0  — sugar, 1.500 kg.
+  await openTill(page);
+  const search = page.getByPlaceholder(/scan barcode or search/i).first();
+  await search.fill("2000021015000");
+  await search.press("Enter");
+  const line = page.locator("[data-cart-row]").filter({ hasText: item("sugar").name });
+  await expect(line, "the scale's label did not ring the item").toBeVisible({ timeout: 15_000 });
+  await expect(line.locator("input").first()).toHaveValue("1.5");
+  // 1.5 kg at 160, tax-exempt.
+  expect(await tender(page, "Card")).toBe(240);
+
+  // Switched off, the same label is just a number nothing answers to. The
+  // cart still holds the sugar from a moment ago (a reload keeps the cart);
+  // the question is whether a SECOND scan adds to it.
+  await page.keyboard.press("Escape");
+  await restore(request, { scale_barcode_enabled: false });
+  watch.expect(/POS_ITEM_NOT_FOUND/);
+  await openTill(page);
+  await expect(page.locator("[data-cart-row]")).toHaveCount(1, { timeout: 15_000 });
+  await page.getByPlaceholder(/scan barcode or search/i).first().fill("2000021015000");
+  await page.getByPlaceholder(/scan barcode or search/i).first().press("Enter");
+  // The till says it found nothing, in words…
+  await expect(page.getByText(/No item found for that code|Nothing here matches/).first()).toBeVisible({ timeout: 15_000 });
+  // …and the cart is as it was: one line, still a kilo and a half.
+  await expect(page.locator("[data-cart-row]")).toHaveCount(1);
+  await expect(line.locator("input").first()).toHaveValue("1.5");
+
+  // Leave the till empty for whoever comes next.
+  await line.getByRole("button", { name: "Remove" }).click();
+  await expect(page.locator("[data-cart-row]")).toHaveCount(0);
+});
+
+// ── G13: Hardware ────────────────────────────────────────────────────
+
+const PRINTER = "QA Counter printer";
+
+test("G13 · Hardware: a 58mm printer is added, its test page is a 58mm roll, and receipts follow it", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    window.print = () => {
+      const rules: string[] = [];
+      const walk = (list: CSSRuleList) => {
+        for (const rule of Array.from(list)) {
+          if (rule.cssText.startsWith("@page")) rules.push(rule.cssText);
+          const inner = (rule as CSSGroupingRule).cssRules;
+          if (inner) walk(inner);
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) walk(sheet.cssRules);
+      (window.top as unknown as { __page?: unknown }).__page = { roll: document.documentElement.getAttribute("data-roll-mm"), rules, text: document.body.innerText };
+    };
+  });
+
+  await openSettings(page, "Hardware");
+  const row = page.getByRole("listitem").filter({ hasText: PRINTER });
+  if ((await row.count()) === 0) {
+    await page.getByRole("button", { name: "+ Add device" }).click();
+    const form = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Add device" }) });
+    await form.getByLabel("Type", { exact: true }).selectOption("receipt_printer");
+    await form.getByLabel("Name", { exact: true }).fill(PRINTER);
+    await form.getByLabel("Paper size", { exact: true }).selectOption("58mm");
+    await form.getByRole("button", { name: "Add device" }).click();
+    await expect(form).toBeHidden({ timeout: 15_000 });
+  }
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await expect(row).toContainText("Receipt printer · Browser (print dialog)");
+
+  // TEST PRINT goes out as the roll the device holds — through the same door a receipt does.
+  await row.getByRole("button", { name: "Test print" }).click();
+  const handed = await page.waitForFunction(() => (window as unknown as { __page?: unknown }).__page, null, { timeout: 20_000 });
+  const test_ = (await handed.jsonValue()) as { roll: string | null; rules: string[]; text: string };
+  expect(test_.roll).toBe("58");
+  expect(test_.rules.filter((r) => /size:/.test(r)).at(-1)).toMatch(/size: 58mm \d+mm/);
+  expect(test_.text).toContain("Test print OK");
+
+  // The shop's own setting says A4; this printer says 58mm; the printer wins.
+  await restore(request, { receipt_width: "standard" });
+  await openTill(page);
+  await ring(page, item("soap").name);
+  await tender(page, "Card");
+  const sale = await complete(page, request);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+  const paper = await request.get(`${API}/sales/${String(sale.id)}/invoice`, { headers: { Accept: "text/html", Authorization: `Bearer ${token()}` } });
+  expect(paper.headers()["x-receipt-paper"]).toBe("thermal_58");
+  expect(await paper.text()).toContain('data-roll-mm="58"');
+});
+
+test("G13 · Hardware: the form says what each connection will really do", async ({ page }) => {
+  await openSettings(page, "Hardware");
+  await page.getByRole("button", { name: "+ Add device" }).click();
+  const form = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Add device" }) });
+  const means = form.getByTestId("connection-means");
+
+  // A printer prints through the print window whatever is chosen…
+  await form.getByLabel("Type", { exact: true }).selectOption("receipt_printer");
+  await expect(means).toContainText("print window");
+  // …and choosing the network does not mean the till talks to it.
+  await form.getByLabel("Connection", { exact: true }).selectOption("lan");
+  await expect(means).toContainText("does not connect to the printer itself");
+  await expect(form.getByText("The till does not connect to this address.")).toBeVisible();
+
+  // A drawer opens from the till over a serial line, on a computer — and nowhere else.
+  await form.getByLabel("Type", { exact: true }).selectOption("cash_drawer");
+  await form.getByLabel("Connection", { exact: true }).selectOption("bluetooth");
+  await expect(means).toContainText("cannot open a drawer over this connection");
+  await form.getByLabel("Connection", { exact: true }).selectOption("serial");
+  await expect(means).toContainText("Chrome or Edge on a computer only");
+  await expect(means).toContainText("not on an iPad");
+
+  await form.getByRole("button", { name: "Cancel" }).click();
+  await expect(form).toBeHidden();
+});
+
+test("G13 · Hardware: the printer is removed, and receipts go back to the shop's own paper", async ({ page, request }) => {
+  await openSettings(page, "Hardware");
+  const row = page.getByRole("listitem").filter({ hasText: PRINTER });
+  await expect(row).toBeVisible({ timeout: 15_000 });
+  await row.getByRole("button", { name: "Remove", exact: true }).click();
+  const confirm = page.getByRole("dialog").last();
+  await confirm.getByRole("button", { name: /^(Remove|Delete)/ }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: PRINTER })).toHaveCount(0, { timeout: 15_000 });
+
+  const last = (await ask<Array<Record<string, unknown>>>(request, "owner", "/sales?per_page=1"))[0];
+  const paper = await request.get(`${API}/sales/${String(last.id)}/invoice`, { headers: { Accept: "text/html", Authorization: `Bearer ${token()}` } });
+  expect(paper.headers()["x-receipt-paper"]).toBe("standard");
+});
+
 // ── G9: one screen must not undo another ─────────────────────────────
 
 test("G9 · saving one tab does not put back a setting somebody changed elsewhere", async ({ page, request }) => {

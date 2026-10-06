@@ -425,6 +425,12 @@ export default function LabelsPage() {
                     {FIELDS.map((f) => (
                       <button
                         key={f.key}
+                        type="button"
+                        // On or off, SAID. These chips showed their state by
+                        // colour alone: six buttons a reader announced as six
+                        // identical buttons, with no way to hear which parts
+                        // of the label were about to be printed.
+                        aria-pressed={fields[f.key]}
                         onClick={() => setFields((s) => ({ ...s, [f.key]: !s[f.key] }))}
                         className={`rounded-full border px-3 py-1.5 text-theme-xs transition ${
                           fields[f.key]

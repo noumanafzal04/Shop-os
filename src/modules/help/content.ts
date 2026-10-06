@@ -1867,6 +1867,16 @@ export const HELP_ARTICLES: HelpArticle[] = [
         "Weighing scale — for anything sold by weight.",
       ]},
 
+      { type: "h", text: "What actually connects, and when" },
+      { type: "p", text: "The till is a web page, and a web page can do two things with the equipment on your counter. The device form lists seven kinds of connection; this is what each one really means, and the form now says the same under the list as you choose." },
+      { type: "table", head: ["Equipment", "How it works", "When it works"], rows: [
+        ["Receipt or label printer", "Through the computer\u2019s own print window", "Always \u2014 any printer this computer can print to: USB, Bluetooth, network or Wi-Fi. Install it on the computer first, as you would for any other program."],
+        ["Cash drawer", "A pulse sent down a serial line (the drawer usually plugs into the receipt printer)", "Only in Chrome or Edge on a computer, with the device set to Serial or USB, after you press Connect drawer once. Not on an iPad, iPhone or Android tablet, and not in Safari or Firefox."],
+        ["Barcode scanner", "It types into the till like a keyboard", "Always \u2014 plug it in or pair it with the computer. There is nothing to connect in Settings."],
+        ["Weighing scale", "The scale prints a label; the till reads the weight off the barcode", "Whenever Settings \u2192 Barcodes \u2192 Read weighing-scale labels is on and the item has its Scale PLU code. The till does not read a live weight from a scale."],
+        ["Customer display", "Not supported yet", "\u2014"],
+      ] },
+      { type: "warn", text: "Choosing Bluetooth, Network or Wi-Fi does NOT make the till connect to that device, and the address box is for your own notes \u2014 nothing is sent to it. Printing always goes through the print window, so the printer has to be installed on the computer the till runs on." },
       { type: "h", text: "Which paper size actually gets used" },
       { type: "p", text: "There are two places a paper size can be set, and they answer different questions. Settings → Receipt sets the size for the WHOLE shop. The size on a registered printer, here, is for THAT printer." },
       { type: "keys", items: [
