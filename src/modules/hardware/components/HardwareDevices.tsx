@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { printHtmlDocument } from "../../../common/print";
+import { testPageHtml } from "../testPage";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import Button from "../../../components/ui/button/Button";
@@ -85,25 +87,8 @@ const blank: Draft = {
   paper_size: "80mm",
 };
 
-/** Open a small printable window and trigger the browser print dialog. */
 function testPrint(d: HardwareDevice) {
-  const w = d.settings?.paper_size === "58mm" ? "48mm" : d.settings?.paper_size === "a4" ? "480px" : "72mm";
-  const win = window.open("", "_blank", "width=380,height=560");
-  if (!win) return;
-  win.document.write(`<!doctype html><html><head><title>Test print</title>
-    <style>
-      body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;margin:0;padding:8px;color:#101828}
-      .r{width:${w};max-width:100%;margin:0 auto;font-size:12px;text-align:center}
-      h2{font-size:14px;margin:0 0 4px} hr{border:none;border-top:1px dashed #98a2b3;margin:8px 0}
-      @media print{@page{size:${d.settings?.paper_size === "a4" ? "auto" : (d.settings?.paper_size ?? "80mm") + " auto"};margin:0}}
-    </style></head><body>
-    <div class="r"><h2>${d.name || TYPE_LABEL[d.type]}</h2>
-    <div>${d.brand ?? ""} ${d.model ?? ""}</div><hr/>
-    <div>Test print OK</div><div>${new Date().toLocaleString()}</div><hr/>
-    <div>${PRODUCT.name}</div></div>
-    <script>window.onload=function(){window.print()}</script>
-    </body></html>`);
-  win.document.close();
+  void printHtmlDocument(testPageHtml({ ...d, name: d.name || TYPE_LABEL[d.type] })).catch(() => undefined);
 }
 
 export default function HardwareDevices() {

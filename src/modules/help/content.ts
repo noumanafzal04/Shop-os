@@ -755,6 +755,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "note", text: "The grey key hints printed on the buttons only appear on a wide screen. On a tablet there are no function keys to press, so the hints stay off — every one of those actions still has a button you can tap." },
+      { type: "h", text: "If the till reloads in the middle of a sale" },
+      { type: "p", text: "A tablet that sleeps, a tab that refreshes, an update you accepted with a customer waiting \u2014 the cart comes back, and the till says so (\u201cPicked up where you left off\u201d). Carry on ringing." },
+      { type: "warn", text: "There was a fault here. After a reload, the next item you rang could get tangled with one that was already in the cart: a discount on one landed on both, pressing + moved both quantities, and removing one took both off the bill. It only happened after a reload in the middle of a sale. It is fixed, and a cart that was already tangled untangles itself the next time the till opens." },
       { type: "h", text: "On a phone" },
       { type: "p", text: "A phone shows one half of the till at a time. Products and Cart sit as two buttons across the top: ring items from Products, then tap Cart to check the lines, change a quantity or take one off. The Cart button carries the number of lines, and the Grand Total and Tender button stay on screen the whole time — you never have to go looking for the money." },
       { type: "note", text: "On a phone the cart also drops its Discount and Tax columns and prints those on the item's own line instead, but only where they are not zero. Nothing is hidden: a line with a discount still says so. A tablet keeps the full table." },
@@ -1873,6 +1876,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
       ]},
       { type: "note", text: "The receipt you see in the preview under Settings → Receipt is the real receipt — the same page the counter prints, not a drawing of one. What it cannot know is which lane you will print from, so if one counter has a different roll to the shop default, set that size on the printer here." },
       { type: "note", text: "You do not have to print one to find out which size won. After a sale the till says \u201cReceipt sent to the printer · 80mm roll\u201d — the paper the server actually laid the page out for, on that lane." },
+
+      { type: "h", text: "A roll receipt is the roll\u2019s width and the receipt\u2019s own length" },
+      { type: "p", text: "When the paper is a roll (58mm or 80mm), the page handed to your printer is exactly as wide as the roll and exactly as long as that receipt \u2014 a two-item sale is a short slip, a forty-item one is a long slip. The print window shows it that way: a narrow strip, not a sheet with a column down the middle." },
+      { type: "warn", text: "This was broken. A shop set to Thermal 80mm was handed an A4 page: the till said \u201c80mm roll\u201d and the print window still opened on a full sheet. Receipts, the shift Z-report, quotes and advances, the kitchen ticket and the Test print button all had the same fault, and all are fixed." },
+      { type: "list", items: [
+        "In the print window, pick your receipt printer as the Destination.",
+        "Leave Margins on Default and Scale on 100 \u2014 the receipt already carries its own margins.",
+        "Switch Headers and footers OFF, or the date and web address print across the top of every receipt.",
+        "If the printer still feeds a long blank tail, its own driver is set to a fixed sheet. Open the printer\u2019s preferences on that computer and choose its roll / \u201creceipt\u201d paper.",
+      ]},
+      { type: "note", text: "Test print, on each device here, goes out through the same path as a real receipt. If the test page comes out the right width, your receipts will." },
     ],
   },
   {
