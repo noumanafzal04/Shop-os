@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -167,6 +168,8 @@ export default function DayPage() {
   };
 
   // ── Closing the day off ──────────────────────────────────────────
+  const shopSettings = useShopSettings();
+  const requiresShift = shopSettings.data?.pos_require_shift === true;
   const [closeNotes, setCloseNotes] = useState("");
   const closeModal = useModal();
 
@@ -852,6 +855,21 @@ export default function DayPage() {
               : `${running!.open_shifts} shifts are still open. They have to be counted out first.`}
           </div>
         )}
+
+        {/* WHAT ELSE THIS DOES. "The figures freeze" is the half of it a shop
+            is thinking about. The other half is that a closed day takes no
+            more shifts: nothing can be opened again until tomorrow. A shop
+            that closed off at four by mistake found that out from the till —
+            and where a shift is required to sell, could not ring another sale
+            that day. Said here, before the button, where it can still be
+            decided against. */}
+        <div data-testid="close-day-consequence" className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 text-theme-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
+          <span className="font-medium text-gray-800 dark:text-white/90">No shift can be opened again today.</span>{" "}
+          {requiresShift
+            ? "This shop requires an open shift to sell, so the till will not ring another sale until tomorrow."
+            : "Anything sold later today will have no drawer to be counted in."}{" "}
+          Close off when the shop is shut for the day.
+        </div>
 
         <div className="space-y-2">
           <Label>Notes</Label>

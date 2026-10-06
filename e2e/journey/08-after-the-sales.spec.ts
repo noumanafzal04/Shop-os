@@ -221,6 +221,11 @@ test("C10 · Day & banking tells the day as it was, and the day is closed off", 
     await expect(page.getByText("1 of 1 shift counted")).toBeVisible();
 
     await page.getByRole("button", { name: "Close off day" }).click();
+    // Before the button: what closing does that cannot be taken back TODAY.
+    // It said the figures freeze; it did not say no shift can be opened again
+    // until tomorrow — and a shop that requires a shift to sell found that
+    // out at the till.
+    await expect(page.getByTestId("close-day-consequence")).toContainText("No shift can be opened again today.");
     const confirm = page.getByRole("dialog").getByRole("button", { name: /Close off|Close the day|Confirm/i }).last();
     if (await confirm.isVisible().catch(() => false)) await confirm.click();
 

@@ -321,12 +321,43 @@ const BASE = process.env.E2E_BASE_URL ?? "http://localhost:4173";
 const ringByApi = (request: APIRequestContext, data: Settings) =>
   request.post(`${API}/sales`, { headers: { Accept: "application/json", Authorization: `Bearer ${token()}` }, data });
 
-async function openShift(page: Page, float: number): Promise<void> {
+/** Today, as the journey's record keeps dates. */
+const today = (): string => new Date().toLocaleDateString("en-CA");
+
+/**
+ * Was the shop's day closed off TODAY?
+ *
+ * The journey is a business lived over days; run from the top in one sitting,
+ * stage C closes the day and everything after it happens the same afternoon.
+ * A closed day takes no more shifts — the product is right about that — so
+ * the cases that need a drawer open cannot be run until tomorrow, and say so
+ * rather than failing on the product doing what it should.
+ */
+const dayClosedToday = (): boolean => record().dayClosedOn === today();
+
+/** Open a shift at the till; false when the shop's day is already closed off. */
+async function openShift(page: Page, float: number, watch?: { expect: (p: RegExp) => void }): Promise<boolean> {
+  watch?.expect(/BUSINESS_DAY_CLOSED/);
   await page.getByRole("button", { name: "Open shift" }).first().click();
   const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Open shift" }) });
   await sheet.getByRole("spinbutton").first().fill(String(float));
   await sheet.getByRole("button", { name: "Open", exact: true }).click();
+
+  const closed = sheet.getByText(/has already been closed off/);
+  await expect(sheet.or(closed).first()).toBeVisible();
+  const refused = await Promise.race([
+    closed.waitFor({ state: "visible", timeout: 15_000 }).then(() => true).catch(() => false),
+    sheet.waitFor({ state: "hidden", timeout: 15_000 }).then(() => false).catch(() => false),
+  ]);
+  if (refused) {
+    remember({ dayClosedOn: today() });
+    await sheet.getByRole("button", { name: "Cancel" }).click();
+
+    return false;
+  }
   await expect(sheet).toBeHidden({ timeout: 15_000 });
+
+  return true;
 }
 
 test("G2 · Require open shift: no drawer open, no sale — at the till and behind it", async ({ page, request, watch }) => {
@@ -355,8 +386,18 @@ test("G2 · Require open shift: no drawer open, no sale — at the till and behi
   expect(direct.status()).toBe(409);
   expect(((await direct.json()) as { meta: { error_code: string } }).meta.error_code).toBe("SHIFT_REQUIRED");
 
-  // With a drawer open, the same cart is paid.
-  await openShift(page, 1000);
+  // With a drawer open, the same cart is paid — if a drawer CAN be opened.
+  if (!(await openShift(page, 1000, watch))) {
+    // The day was closed off earlier today. The till says exactly that, in
+    // words, and stays shut: a shop that requires a shift and has closed its
+    // day cannot sell again until tomorrow. Right, and now said BEFORE the
+    // day is closed (see stage C).
+    await expect(pay).toBeDisabled();
+    test.info().annotations.push({ type: "not-run", description: "the day was closed off today, so no shift could be opened: selling with a drawer open was not exercised in this run" });
+    await restore(request, { pos_require_shift: false });
+
+    return;
+  }
   await expect(pay).toBeEnabled({ timeout: 15_000 });
   // Soap at its promotion: 96 + 5% = 100.80.
   expect(await tender(page, "Cash")).toBe(100.8);
@@ -366,6 +407,7 @@ test("G2 · Require open shift: no drawer open, no sale — at the till and behi
 });
 
 test("G2 · Closing a shift: blind, typed as one total, with the card machine's figure asked for", async ({ page, request }) => {
+  test.skip(dayClosedToday(), "the shop's day was closed off today — no shift can be opened to close until tomorrow");
   expect(await ask<unknown>(request, "owner", "/pos/session"), "the shift from the case before is not open").not.toBeNull();
 
   await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
@@ -413,6 +455,7 @@ test("G2 · Closing a shift: blind, typed as one total, with the card machine's 
 });
 
 test("G2 · The other way round: counted note by note, expected shown, no machines asked", async ({ page, request }) => {
+  test.skip(dayClosedToday(), "the shop's day was closed off today — no shift can be opened to close until tomorrow");
   const now = await held(request);
   expect([now.pos_denomination_count, now.pos_blind_close, now.pos_declare_tenders]).toEqual([true, false, false]);
 

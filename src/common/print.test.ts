@@ -147,6 +147,19 @@ describe("the frame a roll is measured in", () => {
   });
 });
 
+describe("what is on the screen only", () => {
+  it("is not measured in, and is put back exactly as it was", () => {
+    const doc = documentFrom('<!doctype html><html data-roll-mm="80" data-roll-margin-mm="0"><head></head><body class="has-toolbar"><div class="toolbar no-print">Print</div><p>Rice</p></body></html>');
+
+    fitRoll(doc);
+
+    // The receipt opened in a tab still has its toolbar afterwards…
+    expect(doc.body.classList.contains("has-toolbar")).toBe(true);
+    // …and nothing of the measuring is left in what gets printed.
+    expect([...doc.head.querySelectorAll("style")].some((st) => /no-print/.test(st.textContent ?? ""))).toBe(false);
+  });
+});
+
 describe("a document that prints itself", () => {
   it("is not allowed to — the door decides when, after the page is fitted", () => {
     expect(withoutSelfPrint('<body onload="window.print()">')).toBe("<body>");

@@ -110,10 +110,18 @@ export function fitRoll(doc: Document): string | null {
   // for the screen (`body { width: 80mm }`) lets go of it in print, so it is
   // let go of here too — or the words are measured on a wider line than the
   // paper gives them.
+  //
+  // And what is on the screen only is taken off it: a receipt opened in a
+  // tab carries a toolbar with a Print button and the room made for it
+  // (`.no-print`, `has-toolbar`). Neither is on the paper, and measured in,
+  // they were nine millimetres of blank roll on the end of every receipt.
   const release = doc.createElement("style");
-  release.textContent = "html, body { width: auto !important; min-width: 0 !important; max-width: none !important; }";
+  release.textContent = "html, body { width: auto !important; min-width: 0 !important; max-width: none !important; } .no-print { display: none !important; }";
   doc.head.appendChild(release);
+  const hadToolbar = doc.body?.classList.contains("has-toolbar") ?? false;
+  if (hadToolbar) doc.body.classList.remove("has-toolbar");
   const height = Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight ?? 0);
+  if (hadToolbar) doc.body.classList.add("has-toolbar");
   release.remove();
   const rule = rollPageRule(roll, height);
 

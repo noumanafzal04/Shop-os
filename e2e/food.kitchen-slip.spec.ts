@@ -68,6 +68,27 @@ async function paperOf(browser: Browser, html: string): Promise<{ widthMm: numbe
   };
 }
 
+/**
+ * Ring one dish, answering its options sheet if it has one.
+ *
+ * A dish with a crust to choose or a spice level does not go straight into
+ * the cart — it asks first, and the sheet it asks in covers the till. The
+ * first version of this spec pressed three tiles in a row and spent five
+ * minutes pressing the second one through an open sheet.
+ */
+async function ringDish(page: Page, nth: number): Promise<void> {
+  const rows = page.locator("[data-cart-row]");
+  const before = await rows.count();
+  await page.locator(PLAIN_ITEM).nth(nth).click();
+
+  const add = page.getByRole("dialog").getByRole("button", { name: /^Add( to (cart|tab))?( ·|$)/ });
+  await expect(rows.nth(before).or(add).first()).toBeVisible({ timeout: 10_000 });
+  // Required choices come pre-picked; the sheet's own button says what it costs.
+  if (await add.isVisible().catch(() => false)) await add.click();
+
+  await expect(rows, "the dish did not reach the cart").toHaveCount(before + 1, { timeout: 10_000 });
+}
+
 const settings = async (request: import("@playwright/test").APIRequestContext, patch?: Record<string, unknown>) => {
   const res = patch
     ? await request.put(`${API}/shop/settings`, { headers: foodAuth(), data: patch })
@@ -102,8 +123,7 @@ test("the kitchen's slip is one slip, says whose it is, and the invoice is a but
   // Three dishes, as in the picture.
   const dishes = page.locator(PLAIN_ITEM);
   await expect(dishes.first(), "the restaurant's till shows nothing to ring").toBeVisible({ timeout: 20_000 });
-  for (let i = 0; i < 3; i++) await dishes.nth(i).click();
-  await expect(page.locator("[data-cart-row]").first()).toBeVisible();
+  for (let i = 0; i < 3; i++) await ringDish(page, i);
 
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
@@ -181,7 +201,7 @@ test("with auto-print on, the customer's receipt goes first and the kitchen's sl
   await watchThePrinter(page);
   await openTill(page);
 
-  await page.locator(PLAIN_ITEM).first().click();
+  await ringDish(page, 0);
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
   await page.getByRole("button", { name: /^Exact ·/ }).click();
