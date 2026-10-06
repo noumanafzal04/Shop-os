@@ -1,12 +1,10 @@
 import { Link } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
-import { AppWindowMock } from "../components/AppWindowMock";
-import { DashboardMock } from "../components/DashboardMock";
+import { ProductShots } from "../components/ProductShots";
 import { EnquiryForm } from "../components/EnquiryForm";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
-import { TillMock } from "../components/TillMock";
 import { TradeSwitcher } from "../components/TradeSwitcher";
 import { TryDemo } from "../components/TryDemo";
 import { useSettlesIn } from "../components/useSettlesIn";
@@ -250,7 +248,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          {/* THE PRODUCT, FULL WIDTH.
+          {/* THE PRODUCT, FULL WIDTH — and the real one. See ProductShots.
               It is under the headline rather than beside it because a console
               with a rail down its side needs the whole column to be readable —
               squeezed into a half-width slot the labels become smudges, and a
@@ -259,30 +257,13 @@ export default function LandingPage() {
             className="settles relative mt-11 lg:mt-14"
             style={{ "--settle-delay": "160ms" } as React.CSSProperties}
           >
-            <AppWindowMock />
-
-            {/* The till, small, over the console's LEFT edge. Two pictures,
-                one claim each: this is the whole business system, AND the
-                counter inside it goes on selling with the line down. It
-                overlaps deliberately — the till is not a separate product.
-
-                LEFT, and low, because that is the only corner with nothing
-                under it: the rail runs out after six rows and the rest of it
-                is empty. Sat on the right it covered the takings list and the
-                one warning, which reads as a card dropped on the screen rather
-                than as a second window. */}
-            <div
-              className="rings-up mx-auto mt-5 w-[17rem] max-w-full sm:absolute sm:-bottom-10 sm:-left-5 sm:mt-0 lg:-left-8"
-              style={{ "--ring-delay": "900ms" } as React.CSSProperties}
-            >
-              <TillMock trade="food" compact />
-            </div>
+            <ProductShots />
           </div>
 
           {/* The four things that are true, said as facts rather than as
               invented customer figures. Below the picture, because they are
               what you are left holding after looking at it. */}
-          <dl className="settles mt-20 grid grid-cols-2 gap-x-8 gap-y-8 border-t border-white/10 pt-10 text-center sm:grid-cols-4">
+          <dl className="settles mt-14 grid grid-cols-2 gap-x-8 gap-y-8 border-t border-white/10 pt-10 text-center sm:grid-cols-4">
             {[
               ["8", "trades, each with its own rules"],
               ["0", "sales lost when the line drops"],
@@ -421,13 +402,8 @@ export default function LandingPage() {
             {/* THE SAME CONSOLE, IN A HAND.
                 The hero already showed this on a desk, so showing it again on
                 a desk would be the same picture twice. The section's own
-                sentence is "on a phone, from anywhere" — so it is a phone.
-
-                `DashboardMock` did NOT just work here, whatever the first
-                version of this comment claimed. Tailwind breakpoints ask the
-                viewport, so on a 1440px page it took the four-across layout
-                inside a 340px frame and clipped its own headline figure. It
-                lays itself out by container query now. */}
+                sentence is "on a phone, from anywhere" — so it is a phone,
+                and it is the real dashboard as a phone draws it. */}
             <div
               className="settles mx-auto w-full max-w-[21rem]"
               style={{ "--settle-delay": "140ms" } as React.CSSProperties}
@@ -438,13 +414,16 @@ export default function LandingPage() {
                     so the frame stays that shape at every width — a phone drawn
                     at the wrong proportions is the detail that makes a mock
                     look like a mock. */}
-                <div className="flex aspect-[402/874] flex-col overflow-hidden rounded-[2rem] bg-white dark:bg-gray-950">
-                  {/* The speaker slot. Decorative, and the only thing here
-                      that is a drawing of hardware rather than of software. */}
-                  <div aria-hidden="true" className="flex justify-center pb-1 pt-2.5">
-                    <span className="h-1.5 w-16 rounded-full bg-gray-200 dark:bg-white/15" />
-                  </div>
-                  <DashboardMock />
+                <div className="relative aspect-[402/874] overflow-hidden rounded-[2rem] bg-white dark:bg-gray-950">
+                  <img
+                    src="/landing/dashboard-phone.webp"
+                    width={804}
+                    height={1748}
+                    loading="lazy"
+                    decoding="async"
+                    alt="The same dashboard on a phone: what needs the owner first, then today's sales, expenses and profit."
+                    className="absolute inset-0 size-full object-cover object-top"
+                  />
                 </div>
               </div>
             </div>

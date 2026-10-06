@@ -46,6 +46,22 @@ describe("a delta with no baseline is not a number", () => {
     // There is no honest percentage against nothing, and "+100%" on a shop's
     // first day is a lie the UI must not tell.
     expect(formatDelta(null)).toBeNull();
+  });
+
+  it("drops the tenth of a percent once the change is in the hundreds", () => {
+    expect(formatDelta(99.94)).toBe("+99.9%");
+    expect(formatDelta(250.3)).toBe("+250%");
+    expect(formatDelta(999.4)).toBe("+999%");
+  });
+
+  it("says a change past tenfold as a multiple of the day before", () => {
+    // Rs 668 yesterday, Rs 28,992.96 today: +4240.3%, which nobody reads.
+    // Forty-three times yesterday is the same fact, said the way a person would.
+    expect(formatDelta(4240.3)).toBe("43×");
+    // Exactly ten times more is eleven times as much.
+    expect(formatDelta(1000)).toBe("11×");
+    // A fall cannot pass −100%, so nothing downward is ever a multiple.
+    expect(formatDelta(-100)).toBe("−100%");
     expect(formatDelta(undefined)).toBeNull();
   });
 });

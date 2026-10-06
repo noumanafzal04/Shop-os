@@ -15,7 +15,21 @@
 export function formatDelta(delta: number | null | undefined): string | null {
   if (delta === null || delta === undefined) return null;
 
-  const rounded = Math.round(Math.abs(delta) * 10) / 10;
+  const size = Math.abs(delta);
+
+  // PAST TENFOLD, SAY IT AS A MULTIPLE.
+  //
+  // A shop that took Rs 668 yesterday and Rs 28,992 today was told
+  // "+4240.3%". True, and nobody reads it: a percentage stops meaning
+  // anything to the eye somewhere around a thousand. "43×" is the same fact
+  // in the form a person would say it — forty-three times yesterday.
+  //
+  // Only upward. A fall cannot pass −100%, so there is no large negative to
+  // tidy.
+  if (delta >= 1000) return `${Math.round(delta / 100 + 1)}×`;
+
+  // In the hundreds the tenth of a percent is noise: "+250%", not "+250.3%".
+  const rounded = size >= 100 ? Math.round(size) : Math.round(size * 10) / 10;
 
   return `${delta < 0 ? "−" : "+"}${rounded}%`;
 }
