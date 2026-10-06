@@ -1876,6 +1876,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["Weighing scale", "The scale prints a label; the till reads the weight off the barcode", "Whenever Settings \u2192 Barcodes \u2192 Read weighing-scale labels is on and the item has its Scale PLU code. The till does not read a live weight from a scale."],
         ["Customer display", "Not supported yet", "\u2014"],
       ] },
+      { type: "note", text: "Scale labels are read with the line down too. They were not: the moment the connection dropped, scanning a label from the scale said \u201cNothing here matches\u201d, so a shop could not sell anything it weighs until the line came back. The till now reads the label itself \u2014 the item from its PLU, the weight from the label \u2014 exactly as the server does." },
       { type: "warn", text: "Choosing Bluetooth, Network or Wi-Fi does NOT make the till connect to that device, and the address box is for your own notes \u2014 nothing is sent to it. Printing always goes through the print window, so the printer has to be installed on the computer the till runs on." },
       { type: "h", text: "Which paper size actually gets used" },
       { type: "p", text: "There are two places a paper size can be set, and they answer different questions. Settings → Receipt sets the size for the WHOLE shop. The size on a registered printer, here, is for THAT printer." },

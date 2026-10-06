@@ -953,7 +953,7 @@ test("G12 · Barcode labels: what the shop switched off is not on the label it p
   await restore(request, { barcode_show_price: true });
 });
 
-test("G12 · Scale barcodes: a label from the scale rings the item at the weight on it", async ({ page, request, watch }) => {
+test("G12 · Scale barcodes: a label from the scale rings the item at the weight on it", async ({ page, request, watch, context }) => {
   const sugar = (await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent(item("sugar").name)}`))[0];
 
   // The scale's own number for sugar, on the item. Set on the item's own
@@ -987,10 +987,55 @@ test("G12 · Scale barcodes: a label from the scale rings the item at the weight
   // 1.5 kg at 160, tax-exempt.
   expect(await tender(page, "Card")).toBe(240);
 
+  // ── AND WITH THE LINE DOWN ──────────────────────────────────────────
+  //
+  // Online the server reads the label. Offline the till looked the thirteen
+  // digits up as an ordinary barcode and said "Nothing here matches" — a mart
+  // whose line dropped could not sell anything it weighs.
+  await page.keyboard.press("Escape");
+  await line.getByRole("button", { name: "Remove" }).click();
+  await expect(page.locator("[data-cart-row]")).toHaveCount(0);
+
+  // The device has to HOLD the shop's answer first: wait for its own copy of
+  // the settings to say scale labels are on, rather than for a number of seconds.
+  await expect.poll(async () => page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((done, fail) => {
+      const open = indexedDB.open("shopos-till");
+      open.onsuccess = () => done(open.result);
+      open.onerror = () => fail(open.error);
+    });
+    const rows = await new Promise<Array<Record<string, unknown>>>((done) => {
+      if (!db.objectStoreNames.contains("settings")) { done([]); return; }
+      const all = db.transaction("settings").objectStore("settings").getAll();
+      all.onsuccess = () => done(all.result as Array<Record<string, unknown>>);
+      all.onerror = () => done([]);
+    });
+    db.close();
+
+    return rows.some((r) => r.scale_barcode_enabled === true);
+  }), { timeout: 30_000, message: "the till never took its own copy of the scale settings" }).toBe(true);
+
+  await context.setOffline(true);
+  expect(await page.evaluate(() => navigator.onLine), "the browser did not go offline, so this would be an online scan").toBe(false);
+  try {
+    // 0.347 kg this time: a different label for the same sugar, which is why no index could hold them.
+    await search.fill("2000021003470");
+    await search.press("Enter");
+    await expect(line, "with the line down the scale's label rang nothing").toBeVisible({ timeout: 15_000 });
+    await expect(line.locator("input").first()).toHaveValue("0.347");
+    // …and the cashier is told what the label said, as they are online.
+    await expect(page.getByText(/0\.347 .* weighed/).first()).toBeAttached();
+  } finally {
+    await context.setOffline(false);
+  }
+  await expect.poll(async () => page.evaluate(() => navigator.onLine)).toBe(true);
+  await page.waitForTimeout(1500);
+  await line.locator("input").first().fill("1.5");
+  await line.locator("input").first().press("Enter");
+
   // Switched off, the same label is just a number nothing answers to. The
   // cart still holds the sugar from a moment ago (a reload keeps the cart);
   // the question is whether a SECOND scan adds to it.
-  await page.keyboard.press("Escape");
   await restore(request, { scale_barcode_enabled: false });
   watch.expect(/POS_ITEM_NOT_FOUND/);
   await openTill(page);

@@ -1643,7 +1643,12 @@ export default function PosPage() {
       // A scanned size is CARRIED into the options sheet. Without it, scanning a
       // Large and then choosing toppings rang a Small: openConfig was called
       // with the product and the variant was dropped on the floor.
-      if (product.modifier_groups?.length) openConfig(product, scanned);
+      if (hit.quantity !== null) {
+        // A scale's label: the weight is on it. Same as the online branch —
+        // straight onto the cart at that weight, and the cashier is told.
+        addLine(product, null, undefined, undefined, hit.quantity);
+        setPosNotice(`${product.name}: ${hit.quantity} ${product.unit ?? "kg"} weighed`);
+      } else if (product.modifier_groups?.length) openConfig(product, scanned);
       else addLine(product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, hit.unitId ?? null);
       setSearch("");
       posSound.success();

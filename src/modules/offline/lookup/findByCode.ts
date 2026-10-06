@@ -1,7 +1,8 @@
-import { get } from "../db/repo";
+import { get, getAll, getSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { BarcodeEntry } from "../sync/barcodeIndex";
 import type { CatalogItem } from "../sync/catalogService";
+import { labelQuantity, parseScaleLabel, pluCandidates } from "./scaleLabel";
 
 /**
  * Resolving a scan against the till's own database.
@@ -23,8 +24,12 @@ export interface CodeMatch {
 /**
  * Find what a scanned or typed code refers to.
  *
- * Two lookups, in this order:
+ * In this order:
  *
+ *   0. A weighing scale's label, where the shop reads them — see scaleLabel.
+ *      `quantity` was on this shape from the start ("weight read out of a
+ *      scale's label") and was always null: the field was the plan, and
+ *      nothing ever filled it in.
  *   1. The exact code, which covers barcodes, SKUs, PLUs, alternates, variant
  *      SKUs and pack barcodes — every shape the index was built from.
  *   2. Nothing else. A code that misses is a miss, not a fuzzy match: at a
@@ -37,6 +42,22 @@ export interface CodeMatch {
 export async function findByCode(code: string): Promise<CodeMatch | null> {
   const trimmed = code.trim();
   if (trimmed === "") return null;
+
+  // A SCALE'S LABEL FIRST, exactly as the server asks first. It is not in the
+  // index and cannot be: the weight is part of the number, so no two labels
+  // for the same sugar are the same thirteen digits.
+  const label = parseScaleLabel(trimmed, await getSingleton<Record<string, unknown>>(STORE.SETTINGS).catch(() => undefined));
+  if (label !== null) {
+    const wanted = pluCandidates(label);
+    const weighed = (await getAll<CatalogItem>(STORE.CATALOG)).find(
+      (candidate) => candidate.plu_code != null && wanted.includes(String(candidate.plu_code)),
+    );
+    // A label for something this shop does not stock is a miss — and is NOT
+    // then tried as an ordinary barcode, which is the server's answer too.
+    if (weighed === undefined) return null;
+
+    return { item: weighed, variantId: null, unitId: null, quantity: labelQuantity(label, weighed) };
+  }
 
   const entry = await get<BarcodeEntry>(STORE.BARCODE_INDEX, trimmed);
   if (entry === undefined) return null;
