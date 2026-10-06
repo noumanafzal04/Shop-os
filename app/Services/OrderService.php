@@ -387,6 +387,16 @@ class OrderService
                 $discount = 0.0;
                 $couponCode = null;
                 if (! empty($data['coupon_code'])) {
+                    // A shop without the module has no coupons to honour — the
+                    // same rule the till's sale keeps. Said to the CUSTOMER,
+                    // who typed the code: silently ignoring it would place an
+                    // order for more than the basket in front of them showed.
+                    if (! $shop->featureEnabled('promotions')) {
+                        throw DomainException::unprocessable(
+                            'This shop is not accepting coupons at the moment — remove the code to place the order.',
+                            'COUPONS_UNAVAILABLE',
+                        );
+                    }
                     $result = app(CouponService::class)->apply($shop->id, $data['coupon_code'], $subtotal);
                     $discount = $result['discount'];
                     $couponCode = $result['code'];

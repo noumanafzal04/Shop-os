@@ -274,8 +274,38 @@ class CreateSaleAction
                 // (a trade customer rung at wholesale automatically) and carry an
                 // automatic members' DISCOUNT applied at checkout. POS/direct only —
                 // an online order replays its own settled total.
+                /*
+                 * A WITHDRAWN MODULE HAS NO RULES.
+                 *
+                 * An admin switched Coupons & Promotions off for a shop that
+                 * had a live promotion in it. The till, which no longer had
+                 * the module, priced five bars of soap at Rs 630. This action,
+                 * which never asked, took twenty percent off and made the bill
+                 * Rs 504 — so the sale was refused as a mismatch, on every
+                 * soap sale, for a promotion nobody at the shop could see,
+                 * edit or end, because the screen that owns it was gone.
+                 *
+                 * The module map is what a shop HAS. A rule left behind in a
+                 * module the shop no longer has is data, not policy: it stays
+                 * exactly as it was left and comes back the moment the module
+                 * does, but it does not act while its screen is dark.
+                 *
+                 * Automatic rules (promotions, a group's price level and
+                 * discount, points earned) simply do not apply. Something the
+                 * request ASKS for by name (a coupon code, a khata tender,
+                 * points to redeem) is refused out loud — quietly dropping it
+                 * would charge a customer more than the screen in front of
+                 * them said.
+                 *
+                 * Never on the trusted path: an order or a tab replays a total
+                 * that was settled while the module was on.
+                 */
+                $shop = $this->context->get();
+                $hasOffers = $trusted || $shop === null || $shop->featureEnabled('promotions');
+                $hasCustomers = $trusted || $shop === null || $shop->featureEnabled('customers');
+
                 $customerGroup = null;
-                if (! $trusted && ! empty($data['customer_phone'])) {
+                if (! $trusted && $hasCustomers && ! empty($data['customer_phone'])) {
                     $customerGroup = Customer::query()
                         ->where('phone', trim((string) $data['customer_phone']))
                         ->first()?->group;
@@ -672,6 +702,12 @@ class CreateSaleAction
                 // Coupon: validate + consume, add its discount (clamped to subtotal).
                 $couponCode = null;
                 if (! empty($data['coupon_code'])) {
+                    if (! $hasOffers) {
+                        throw DomainException::forbidden(
+                            'Coupons are switched off for this shop — take the coupon off the bill.',
+                            'MODULE_DISABLED',
+                        );
+                    }
                     $result = $this->coupons->apply($tenantId, $data['coupon_code'], $subtotal);
                     $discount = round(min($discount + $result['discount'], $subtotal), 2);
                     $couponCode = $result['code'];
@@ -686,7 +722,7 @@ class CreateSaleAction
                 $promotionId = null;
                 $promoName = null;
                 $promoDiscount = 0.0;
-                if (! $trusted) {
+                if (! $trusted && $hasOffers) {
                     $best = $this->promotions->best(
                         array_map(fn ($l) => ['product' => $l['product'], 'quantity' => $l['quantity'], 'line_total' => $l['line_total']], $lines),
                         $subtotal,
@@ -727,7 +763,7 @@ class CreateSaleAction
                 // customer with enough points; never on the trusted path (an online
                 // order / reservation carries its own settled total).
                 $tenant = $this->context->get();
-                $loyaltyOn = ! $trusted && (bool) ($tenant?->setting('loyalty_enabled', false));
+                $loyaltyOn = ! $trusted && $hasCustomers && (bool) ($tenant?->setting('loyalty_enabled', false));
                 $pointsRedeemed = 0;
                 $redeemPoints = $trusted ? 0 : (int) ($data['redeem_points'] ?? 0);
                 if ($redeemPoints > 0) {
@@ -1515,6 +1551,15 @@ class CreateSaleAction
                     $tenders,
                 )), 2);
                 if ($creditTotal > 0) {
+                    // A khata is a customer's account, and the shop has no
+                    // customer book to keep one in. See "a withdrawn module
+                    // has no rules", above.
+                    if (! $hasCustomers) {
+                        throw DomainException::forbidden(
+                            'Selling on credit needs Customers & Khata, which is switched off for this shop.',
+                            'MODULE_DISABLED',
+                        );
+                    }
                     if ($customer === null) {
                         throw DomainException::unprocessable(
                             "A credit (khata) sale needs a customer — add the customer's phone.",
