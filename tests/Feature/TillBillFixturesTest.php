@@ -48,7 +48,7 @@ class TillBillFixturesTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const VERSION = 1;
+    private const VERSION = 2;
 
     private Tenant $tenant;
 
@@ -210,6 +210,28 @@ class TillBillFixturesTest extends TestCase
                 sale: ['payment_method' => 'cash'],
                 group: ['price_level' => 'retail', 'discount_percent' => 7.5]),
 
+            // ── A tip ───────────────────────────────────────────────
+            //
+            // The counter never asked for one: the switch in Settings was
+            // read by the dine-in tab and nothing else, so a salon that
+            // turned it on got no box. These are the bills it now has to make.
+            $this->bill('a tip on a card is handed over with the bill, and is not the bill', [
+                ['price' => 1000, 'tax_rate' => 5, 'quantity' => 1],
+            ], sale: ['tip_amount' => 50]),
+
+            // 1,234 + 25 = 1,259, which settles UP to 1,260: the coin is found
+            // on what crosses the counter, tip and all. Rounding the bill
+            // first and adding the tip after would make it 1,230 + 25 = 1,255
+            // — which is why the tip here is not a round ten. With a tip of
+            // 20 both orders give 1,250, and the fixture would prove nothing.
+            $this->bill('cash with a tip finds its coin after the tip', [
+                ['price' => 1234, 'tax_rate' => 0, 'quantity' => 1],
+            ], settings: ['cash_rounding' => 10], sale: ['payment_method' => 'cash', 'tip_amount' => 25]),
+
+            $this->bill('a member\'s percentage comes off the bill, never off the tip', [
+                ['price' => 2000, 'tax_rate' => 17, 'quantity' => 1],
+            ], sale: ['tip_amount' => 100], group: ['price_level' => 'retail', 'discount_percent' => 10]),
+
             // ── Goods on the counter ────────────────────────────────
             $this->bill('a trade-in settles part of a card bill', [
                 ['price' => 24500, 'tax_rate' => 17, 'quantity' => 1],
@@ -370,6 +392,8 @@ class TillBillFixturesTest extends TestCase
                 'redeem_points' => (int) ($sale['redeem_points'] ?? 0),
                 'method' => $payload['payment_method'],
                 'trade_in' => (float) $tradeIn,
+                // The staff's, handed over with the bill. Not part of it.
+                'tip' => (float) ($sale['tip_amount'] ?? 0),
             ],
             'expected' => [
                 'lines' => array_map(static fn (array $line): array => [
