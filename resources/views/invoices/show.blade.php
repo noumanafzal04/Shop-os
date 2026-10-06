@@ -235,7 +235,12 @@
 
         @media print {
             body { background: #fff; padding: {{ $roll ? \App\Support\PrintPaper::rollEdge() : '0' }}; }
-            body.has-toolbar { padding-top: 0; }
+            {{-- The toolbar is gone on paper, and so is the room made for it —
+                 but NOT the roll's own edge. This reset the top padding to
+                 nothing for every real receipt (the preview has no toolbar,
+                 and so looked right), and the shop's name was printed against
+                 the top of the paper. --}}
+            body.has-toolbar { padding-top: {{ $roll ? \App\Support\PrintPaper::rollEdge() : '0' }}; }
             .doc { width: auto; box-shadow: none; padding: {{ $roll ? '0' : '0' }}; border-radius: 0; }
             .no-print { display: none !important; }
             {{-- A valid size. `80mm auto` is not one: browsers dropped it and printed A4. See PrintPaper. --}}
