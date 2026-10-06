@@ -20,6 +20,8 @@ export interface KotCard {
    * has nothing on it to shout.
    */
   table_name: string | null;
+  /** The name a takeaway was given, or null when nobody gave one. Absent on an older server. */
+  customer_name?: string | null;
   order_type: "dine_in" | "takeaway" | null;
   guest_count: number | null;
   items?: Array<{

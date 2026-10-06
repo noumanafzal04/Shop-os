@@ -124,6 +124,45 @@ describe("a ticket is in the lane its stage says", () => {
   });
 });
 
+describe("what a takeaway card is headed by", () => {
+  it("the name it was given — with its receipt number beside it", async () => {
+    vi.spyOn(kitchenService, "board").mockResolvedValue(envelope(board([
+      kot({ order_type: "takeaway", table_name: "Ahmed", customer_name: "Ahmed", ticket_number: "INV-000966" }),
+    ])));
+
+    renderBoard();
+
+    const card = (await screen.findByRole("heading", { name: "Ahmed" })).closest("article")!;
+    expect(card).toHaveTextContent("INV-000966");
+    expect(card).toHaveTextContent("Takeaway");
+  });
+
+  it("its receipt number, when nobody gave a name — not the word every other one has", async () => {
+    vi.spyOn(kitchenService, "board").mockResolvedValue(envelope(board([
+      kot({ order_type: "takeaway", table_name: "Takeaway", customer_name: null, ticket_number: "INV-000966" }),
+      kot({ order_type: "takeaway", table_name: "Takeaway", customer_name: null, ticket_number: "INV-000967" }),
+    ])));
+
+    renderBoard();
+
+    // Two walk-ups, two different headings.
+    expect(await screen.findByRole("heading", { name: "INV-000966" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "INV-000967" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Takeaway" })).not.toBeInTheDocument();
+  });
+
+  it("a table is still headed by its table", async () => {
+    vi.spyOn(kitchenService, "board").mockResolvedValue(envelope(board([
+      kot({ order_type: "dine_in", table_name: "T4", ticket_number: "TAB-00003" }),
+    ])));
+
+    renderBoard();
+
+    expect(await screen.findByRole("heading", { name: "T4" })).toBeInTheDocument();
+    expect(screen.queryByText("TAB-00003")).not.toBeInTheDocument();
+  });
+});
+
 describe("what an earlier service left behind", () => {
   const leftovers = { count: 7, oldest_fired_at: "2026-10-01T16:15:00.000Z" };
 

@@ -107,6 +107,17 @@ export function KotCardTile({ kot, ageSeconds, onBump, busy = false }: Props) {
   const urgency = urgencyOf(ageSeconds, kot.status);
   const next = NEXT[kot.status];
   const takeaway = kot.order_type === "takeaway";
+  // WHAT IS CALLED OUT WHEN IT IS READY.
+  //
+  // A table's name for a table; a takeaway's own name when it was given one.
+  // A walk-up who gave none used to get the word "Takeaway" — on every such
+  // card, so a café's pass was a row of identical headings — and the receipt
+  // number in the customer's hand, which is the one thing that tells two of
+  // them apart, was not on the card at all. It is the heading now.
+  const unnamedTakeaway = takeaway && !kot.customer_name;
+  const heading = unnamedTakeaway
+    ? kot.ticket_number ?? "Takeaway"
+    : kot.table_name ?? kot.ticket_number ?? "—";
 
   return (
     <article
@@ -117,7 +128,7 @@ export function KotCardTile({ kot, ageSeconds, onBump, busy = false }: Props) {
           {/* The table is how a cook finds the ticket, so it is the biggest
               thing on the card by a wide margin. */}
           <h3 className="truncate text-2xl font-bold leading-tight text-gray-900 dark:text-white">
-            {kot.table_name ?? kot.ticket_number ?? "—"}
+            {heading}
           </h3>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-theme-xs text-gray-500 dark:text-gray-400">
             {/* The headline is a NAME on a takeaway card, so the card has to
@@ -135,6 +146,11 @@ export function KotCardTile({ kot, ageSeconds, onBump, busy = false }: Props) {
             </span>
             {/* Spaced, not dotted: a separator that wraps starts the next
                 line with a dot belonging to nothing. */}
+            {/* A NAMED takeaway still carries its number — the counter
+                matches the bag to the receipt, not to "Ahmed". */}
+            {takeaway && !unnamedTakeaway && kot.ticket_number ? (
+              <span className="font-medium text-gray-700 dark:text-gray-300">{kot.ticket_number}</span>
+            ) : null}
             <span>KOT #{kot.kot_number}</span>
             {kot.station ? <span className="font-medium text-gray-700 dark:text-gray-300">{kot.station}</span> : null}
             {kot.guest_count ? <span>{kot.guest_count} covers</span> : null}

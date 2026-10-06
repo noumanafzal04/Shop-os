@@ -171,7 +171,18 @@ export default function FloorPage() {
         seats: Number(tableSeats) || undefined,
       },
       {
-        onSuccess: () => { tableModal.closeModal(); toast.success("Table added"); },
+        onSuccess: () => {
+          tableModal.closeModal();
+          toast.success("Table added");
+          // LAYING OUT A FLOOR IS ONE JOB, NOT TWELVE.
+          //
+          // The first table is added from the empty floor's own button — and
+          // the moment it existed, that button was gone with the empty floor,
+          // and the next one had to be found behind "Edit floor". A floor is
+          // never one table. Adding one leaves the layout open, with "+ Add
+          // table" where it was, until Done is pressed.
+          setEditMode(true);
+        },
         onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't add the table."),
       },
     );

@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
-import { ProductShots } from "../components/ProductShots";
+import { ProductShot } from "../components/ProductShots";
 import { EnquiryForm } from "../components/EnquiryForm";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
@@ -209,7 +209,7 @@ export default function LandingPage() {
           <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:56px_56px]" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-5 pb-16 pt-10 sm:px-8 lg:pb-20 lg:pt-14">
+        <div className="relative mx-auto max-w-7xl px-5 pb-16 pt-8 sm:px-8 lg:pb-20 lg:pt-10">
           {/* CENTRED, because what follows it is full-bleed. A left-aligned
               column above a picture that runs the whole width leaves the
               headline hanging off one corner of its own hero. */}
@@ -219,7 +219,7 @@ export default function LandingPage() {
               One system for every kind of shop
             </span>
 
-            <h1 className="mt-6 text-[2.6rem] font-bold leading-[1.02] tracking-[-0.03em] text-balance sm:text-[3.4rem] lg:text-[3.9rem]">
+            <h1 className="mt-5 text-[2.6rem] font-bold leading-[1.02] tracking-[-0.03em] text-balance sm:text-[3.4rem] lg:text-[3.75rem]">
               The lights go.
               <br />
               <span className="bg-gradient-to-r from-brand-300 via-brand-400 to-brand-300 bg-clip-text text-transparent">
@@ -227,13 +227,15 @@ export default function LandingPage() {
               </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-white/65 sm:text-xl">
+            {/* Two lines on a laptop, not three: the line it saves is a line
+                more of the product on the first screen. */}
+            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-white/65 sm:text-xl lg:max-w-4xl">
               Point of sale, stock, khata, staff and reporting in one place —
               and a till that carries on through a power cut, then sends every
               sale the moment the line comes back.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               <TryDemo big />
               <a
                 href="#talk"
@@ -243,27 +245,35 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <p className="mt-4 text-sm text-white/45">
+            <p className="mt-3 text-sm text-white/45">
               No card, no phone call. The demo opens a real shop of your own.
             </p>
           </div>
 
-          {/* THE PRODUCT, FULL WIDTH — and the real one. See ProductShots.
+          {/* THE PRODUCT, FULL WIDTH — and the real one: the dashboard, and
+              only the dashboard. The till has a section of its own below.
+              See ProductShots.
               It is under the headline rather than beside it because a console
               with a rail down its side needs the whole column to be readable —
               squeezed into a half-width slot the labels become smudges, and a
               picture nobody can read says only "some software". */}
-          <div
-            className="settles relative mt-11 lg:mt-14"
-            style={{ "--settle-delay": "160ms" } as React.CSSProperties}
-          >
-            <ProductShots />
+          {/* NOT `settles`. The scroll-reveal hides a block until enough of it
+              has crossed into view — a share of its own height. This one is
+              eight hundred pixels tall and starts near the bottom of a laptop
+              screen, so on a 1366 × 768 display it never crossed the line: the
+              page opened on a headline, two buttons, and an empty dark band
+              where the product should have been. What is above the fold is
+              simply there. */}
+          <div className="relative mt-8">
+            <ProductShot shot="dashboard" first />
           </div>
 
           {/* The four things that are true, said as facts rather than as
               invented customer figures. Below the picture, because they are
               what you are left holding after looking at it. */}
-          <dl className="settles mt-14 grid grid-cols-2 gap-x-8 gap-y-8 border-t border-white/10 pt-10 text-center sm:grid-cols-4">
+          {/* Directly under the window's fade — no rule above them. The
+              picture ends in these four facts rather than in a line and a gap. */}
+          <dl className="settles relative mt-6 grid grid-cols-2 gap-x-8 gap-y-8 text-center sm:mt-8 sm:grid-cols-4">
             {[
               ["8", "trades, each with its own rules"],
               ["0", "sales lost when the line drops"],
@@ -334,6 +344,54 @@ export default function LandingPage() {
             install it over a secure address. Yours, on your own domain — we set
             it up with you.
           </p>
+        </div>
+      </section>
+
+      {/* ══ THE COUNTER — the till itself ════════════════════════════ */}
+      {/* Dark, because the till is: it is drawn for a counter under strip
+          lights, and its picture fades out at the bottom into whatever is
+          behind it. On white that fade is a grey smear. `overflow-hidden`
+          for the phone, which stands a little outside the column. */}
+      <section id="counter" className="relative overflow-hidden border-b border-white/10 bg-gray-950 text-white">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-[radial-gradient(55%_45%_at_50%_0%,rgba(70,95,255,0.22),transparent_70%)]" />
+          <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:56px_56px]" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-5 pb-10 pt-20 sm:px-8 lg:pt-28">
+          <div className="settles mx-auto max-w-3xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
+              At the counter
+            </p>
+            <h2 className="mt-5 text-4xl font-bold leading-[1.08] tracking-[-0.02em] text-balance sm:text-5xl">
+              The same till, on a counter or in a hand
+            </h2>
+            <p className="mt-6 text-lg leading-relaxed text-white/65">
+              Tap a dish or scan a barcode, see the tax worked out line by
+              line, take the money. On the screen by the door it looks like
+              this; on a phone on the shop floor it is the same sale, the same
+              buttons and the same total.
+            </p>
+          </div>
+
+          <div className="relative mt-12 lg:mt-14">
+            <ProductShot shot="pos" />
+          </div>
+
+          {/* Three things a cashier's hands find out in the first minute.
+              Each is on the screen above. */}
+          <ul className="settles relative mx-auto mt-8 grid max-w-5xl gap-x-10 gap-y-6 text-center sm:grid-cols-3">
+            {[
+              ["A key for every move", "Search, hold, drafts and pay are one key each — for the cashier who never touches the mouse."],
+              ["Hold one, serve the next", "Park a sale while somebody fetches their wallet, ring the next customer, and bring the first one back."],
+              ["The total is the total", "Discount, tax and charges are worked out as each line goes in, and the figure by the button is what is taken."],
+            ].map(([title, body]) => (
+              <li key={title}>
+                <p className="text-base font-semibold text-white">{title}</p>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-white/55">{body}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

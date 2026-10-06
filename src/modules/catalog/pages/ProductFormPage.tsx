@@ -1,6 +1,7 @@
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { startingItemType } from "../startingItemType";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
@@ -142,7 +143,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const allowedTypes: ItemTypeCode[] =
     (tenantItemTypes as ItemTypeCode[] | undefined) ?? ["physical_product"];
 
-  const [itemType, setItemType] = useState<ItemTypeCode>("physical_product");
+  // Opens on the shop's OWN kind of thing — a dish in a restaurant, a
+  // medicine at a chemist's. It used to open on Physical product everywhere.
+  // See startingItemType.
+  const [itemType, setItemType] = useState<ItemTypeCode>(() => startingItemType(tenantItemTypes));
+  /** Once somebody has pressed a type, the form stops choosing for them. */
+  const pickedType = useRef(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -287,11 +293,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   useEffect(() => {
     if (!isEdit && typeInfo) setTrackStock(typeInfo.inventory === "required");
   }, [itemType, typeInfo, isEdit]);
-  // Default the item type to the first the business supports (create only).
+  // Default the item type to the FIRST the business supports (create only).
+  //
+  // "First", not "any it is allowed": this used to leave the form on
+  // Physical product whenever that was merely permitted, which it is in a
+  // restaurant and at a chemist's. It follows the list if the list changes —
+  // a fresh /me — until somebody has chosen for themselves.
   useEffect(() => {
-    if (!isEdit && allowedTypes.length && !allowedTypes.includes(itemType)) {
-      setItemType(allowedTypes[0]);
-    }
+    if (isEdit || pickedType.current || allowedTypes.length === 0) return;
+    if (itemType !== allowedTypes[0]) setItemType(allowedTypes[0]);
   }, [allowedTypes, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
   // On create there's no product id yet, so photos are staged in-memory and
   // uploaded right after the item is created.
@@ -714,7 +724,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     <button
                       key={code}
                       type="button"
-                      onClick={() => setItemType(code)}
+                      aria-pressed={itemType === code}
+                      onClick={() => { pickedType.current = true; setItemType(code); }}
                       className={`rounded-lg border px-5 py-2.5 text-sm transition ${
                         itemType === code
                           ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"

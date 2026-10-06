@@ -341,7 +341,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "table",
         head: ["Field", "What it is for"],
         rows: [
-          ["Item type", "What kind of thing this is. The list depends on your business type."],
+          ["Item type", "What kind of thing this is. The list depends on your business type, and the form opens on YOUR trade's own kind — a dish in a restaurant, a medicine at a chemist's. It used to open on Physical product everywhere, so a dish added in a hurry was saved as a product with stock tracked at nought, which the till then refused to sell. Check this row first if an item will not ring up."],
           ["Name", "What the cashier will search for at the till."],
           ["Category", "One per product, and required."],
           ["SKU", "Your own code. Left blank, one is generated."],
@@ -841,6 +841,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "steps",
         items: [
+          "Lay out the floor once: Edit floor, + Add table. Adding a table leaves the layout open so the next is one press away; press Done when the room is right.",
           "The guest sits down. Tap the table, press how many they are — the common parties are one press each — and the tab opens.",
           "Tap a dish to put it on the tab. Tap it again for one more: it is ONE line that counts up, and the tile itself shows how many you have on.",
           "If a dish comes in sizes, the tab asks which — half or full, small or large — and each one has its own price. Then any extras (extra cheese, no ice). Size first, extras second.",
@@ -988,7 +989,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "Clearing the kitchen board does not close the table. A tab still open on the floor stays open until it is settled or cancelled there — see \u201cTabs left open from an earlier day\u201d under Dine-in." },
       { type: "h", text: "Where the orders come from" },
       { type: "p", text: "Two doors, and both land here. A waiter sends a course from a table's tab; and a TAKEAWAY rung at the till arrives on its own the moment it is paid — you do not have to open a tab for it. Only the things a kitchen makes are on the docket: a bottle off the chiller is not work for the pass, so it stays off the board." },
-      { type: "note", text: "A takeaway card shows the CUSTOMER'S name in big letters if the cashier typed one, and the word Takeaway if they did not. It is what you call out when the bag is ready, so it is worth typing the name." },
+      { type: "note", text: "A takeaway card is headed by the CUSTOMER'S name if the cashier typed one, with the receipt number beside it. If nobody gave a name, the card is headed by the receipt number itself — the one thing in the customer's hand that says which bag is theirs. It used to say the word Takeaway on every such card, so a busy counter's board was a row of identical headings." },
       { type: "p", text: "A takeaway order clears itself off the board when you mark it served — there is no bill left to settle, because it was paid at the counter before you saw it. A table's order stays on the floor screen until the table pays." },
       { type: "h", text: "If your kitchen works off paper" },
       { type: "p", text: "A takeaway rung at the till PRINTS its slip too, on the same printer a table's order uses. Turn that off under Settings → Point of Sale → Kitchen if the cooks work from this screen instead. If the slip fails to print, the till says so and the order is still here — the board is the fallback, never the other way round." },
