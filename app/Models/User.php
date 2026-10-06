@@ -45,6 +45,16 @@ class User extends Authenticatable
         'pin_hash',
     ];
 
+    /**
+     * Arriving at work is not a change anybody made. See Auditable::auditQuiet.
+     *
+     * @return string[]
+     */
+    protected function auditQuiet(): array
+    {
+        return ['last_login_at'];
+    }
+
     protected function casts(): array
     {
         return [

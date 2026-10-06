@@ -69,6 +69,26 @@ trait Auditable
     }
 
     /**
+     * Fields that move on their own, with nobody deciding anything.
+     *
+     * An update that touches ONLY these files no row. `last_login_at` is the
+     * case that made it necessary: every sign-in on the platform wrote
+     * "System updated User — last_login_at", so three of the nine rows on the
+     * admin's first page were people arriving at work, and the suspension of a
+     * shop was somewhere underneath them. A trail is read for decisions, and a
+     * timestamp ticking is not one.
+     *
+     * Only when they move ALONE. A sign-in that also clears five failed
+     * attempts still files its row, with everything in it.
+     *
+     * @return string[]
+     */
+    protected function auditQuiet(): array
+    {
+        return [];
+    }
+
+    /**
      * Suppress this model's audit rows for the duration of `$work`.
      *
      * Exists for ONE shape: a bulk operation where each row would file a row,
@@ -121,6 +141,9 @@ trait Auditable
             if ($changes === []) {
                 return;
             }
+            if (array_diff(array_keys($changes), $m->auditQuiet()) === []) {
+                return;
+            }
 
             $recorded = $m->auditAttributes($changes);
 
@@ -149,6 +172,27 @@ trait Auditable
     protected function auditAttributes(array $attributes): array
     {
         $kept = array_diff_key($attributes, array_flip($this->auditExclude));
+
+        /*
+         * A MAP IS RECORDED AS A MAP, ON BOTH SIDES.
+         *
+         * What changed comes from `getChanges()`, which is the raw column: a
+         * JSON string. What it was before comes from `getOriginal()`, which is
+         * cast: an array. So a shop's module map was filed as a map on the
+         * left of the arrow and a quoted string on the right, and no screen
+         * could say which module had moved without parsing one half of a row.
+         *
+         * Only the JSON casts are touched. Everything scalar is left exactly
+         * as it was written — the trail has years of rows in that shape.
+         */
+        foreach ($kept as $key => $value) {
+            if (is_string($value) && $this->hasCast($key, ['array', 'json', 'object', 'collection'])) {
+                $decoded = json_decode($value, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $kept[$key] = $decoded;
+                }
+            }
+        }
 
         $only = $this->auditOnly();
 

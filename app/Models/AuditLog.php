@@ -74,6 +74,17 @@ class AuditLog extends Model
     }
 
     /**
+     * The business this happened in.
+     *
+     * Without its scopes: a shop that was deleted last month is exactly the
+     * shop somebody opens the trail to read about.
+     */
+    public function tenant(): BelongsTo
+    {
+        return $this->belongsTo(Tenant::class)->withoutGlobalScopes();
+    }
+
+    /**
      * Rows about ONE kind of record, named the way the screens name it.
      *
      * Both trails filtered with `LIKE %Customer%`, and "Customer" is also the
