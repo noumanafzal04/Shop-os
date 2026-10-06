@@ -68,6 +68,7 @@ import TillLock from "../components/TillLock";
 import SubstitutePicker from "../../pharmacy/components/SubstitutePicker";
 import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal";
 import { parkCart, readParkedCart } from "../cartStorage";
+import { nextLineKey, rekeyed } from "../lineKeys";
 import { canKick, kickDrawer } from "../../../common/escpos";
 import { NumPad } from "../components/NumPad";
 import { useTerminalStore } from "../../../stores/terminalStore";
@@ -147,7 +148,6 @@ interface CartLine {
   discountValue?: number;
   discountMode?: "amt" | "pct";
 }
-let ck = 0;
 
 /**
  * The keyboard legend, colour-coded by what each key does. The colours are not
@@ -626,7 +626,12 @@ export default function PosPage() {
   // Restored from the device on first render, so a refresh mid-trolley is a
   // blink rather than "sorry, can you hand me those again". See cartStorage:
   // only line INTENTS are kept — the server still prices everything.
-  const [cart, setCart] = useState<CartLine[]>(() => readParkedCart<CartLine>(terminalId)?.lines ?? []);
+  //
+  // RE-KEYED on the way in. The parked lines carry the keys the page before
+  // the refresh gave them, and this page's counter starts again from nought —
+  // so the next item rung shared a key with a restored line, and a discount,
+  // a quantity or a REMOVE on one of them landed on both. See lineKeys.
+  const [cart, setCart] = useState<CartLine[]>(() => rekeyed(readParkedCart<CartLine>(terminalId)?.lines ?? []));
   const [restoredCart] = useState(() => readParkedCart<CartLine>(terminalId));
 
   // When THIS cart began. Read by exactly one thing: the offline hard stop, so
@@ -912,7 +917,7 @@ export default function PosPage() {
       .flatMap((g) => (cfgSel[g.id!] ?? []).map((oid) => (g.options ?? []).find((o) => o.id === oid)?.name))
       .filter(Boolean) as string[];
     setCart((c) => [...c, {
-      key: `c${++ck}`, product_id: cfg.id, variant_id: cfgSize?.id ?? null,
+      key: nextLineKey(), product_id: cfg.id, variant_id: cfgSize?.id ?? null,
       name: cfgSize ? `${cfg.name} / ${cfgSize.name}` : cfg.name,
       unit_price: cfgPrice, quantity: 1, modifier_option_ids: optionIds,
       modifiers_label: chosen.join(", ") || undefined,
@@ -1543,7 +1548,7 @@ export default function PosPage() {
         : undefined;
       if (existing) return c.map((l) => (l === existing ? { ...l, quantity: l.quantity + 1 } : l));
       return [...c, {
-        key: `c${++ck}`, product_id: p.id, variant_id: variantId,
+        key: nextLineKey(), product_id: p.id, variant_id: variantId,
         sku: "sku" in p ? (p.sku ?? null) : null,
         name: variantName ? `${p.name} / ${variantName}` : p.name,
         unit_price: selUnit ? packPrice(basePrice, selUnit) : (variantId != null && variantPrice != null ? Number(variantPrice) : basePrice),
@@ -2075,7 +2080,7 @@ export default function PosPage() {
 
   const applyHeld = (h: HeldSale) => {
     setCart(h.cart.items.map((l) => ({
-      key: `c${++ck}`, product_id: l.product_id, variant_id: l.variant_id ?? null, name: l.name,
+      key: nextLineKey(), product_id: l.product_id, variant_id: l.variant_id ?? null, name: l.name,
       unit_price: l.unit_price, quantity: l.quantity,
       sold_by: (l as Partial<CartLine>).sold_by ?? "unit",
       unit_label: (l as Partial<CartLine>).unit_label ?? null,

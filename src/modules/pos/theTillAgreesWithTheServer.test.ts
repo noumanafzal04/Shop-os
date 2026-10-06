@@ -172,7 +172,7 @@ describe("every door a product reaches the cart by carries both tax fields", () 
      *
      * Counted, so a fourth door added later has to say what it does.
      */
-    const creations = code.match(/key: `c\$\{\+\+ck\}`/g) ?? [];
+    const creations = code.match(/key: nextLineKey\(\)/g) ?? [];
     expect(creations).toHaveLength(3);
 
     // Two take the fields from a product; the third restores a stored line.

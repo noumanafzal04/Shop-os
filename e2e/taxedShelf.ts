@@ -128,8 +128,13 @@ async function cartCount(page: Page): Promise<number> {
   return m ? Number(m[0]) : 0;
 }
 
-/** Put these products in the cart, one of each, by name. */
-export async function ring(page: Page, names: readonly string[]): Promise<void> {
+/**
+ * Put these products in the cart, one of each, by name.
+ *
+ * `already` — lines the cart held before this call (a cart restored after a
+ * refresh, say), so the count at the end is of the whole cart.
+ */
+export async function ring(page: Page, names: readonly string[], already = 0): Promise<void> {
   await showPane(page, "Products");
   const search = page.getByPlaceholder(/scan barcode or search/i).first();
 
@@ -171,7 +176,15 @@ export async function ring(page: Page, names: readonly string[]): Promise<void> 
 
   await search.fill("");
   await showPane(page, "Cart");
-  await expect(page.locator("[data-cart-row]"), "not every item reached the cart").toHaveCount(names.length);
+  await expect(page.locator("[data-cart-row]"), "not every item reached the cart").toHaveCount(already + names.length);
+}
+
+/** One sale with its lines, as the server holds it. */
+export async function saleWithLines(request: APIRequestContext, id: unknown): Promise<Row & { items: Row[] }> {
+  const res = await request.get(`${API}/sales/${String(id)}`, { headers: ownerAuth() });
+  expect(res.ok(), `sale ${String(id)} unreadable (${res.status()})`).toBeTruthy();
+
+  return ((await res.json()) as { data: Row & { items: Row[] } }).data;
 }
 
 export type Method = "Cash" | "Card" | "Wallet" | "Khata" | "Split";
