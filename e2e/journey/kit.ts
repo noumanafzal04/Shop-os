@@ -137,7 +137,10 @@ export async function signIn(page: Page, email: string, password: string, lands:
 export async function session(browser: Browser, who: "admin" | "owner"): Promise<string> {
   const file = stateFile(who);
   const young = fs.existsSync(file) && Date.now() - fs.statSync(file).mtimeMs < 35 * 60_000;
-  if (young) return file;
+  // Young is not the same as alive. A session is ended from the server's side
+  // by things the journey does on purpose — a shop suspended, a till handed
+  // over by PIN — and a file that is ten minutes old then holds a dead token.
+  if (young && (await alive(who))) return file;
 
   // An EMPTY session, said out loud. Inside a test, `browser.newContext()`
   // inherits the file's own `storageState` — which is the very file this
@@ -157,6 +160,18 @@ export async function session(browser: Browser, who: "admin" | "owner"): Promise
   await context.close();
 
   return file;
+}
+
+/** Does the server still honour the saved sign-in? */
+async function alive(who: "admin" | "owner"): Promise<boolean> {
+  try {
+    const res = await fetch(`${API}/auth/me`, { headers: { Accept: "application/json", Authorization: `Bearer ${tokenOf(who)}` } });
+
+    return res.ok;
+  } catch {
+    // No answer is not "no": the stage will say so itself if the server is down.
+    return true;
+  }
 }
 
 /** The bearer token inside a saved session — for asking the API the same question the screen asked. */

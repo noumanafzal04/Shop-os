@@ -45,6 +45,29 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * Is this 401 about the SESSION, or about something the request said?
+ *
+ * The server answers 401 for two unrelated reasons:
+ *
+ *   UNAUTHENTICATED       the token is missing or expired. Refresh it and ask
+ *                         again — the till should never notice.
+ *   INVALID_CREDENTIALS,  the request carried a secret — a till PIN, a
+ *   OTP_INVALID, …        password, a one-time code — and it was wrong.
+ *
+ * Every 401 was treated as the first. So a wrong PIN at a locked till
+ * refreshed the session and then SENT THE WRONG PIN AGAIN: two failed
+ * attempts counted for one, and a cashier was frozen out of the till after
+ * half the tries the shop allows, with a spent refresh token for good
+ * measure.
+ *
+ * Only an answer that names the session — or names nothing at all, which is
+ * what a proxy in front of the API sends — is worth a refresh.
+ */
+export function sessionHasExpired(status: number, code: string | null | undefined): boolean {
+  return status === 401 && (code === undefined || code === null || code === "" || code === "UNAUTHENTICATED");
+}
+
 // ── Response: 401 → silent refresh (single-flight) → retry once ─────
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -120,7 +143,7 @@ api.interceptors.response.use(
     // One silent refresh + retry per request; never for auth endpoints themselves.
     const isAuthCall = original.url?.includes("/auth/login") || original.url?.includes("/auth/refresh");
 
-    if (status === 401 && !original._retried && !isAuthCall && useAuthStore.getState().refreshToken) {
+    if (sessionHasExpired(status, error.response?.data?.meta?.error_code) && !original._retried && !isAuthCall && useAuthStore.getState().refreshToken) {
       original._retried = true;
 
       refreshPromise ??= refreshTokens().finally(() => {

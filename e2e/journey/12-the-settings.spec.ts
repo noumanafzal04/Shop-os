@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { API } from "../api";
-import { OWNER_STATE, ask, expect, record, remember, session, settled, test } from "./kit";
-import { item } from "./shop";
-import { complete, grandTotal, openTill, ring, tender, tenderSheet } from "./till";
+import { OWNER_STATE, Watch, ask, expect, record, remember, session, settled, signIn, test } from "./kit";
+import { CASHIER, item } from "./shop";
+import { complete, discount, openTill, ring, tender, tenderSheet } from "./till";
 
 /**
  * STAGE G — SETTINGS, AND WHETHER ANYTHING LISTENS TO THEM.
@@ -313,6 +313,260 @@ test("G1 · Tips: the counter asks for one, and it is the staff's — not a sale
   await expect(tenderSheet(page).getByLabel("Tip", { exact: true })).toHaveCount(0);
 });
 
+// ── G2: the drawer ───────────────────────────────────────────────────
+
+const BASE = process.env.E2E_BASE_URL ?? "http://localhost:4173";
+
+/** A sale rung by an owner with a figure of their choosing — the door a till could be gone round by. */
+const ringByApi = (request: APIRequestContext, data: Settings) =>
+  request.post(`${API}/sales`, { headers: { Accept: "application/json", Authorization: `Bearer ${token()}` }, data });
+
+async function openShift(page: Page, float: number): Promise<void> {
+  await page.getByRole("button", { name: "Open shift" }).first().click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Open shift" }) });
+  await sheet.getByRole("spinbutton").first().fill(String(float));
+  await sheet.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(sheet).toBeHidden({ timeout: 15_000 });
+}
+
+test("G2 · Require open shift: no drawer open, no sale — at the till and behind it", async ({ page, request, watch }) => {
+  expect(await ask<unknown>(request, "owner", "/pos/session"), "a shift was left open by an earlier stage").toBeNull();
+
+  await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
+    (p) => setSwitch(p, "Require open shift", true),
+    { pos_require_shift: true },
+    async (p) => { await expect(toggle(p, "Require open shift")).toHaveAttribute("aria-checked", "true"); },
+  );
+
+  // The till can be opened and the shelf read, but nothing can be paid for…
+  await openTill(page);
+  await ring(page, item("soap").name);
+  const pay = page.getByRole("button", { name: /Tender \/ Pay/i });
+  await expect(pay, "a shop that requires a shift let a sale be paid without one").toBeDisabled();
+  // …and it says why, where the cashier is looking.
+  await expect(page.getByText("Open a shift to sell — this shop requires one.")).toBeVisible();
+
+  // Going round the screen does not work either.
+  watch.expect(/SHIFT_REQUIRED/);
+  const soap = (await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent(item("soap").name)}`))[0];
+  const direct = await ringByApi(request, {
+    channel: "pos", payment_method: "cash", amount_paid: 1000, items: [{ product_id: soap.id, quantity: 1 }],
+  });
+  expect(direct.status()).toBe(409);
+  expect(((await direct.json()) as { meta: { error_code: string } }).meta.error_code).toBe("SHIFT_REQUIRED");
+
+  // With a drawer open, the same cart is paid.
+  await openShift(page, 1000);
+  await expect(pay).toBeEnabled({ timeout: 15_000 });
+  // Soap at its promotion: 96 + 5% = 100.80.
+  expect(await tender(page, "Cash")).toBe(100.8);
+  await tenderSheet(page).getByRole("button", { name: /^Exact ·/ }).click();
+  await complete(page, request);
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+});
+
+test("G2 · Closing a shift: blind, typed as one total, with the card machine's figure asked for", async ({ page, request }) => {
+  expect(await ask<unknown>(request, "owner", "/pos/session"), "the shift from the case before is not open").not.toBeNull();
+
+  await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
+    async (p) => {
+      await setSwitch(p, "Count by note & coin", false);
+      await setSwitch(p, "Blind close", true);
+      await setSwitch(p, "Declare card totals", true);
+    },
+    { pos_denomination_count: false, pos_blind_close: true, pos_declare_tenders: true },
+    async (p) => {
+      await expect(toggle(p, "Count by note & coin")).toHaveAttribute("aria-checked", "false");
+      await expect(toggle(p, "Blind close")).toHaveAttribute("aria-checked", "true");
+      await expect(toggle(p, "Declare card totals")).toHaveAttribute("aria-checked", "true");
+    },
+  );
+
+  await openTill(page);
+  await page.getByRole("button", { name: "Close shift" }).first().click();
+  const closing = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Close shift" }) });
+  await expect(closing).toBeVisible();
+
+  // BLIND: it says so, and the figure it expects is not on the sheet.
+  await expect(closing.getByText(/Expected cash is hidden until you've counted/)).toBeVisible();
+  await expect(closing.getByText("Expected", { exact: true })).toHaveCount(0);
+  await expect(closing.getByText(/1,100\.80|1,100\.8/)).toHaveCount(0);
+  // ONE TOTAL: no grid of notes.
+  await expect(closing.getByLabel(/^How many .* notes$/)).toHaveCount(0);
+  await expect(closing.locator("#counted-cash")).toBeVisible();
+  // THE MACHINES: asked for, by name.
+  await expect(closing.getByText("What the machines took")).toBeVisible();
+  await expect(closing.getByLabel("Card", { exact: true })).toBeVisible();
+
+  // Float 1,000 and one cash sale of 100.80.
+  await closing.locator("#counted-cash").fill("1100.80");
+  await closing.getByLabel("Card", { exact: true }).fill("0");
+  await closing.getByRole("button", { name: "Close shift" }).click();
+  await expect(closing).toBeHidden({ timeout: 20_000 });
+
+  const closed = (await ask<{ sessions: Array<Record<string, string>> }>(request, "owner", "/pos/sessions?per_page=1")).sessions[0];
+  expect(Number(closed.expected_cash)).toBe(1100.8);
+  expect(Number(closed.counted_cash)).toBe(1100.8);
+  expect(Number(closed.variance)).toBe(0);
+
+  await restore(request, { pos_require_shift: false, pos_denomination_count: true, pos_blind_close: false, pos_declare_tenders: false });
+});
+
+test("G2 · The other way round: counted note by note, expected shown, no machines asked", async ({ page, request }) => {
+  const now = await held(request);
+  expect([now.pos_denomination_count, now.pos_blind_close, now.pos_declare_tenders]).toEqual([true, false, false]);
+
+  await openTill(page);
+  await openShift(page, 500);
+  await page.getByRole("button", { name: "Close shift" }).first().click();
+  const closing = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Close shift" }) });
+  await expect(closing).toBeVisible();
+
+  await expect(closing.getByLabel("How many 500 notes")).toBeVisible();
+  await expect(closing.getByText(/Expected cash is hidden/)).toHaveCount(0);
+  await expect(closing.getByText("What the machines took")).toHaveCount(0);
+
+  await closing.getByLabel("How many 500 notes").fill("1");
+  // Open: the figure it expects is on the sheet beside the count.
+  await expect(closing.getByText("Expected", { exact: true })).toBeVisible();
+  await closing.getByRole("button", { name: "Close shift" }).click();
+  await expect(closing).toBeHidden({ timeout: 20_000 });
+  expect(await ask<unknown>(request, "owner", "/pos/session")).toBeNull();
+});
+
+// ── G3: how much a cashier may give away ─────────────────────────────
+
+test("G3 · Discount limit: the cashier is stopped at the shop's ceiling, and told so in words", async ({ page, request, browser }) => {
+  test.setTimeout(240_000);
+  const r = record();
+
+  await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
+    (p) => p.getByLabel("Most they can discount").fill("5"),
+    { max_discount_percent: 5 },
+    async (p) => { await expect(p.getByLabel("Most they can discount")).toHaveValue("5"); },
+  );
+
+  // The cashier, at their own till.
+  const context = await browser.newContext({ baseURL: BASE, storageState: { cookies: [], origins: [] } });
+  const till = await context.newPage();
+  const watch = new Watch(till);
+  watch.expect(/DISCOUNT_LIMIT_EXCEEDED/);
+  await signIn(till, String(r.cashierEmail), CASHIER.password, /\/tenant/);
+
+  // Oil, 2,850. Rs 300 off is 10.5% — twice what the shop allows.
+  await openTill(till);
+  await ring(till, item("oil").name);
+  await discount(till, { amount: 300 });
+  await tender(till, "Card");
+  await tenderSheet(till).getByRole("button", { name: /^Complete/ }).click();
+
+  // Refused, in the shop's own terms — not "Sale failed".
+  await expect(till.getByText(/above the 5% limit/).first(), "the cashier was not told why").toBeVisible({ timeout: 20_000 });
+  await expect(till.getByRole("heading", { name: "Sale complete" })).toHaveCount(0);
+
+  // Inside the limit it goes through: Rs 100 off is 3.5%.
+  await till.keyboard.press("Escape");
+  await openTill(till);
+  await discount(till, { amount: 100 });
+  // 2,750 at 18% = 3,245.
+  expect(await tender(till, "Card")).toBe(3245);
+  await tenderSheet(till).getByRole("button", { name: /^Complete/ }).click();
+  await expect(till.getByRole("heading", { name: "Sale complete" })).toBeVisible({ timeout: 20_000 });
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+
+  await till.waitForTimeout(400);
+  expect(watch.unexpected()).toEqual([]);
+  expect(watch.thrown).toEqual([]);
+  await context.close();
+
+  await restore(request, { max_discount_percent: null });
+});
+
+// ── G4: Point of Sale › Lanes & PINs ─────────────────────────────────
+
+const PIN = "4821";
+
+test("G4 · Till PIN: set for the cashier, the till locks, and only the right PIN opens it — as her", async ({ page, request, watch, browser }) => {
+  test.setTimeout(180_000);
+  const owner = await ask<{ id: string }>(request, "owner", "/auth/me");
+
+  await openSettings(page, "Point of Sale", "Lanes & PINs");
+  const row = page.getByRole("listitem").filter({ hasText: CASHIER.name });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: /^(Set|Change) PIN$/ }).click();
+
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: /till PIN$/ }) });
+  await expect(sheet.getByText(`For ${CASHIER.name}.`)).toBeVisible();
+  const boxes = sheet.locator('input[type="password"]');
+  await boxes.nth(0).fill(PIN);
+  await boxes.nth(1).fill(PIN);
+  await sheet.getByRole("button", { name: "Save PIN" }).click();
+  await expect(page.getByText(`Till PIN set for ${CASHIER.name}`)).toBeVisible({ timeout: 15_000 });
+  await expect(row).toContainText("PIN set");
+
+  // At the till: lock it by hand, the way a cashier steps away.
+  await openTill(page);
+  await page.getByTitle(/press to lock and hand over/).click();
+  const lock = page.getByRole("heading", { name: "Who's at the counter?" });
+  await expect(lock).toBeVisible();
+
+  const key = (digit: string) => page.getByRole("button", { name: digit, exact: true });
+  const unlockWith = async (pin: string) => {
+    await page.getByRole("button", { name: new RegExp(CASHIER.name) }).click();
+    for (const digit of pin) await key(digit).click();
+    await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  };
+
+  // The wrong PIN does not open it, and the till is still locked afterwards.
+  watch.expect(/401 POST \/pos\/unlock/);
+  await unlockWith("0000");
+  await expect(page.getByText("That PIN is not right."), "a wrong PIN was not answered").toBeVisible({ timeout: 15_000 });
+  await expect(lock).toBeVisible();
+  // ONE mistake is one mistake. It went to the server twice — the client
+  // took the refusal for an expired session and sent the wrong PIN again —
+  // so a cashier was frozen out in half the tries the shop allows.
+  expect(watch.refused.filter((line) => line.includes("/pos/unlock")), "one wrong PIN was counted more than once").toHaveLength(1);
+
+  // The right one does — and the till is HERS now.
+  await unlockWith(PIN);
+  await expect(lock).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByTitle(new RegExp(`^${CASHIER.name} — press to lock`))).toBeVisible({ timeout: 15_000 });
+
+  // The next sale is stamped with whoever unlocked it, as the setting promises.
+  await ring(page, item("tea").name);
+  await tender(page, "Card");
+  await tenderSheet(page).getByRole("button", { name: /^Complete/ }).click();
+  await expect(page.getByRole("heading", { name: "Sale complete" })).toBeVisible({ timeout: 20_000 });
+  const invoice = await page.locator("[data-sale-invoice]").getAttribute("data-sale-invoice");
+  remember({ settingsStageSales: Number(record().settingsStageSales ?? 0) + 1 });
+
+  // HANDED OVER MEANS HANDED OVER. The owner's session on this till ended
+  // the moment the cashier's PIN opened it — the saved sign-in this stage
+  // has been using is that session, and it is refused now. That is the
+  // feature: the person who walked away cannot still be ringing sales.
+  watch.expect(/401 /);
+  const stale = await request.get(`${API}/auth/me`, { headers: { Accept: "application/json", Authorization: `Bearer ${token()}` } });
+  expect(stale.status(), "the owner's session outlived handing the till over").toBe(401);
+
+  // The owner signs in again, somewhere else, and reads what was rung.
+  fs.rmSync(OWNER_STATE, { force: true });
+  await session(browser, "owner");
+  const sale = (await ask<Array<Record<string, unknown>>>(request, "owner", "/sales?per_page=10")).find((s) => s.invoice_number === invoice)!;
+  expect(sale, `the till said ${invoice} and the server has no such sale`).toBeTruthy();
+  expect(sale.created_by, "the sale was stamped with the owner, who had handed the till over").not.toBe(owner.id);
+});
+
+test("G4 · Till PIN: taken away again, and the list says so", async ({ page }) => {
+  await openSettings(page, "Point of Sale", "Lanes & PINs");
+  const row = page.getByRole("listitem").filter({ hasText: CASHIER.name });
+  await expect(row).toContainText("PIN set", { timeout: 20_000 });
+
+  await row.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.getByRole("button", { name: "Remove PIN", exact: true }).click();
+  await expect(page.getByText("Till PIN removed")).toBeVisible({ timeout: 15_000 });
+  await expect(row).toContainText("No PIN — password only");
+});
+
 // ── G9: one screen must not undo another ─────────────────────────────
 
 test("G9 · saving one tab does not put back a setting somebody changed elsewhere", async ({ page, request }) => {
@@ -335,4 +589,54 @@ test("G9 · saving one tab does not put back a setting somebody changed elsewher
   expect(after.invoice_footer, "Save on one tab put back a setting that was changed elsewhere").toBe("QA — changed somewhere else");
 
   await restore(request, { invoice_footer: before.invoice_footer ?? null, barcode_show_price: before.barcode_show_price });
+});
+
+// ── G5: a second lane. LAST, because a shop with lanes asks which one you are on. ──
+
+const LANE = { name: "QA Lane 2", code: "L2" } as const;
+
+test("G5 · A register is added, the till asks which lane it is, and remembers", async ({ page }) => {
+  await openSettings(page, "Point of Sale", "Lanes & PINs");
+  await expect(page.getByRole("heading", { name: "Registers" })).toBeVisible({ timeout: 20_000 });
+  const lanes = page.locator("body");
+  if ((await lanes.getByText(LANE.name, { exact: true }).count()) === 0) {
+    await lanes.getByRole("button", { name: "+ Add register" }).click();
+    const form = page.getByRole("dialog").filter({ hasText: "Short code" });
+    await form.getByPlaceholder("e.g. Lane 1").fill(LANE.name);
+    await form.getByPlaceholder("e.g. L1").fill(LANE.code);
+    await form.getByRole("button", { name: /^(Add register|Add|Save)$/ }).click();
+    await expect(page.getByText("Register added")).toBeVisible({ timeout: 15_000 });
+  }
+  await expect(lanes.getByRole("listitem").filter({ hasText: LANE.name })).toContainText("Free");
+
+  // The till did not ask before, because there was nothing to ask about.
+  await openTill(page);
+  const chip = page.getByTitle("Which register is this device?");
+  await expect(chip, "a shop with a lane does not ask which lane this till is").toBeVisible({ timeout: 15_000 });
+  await expect(chip).toContainText("Pick register");
+
+  await chip.click();
+  const picker = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "This register" }) });
+  await picker.getByRole("button", { name: new RegExp(LANE.name) }).click();
+  await expect(chip).toContainText(LANE.name);
+
+  // Remembered on this device across a reload.
+  await page.reload();
+  await expect(page.getByTitle("Which register is this device?")).toContainText(LANE.name, { timeout: 30_000 });
+});
+
+test("G5 · The register is removed, and the till stops asking", async ({ page }) => {
+  await openSettings(page, "Point of Sale", "Lanes & PINs");
+  await expect(page.getByRole("heading", { name: "Registers" })).toBeVisible({ timeout: 20_000 });
+  const lanes = page.locator("body");
+  const row = lanes.getByRole("listitem").filter({ hasText: LANE.name });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+
+  await row.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.getByRole("dialog").filter({ hasText: `Remove ${LANE.name}?` }).getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText("Register removed")).toBeVisible({ timeout: 15_000 });
+  await expect(lanes.getByText(LANE.name, { exact: true })).toHaveCount(0);
+
+  await openTill(page);
+  await expect(page.getByTitle("Which register is this device?")).toHaveCount(0);
 });

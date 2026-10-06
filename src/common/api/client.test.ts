@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios, { AxiosError } from "axios";
 
-import { api, apiGet } from "./client";
+import { api, apiGet, apiPost, sessionHasExpired } from "./client";
 import { useAuthStore } from "../../stores/authStore";
 
 /**
@@ -92,5 +92,63 @@ describe("a refresh that could not be made", () => {
       useAuthStore.getState().isAuthenticated,
       "a dead refresh token left the session standing",
     ).toBe(false);
+  });
+});
+
+describe("a 401 that is about the request, not the session", () => {
+  /**
+   * A wrong till PIN is answered 401 INVALID_CREDENTIALS. The client took
+   * that for an expired session, refreshed, and sent the wrong PIN again — so
+   * one mistake counted as two, and a cashier was frozen out in half the
+   * tries. Found by the QA journey, which saw two refusals for one press.
+   */
+  const answers = (code: string | undefined, sent: string[]) => {
+    api.defaults.adapter = async (config) => {
+      sent.push(String(config.url));
+      const err = new AxiosError("no", "ERR_BAD_REQUEST", config as never);
+      err.response = {
+        status: 401, statusText: "", headers: {}, config,
+        data: { success: false, message: "That PIN is not right.", meta: code === undefined ? {} : { error_code: code } },
+      } as never;
+      throw err;
+    };
+  };
+
+  it("sends a wrong PIN ONCE, and does not spend a refresh on it", async () => {
+    const sent: string[] = [];
+    answers("INVALID_CREDENTIALS", sent);
+    const refresh = vi.spyOn(axios, "post");
+
+    await expect(apiPost("/pos/unlock", { user_id: "u2", pin: "0000" })).rejects.toMatchObject({
+      message: "That PIN is not right.",
+    });
+
+    expect(sent, "the wrong PIN was sent to the server twice").toHaveLength(1);
+    expect(refresh).not.toHaveBeenCalled();
+    // And nobody was signed out over a mistyped PIN.
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+    expect(useAuthStore.getState().refreshToken).toBe("refresh-1");
+  });
+
+  it("still refreshes and asks again when it IS the session", async () => {
+    const sent: string[] = [];
+    answers("UNAUTHENTICATED", sent);
+    vi.spyOn(axios, "post").mockResolvedValue({ data: { data: { access_token: "new", refresh_token: "refresh-2" } } });
+
+    await expect(apiGet("/products")).rejects.toBeTruthy();
+
+    // Once, refreshed, once more — and no third time.
+    expect(sent).toHaveLength(2);
+    expect(useAuthStore.getState().refreshToken).toBe("refresh-2");
+  });
+
+  it("names the two kinds apart", () => {
+    expect(sessionHasExpired(401, "UNAUTHENTICATED")).toBe(true);
+    // A proxy's bare 401 says nothing; the session is the only thing it can mean.
+    expect(sessionHasExpired(401, undefined)).toBe(true);
+    for (const code of ["INVALID_CREDENTIALS", "OTP_INVALID", "OTP_EXPIRED", "OTP_MAX_ATTEMPTS"]) {
+      expect(sessionHasExpired(401, code), code).toBe(false);
+    }
+    expect(sessionHasExpired(403, "UNAUTHENTICATED")).toBe(false);
   });
 });
