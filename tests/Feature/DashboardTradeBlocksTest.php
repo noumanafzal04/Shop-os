@@ -95,8 +95,12 @@ class DashboardTradeBlocksTest extends TestCase
 
         $this->kot($shop, $tab);                                   // fired, cooking
         $this->kot($shop, $tab);                                   // fired, cooking
-        $this->kot($shop, $tab, ['ready_at' => now()]);            // on the pass
-        $this->kot($shop, $tab, ['ready_at' => now(), 'served_at' => now()]); // gone
+        // As a bump writes them: the status AND its stamp. These used to set
+        // the stamps alone on a row still marked `fired`, which is a docket
+        // the product cannot make — and the figure is read off the status now,
+        // the same way the pass reads it.
+        $this->kot($shop, $tab, ['status' => 'ready', 'ready_at' => now()]);            // on the pass
+        $this->kot($shop, $tab, ['status' => 'served', 'ready_at' => now(), 'served_at' => now()]); // gone
 
         $floor = $this->dashboard($shop)['floor'];
 

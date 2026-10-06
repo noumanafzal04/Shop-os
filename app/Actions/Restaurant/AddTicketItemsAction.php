@@ -105,26 +105,19 @@ class AddTicketItemsAction
                 }
 
                 $level = ($item['price_level'] ?? 'retail') === 'wholesale' ? 'wholesale' : 'retail';
-                $levelUnit = $product->priceForLevel($level, $quantity);
-                $basePrice = $unit !== null
-                    ? $unit->priceUsing($levelUnit)
-                    : ($variant !== null ? (float) $variant->price : $levelUnit);
-
-                [$modifierDelta, $modifierSnapshot] = ModifierResolver::resolve(
-                    $product,
-                    $item['modifier_option_ids'] ?? [],
-                );
-
-                $unitPrice = round($basePrice + $modifierDelta, 2);
-                $gross = round($unitPrice * $quantity, 2);
-
-                $lineDiscount = 0.0;
                 $pct = (float) ($item['line_discount_pct'] ?? 0);
-                if ($pct > 0) {
-                    $lineDiscount = round($gross * min($pct, 100) / 100, 2);
-                } elseif (($amt = (float) ($item['line_discount'] ?? 0)) > 0) {
-                    $lineDiscount = min(round($amt, 2), $gross);
-                }
+
+                [
+                    'unit_price' => $unitPrice,
+                    'gross' => $gross,
+                    'line_discount' => $lineDiscount,
+                    'modifiers' => $modifierSnapshot,
+                ] = self::priced(
+                    $product, $variant, $unit, $level, $quantity,
+                    $item['modifier_option_ids'] ?? [],
+                    $pct,
+                    (float) ($item['line_discount'] ?? 0),
+                );
 
                 $source = $variant ?? $product;
 
@@ -173,5 +166,53 @@ class AddTicketItemsAction
         });
 
         return $ticket->fresh(['table', 'items']);
+    }
+
+    /**
+     * WHAT ONE LINE COSTS, at this quantity.
+     *
+     * Lifted out of the loop above when a line's quantity became something a
+     * waiter could change after adding it (UpdateTicketItemAction). The
+     * quantity is not a multiplier on a stored price: a tiered price depends
+     * on HOW MANY, and a percentage discount is a share of the new gross. A
+     * second copy of this arithmetic beside the first is how eight naan would
+     * come to cost something other than what eight naan added in one go cost.
+     *
+     * @param  array<int, string>  $modifierOptionIds
+     * @return array{unit_price: float, gross: float, line_discount: float, modifiers: array<int, mixed>}
+     */
+    public static function priced(
+        Product $product,
+        ?ProductVariant $variant,
+        ?ProductUnit $unit,
+        string $level,
+        float $quantity,
+        array $modifierOptionIds,
+        float $discountPct,
+        float $discountAmount,
+    ): array {
+        $levelUnit = $product->priceForLevel($level, $quantity);
+        $basePrice = $unit !== null
+            ? $unit->priceUsing($levelUnit)
+            : ($variant !== null ? (float) $variant->price : $levelUnit);
+
+        [$modifierDelta, $modifierSnapshot] = ModifierResolver::resolve($product, $modifierOptionIds);
+
+        $unitPrice = round($basePrice + $modifierDelta, 2);
+        $gross = round($unitPrice * $quantity, 2);
+
+        $lineDiscount = 0.0;
+        if ($discountPct > 0) {
+            $lineDiscount = round($gross * min($discountPct, 100) / 100, 2);
+        } elseif ($discountAmount > 0) {
+            $lineDiscount = min(round($discountAmount, 2), $gross);
+        }
+
+        return [
+            'unit_price' => $unitPrice,
+            'gross' => $gross,
+            'line_discount' => $lineDiscount,
+            'modifiers' => $modifierSnapshot,
+        ];
     }
 }

@@ -33,6 +33,7 @@ use App\Support\BusinessTypes;
 use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\Payable;
+use App\Support\ServiceDay;
 use App\Support\ShopSettings;
 use App\Support\Takings;
 use Illuminate\Database\Eloquent\Builder;
@@ -916,9 +917,16 @@ class DashboardService
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('is_active', true);
 
+        // A BILL THAT IS RUNNING IS A BILL NOBODY HAS PAID.
+        //
+        // A takeaway rung at the till is paid before the kitchen sees it, and
+        // is left open only so its docket stays on the pass. Counted here it
+        // made "bills running" four on a floor with every table empty — four
+        // orders already in the drawer, waiting on nothing but the cook.
         $openTabs = RestaurantTicket::query()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->where('from_counter', false)
             ->where('status', RestaurantTicketStatus::Open->value);
 
         // Fired and not yet served. `ready_at` splits the two states a kitchen
@@ -928,18 +936,24 @@ class DashboardService
         // every un-served docket ever fired, so the number an owner reads to
         // know what the kitchen owes grew by one for every tab anybody had ever
         // cancelled and never came down.
+        //
+        // …AND THE SAME WINDOW. The pass shows this service only (ServiceDay),
+        // and what an earlier one left behind is counted apart, on the pass,
+        // where somebody can clear it. Counted in here it made "in the
+        // kitchen" a number that could only be explained by scrolling a board
+        // that no longer shows the tickets it was counting.
         $kots = KitchenTicket::query()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->forAnOpenTab()
-            ->whereNull('served_at');
+            ->stillOwed()
+            ->inService(ServiceDay::began($tenant));
 
         return [
             'tables' => (int) $tables->count(),
             'occupied' => (int) (clone $tables)->whereHas('openTicket')->count(),
             'open_tabs' => (int) $openTabs->count(),
-            'kot_waiting' => (int) (clone $kots)->whereNull('ready_at')->count(),
-            'kot_ready' => (int) (clone $kots)->whereNotNull('ready_at')->count(),
+            'kot_waiting' => (int) (clone $kots)->where('status', '!=', 'ready')->count(),
+            'kot_ready' => (int) (clone $kots)->where('status', 'ready')->count(),
         ];
     }
 

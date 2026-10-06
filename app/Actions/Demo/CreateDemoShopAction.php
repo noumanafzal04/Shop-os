@@ -2,14 +2,16 @@
 
 namespace App\Actions\Demo;
 
+use App\Actions\Catalog\CreateProductAction;
 use App\Actions\Tenant\CreateTenantAction;
+use App\Models\Category;
 use App\Models\City;
+use App\Models\DiningTable;
 use App\Models\Plan;
-use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Services\InventoryService;
 use App\Support\BusinessTypes;
+use App\Support\ItemTypes;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -60,7 +62,7 @@ class CreateDemoShopAction
 
     public function __construct(
         private readonly CreateTenantAction $createTenant,
-        private readonly InventoryService $inventory,
+        private readonly CreateProductAction $createProduct,
     ) {}
 
     /** @return array{tenant: Tenant, owner: User} */
@@ -146,49 +148,153 @@ class CreateDemoShopAction
      * Small on purpose. A visitor is here for two minutes and needs a catalogue
      * they can read, and every row written here is a row the prune clears later.
      *
-     * Stock goes on through `InventoryService`, NOT by writing
-     * `stock_quantity`. That column is a rollup; the till sells from
-     * `branch_stock`, and a demo whose every item shows "out of stock" would
-     * demonstrate the opposite of the thing it exists to demonstrate.
+     * ── Made the way a shop makes them ───────────────────────────────────
+     *
+     * This used to write `products` rows by hand, and gave every one of them
+     * `item_type = BusinessTypes::primary($businessType)` — the BUSINESS's
+     * type, in the column for the ITEM's. A restaurant's dishes were typed
+     * `food`, a chemist's medicines `pharmacy`, a salon's haircut `services`.
+     * None of those is an item type. There are five, and they are
+     * `ItemTypes`.
+     *
+     * Nothing refused it, because the column is a string. What it cost:
+     *
+     *   every screen that asks for a kind of item found none — a restaurant's
+     *   menu filtered to dishes was empty, with five dishes in the shop;
+     *
+     *   the product form could not save any of them back ("item type cannot
+     *   be changed", against a value it could not have chosen);
+     *
+     *   a haircut was a counted product with a hundred in stock, because the
+     *   test for "is this a service" compared against the wrong word too.
+     *
+     * So the shelf goes on through `CreateProductAction` — the same door the
+     * product form uses — with the type the trade is actually offered. It
+     * also puts stock where the till looks (`branch_stock`) and gives a
+     * medicine the batch and expiry it cannot be sold without, neither of
+     * which a hand-written row can be trusted to remember.
      */
     private function stockTheShelf(Tenant $tenant, string $businessType): void
     {
-        $shelf = match ($businessType) {
-            'food' => [['Chicken Karahi', 1450], ['Garlic Naan', 80], ['Mineral Water', 80], ['Chicken Biryani', 550], ['Kheer', 250]],
-            'pharmacy' => [['Panadol 500mg', 45], ['Brufen 400mg', 120], ['Cough Syrup 120ml', 260], ['ORS Sachet', 35], ['Surgical Mask', 20]],
-            'retail' => [['Cotton Shirt', 2400], ['Denim Jeans', 3800], ['Leather Belt', 1500], ['Sports Socks', 450], ['Canvas Shoes', 4200]],
-            'services' => [['Haircut', 800], ['Beard Trim', 400], ['Head Massage', 1200], ['Facial', 2500], ['Hair Colour', 3500]],
-            'automotive' => [['Tyre 195/65 R15', 14500], ['Engine Oil 4L', 6800], ['Air Filter', 1800], ['Wiper Blade', 950], ['Battery 12V', 18500]],
-            'petroleum' => [['Petrol', 272], ['Diesel', 278], ['Engine Oil 1L', 1900], ['Coolant 1L', 850], ['Brake Fluid', 1100]],
-            'finance' => [['Consultation', 5000], ['Tax Filing', 15000], ['Book-keeping (month)', 25000]],
-            default => [['Sugar 1kg', 180], ['Tea 500g', 1150], ['Cooking Oil 1L', 620], ['Rice 5kg', 1750], ['Milk 1L', 220]],
-        };
+        // What this trade is offered, as shipped. A books-only business is
+        // offered nothing — it sells no items — and gets no shelf: three
+        // "products" it had no screen to see or sell were three rows of junk.
+        $itemType = BusinessTypes::itemTypesFor($businessType)[0] ?? null;
+        if ($itemType === null) {
+            return;
+        }
 
-        $primary = BusinessTypes::primary($businessType);
-        $tracked = $primary !== 'service';
+        $context = app(TenantContext::class);
+        $context->set($tenant);
 
-        foreach ($shelf as [$productName, $price]) {
-            /** @var Product $product */
-            $product = Product::withoutTenancy()->create([
-                'tenant_id' => $tenant->id,
-                'type' => $tracked ? 'product' : 'service',
-                'item_type' => $primary,
-                'name' => $productName,
-                'price' => $price,
-                // Enough to make the margin readable, without pretending to be
-                // a real shop's buying price.
-                'cost' => round($price * 0.65, 2),
-                'track_inventory' => $tracked,
-                'stock_quantity' => 0,
-                'is_active' => true,
-            ]);
+        try {
+            if (BusinessTypes::primary($businessType) === 'food') {
+                $this->layTheRestaurant($tenant, $itemType);
 
-            if ($tracked) {
-                $this->inventory->adjust([
-                    'product_id' => $product->id,
-                    'type' => 'set',
-                    'new_quantity' => 100,
-                    'reason' => 'Demo shop opening stock',
+                return;
+            }
+
+            $shelf = match (BusinessTypes::primary($businessType)) {
+                'pharmacy' => [['Panadol 500mg', 45], ['Brufen 400mg', 120], ['Cough Syrup 120ml', 260], ['ORS Sachet', 35], ['Surgical Mask', 20]],
+                'retail' => [['Cotton Shirt', 2400], ['Denim Jeans', 3800], ['Leather Belt', 1500], ['Sports Socks', 450], ['Canvas Shoes', 4200]],
+                'services' => [['Haircut', 800], ['Beard Trim', 400], ['Head Massage', 1200], ['Facial', 2500], ['Hair Colour', 3500]],
+                'automotive' => [['Tyre 195/65 R15', 14500], ['Engine Oil 4L', 6800], ['Air Filter', 1800], ['Wiper Blade', 950], ['Battery 12V', 18500]],
+                'petroleum' => [['Petrol', 272], ['Diesel', 278], ['Engine Oil 1L', 1900], ['Coolant 1L', 850], ['Brake Fluid', 1100]],
+                default => [['Sugar 1kg', 180], ['Tea 500g', 1150], ['Cooking Oil 1L', 620], ['Rice 5kg', 1750], ['Milk 1L', 220]],
+            };
+
+            foreach ($shelf as [$name, $price]) {
+                $this->shelve($itemType, $name, $price);
+            }
+        } finally {
+            // Left exactly as `build` expects it: no tenant in context.
+            // `execute` puts the caller's own back afterwards.
+            $context->clear();
+        }
+    }
+
+    /**
+     * One item, through the product form's own door.
+     *
+     * @param  array<string, mixed>  $extra
+     */
+    private function shelve(string $itemType, string $name, float $price, array $extra = []): void
+    {
+        $counts = ItemTypes::defaultTracksInventory($itemType);
+
+        $this->createProduct->execute([
+            'item_type' => $itemType,
+            'name' => $name,
+            'price' => $price,
+            // Enough to make the margin readable, without pretending to be a
+            // real shop's buying price.
+            'cost' => round($price * 0.65, 2),
+            'is_active' => true,
+            ...($counts ? ['track_inventory' => true, 'stock_quantity' => 100] : []),
+            // A medicine is sold from a LOT, first-expiring first. One with no
+            // expiry is one the till has to refuse.
+            ...($itemType === ItemTypes::MEDICINE
+                ? ['opening_batch_number' => 'DEMO-01', 'expiry_date' => now()->addMonths(18)->toDateString()]
+                : []),
+            ...$extra,
+        ]);
+    }
+
+    /**
+     * A restaurant is a floor and a menu, not five dishes.
+     *
+     * The landing page offers this trade as "Tables, kitchen dockets,
+     * dine-in" — and the shop it opened had no table in it. The floor screen
+     * said "No tables yet", the kitchen had no stations to route to, and the
+     * one thing the visitor had been promised was the one thing they could
+     * not try.
+     *
+     * Still small: twelve tables in three rooms, nineteen dishes in six
+     * sections, three stations. Enough that seating a table, sending an order
+     * and watching it split between the grill and the tandoor is one minute's
+     * work — which is the whole demonstration.
+     */
+    private function layTheRestaurant(Tenant $tenant, string $itemType): void
+    {
+        $tenant->forceFill([
+            'settings' => [...($tenant->settings ?? []), 'kitchen_stations' => ['Grill', 'Tandoor', 'Bar']],
+        ])->save();
+
+        $menu = [
+            'Karahi & Handi' => [['Chicken Karahi', 1450, 'Grill'], ['Mutton Karahi', 2650, 'Grill'], ['Chicken Handi', 1350, 'Grill'], ['Daal Makhni', 650, 'Grill']],
+            'BBQ' => [['Chicken Tikka', 480, 'Grill'], ['Malai Boti', 780, 'Grill'], ['Seekh Kabab', 620, 'Grill'], ['Reshmi Kabab', 690, 'Grill']],
+            'Rice' => [['Chicken Biryani', 550, 'Grill'], ['Mutton Pulao', 890, 'Grill']],
+            'Breads' => [['Garlic Naan', 80, 'Tandoor'], ['Roghni Naan', 70, 'Tandoor'], ['Tandoori Roti', 30, 'Tandoor']],
+            'Beverages' => [['Mineral Water', 80, 'Bar'], ['Fresh Lime', 220, 'Bar'], ['Mint Margarita', 320, 'Bar'], ['Doodh Patti', 150, 'Bar']],
+            'Desserts' => [['Kheer', 250, 'Bar'], ['Gulab Jamun', 220, 'Bar']],
+        ];
+
+        $order = 0;
+        foreach ($menu as $section => $dishes) {
+            // `firstOrCreate`, by name. A new restaurant is already given the
+            // sections every restaurant has, and a second "Desserts" beside
+            // the first is two chips on the menu that do the same thing.
+            $category = Category::query()->firstOrCreate(
+                ['name' => $section],
+                ['sort_order' => $order, 'is_active' => true],
+            );
+            $order++;
+
+            foreach ($dishes as [$name, $price, $station]) {
+                $this->shelve($itemType, $name, $price, [
+                    'category_id' => $category->id,
+                    'kitchen_station' => $station,
+                ]);
+            }
+        }
+
+        $rooms = ['Hall' => [['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], 4], 'Family' => [['F1', 'F2', 'F3'], 6], 'Rooftop' => [['R1', 'R2', 'R3'], 4]];
+        $position = 0;
+        foreach ($rooms as $room => [$names, $seats]) {
+            foreach ($names as $name) {
+                DiningTable::query()->create([
+                    'name' => $name, 'area' => $room, 'seats' => $seats,
+                    'sort_order' => $position++, 'is_active' => true,
                 ]);
             }
         }

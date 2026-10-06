@@ -6,14 +6,20 @@ use App\Enums\RestaurantTicketStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Restaurant\BumpKitchenTicketRequest;
+use App\Http\Requests\Restaurant\ClearKitchenBoardRequest;
+use App\Models\AuditLog;
 use App\Models\KitchenTicket;
+use App\Models\RestaurantTicket;
 use App\Models\RestaurantTicketItem;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\ServiceDay;
+use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The kitchen display (KDS): the screen over the pass, and the bump that moves
@@ -25,9 +31,6 @@ use Illuminate\Support\Carbon;
  */
 class KitchenController extends Controller
 {
-    /** Everything still owed to a table — the default board. */
-    private const ACTIVE_STATUSES = ['fired', 'preparing', 'ready'];
-
     /** The bump lifecycle, in order. Position is the only thing that matters. */
     private const LIFECYCLE = ['fired' => 0, 'preparing' => 1, 'ready' => 2, 'served' => 3];
 
@@ -37,12 +40,20 @@ class KitchenController extends Controller
     /**
      * The live board. Oldest first: a kitchen works the queue from the top, and
      * a screen that puts the newest ticket first cooks the wrong order.
+     *
+     * THIS SERVICE ONLY. What was fired before it (see ServiceDay) is not on
+     * the board — it is counted in `older`, so the screen can say "seven
+     * tickets are left from before today" and offer to show or clear them,
+     * rather than leading every morning's queue with last week's orders.
+     * `older=1` returns those instead, so they can be read before they go.
      */
     public function board(Request $request): JsonResponse
     {
         $includeServed = $request->boolean('include_served');
+        $older = $request->boolean('older');
+        $began = ServiceDay::began();
 
-        $kots = $this->boardQuery($includeServed)
+        $kots = $this->boardQuery($includeServed, $older, $began)
             ->when($request->filled('station'), fn ($q) => $q->where('station', $request->input('station')))
             ->with([
                 // A voided line was struck off the tab — it must never reach a pan.
@@ -53,20 +64,115 @@ class KitchenController extends Controller
             ->orderBy('fired_at')
             ->get();
 
+        $leftOver = $this->pass()->stillOwed()->fromBefore($began);
+
         return ApiResponse::ok([
             'kots' => $kots->map(fn (KitchenTicket $kot) => $this->row($kot))->all(),
             // Drawn from the WHOLE board rather than the filtered slice, or the
             // station tabs would vanish the moment a cook picked one of them.
-            'stations' => $this->boardQuery($includeServed)
+            'stations' => $this->boardQuery($includeServed, $older, $began)
                 ->whereNotNull('station')
                 ->distinct()
                 ->orderBy('station')
                 ->pluck('station')
                 ->all(),
+            // What this service's board is NOT showing. Never filtered by
+            // station: a leftover is everybody's to notice.
+            'older' => [
+                'count' => (clone $leftOver)->count(),
+                'oldest_fired_at' => $this->stamp((clone $leftOver)->min('fired_at')),
+            ],
+            'service_began' => $began->toJSON(),
             // The ages are computed here; a screen that ticks between polls
             // needs to know what "now" was when they were.
             'server_time' => now()->toJSON(),
         ]);
+    }
+
+    /**
+     * TAKE TICKETS OFF THE BOARD, ALL AT ONCE.
+     *
+     * Two things a kitchen needs and had no way to do but one card at a time:
+     *
+     *   `older`  what was left from a service that is over. Nobody is going to
+     *            cook it; bumping forty stale cards through Start → Ready →
+     *            Served to make them go away is forty lies in the timing
+     *            record and ten minutes nobody has.
+     *
+     *   `board`  everything on tonight's board, at close. Optionally one
+     *            station's — the grill clearing down does not clear the bar.
+     *
+     * Marked `cleared`, never `served`: see KitchenTicket::CLEARED. No stage
+     * timestamp is stamped either — the intervals between them are the cook
+     * times, and a ticket cleared at close has none to report.
+     *
+     * No new authority is handed out. Anyone who may bump a ticket to served
+     * may already do this one tap at a time; this is the same act, counted.
+     * It is written to the trail as ONE row, because it is one decision.
+     */
+    public function clear(ClearKitchenBoardRequest $request): JsonResponse
+    {
+        $scope = (string) $request->validated()['scope'];
+        $station = $request->validated()['station'] ?? null;
+        $began = ServiceDay::began();
+
+        $cleared = DB::transaction(function () use ($scope, $station, $began): int {
+            $kots = $this->pass()
+                ->stillOwed()
+                ->when($scope === 'older', fn (Builder $q) => $q->fromBefore($began))
+                ->when($scope === 'board', fn (Builder $q) => $q->inService($began))
+                ->when($scope === 'board' && $station !== null, fn (Builder $q) => $q->where('station', $station))
+                ->lockForUpdate()
+                ->get(['id', 'ticket_id']);
+
+            if ($kots->isEmpty()) {
+                return 0;
+            }
+
+            $ids = $kots->pluck('id')->all();
+
+            KitchenTicket::query()->whereKey($ids)->update([
+                'status' => KitchenTicket::CLEARED,
+                'bumped_by' => auth()->id(),
+                'updated_at' => now(),
+            ]);
+
+            // The tab reads kitchen state per LINE. Left as `fired`, every one
+            // of these would say "In kitchen" on the waiter's screen for as
+            // long as the tab stayed open.
+            RestaurantTicketItem::query()
+                ->whereIn('kitchen_ticket_id', $ids)
+                ->whereNull('voided_at')
+                ->where('kot_status', 'fired')
+                ->update(['kot_status' => KitchenTicket::CLEARED]);
+
+            RestaurantTicket::query()
+                ->whereKey($kots->pluck('ticket_id')->unique()->all())
+                ->get()
+                ->each(fn (RestaurantTicket $ticket) => $this->closeACounterOrderThatIsDone($ticket));
+
+            AuditLog::query()->create([
+                'user_id' => auth()->id(),
+                'tenant_id' => app(TenantContext::class)->id(),
+                'event' => 'cleared',
+                'auditable_type' => KitchenTicket::class,
+                'auditable_id' => null,
+                'old_values' => null,
+                'new_values' => array_filter([
+                    'tickets' => count($ids),
+                    'which' => $scope === 'older' ? 'left from an earlier service' : 'this service',
+                    'station' => $scope === 'board' ? $station : null,
+                ], fn ($v) => $v !== null),
+                'ip_address' => request()?->ip(),
+            ]);
+
+            return count($ids);
+        });
+
+        return ApiResponse::ok(
+            ['cleared' => $cleared],
+            $cleared === 0 ? 'Nothing to clear.' : ($cleared === 1 ? '1 ticket cleared.' : "{$cleared} tickets cleared."),
+        );
     }
 
     /**
@@ -82,8 +188,19 @@ class KitchenController extends Controller
         $target = (string) $request->validated()['status'];
         $current = (string) $kot->status;
 
+        // A docket that was voided with its tab, or cleared off the board, is
+        // not on the lifecycle at all. It used to fall through as rank zero —
+        // "not started" — so a stale screen could tap a dead ticket back to
+        // life and put it on the pass again.
+        if (! isset(self::LIFECYCLE[$current])) {
+            throw DomainException::conflict(
+                'This ticket is no longer on the board.',
+                'KOT_OFF_THE_BOARD',
+            );
+        }
+
         $targetRank = self::LIFECYCLE[$target];
-        $currentRank = self::LIFECYCLE[$current] ?? 0;
+        $currentRank = self::LIFECYCLE[$current];
 
         // A double-tap on a busy screen is the same fact arriving twice, not a
         // new one. Succeed and change nothing — including the timestamps, so a
@@ -119,7 +236,10 @@ class KitchenController extends Controller
             // KOT. Voided lines keep their void marker — they were never cooked.
             $kot->items()->whereNull('voided_at')->update(['kot_status' => 'served']);
 
-            $this->closeACounterOrderThatIsDone($kot);
+            $ticket = $kot->ticket()->first();
+            if ($ticket !== null) {
+                $this->closeACounterOrderThatIsDone($ticket);
+            }
         }
 
         return ApiResponse::ok($kot->fresh(), "Ticket marked {$target}.");
@@ -139,16 +259,19 @@ class KitchenController extends Controller
      * A tab is left alone: it is the floor's to close, and closing it here
      * would take a table's bill away before anybody had paid it.
      */
-    private function closeACounterOrderThatIsDone(KitchenTicket $kot): void
+    private function closeACounterOrderThatIsDone(RestaurantTicket $ticket): void
     {
-        $ticket = $kot->ticket()->first();
-
-        if ($ticket === null || ! $ticket->from_counter || ! $ticket->isOpen()) {
+        if (! $ticket->from_counter || ! $ticket->isOpen()) {
             return;
         }
 
+        // "Still cooking" is an ACTIVE docket — not "anything that is not
+        // served". It used to be the second, which was the same thing while a
+        // docket could only be active or served. A cleared one is neither, and
+        // an order with one docket cleared and one served would have waited
+        // for ever on a docket that is already off the board.
         $stillCooking = $ticket->kitchenTickets()
-            ->where('status', '!=', 'served')
+            ->whereIn('status', KitchenTicket::ACTIVE)
             ->exists();
 
         if ($stillCooking) {
@@ -162,40 +285,57 @@ class KitchenController extends Controller
     }
 
     /**
-     * The board's window: everything not yet served, plus — on request — what
-     * was served today, because a cook challenged on a missing dish needs to be
-     * able to show they sent it. Bounded to today so the screen can't grow
-     * unbounded over a week of service.
+     * The pass of the site being worked.
+     *
+     * Without this a two-site restaurant ran one shared queue: the Gulberg
+     * pass showed DHA's fired tickets and cooks worked another kitchen's
+     * orders. Read scope, so an owner's all-branches view still sees every
+     * pass at once.
      */
-    private function boardQuery(bool $includeServed): Builder
+    private function pass(): Builder
     {
-        // The pass of the site being worked. Without this a two-site restaurant
-        // ran one shared queue: the Gulberg pass showed DHA's fired tickets and
-        // cooks worked another kitchen's orders. Read scope, so an owner's
-        // all-branches view still sees every pass at once.
         $branchId = app(BranchContext::class)->scopeId();
 
         return KitchenTicket::query()
-            ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId))
-            // THE PASS IS ABOUT TABLES STILL BEING SERVED.
-            //
-            // This filtered on the docket's own status alone, so a docket
-            // outlived its tab: found on a real board, nine dockets with EIGHT
-            // belonging to VOIDED tabs and two fired six days earlier. A cook
-            // was being told to cook meals nobody would eat.
-            //
-            // Cancel now voids its own dockets, because that is a known fact.
-            // Settle does not, because it is not one — a tab being paid says
-            // nothing about whether the kitchen sent the food out, and writing
-            // `served` on a docket the cook never bumped would put a claim in
-            // the kitchen's record that the kitchen never made. The BOARD is
-            // where the judgement belongs: a closed tab is not work.
+            ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId));
+    }
+
+    /**
+     * The board's window: everything owed in THIS service, plus — on request —
+     * what was served in it, because a cook challenged on a missing dish needs
+     * to be able to show they sent it.
+     *
+     * `$older` turns it round: what is still owed from BEFORE this service,
+     * and nothing else. The two are never mixed on one screen.
+     */
+    private function boardQuery(bool $includeServed, bool $older, Carbon $began): Builder
+    {
+        // THE PASS IS ABOUT TABLES STILL BEING SERVED.
+        //
+        // This filtered on the docket's own status alone, so a docket
+        // outlived its tab: found on a real board, nine dockets with EIGHT
+        // belonging to VOIDED tabs and two fired six days earlier. A cook
+        // was being told to cook meals nobody would eat.
+        //
+        // Cancel now voids its own dockets, because that is a known fact.
+        // Settle does not, because it is not one — a tab being paid says
+        // nothing about whether the kitchen sent the food out, and writing
+        // `served` on a docket the cook never bumped would put a claim in
+        // the kitchen's record that the kitchen never made. The BOARD is
+        // where the judgement belongs: a closed tab is not work.
+        if ($older) {
+            return $this->pass()->stillOwed()->fromBefore($began);
+        }
+
+        return $this->pass()
             ->forAnOpenTab()
-            ->where(function (Builder $q) use ($includeServed): void {
-                $q->whereIn('status', self::ACTIVE_STATUSES);
+            ->where(function (Builder $q) use ($includeServed, $began): void {
+                $q->where(fn (Builder $live) => $live->whereIn('status', KitchenTicket::ACTIVE)->inService($began));
 
                 if ($includeServed) {
-                    $q->orWhere(fn (Builder $s) => $s->where('status', 'served')->whereDate('served_at', today()));
+                    // The same service, not the calendar day: at one in the
+                    // morning "served today" was the last hour only.
+                    $q->orWhere(fn (Builder $s) => $s->where('status', 'served')->where('served_at', '>=', $began));
                 }
             });
     }

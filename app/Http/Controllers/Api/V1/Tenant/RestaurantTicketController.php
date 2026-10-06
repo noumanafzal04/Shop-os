@@ -8,6 +8,7 @@ use App\Actions\Restaurant\MergeTicketsAction;
 use App\Actions\Restaurant\MoveTicketAction;
 use App\Actions\Restaurant\OpenTicketAction;
 use App\Actions\Restaurant\SettleTicketAction;
+use App\Actions\Restaurant\UpdateTicketItemAction;
 use App\Enums\RestaurantTicketStatus;
 use App\Enums\SaleStatus;
 use App\Enums\UserRole;
@@ -20,6 +21,7 @@ use App\Http\Requests\Restaurant\MergeTicketsRequest;
 use App\Http\Requests\Restaurant\MoveTicketRequest;
 use App\Http\Requests\Restaurant\OpenTicketRequest;
 use App\Http\Requests\Restaurant\SettleTicketRequest;
+use App\Http\Requests\Restaurant\UpdateTicketItemRequest;
 use App\Models\KitchenTicket;
 use App\Models\RestaurantTicket;
 use App\Models\RestaurantTicketItem;
@@ -89,6 +91,24 @@ class RestaurantTicketController extends Controller
     /**
      * Void a single line (a mistake / a walk-out item). Never a paid line.
      */
+    /**
+     * More, fewer, or a note for the kitchen — on a line not yet sent.
+     *
+     * The tab's missing third verb. See UpdateTicketItemAction for why it
+     * stops the moment the line is fired.
+     */
+    public function updateItem(
+        UpdateTicketItemRequest $request,
+        RestaurantTicket $ticket,
+        RestaurantTicketItem $item,
+        UpdateTicketItemAction $action,
+    ) {
+        $this->assertMayWork($ticket);
+        $this->assertBelongs($item->ticket_id, $ticket->id);
+
+        return ApiResponse::ok($action->execute($ticket, $item, $request->validated()), 'Tab updated.');
+    }
+
     public function voidItem(Request $request, RestaurantTicket $ticket, RestaurantTicketItem $item)
     {
         $this->assertMayWork($ticket);
@@ -198,7 +218,7 @@ class RestaurantTicketController extends Controller
         // tidy a screen is how a kitchen's own record stops being true.
         KitchenTicket::query()
             ->where('ticket_id', $ticket->id)
-            ->whereIn('status', ['fired', 'preparing', 'ready'])
+            ->whereIn('status', KitchenTicket::ACTIVE)
             ->update(['status' => 'void']);
 
         $ticket->forceFill([

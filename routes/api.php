@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\V1\Tenant\DiningTableController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseBudgetController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\ExpenseController;
+use App\Http\Controllers\Api\V1\Tenant\FloorController;
 use App\Http\Controllers\Api\V1\Tenant\ForecourtShiftController;
 use App\Http\Controllers\Api\V1\Tenant\FuelDeliveryController;
 use App\Http\Controllers\Api\V1\Tenant\FuelPriceController;
@@ -977,6 +978,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->group(function (): void {
                     Route::get('kitchen', [KitchenController::class, 'board']);
                     Route::post('kitchen/kot/{kot}/bump', [KitchenController::class, 'bump']);
+                    // The whole board, or what an earlier service left on it,
+                    // in one go. The same authority as a bump — it is a bump,
+                    // counted — so it sits beside it.
+                    Route::post('kitchen/clear', [KitchenController::class, 'clear']);
                     // PRINTING A DOCKET IS KITCHEN WORK, NOT FLOOR WORK.
                     //
                     // This lived in the dine-in group, which was true while a
@@ -1001,7 +1006,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::middleware('permission:sales.manage')->group(function (): void {
                     Route::get('tables', [DiningTableController::class, 'index']);
                     Route::get('tables/{table}', [DiningTableController::class, 'show']);
+                    // The floor screen's one payload: tables with what each
+                    // tab has reached, and the takeaway tabs that have no
+                    // table to stand for them.
+                    Route::get('floor', [FloorController::class, 'show']);
                 });
+
+                // Closing what an earlier service left open reaches into
+                // OTHER waiters' tabs, so it takes the authority that does.
+                Route::post('floor/close-older', [FloorController::class, 'closeOlder'])
+                    ->middleware('permission:sales.manage')
+                    ->middleware('permission:'.Permissions::TABLES_SERVE_ANY);
 
                 // Floor setup (owner / manager).
                 Route::middleware('permission:settings.manage')->group(function (): void {
@@ -1015,6 +1030,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('tickets', [RestaurantTicketController::class, 'store']);
                     Route::get('tickets/{ticket}', [RestaurantTicketController::class, 'show']);
                     Route::post('tickets/{ticket}/items', [RestaurantTicketController::class, 'addItems']);
+                    // More, fewer, or a kitchen note — while the line is
+                    // still unsent. Before this a tab could only add and void.
+                    Route::patch('tickets/{ticket}/items/{item}', [RestaurantTicketController::class, 'updateItem']);
                     Route::delete('tickets/{ticket}/items/{item}', [RestaurantTicketController::class, 'voidItem']);
                     Route::post('tickets/{ticket}/fire', [RestaurantTicketController::class, 'fire']);
                     // kotPrint moved up into the `feature:kitchen` group — a

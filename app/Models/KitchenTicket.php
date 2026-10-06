@@ -51,6 +51,49 @@ class KitchenTicket extends Model
         );
     }
 
+    /** Still somebody's work: sent, and not yet out. */
+    public const ACTIVE = ['fired', 'preparing', 'ready'];
+
+    /**
+     * Taken off the board by a person, in one go — see KitchenController::clear.
+     *
+     * Its own word, and deliberately not `served`. Clearing a board at close
+     * says "this is no longer kitchen work"; it does not say the food went
+     * out, and a docket the cook never bumped must not be recorded as one the
+     * cook sent. `void` is taken too: that is a tab that was cancelled.
+     */
+    public const CLEARED = 'cleared';
+
+    /**
+     * What the kitchen still owes: an active docket, for a tab still open.
+     *
+     * The status half is said here because `cleared` exists now. The dashboard
+     * used to ask "not yet served" (`served_at` is null), and a cleared docket
+     * has no `served_at` either — it would have gone on being counted as food
+     * the kitchen owed for as long as its tab stayed open.
+     */
+    public function scopeStillOwed(Builder $query): Builder
+    {
+        return $query->forAnOpenTab()->whereIn('status', self::ACTIVE);
+    }
+
+    /** Fired in the service being worked. See ServiceDay. */
+    public function scopeInService(Builder $query, \DateTimeInterface $began): Builder
+    {
+        return $query->where('fired_at', '>=', $began);
+    }
+
+    /**
+     * Left over from a service that is finished.
+     *
+     * A docket with no `fired_at` at all counts as left over, not as current:
+     * nothing can say when it was sent, so nothing can say it is tonight's.
+     */
+    public function scopeFromBefore(Builder $query, \DateTimeInterface $began): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('fired_at', '<', $began)->orWhereNull('fired_at'));
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $row): void {
