@@ -139,7 +139,9 @@ class RestaurantTicketController extends Controller
         $this->assertBelongs($kot->ticket_id, $ticket->id);
 
         return response()->view('kitchen.ticket', [
-            'shopName' => $this->context->get()?->name,
+            // `business_name`. This read `->name`, which a shop does not have:
+            // null, silently, so no kitchen ticket ever said whose it was.
+            'shopName' => $this->context->get()?->business_name,
             'ticket' => $ticket->load('table'),
             'kot' => $kot->load('items'),
         ]);

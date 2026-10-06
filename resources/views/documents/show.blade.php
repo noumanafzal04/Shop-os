@@ -164,7 +164,7 @@
         </tr>
         <tr>
             <td class="k">Date</td>
-            <td>{{ $document->created_at?->format('d M Y, h:i A') }}</td>
+            <td>{{ \App\Support\ShopTime::show($document->created_at, 'd M Y, h:i A', $tenant) }}</td>
         </tr>
         @if($document->customer_name || $document->customer_phone)
             <tr>
@@ -280,7 +280,7 @@
             @foreach($payments as $payment)
                 <tr>
                     <td>
-                        {{ $payment->paid_at?->format('d M Y') }}
+                        {{ \App\Support\ShopTime::show($payment->paid_at, 'd M Y', $tenant) }}
                         <span class="soft">· {{ $methodLabel[$payment->method] ?? $payment->method }}</span>
                         @if($payment->reference)<span class="soft"> · {{ $payment->reference }}</span>@endif
                     </td>

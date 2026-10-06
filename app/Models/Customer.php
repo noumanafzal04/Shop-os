@@ -223,6 +223,29 @@ class Customer extends BaseModel
      * Upsert a CRM record by (tenant, phone). No phone → skip (can't dedup an
      * anonymous walk-in). Never blanks an existing name/email.
      */
+    /**
+     * What a customer is called before anybody has said their name.
+     *
+     * A sale needs only a phone number, and the row has to be called something.
+     */
+    public const UNNAMED = 'Customer';
+
+    /**
+     * The name somebody GAVE, or null.
+     *
+     * The placeholder is not a name and must never be printed as one. A
+     * quotation for a number with no name read "Customer  Customer · 0300…":
+     * the label, then the placeholder standing in for the thing the label
+     * asks about. One rule, here, because the sale already had its own copy
+     * of it and the quotation had none.
+     */
+    public function knownName(): ?string
+    {
+        $name = trim((string) $this->name);
+
+        return $name === '' || $name === self::UNNAMED ? null : $name;
+    }
+
     public static function capture(string $tenantId, ?string $phone, ?string $name, ?string $email = null): ?self
     {
         $phone = trim((string) $phone);
@@ -247,7 +270,7 @@ class Customer extends BaseModel
         return self::withoutTenancy()->create([
             'tenant_id' => $tenantId,
             'phone' => $phone,
-            'name' => $name ?: 'Customer',
+            'name' => $name ?: self::UNNAMED,
             'email' => $email ?: null,
             'last_seen_at' => now(),
         ]);

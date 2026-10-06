@@ -321,7 +321,9 @@ class CreateSaleDocumentAction
             'branch_id' => $branchId,
             'register_id' => $this->registerContext->id(),
             'customer_id' => $customer?->id,
-            'customer_name' => $customer?->name ?? ($data['customer_name'] ?? null),
+            // The name somebody GAVE. A phone with no name is filed under a
+            // placeholder, and the paper must not print the placeholder.
+            'customer_name' => $customer?->knownName() ?? ($data['customer_name'] ?? null),
             'customer_phone' => $customer?->phone ?? ($data['customer_phone'] ?? null),
             'subtotal' => $subtotal,
             'discount' => $discount,

@@ -77,7 +77,7 @@
     </div>
     <div class="row muted">
         <span>{{ $ticket->ticket_number }}</span>
-        <span>{{ optional($kot->fired_at)->format('d M, H:i') }}</span>
+        <span>{{ \App\Support\ShopTime::show($kot->fired_at, 'd M, H:i') }}</span>
     </div>
 
     <div class="rule"></div>

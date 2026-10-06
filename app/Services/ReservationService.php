@@ -13,6 +13,7 @@ use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
+use App\Support\ShopTime;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -168,7 +169,9 @@ class ReservationService
                     'reservation.accepted',
                     'Reservation confirmed!',
                     "{$reservation->product_name} is on hold for you — pick it up before ".
-                        $reservation->expires_at->format('D, M j g:i A').'.',
+                        // In the SHOP's time. It read UTC: "pick it up before
+                        // 2:00 PM" for a hold that ran out at seven in the evening.
+                        ShopTime::show($reservation->expires_at, 'D, M j g:i A').'.',
                     ['reservation_id' => $reservation->id],
                     "reservation-accepted-{$reservation->id}",
                 );

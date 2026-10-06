@@ -115,8 +115,8 @@
              different event, and the variance means something different. --}}
         <tr><td>Closed by</td><td class="num">{{ $closedBy }}</td></tr>
     @endif
-    <tr><td>Opened</td><td class="num">{{ $session->opened_at?->format('d M Y, H:i') }}</td></tr>
-    <tr><td>Closed</td><td class="num">{{ $session->closed_at?->format('d M Y, H:i') }}</td></tr>
+    <tr><td>Opened</td><td class="num">{{ \App\Support\ShopTime::show($session->opened_at, 'd M Y, H:i', $tenant) }}</td></tr>
+    <tr><td>Closed</td><td class="num">{{ \App\Support\ShopTime::show($session->closed_at, 'd M Y, H:i', $tenant) }}</td></tr>
     @if ($session->blind_close)
         <tr><td colspan="2" class="muted">Counted blind</td></tr>
     @endif
@@ -220,7 +220,7 @@
                     <td>
                         {{ $c['user_name'] ?? 'Unknown' }}
                         <span class="muted">
-                            · {{ \Illuminate\Support\Carbon::parse($c['started_at'])->format('H:i') }}–{{ $c['ended_at'] ? \Illuminate\Support\Carbon::parse($c['ended_at'])->format('H:i') : '…' }}
+                            · {{ \App\Support\ShopTime::show(\Illuminate\Support\Carbon::parse($c['started_at']), 'H:i', $tenant) }}–{{ $c['ended_at'] ? \App\Support\ShopTime::show(\Illuminate\Support\Carbon::parse($c['ended_at']), 'H:i', $tenant) : '…' }}
                         </span>
                         @if ($c['reason'])<span class="muted"> · {{ $c['reason'] }}</span>@endif
                     </td>

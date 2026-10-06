@@ -11,6 +11,7 @@ use App\Support\ItemTypes;
 use App\Support\Modules;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -310,6 +311,34 @@ class CounterOrderReachesTheKitchenTest extends TestCase
         $this->asOwner()
             ->get("/api/v1/restaurant/tickets/{$named['ticket_id']}/kot/{$named['kots'][0]['id']}")
             ->assertOk();
+    }
+
+    public function test_the_slip_says_whose_it_is_what_to_cook_and_when_it_was_fired(): void
+    {
+        /*
+         * The test above asked only whether the slip could be OPENED. It could,
+         * and it had never once printed the shop's name: the controller read
+         * `$tenant->name`, a shop has `business_name`, and a missing attribute
+         * is null without a murmur. The time on it was UTC, five hours early.
+         */
+        $this->shop->forceFill(['business_name' => 'Gulberg Biryani House', 'timezone' => 'Asia/Karachi'])->save();
+        Carbon::setTestNow(Carbon::parse('2026-10-06 15:20:00', 'UTC')); // 20:20 in Lahore
+
+        try {
+            $sale = $this->ring([[$this->biryani, 2]]);
+            $named = $sale['kitchen_ticket'];
+
+            $slip = (string) $this->asOwner()
+                ->get("/api/v1/restaurant/tickets/{$named['ticket_id']}/kot/{$named['kots'][0]['id']}")
+                ->assertOk()->getContent();
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertStringContainsString('Gulberg Biryani House', $slip, 'the kitchen slip does not say whose kitchen it is');
+        $this->assertStringContainsString('Chicken Biryani', $slip);
+        $this->assertStringContainsString('06 Oct, 20:20', $slip);
+        $this->assertStringNotContainsString('15:20', $slip, 'the kitchen slip printed the time in UTC');
     }
 
     public function test_a_shop_without_the_kitchen_module_cannot_reach_the_slip(): void

@@ -1347,7 +1347,7 @@ class CreateSaleAction
                          * placeholder a first-time phone number is filed
                          * under ("Customer") is nobody's name.
                          */
-                        $known = $customer->name !== 'Customer' ? $customer->name : null;
+                        $known = $customer->knownName();
 
                         $sale->forceFill([
                             'customer_id' => $customer->id,

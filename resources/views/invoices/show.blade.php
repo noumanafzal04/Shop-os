@@ -268,7 +268,7 @@
             <div class="r">
                 <div class="doctype">{{ $docTitle }}</div>
                 <div class="shop" style="font-size:20px">{{ $sale->invoice_number }}</div>
-                <div class="soft">{{ optional($sale->sold_at)->format('d M Y · h:i A') }}</div>
+                <div class="soft">{{ \App\Support\ShopTime::show($sale->sold_at, 'd M Y · h:i A', $tenant) }}</div>
                 @if($cancelled || $isCopy || $gift)
                     <div style="margin-top:10px">
                         @if($cancelled)
@@ -290,7 +290,7 @@
     @if($roll)
         <table class="meta">
             <tr><td class="soft">Invoice</td><td class="b">{{ $sale->invoice_number }}</td></tr>
-            <tr><td class="soft">Date</td><td>{{ optional($sale->sold_at)->format('d M Y · h:i A') }}</td></tr>
+            <tr><td class="soft">Date</td><td>{{ \App\Support\ShopTime::show($sale->sold_at, 'd M Y · h:i A', $tenant) }}</td></tr>
             @if(($settings['receipt_show_cashier'] ?? true) && $cashier)
                 <tr><td class="soft">Served by</td><td>{{ $cashier }}</td></tr>
             @endif
