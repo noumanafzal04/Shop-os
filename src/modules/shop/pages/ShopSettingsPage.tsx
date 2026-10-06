@@ -312,17 +312,56 @@ export default function ShopSettingsPage() {
   const activeTab = settingsTabs.some((t) => t.key === tab) ? tab : "business";
   const posSubTabs = posSubTabsFor(tenantFeatures);
   const activePosTab = posSubTabs.some((t) => t.key === posTab) ? posTab : "till";
-  useEffect(() => { if (settings.data && !prefs) setPrefs({ ...settings.data }); }, [settings.data, prefs]);
-  const setP = (k: string, v: PrefValue) => { setPrefs((f) => ({ ...f!, [k]: v })); setPrefsDirty(true); };
+  /**
+   * WHAT THIS SCREEN HAS CHANGED, AND NOTHING ELSE.
+   *
+   * The screen took one copy of every setting when it opened and Save sent
+   * the whole copy back — fifty-nine keys to change one switch. So a setting
+   * changed anywhere else while this screen was open was put back by it:
+   * pick a new brand colour in Appearance, come back here, flip "Show price",
+   * press Save, and the colour reverts. Two people with Settings open undid
+   * each other all afternoon, each seeing "Settings saved."
+   *
+   * Only the keys touched here are sent. The server merges them into what it
+   * holds, which is what it always did with a partial save.
+   */
+  const touched = useRef<Set<string>>(new Set());
+  // What the server holds, under whatever is being edited here and not yet
+  // saved. So the screen also SHOWS a change made elsewhere, instead of
+  // holding its first copy for as long as it stays open.
+  useEffect(() => {
+    if (!settings.data) return;
+    const fresh = settings.data as unknown as Record<string, PrefValue>;
+    setPrefs((mine) => {
+      if (!mine) return { ...fresh };
+      const next = { ...fresh };
+      for (const key of touched.current) next[key] = mine[key];
+
+      return next;
+    });
+  }, [settings.data]);
+  const setP = (k: string, v: PrefValue) => {
+    touched.current.add(k);
+    setPrefs((f) => ({ ...f!, [k]: v }));
+    setPrefsDirty(true);
+  };
 
   // Appearance (brand colour, sidebar, tint) lives in the floating Appearance
   // canvas, reachable from every screen — not here. One home per concern.
-  const savePrefs = () =>
-    prefs &&
-    updatePrefs.mutate(prefs as never, {
-      onSuccess: () => { setPrefsDirty(false); toast.success("Settings saved."); },
+  const savePrefs = () => {
+    if (!prefs) return;
+    const sending = [...touched.current];
+    updatePrefs.mutate(Object.fromEntries(sending.map((k) => [k, prefs[k]])) as never, {
+      onSuccess: () => {
+        // Only what was SENT is settled: a switch flipped while the save was
+        // on the wire is still unsaved, and stays lit.
+        for (const key of sending) touched.current.delete(key);
+        setPrefsDirty(touched.current.size > 0);
+        toast.success("Settings saved.");
+      },
       onError: failed("Couldn't save your settings."),
     });
+  };
 
   const online = shop.data?.online_shop_enabled;
   const cityOptions = [{ value: "", label: "— Select city —" }, ...(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))];

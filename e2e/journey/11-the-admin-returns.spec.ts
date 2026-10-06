@@ -41,7 +41,8 @@ const everySale = (): number | null => {
   const r = record();
   const before = r.before as { sales_count: number } | undefined;
 
-  return before ? before.sales_count + Number(r.volumeSales ?? 0) + rung() : null;
+  // …including the ones stage G rings while it tries each setting at the till.
+  return before ? before.sales_count + Number(r.volumeSales ?? 0) + rung() + Number(r.settingsStageSales ?? 0) : null;
 };
 
 /** The owner's browser, watched like every other page in the journey. */

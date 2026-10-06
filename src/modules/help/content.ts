@@ -2230,6 +2230,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "Every tab shares one Save. Change something on one tab, move to another, and it is still waiting to be saved — pressing Save anywhere saves the lot.",
       },
+      {
+        type: "warn",
+        text: "Save sends only what YOU changed on this screen. It used to send back every setting as it stood when you opened the page — so if you chose a new colour in Appearance, or somebody else changed the tax rate from another computer, and you then pressed Save here for something unrelated, their change was quietly put back. Both of you saw \u201cSettings saved\u201d. That is fixed: two people can have Settings open and neither undoes the other.",
+      },
+      { type: "h", text: "Tips at the counter" },
+      {
+        type: "p",
+        text: "Settings → Point of Sale → Counter → Ask for a tip at checkout. With it on, the Pay screen has a Tip box. Whatever is typed there is added to what the customer hands over and to nothing else: it is not a sale, it is not taxed, it does not earn points, and it prints on the receipt on its own line under the total.",
+      },
+      {
+        type: "note",
+        text: "This switch used to work for a dine-in tab only. A salon, a workshop or a counter shop that turned it on was never asked for a tip at the till. It now asks wherever a sale is paid.",
+      },
       { type: "h", text: "Your tills" },
       { type: "p", text: `Settings → Point of Sale → Lanes & PINs. Every device that opens ${PRODUCT.name} signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us.` },
       { type: "p", text: "Lost a tablet, or lent one out and never got it back? Sign it out. It stops being usable straight away, but it stays on the list — the sales it already sent still belong to it, and you may want to see what happened. If it turns up, allow it again." },

@@ -193,6 +193,8 @@ export interface SaleInput {
    * till operator by default is what made the staff report wrong.
    */
   served_by?: string;
+  /** The staff's. Added to what must be handed over, and to nothing else. */
+  tip_amount?: number;
   items: SaleLineInput[];
   discount?: number;
   coupon_code?: string;

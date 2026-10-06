@@ -39,6 +39,7 @@ interface FixtureBill {
     redeem_points: number;
     method: string;
     trade_in: number;
+    tip: number;
   };
   expected: {
     lines: Array<{ unit_price: number; line_total: number; tax_rate: number }>;
@@ -87,6 +88,7 @@ function billFor(c: FixtureBill) {
     redeemPoints: c.input.redeem_points,
     redeemValue: c.input.settings.loyalty_redeem_value,
     tradeIn: c.input.trade_in,
+    tip: c.input.tip,
     tenders: [c.input.method],
     cashRounding: c.input.settings.cash_rounding,
   });
@@ -94,7 +96,7 @@ function billFor(c: FixtureBill) {
 
 describe("the fixtures themselves", () => {
   it("are the shape this file was written against", () => {
-    expect((fixtures as { version: number }).version).toBe(1);
+    expect((fixtures as { version: number }).version).toBe(2);
   });
 
   it("contain the cases that were wrong — a test of nothing passes too", () => {
@@ -106,6 +108,11 @@ describe("the fixtures themselves", () => {
     expect(BILLS.filter((b) => b.input.trade_in > 0 && b.input.method === "cash").length).toBeGreaterThanOrEqual(2);
     expect(BILLS.some((b) => b.input.settings.tax_inclusive)).toBe(true);
     expect(BILLS.some((b) => b.input.redeem_points > 0)).toBe(true);
+    // A tip — and one whose coin moves, on cash, by an amount that is not a
+    // round step: the only tip that tells "added before the coin" from
+    // "added after it".
+    expect(BILLS.filter((b) => b.input.tip > 0).length).toBeGreaterThanOrEqual(3);
+    expect(BILLS.some((b) => b.input.tip > 0 && b.input.tip % b.input.settings.cash_rounding !== 0 && b.expected.rounding !== 0)).toBe(true);
   });
 });
 

@@ -695,6 +695,13 @@ export default function PosPage() {
    * cashier's own consent implied.
    */
   const [servedBy, setServedBy] = useState<string | null>(null);
+  // A TIP, at the counter.
+  //
+  // Settings → Point of Sale → "Ask for a tip at checkout" says, in so many
+  // words, that tipping is not a restaurant feature — "a salon, a workshop
+  // and a delivery service all take them". The switch was read by the dine-in
+  // tab and by nothing else, so the salon that turned it on was never asked.
+  const [tip, setTip] = useState("");
   const [bankId, setBankId] = useState<string | null>(null);
   const [cardLast4, setCardLast4] = useState("");
   const [cardType, setCardType] = useState<CardType | null>(null);
@@ -1001,6 +1008,10 @@ export default function PosPage() {
    * `tillBill` is held to the server by bills rung through the real endpoint
    * (fixtures/till-bill.json). This page only gathers what goes into it.
    */
+  const tipsOn = !!settings.data?.tips_enabled;
+  // Nothing typed is no tip. A switch turned off mid-sale takes the tip with
+  // it: a figure the cashier can no longer see must not be on the bill.
+  const tipAmount = tipsOn ? Math.max(0, round2(Number(tip) || 0)) : 0;
   const bill = useMemo(() => tillBill({
     lines: billLines,
     group: customerGroup,
@@ -1012,10 +1023,11 @@ export default function PosPage() {
     redeemPoints: redeemPtsNum,
     redeemValue,
     tradeIn: tradeInTotal,
+    tip: tipAmount,
     tenders: tenderKey === "" ? [] : tenderKey.split(","),
     cashRounding: roundingStep,
   }), [billLines, customerGroup, taxRate, taxInclusive, discount, couponDiscount, promoDiscount,
-    redeemPtsNum, redeemValue, tradeInTotal, tenderKey, roundingStep]);
+    redeemPtsNum, redeemValue, tradeInTotal, tipAmount, tenderKey, roundingStep]);
   const subtotal = bill.subtotal;
   const loyaltyDiscount = bill.loyaltyDiscount;
   const cartDiscount = bill.discount;
@@ -1197,7 +1209,7 @@ export default function PosPage() {
   }, [promoKey, hasOffers]);
 
   const clearSale = () => {
-    setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone("");
+    setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone(""); setTip("");
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
     setTableNo(""); setOrderType("takeaway"); setMethod(defaultTender); setTenders([{ method: "cash", amount: "" }]); clearCoupon();
@@ -1326,6 +1338,9 @@ export default function PosPage() {
         // sale credited to the till operator by default is exactly what made
         // the staff report wrong.
         ...(servedBy !== null ? { served_by: servedBy } : {}),
+        // The staff's money, named on its own: the server adds it to what must
+        // be handed over and to nothing else.
+        ...(tipAmount > 0 ? { tip_amount: tipAmount } : {}),
         ...(isRestaurant
           ? { order_type: orderType, table_no: orderType === "dine_in" ? tableNo || undefined : undefined }
           : {}),
@@ -4110,6 +4125,31 @@ export default function PosPage() {
               value={servedBy}
               onChange={setServedBy}
             />
+            {/* A tip is asked for HERE, with the money, because it is money:
+                it goes in the drawer with the bill and comes out for the
+                staff. It is never part of the bill — the figure above already
+                has it in, and the line under the box says how much of that
+                figure is the bill and how much is theirs. */}
+            {tipsOn && (
+              <div className="mb-5">
+                <label htmlFor="till-tip" className="mb-1.5 block text-theme-sm font-medium text-gray-500 dark:text-gray-400">Tip</label>
+                <Input
+                  id="till-tip"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={tip}
+                  onChange={(e) => setTip(e.target.value)}
+                />
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  {tipAmount > 0
+                    ? <>Bill {money(total)} · tip {money(tipAmount)}. The tip is the staff&rsquo;s — it is not a sale and is not taxed.</>
+                    : <>The staff&rsquo;s. Handed over with the bill, never part of it.</>}
+                </p>
+              </div>
+            )}
             {/* WHICH TENDER IS SELECTED, SAID OUT LOUD.
                 Selection was carried by hue alone — same border width, same
                 icon, no state on the control. Four buttons that a reader

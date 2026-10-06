@@ -78,6 +78,12 @@ export interface BillInput {
   redeemValue?: number;
   /** What the goods on the counter settle. A tender, not a discount. */
   tradeIn?: number;
+  /**
+   * The staff's. Handed over WITH the bill and never part of it: not revenue,
+   * not taxed, not discounted — but it is in what crosses the counter, so the
+   * coin a cash bill settles to is found after it.
+   */
+  tip?: number;
   /** Every way money is arriving: `["cash"]`, `["cash", "card"]` for a split. */
   tenders: readonly string[];
   cashRounding: number;
@@ -96,9 +102,11 @@ export interface Bill {
   total: number;
   /** The coin adjustment on a cash-only bill. */
   rounding: number;
+  /** The tip as it will be recorded: never negative, to the paisa. */
+  tip: number;
   /**
-   * What the customer hands over: the bill, settled to the coin, less what
-   * the goods on the counter settle. The bank's share is NOT off it — that is
+   * What the customer hands over: the bill and any tip, settled to the coin,
+   * less what the goods on the counter settle. The bank's share is NOT off it — that is
    * quoted beside it, and the card slice is sent before it.
    *
    * The same figure the server states as `payable`.
@@ -153,7 +161,11 @@ export function tillBill(input: BillInput): Bill {
   const tradeIn = input.tradeIn ?? 0;
   const methods = [...new Set(input.tenders.filter(Boolean))];
   const cashOnly = tradeIn <= 0 && methods.length === 1 && methods[0] === "cash";
-  const rounding = cashOnly ? round2(settleInCoins(total, input.cashRounding) - total) : 0;
+  // The server adds the tip BEFORE it looks for the coin: 1,234 and a tip of
+  // 20 is 1,254 across the counter, which settles to 1,250 — not 1,230 + 20.
+  const tip = Math.max(0, round2(input.tip ?? 0));
+  const owed = round2(total + tip);
+  const rounding = cashOnly ? round2(settleInCoins(owed, input.cashRounding) - owed) : 0;
 
   return {
     lines,
@@ -165,6 +177,7 @@ export function tillBill(input: BillInput): Bill {
     tax,
     total,
     rounding,
-    payable: Math.max(0, round2(total + rounding - tradeIn)),
+    tip,
+    payable: Math.max(0, round2(owed + rounding - tradeIn)),
   };
 }
