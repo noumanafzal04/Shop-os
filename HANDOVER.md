@@ -8177,3 +8177,59 @@ shared and must match on both sides: `till-bill.json` (version 2) and
 
 **3,074 backend tests (3,054 passed, 20 skipped) · 1,828 panel unit tests ·
 journey 105 cases · till browser specs `till-lines`, `till-print` added.**
+
+## The pass, the floor and the tab — 2026-10-06 (evening)
+
+Reported from a restaurant: old tickets on the kitchen board, no way to clear
+them, and "DIN screen achi bnao — ux better ni hai, na ui"; then "at least a
+small sidebar on the KOT and dine-in screens", and "the order-taking screen
+will mostly be used on a tablet". Decisions:
+`shopos-the-pass-is-tonights`, `shopos-a-line-can-change-until-sent`,
+`shopos-a-work-screen-keeps-the-rail`, `shopos-a-demo-sells-what-its-trade-sells`.
+
+### What a shop would have met
+
+| Fault | Where | Now |
+|---|---|---|
+| **Old tickets led the kitchen's queue for ever** | the board had no time bound: any unbumped docket of an open tab | `ServiceDay` — this service only (turns 05:00 shop time; last 6 h never "old"); leftovers COUNTED in `older` |
+| No way to take tickets down but three taps each | — | `POST /restaurant/kitchen/clear` (`older` / `board` + station); marked `cleared`, never `served`; one audit row |
+| A voided or cleared docket could be bumped back to life | `LIFECYCLE[$current] ?? 0` | `KOT_OFF_THE_BOARD` |
+| "Bills running" counted PAID counter orders | `DashboardService::diningFloor` | `from_counter` excluded |
+| "In the kitchen" would have counted cleared dockets, and counted leftovers | `served_at is null` | status + the same window as the pass |
+| The floor said "occupied" and nothing else | table list only | `GET /restaurant/floor`: bill, guests, time sat, what the table needs next |
+| **A takeaway tab vanished** the moment you stepped back to the floor | no table, so no tile | a Takeaway row; a name asked for when it is opened |
+| A tab left open last night looked like one sat five minutes ago | — | "From earlier" on the tile, a strip that counts them, `POST /restaurant/floor/close-older` |
+| **Eight naan was eight taps, eight lines, eight rows on the docket** | a tab could only add and void | `PATCH …/items/{line}` `{adjust, note}` while unsent; taps join the line |
+| **No screen could send a kitchen note** | `note` was in the API and in nothing else | Kitchen note on each unsent line, with the common ones one press each |
+| The tab's order ran 13px off the side of a tablet | a flex pane with no `min-w-0` | fixed; side by side from `md` |
+| On a rail of icons, a group's button did nothing on a tablet | submenus are drawn only with labels | touching a group opens the rail over the page |
+| **Every "Try the demo" shop was stocked with invalid items** | `item_type` = the BUSINESS type | built through `CreateProductAction`; a restaurant demo has tables, sections and stations |
+
+### New surface
+
+| | |
+|---|---|
+| `GET /restaurant/kitchen` | adds `older`, `service_began`; `?older=1` |
+| `POST /restaurant/kitchen/clear` | `{scope: older\|board, station?}` — kitchen permission |
+| `GET /restaurant/floor` | tables + takeaway + per-tab summary — `sales.manage` |
+| `POST /restaurant/floor/close-older` | `sales.manage` AND `tables.serve_any` |
+| `PATCH /restaurant/tickets/{t}/items/{i}` | `{adjust?, note?}` — unsent lines only |
+| `WorkScreenLayout`, `RailMenuButton` | the icon rail on the floor, a tab and the board |
+
+`kitchen_tickets.status` and `restaurant_ticket_items.kot_status` gain the
+value `cleared`. Both are string columns: **no migration.** The Activity
+screen knows the new one-line event `cleared`.
+
+### Deploy order
+
+Backend first, then panel (`git pull && npm ci && npm run build`). No
+migration. An old panel against the new backend keeps working — the board
+simply shows this service only.
+
+### Not done here
+
+- The QA journey's food stage (`panel/e2e/journey/20-food-the-floor.spec.ts`)
+  is still an uncommitted draft and is written against the OLD tab screen
+  ("Fire to kitchen", "Start"). It needs the new names before it is run.
+- A printed bill for the table before it is settled ("bill please") does not
+  exist yet.

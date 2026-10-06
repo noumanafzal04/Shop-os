@@ -1,25 +1,28 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-06 13:40 PKT — mart journey 12 stages green + 16 fixes ALL PUSHED; next = fresh mart run, 8 other trades, 2 open decisions
+description: RESUME POINT 2026-10-06 evening — kitchen/floor/tab rebuilt + demo fix; NEXT = sidebar black-line + polish, dashboard UI, landing screenshots (last), food journey stage
 metadata:
   type: project
 ---
 
-**State at 2026-10-06 ~15:20 PKT — everything is COMMITTED AND PUSHED** (backend `e111b37`, panel `a97a4e6`, root `03e1df3`). `npm run build` exits 0 — run it before EVERY panel push ([[shopos-build-check-is-tsc-b]]).
+**State at 2026-10-06 evening.** Earlier the same day: journey stages 10–12 (105 mart cases, fresh run 103/105), 23 fixes pushed (backend `e111b37`, panel `a97a4e6`). Breadth run of the other 8 trades (stages 01–02) = 64/64.
 
-**Done this session:** journey stages 10 (volume), 11 (admin returns), 12 (settings) — 105 cases for a mart; 16 product faults fixed, listed in `docs/qa/journey/RUNS.md` and HANDOVER "The QA journey … 2026-10-06". The two the user reported from the counter: [[shopos-line-keys]] and [[shopos-roll-is-a-roll]].
+**Built this evening (see the four memories linked below):** kitchen board = this service + one-press clear; floor in one look + takeaway row + close-older; tab order-taking for tablets (taps join, −/+, kitchen note, "Send to kitchen"); icon rail on floor/tab/kitchen; demo shops stocked with valid items. New tests: backend 50 (ThePassIsTonights 17, TheFloorInOneLook 12, ATabLineCanChange 15, ADemoShopSells 6), panel 28 + `food.tab-order.spec` + `food.chrome.spec` green at 3 sizes.
 
-**Next, in order:**
-1. DONE 2026-10-06: fresh mart journey from stage 01 in one sitting = 103/105, 2 not run by design ([[shopos-day-closed-no-reopen]]). ~~A FRESH mart journey from stage 01~~ (`cd panel && E2E_BASE_URL=http://localhost:5177 npx playwright test --project=journey --reporter=line`) — stages 10–12 were built against the shop stages 01–09 made; a clean run proves the order. Stage 09's hand-worked figures only hold right after stage 08.
-2. The other 8 trades (`JOURNEY_TRADE=food` …) with their extra cases in `docs/qa/journey/CASES.md`. Biggest remaining piece of the user's QA request (~55% left).
-3. Two decisions waiting on the user: when a shop's day ends ([[shopos-paper-reads-shops-clock]]); scale price-label decimals ([[shopos-offline-scale-label]]).
-4. `core/src/api/client.ts` (mobile) still retries every 401 — fix with the mobile work.
-5. Carried over: mobile bottom-sheet (core+mobile uncommitted), Partner/Customer APKs.
+**Queue, in the user's order ([[shopos-ui-direction-oct06]]):**
+1. Sidebar: the "black vertical line" when a submenu opens + a modest polish (sections, shop card, solid active pill). NOT STARTED in code beyond the tap-peek fix.
+2. Dashboard UI — more colourful, reference = inspiration only.
+3. Landing page screenshots (Dashboard + POS, good data) — LAST, after the dashboard.
+4. Food journey stage: `panel/e2e/journey/20-food-the-floor.spec.ts` is an uncommitted draft written against the OLD tab/kitchen names — update, then run with `JOURNEY_TRADE=food`; then the other trades' own flows.
+5. Open decisions for the user: when a shop's day ends ([[shopos-paper-reads-shops-clock]]); scale price-label decimals ([[shopos-offline-scale-label]]); reopen a closed day ([[shopos-day-closed-no-reopen]]).
+6. Carried over: `core/src/api/client.ts` retries every 401; mobile bottom-sheet; Partner/Customer APKs.
 
-**The user asked for, at the very end of a session:** a list of what was done, what % is set, and what is left — in Roman Urdu, as tables ([[shopos-reply-style]]).
+**At the very end of a session the user wants:** what was done, what % is set, what is left — Roman Urdu, tables ([[shopos-reply-style]]).
 
-**Journey shop:** "QA Mart 1005-231446" (`panel/e2e/.journey/mart.json`), all modules on, settings restored to what they were.
+**Scratch helpers (untracked, never commit):** `panel/e2e/.demo.mjs` opens a demo shop through /demo and saves its session; `panel/e2e/.shots.mjs` screenshots pages at desk/tab/tabp/phone (`OUT= STATE= TAG= SIZES= PAGES=`).
 
-**Push method:** the user's GitHub token is NOT stored; used one-off in memory per push. Remind them to delete/regenerate it after deploy.
+**Push method:** the user's GitHub token is NOT stored; used one-off in memory per push. Remind them to delete/regenerate it after deploy. Before every panel push: `npm run build` exit 0 ([[shopos-build-check-is-tsc-b]]).
 
-Related: [[shopos-the-journey]], [[shopos-settings-what-listens]]
+**A slip to not repeat:** I wrote this very file through an UNQUOTED heredoc, so the shell ran every backticked word in it as a command ([[shopos-measurement-that-lied]]). Quote the heredoc (`<<'EOF'`) whenever the body has backticks or `$`.
+
+Related: [[shopos-pass-is-tonights]], [[shopos-line-changes-until-sent]], [[shopos-work-screen-rail]], [[shopos-demo-item-types]], [[shopos-the-journey]]

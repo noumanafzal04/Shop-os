@@ -1,6 +1,11 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 13:40: mart journey 12 stages green, 16 fixes pushed; next = fresh run, 8 trades, 2 decisions
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 eve: kitchen/floor/tab rebuilt; NEXT sidebar line+polish → dashboard UI → landing shots (last) → food journey
+- [UI Direction Oct-06](shopos-ui-direction-oct06.md) — user likes COLOURFUL; DineFlow ref = inspiration only; landing = Dashboard+POS shots, after dashboard
+- [The Pass Is Tonight's](shopos-pass-is-tonights.md) — kitchen = this service (ServiceDay 05:00 + 6h); one-press clear as `cleared` not `served`; floor payload
+- [A Line Changes Until Sent](shopos-line-changes-until-sent.md) — tab: taps JOIN a line, −/+ & kitchen note while unsent; PATCH is a STEP not a target; "Send to kitchen"
+- [Work Screen Rail](shopos-work-screen-rail.md) — floor/tab/kitchen keep an icon rail (not POS); a group on a collapsed rail was a dead button on tablets
+- [Demo Item Types](shopos-demo-item-types.md) — FIXED: every Try-demo shop had item_type = BUSINESS type; food demo had no tables; test only asserted "created"
 - [Which Paper Is Which](shopos-which-paper-is-which.md) — "invoice looks like kitchen receipt" = KOT auto-print; roll: no page margin, 5mm own padding, measured as printed
 - [Day Closed, No Reopen](shopos-day-closed-no-reopen.md) — OPEN: closed day takes no shifts & cannot be reopened; warning added; same-day journey = 103/105
 - [Build Check Is tsc -b](shopos-build-check-is-tsc-b.md) — STANDING: `npm run build` before every panel push; my quick tsc missed 3 errors that broke a deploy

@@ -59,6 +59,14 @@ without stopping: 2,006 products, 1,500 volume sales, every setting.
 | 22 | while there | Sales and customers CSV exports were timed in UTC | on the shop's clock |
 | 23 | deploy | **Three type errors reached the server and stopped a build.** Checked with `tsc --noEmit -p tsconfig.json`; the build runs `tsc -b`, which also reads the specs and refuses unused locals | fixed; `npm run build` is run before a push |
 
+| 24 | reported | **Old tickets led the kitchen board for ever**, and nothing but three taps each took one down | the board is this service (`ServiceDay`); leftovers counted; one press clears them, marked `cleared` |
+| 25 | while there | "Bills running" on the dashboard counted paid counter orders; a cleared or voided docket could be bumped back onto the pass | fixed with the above |
+| 26 | reported | The floor said "occupied" and nothing else; a takeaway tab vanished when you stepped back; last night's open tab looked like tonight's | a tile says what the table needs; a Takeaway row; "From earlier" + close in one press |
+| 27 | reported | **The order-taking screen: eight naan was eight taps and eight lines; no kitchen note could be typed anywhere; the order ran off the side of a tablet** | taps join one line, − / +, Kitchen note, Send to kitchen; `min-w-0` |
+| 28 | reported | No menu on the floor / tab / kitchen; on a rail of icons a group's button did nothing on a tablet | the icon rail stays; touching a group opens it |
+| 29 | while there | **Every "Try the demo" shop was stocked with items of an invalid type** — a restaurant demo's menu was empty to its own screens, and it had no tables | built through the product form's own action; a floor, sections and stations |
+| 30 | harness | `food.chrome.spec` took "the first dish"; the first became a pizza that needs a crust, the refusal was not read, and all twelve checks failed about a board with nothing wrong | chooses a dish that can be ordered as it is, and reads the answer |
+
 ### Harness faults (the test was wrong)
 
 - Stage E: an Inventory quantity is printed "4999", not "4,999" — the shop's quantity format has no separators on purpose.
@@ -74,3 +82,24 @@ without stopping: 2,006 products, 1,500 volume sales, every setting.
 2. **A scale's PRICE label is read as hundredths** (02700 = Rs 27.00), so a label cannot say more than Rs 999.99 — less than a kilo of meat. Scales here are usually set to whole rupees. Recommended: a "decimals on the label" setting (0 or 2).
 3. Printed terms / stations boxes and the label-field chips now have names and states; a page-wide `main` landmark is still missing.
 4. **A day closed off by mistake cannot be reopened.** With "Require open shift" on, the shop cannot sell again until tomorrow. Recommended: an owner-only "reopen today" that is allowed only while nothing has been banked against the day, and is written to the activity trail.
+
+
+## Breadth — every other trade, stages 01–02 (2026-10-06)
+
+`JOURNEY_TRADE=<trade> … e2e/journey/01 e2e/journey/02`: the admin creates the
+business, the owner signs in, and every screen the trade is offered is opened.
+
+| Trade | Cases | Result |
+|---|---|---|
+| food | 8 | 8 passed |
+| pharmacy | 8 | 8 passed |
+| retail | 8 | 8 passed |
+| automotive | 8 | 8 passed |
+| petroleum | 8 | 8 passed |
+| services | 8 | 8 passed |
+| online | 8 | 8 passed |
+| finance | 8 | 8 passed |
+
+64 of 64. Nothing refused, no page error, no blank screen. This is breadth
+only — each trade's own flows (the floor, the dispensary, the forecourt, the
+bay board) are stage 20 onward and are not run yet.
