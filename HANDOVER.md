@@ -8247,3 +8247,20 @@ Decisions: `shopos-the-dashboard-says-one-thing`,
 | "Refresh par pehle theme ka colour…" | Colours and dark mode are remembered per device, per shop, and applied before the first paint |
 
 New storage key: `shopos-theme` (registered in `brandName.test.ts`).
+
+## The front page shows the product — 2026-10-06 (late)
+
+Decision: `shopos-the-front-page-shows-the-product`. Panel only.
+
+- The landing hero's drawn console (`AppWindowMock`, `DashboardMock`,
+  `dashboardData`) is gone. `ProductShots` shows two REAL screens in one
+  window — Dashboard and Point of sale — and a phone gets a phone's picture.
+  The "owner's day" phone carries the real phone dashboard.
+- Pictures: `panel/public/landing/*.webp` (six files, 42–120 KB). Retake
+  with `panel/scripts/landing-shots.mjs` when the dashboard or till changes.
+- `formatDelta`: a rise past tenfold reads "43×", not "+4240.3%".
+
+**Changed in the dev database, at the owner's word, through the app:** the
+load-test restaurant (`restaurant@loadtest.test`) is now "Zaiqa Grill House"
+(was "Karahi House"), its owner account is displayed as "Ahmed Raza", and it
+has nine more expenses dated across 30 Sep – 6 Oct.
