@@ -8233,3 +8233,17 @@ simply shows this service only.
   ("Fire to kitchen", "Start"). It needs the new names before it is run.
 - A printed bill for the table before it is settled ("bill please") does not
   exist yet.
+
+## The dashboard, the rail and the shop's colours — 2026-10-06 (night)
+
+Decisions: `shopos-the-dashboard-says-one-thing`,
+`shopos-the-page-opens-in-the-shops-colours`. Panel only — no backend change.
+
+| Asked for | Now |
+|---|---|
+| "Dashboard thora better" (a reference for direction, not to copy) | The band says the one thing to know; four action tiles under it; today's sales as one filled card with the week as bars; the shop's logo in the band |
+| "Sidebar … right side black vertical line" | The rail's scroller and submenu guide were near-black on a coloured rail. Coloured for their ground now; the scroller shows only in use |
+| "Sidebar b thori better krdo" | Three headed parts; where you are is a solid plate; an opened group scrolls into view |
+| "Refresh par pehle theme ka colour…" | Colours and dark mode are remembered per device, per shop, and applied before the first paint |
+
+New storage key: `shopos-theme` (registered in `brandName.test.ts`).
