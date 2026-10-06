@@ -68,9 +68,28 @@ async function aFiredTicket(request: APIRequestContext): Promise<{ id: string; t
     data: Array<{ id: string; name: string; open_ticket: unknown | null }>;
   }).data.find((t) => t.open_ticket === null);
 
-  const menu = await request.get(`${API}/products?item_type=food_item&per_page=1`, { headers: auth });
+  // A dish that can be ordered AS IT IS — by what it is, not by where it sits.
+  //
+  // This took `per_page=1` and used whatever came first. For months that was
+  // a plain dish; then the first row became a pizza whose crust has to be
+  // chosen, the line was refused with MODIFIER_MIN, the refusal was not read,
+  // the fire that followed had nothing to send, and all twelve of these
+  // checks failed saying "could not put a ticket on the pass" — about a board
+  // that had nothing wrong with it. A fixture that takes "the first one"
+  // works until the shelf is re-sorted.
+  const menu = await request.get(`${API}/products?item_type=food_item&per_page=100`, { headers: auth });
   if (!menu.ok()) return null;
-  const dish = ((await menu.json()) as { data: Array<{ id: string }> }).data[0];
+  const dish = ((await menu.json()) as {
+    data: Array<{
+      id: string;
+      sold_out?: boolean;
+      variants?: unknown[] | null;
+      modifier_groups?: Array<{ min_select: number }> | null;
+    }>;
+  }).data.find((d) =>
+    !d.sold_out
+    && (d.variants ?? []).length === 0
+    && (d.modifier_groups ?? []).every((g) => g.min_select === 0));
   if (!table || !dish) return null;
 
   const opened = await request.post(`${API}/restaurant/tickets`, {
@@ -81,10 +100,12 @@ async function aFiredTicket(request: APIRequestContext): Promise<{ id: string; t
   const ticket = ((await opened.json()) as { data: { id: string } }).data.id;
   toClear = { id: ticket };
 
-  await request.post(`${API}/restaurant/tickets/${ticket}/items`, {
+  const added = await request.post(`${API}/restaurant/tickets/${ticket}/items`, {
     headers: auth,
     data: { items: [{ product_id: dish.id, quantity: 2 }] },
   });
+  // Read, this time. An order the server turned away is not an order.
+  if (!added.ok()) return null;
   const fired = await request.post(`${API}/restaurant/tickets/${ticket}/fire`, { headers: auth, data: {} });
   if (!fired.ok()) return null;
 

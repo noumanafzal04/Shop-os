@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import OldBrowserNotice from "./components/system/OldBrowserNotice";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import AppLayout from "./layout/AppLayout";
+import WorkScreenLayout from "./layout/WorkScreenLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import { MarketLayout } from "./modules/marketplace/components/MarketLayout";
 import {
@@ -284,7 +285,9 @@ export default function App() {
 
                 {/* Dine-in runs full-screen too (floor → tab workspace), and
                     the kitchen board most of all: it hangs on a wall and is
-                    read from two metres away. */}
+                    read from two metres away. They keep the icon RAIL and
+                    nothing else of the shell — see WorkScreenLayout. */}
+                <Route element={<WorkScreenLayout />}>
                 <Route element={<RequireFeature feature="dine_in" />}>
                   <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/dine-in" element={<FloorPage />} />
@@ -299,6 +302,7 @@ export default function App() {
                   <Route element={<RequireTenantScreen />}>
                     <Route path="/tenant/kitchen" element={<KitchenPage />} />
                   </Route>
+                </Route>
                 </Route>
 
                 <Route path="/tenant" element={<AppLayout />}>

@@ -1,9 +1,13 @@
+import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   dineInService,
   type AddItemLine,
   type SettlePayload,
+  type Ticket,
+  type TicketItem,
 } from "../services/dineInService";
+import { joinable } from "../tabLines";
 
 /**
  * How often the floor asks the server what changed.
@@ -21,6 +25,21 @@ export function useTables() {
     queryKey: ["dine-in", "tables"],
     queryFn: async () => (await dineInService.tables()).data,
     // The floor is live — occupancy changes when anyone seats or settles.
+    refetchInterval: FLOOR_POLL_MS,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * The floor screen's one payload: tables, takeaway tabs, and what each has
+ * reached. Polled at the same rate as the tables, for the same reason — the
+ * kitchen marking a docket ready happens in another browser, and "Food ready"
+ * on a tile is only worth drawing if it arrives while the food is still hot.
+ */
+export function useFloor() {
+  return useQuery({
+    queryKey: ["dine-in", "floor"],
+    queryFn: async () => (await dineInService.floor()).data,
     refetchInterval: FLOOR_POLL_MS,
     refetchOnWindowFocus: true,
   });
@@ -67,10 +86,100 @@ export function useServers(enabled = false) {
   });
 }
 
+/**
+ * ORDERING, ONE REQUEST AT A TIME, WITHOUT MAKING THE WAITER WAIT.
+ *
+ * ── What it replaces ─────────────────────────────────────────────────
+ *
+ * Every tap on a dish sent "add a line of one", and the whole menu was
+ * disabled until the answer came back. So eight naan was eight taps, each
+ * waiting on the one before, ending in eight rows — and on shop wifi a tap
+ * that landed while the menu was greyed out was simply lost.
+ *
+ * ── How it works ─────────────────────────────────────────────────────
+ *
+ * Taps are QUEUED, never refused. Each one is decided when its turn comes,
+ * against the tab as the server last described it: if there is an unsent line
+ * of exactly this order it is stepped up by one, otherwise a new line is
+ * added. Deciding at the moment of the tap would have had eight taps all
+ * looking at a tab with no naan on it, and adding eight lines.
+ *
+ * Every answer is the whole tab, and is written straight into the cache — the
+ * screen does not ask again for what it has just been told.
+ *
+ * `waiting` is how many taps on each dish are still in the queue, so a menu
+ * tile can count up the instant it is pressed rather than a round trip later.
+ */
+export function useTabLines(ticketId: string | undefined) {
+  const qc = useQueryClient();
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const [waiting, setWaiting] = useState<Record<string, number>>({});
+
+  const key = ["dine-in", "ticket", ticketId] as const;
+
+  const hold = useCallback((dish: string, by: number) => {
+    setWaiting((w) => {
+      const next = { ...w, [dish]: Math.max(0, (w[dish] ?? 0) + by) };
+      if (next[dish] === 0) delete next[dish];
+
+      return next;
+    });
+  }, []);
+
+  /** Run after everything already asked for. A failure does not jam what follows it. */
+  const inTurn = useCallback(<T,>(dish: string, job: () => Promise<{ data: Ticket } & T>) => {
+    hold(dish, 1);
+    const mine = queue.current.then(job).then((res) => {
+      // The mutation answers with the tab and its lines, and nothing about
+      // who is serving it. Keep what the screen already knew of that.
+      qc.setQueryData<Ticket>(key, (prev) =>
+        prev ? { ...prev, ...res.data, waiter: res.data.waiter ?? prev.waiter } : res.data,
+      );
+      // The floor's tile for this table says "order not sent" and what it has
+      // reached; both just changed.
+      qc.invalidateQueries({ queryKey: ["dine-in", "floor"] });
+
+      return res;
+    }).finally(() => hold(dish, -1));
+    queue.current = mine.catch(() => undefined);
+
+    return mine;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId, hold, qc]);
+
+  const add = useCallback((line: AddItemLine) => {
+    const id = ticketId as string;
+
+    return inTurn(line.product_id, () => {
+      const lines = qc.getQueryData<Ticket>(key)?.items ?? [];
+      // A note makes it its own line: it was said about this one.
+      const into = line.note ? null : joinable(lines, line);
+
+      return into
+        ? dineInService.updateItem(id, into.id, { adjust: line.quantity })
+        : dineInService.addItems(id, [line]);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId, inTurn, qc]);
+
+  const step = useCallback((item: TicketItem, by: number) =>
+    inTurn(item.product_id ?? item.id, () => dineInService.updateItem(ticketId as string, item.id, { adjust: by })),
+  [ticketId, inTurn]);
+
+  const note = useCallback((item: TicketItem, text: string) =>
+    inTurn(item.product_id ?? item.id, () => dineInService.updateItem(ticketId as string, item.id, { note: text })),
+  [ticketId, inTurn]);
+
+  return { add, step, note, waiting, busy: Object.keys(waiting).length > 0 };
+}
+
 export function useDineInMutations(ticketId?: string) {
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["dine-in", "tables"] });
+    // The floor screen reads its own payload now; the table list above is the
+    // tab workspace's move picker. Both describe the same floor.
+    qc.invalidateQueries({ queryKey: ["dine-in", "floor"] });
     if (ticketId) qc.invalidateQueries({ queryKey: ["dine-in", "ticket", ticketId] });
   };
 
@@ -159,5 +268,21 @@ export function useDineInMutations(ticketId?: string) {
     onSuccess: invalidate,
   });
 
-  return { openTicket, addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter, createTable, deleteTable, reorderTables };
+  /**
+   * Close what an earlier service left open. Everything about the floor is
+   * stale afterwards — and so is the kitchen, whose dockets went with them.
+   */
+  const closeOlderTabs = useMutation({
+    mutationFn: () => dineInService.closeOlderTabs(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dine-in"] });
+      qc.invalidateQueries({ queryKey: ["kitchen", "board"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
+  return {
+    openTicket, addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter,
+    createTable, deleteTable, reorderTables, closeOlderTabs,
+  };
 }

@@ -271,6 +271,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "note",
         text: "If a screen has gone missing, check this switch before anything else. It is the one reason a screen can vanish that has nothing to do with modules, trade or permissions.",
       },
+      { type: "h", text: "The menu on the floor and in the kitchen" },
+      {
+        type: "p",
+        text: "The Dine-in floor, a table's tab and the Kitchen board fill the screen so the work gets the room — but the menu stays down the left as a strip of icons, so the till, the orders or today's sales are one press away instead of going back to the dashboard first. Hover it, or press the menu button at the top left, and it opens OVER the page with the names; the page behind does not move.",
+      },
+      {
+        type: "note",
+        text: "On a tablet, touching an icon that has screens under it (Expense Manager, Catalog\u2026) opens the menu to show them. It used to do nothing at all on a strip of icons — a mouse never noticed, because hovering had already opened it. The till keeps no menu, on purpose: a sale is finished or parked before anything else is opened.",
+      },
     ],
   },
   {
@@ -808,23 +817,84 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     id: "dine-in",
     title: "Dine-in — tables and tabs",
-    summary: "Opening a table, firing to the kitchen, and settling the bill.",
+    summary: "Opening a table, sending the order to the kitchen, and settling the bill.",
     group: "Selling",
     modules: ["dine_in"],
     permission: "sales.manage",
     screen: "/tenant/dine-in",
-    keywords: ["table", "tab", "waiter", "restaurant", "kot", "fire", "split bill"],
+    keywords: ["table", "tab", "waiter", "restaurant", "kot", "fire", "send", "note", "quantity", "takeaway", "split bill"],
     body: [
       {
         type: "steps",
         items: [
-          "The guest sits down. Tap the table — a tab opens on it.",
-          "Add what they ordered. If a dish comes in sizes, the tab asks which — half or full, small or large — and each one has its own price.",
-          "Then any modifiers (extra cheese, no ice). Size first, extras second.",
-          "Press Fire. The order appears on the Kitchen board immediately — nobody needs to refresh anything.",
-          "The kitchen marks it ready, and your floor screen updates on its own.",
+          "The guest sits down. Tap the table, press how many they are — the common parties are one press each — and the tab opens.",
+          "Tap a dish to put it on the tab. Tap it again for one more: it is ONE line that counts up, and the tile itself shows how many you have on.",
+          "If a dish comes in sizes, the tab asks which — half or full, small or large — and each one has its own price. Then any extras (extra cheese, no ice). Size first, extras second.",
+          "Under \u201cNot sent yet\u201d each line has \u2212 and + and a Kitchen note button. Stepping a line down to nothing takes it off.",
+          "Press Send to kitchen. The order appears on the Kitchen board immediately — nobody needs to refresh anything.",
+          "The kitchen marks it ready, and the table's tile on your floor turns green: \u201cFood ready\u201d.",
           "Settle: the whole bill, split evenly, or split by item. A partial settlement leaves the rest open on the table.",
         ],
+      },
+      { type: "h", text: "The floor, at a glance" },
+      {
+        type: "p",
+        text: "Every table's tile says what the table needs next, in a colour of its own, along with how long they have been sat, how many they are, what the bill has reached and whose table it is.",
+      },
+      {
+        type: "table",
+        head: ["The tile says", "It means"],
+        rows: [
+          ["Free", "Nobody is sat. Tap it to seat guests."],
+          ["Just seated", "A tab is open and nothing has been ordered yet."],
+          ["Order not sent", "Something is on the tab that the kitchen has NOT been told about. The commonest thing to forget."],
+          ["In kitchen", "It has been sent and is being cooked."],
+          ["Food ready", "It is on the pass waiting to be carried. This one is ringed in green so it is seen from across the room."],
+          ["Eating", "Everything ordered has gone out. The next thing this table needs is its bill."],
+        ],
+      },
+      {
+        type: "note",
+        text: "The line across the top adds the room up: tables sat, guests, how many tables have food ready, and how much is still to be collected on open tabs. The buttons under it narrow the floor — Free, Occupied, Mine, Food ready.",
+      },
+      {
+        type: "p",
+        text: "Takeaway tabs have their own row above the tables. Give the order a name when you open it — it is what the kitchen calls out. They used to have nowhere to be: \u201c+ Takeaway\u201d opened one, and stepping back to the floor left no way to reach it again.",
+      },
+      { type: "h", text: "More, fewer, and a note for the kitchen" },
+      {
+        type: "p",
+        text: "Until an order is sent you can change it freely: + and \u2212 on the line, or just tap the dish again. Eight naan is one line that says 8 — and the kitchen's ticket says \u201c8 Roghni Naan\u201d once, not \u201c1 Roghni Naan\u201d eight times.",
+      },
+      {
+        type: "p",
+        text: "Kitchen note opens a box with the things said most often one press each (No chilli, Less spicy, No onion\u2026) and room to type anything else. It prints on the kitchen ticket and shows on the kitchen board in red capitals. Type an allergy; do not rely on a button for it.",
+      },
+      {
+        type: "warn",
+        text: "Once a line has been SENT it cannot be changed, only voided. The ticket is already printed and the cook is already making it, so changing the number on the tab would not change what is in the pan. For more of it, tap the dish again — that is a new line and a new ticket.",
+      },
+      {
+        type: "note",
+        text: "A dish with a note keeps a line of its own. \u201cNo chilli\u201d was said about one karahi; a second tap does not join that line, because that would tell the kitchen to make two without.",
+      },
+      { type: "h", text: "Tabs left open from an earlier day" },
+      {
+        type: "p",
+        text: "A table nobody settled last night is still \u201coccupied\u201d this morning. The floor now says so: a red strip at the top counts the tabs left open from before today's service, each one is tagged \u201cFrom earlier\u201d on its tile, and Show them narrows the floor to exactly those.",
+      },
+      {
+        type: "list",
+        items: [
+          "If the money came in, open the tab and settle it.",
+          "If it did not, Close them closes every one in a single press. It asks first.",
+          "A tab with a payment already on it is NEVER closed that way. Part of that meal is a sale, and what to do about the rest is decided at the tab, by a person. The message tells you how many were kept.",
+          "Close them needs \u201cServe any table\u201d — these are other waiters' tabs. Everyone else sees the strip and can open each tab.",
+        ],
+      },
+      {
+        type: "note",
+        text: "It is written to Activity as one line: who closed them, how many, and what the food on them was worth.",
       },
       {
         type: "note",
@@ -884,7 +954,24 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/kitchen",
     keywords: ["kot", "chef", "cook", "ready", "board", "pass"],
     body: [
-      { type: "p", text: "Fired orders, oldest first. Mark them ready as they leave the pass. That is the whole screen." },
+      { type: "p", text: "Three columns, left to right in the order a ticket moves: New, Cooking, Ready. Each keeps its own queue oldest-first, and each ticket has ONE big button that sends it to the next column — Start cooking, Ready, Served. The button is the colour of the column the ticket is going to." },
+      { type: "p", text: "The top of the screen counts each column, and shows the longest anybody has been waiting — in red once it is late. A ticket's own clock turns amber at eight minutes and red at fifteen; food sitting in Ready goes red twice as fast, because it is going cold." },
+      { type: "note", text: "On a phone or a small tablet the three columns become three tabs with the count on each. Stations (Grill, Bar\u2026) are a row of buttons under the heading, each saying how many tickets it has." },
+      { type: "h", text: "Only today's service is on the board" },
+      { type: "p", text: "The board shows what was sent in this service. A ticket nobody marked as served used to stay up for as long as its table stayed open — so yesterday's, and last week's, led every morning's queue." },
+      { type: "p", text: "A restaurant's day does not turn at midnight, so the board's does not either: it turns at five in the morning by your shop's own clock, and nothing sent in the last six hours is ever treated as old. A kitchen cooking at one in the morning, or serving sehri at ten to five, keeps its board." },
+      { type: "h", text: "Clearing old tickets, and clearing down at close" },
+      {
+        type: "table",
+        head: ["Button", "What it does"],
+        rows: [
+          ["Clear all (amber strip at the top)", "Appears when tickets are left from before today. It takes ALL of them off in one press. Show them lets you look first — and serve any that really did go out."],
+          ["Clear board", "Takes everything on tonight's board off, for the end of service. With a station chosen it clears only that station — the grill clearing down does not clear the bar."],
+        ],
+      },
+      { type: "note", text: "Both ask before doing anything, and say how many tickets. A cleared ticket is marked \u201ccleared\u201d, never \u201cserved\u201d — clearing a board says the kitchen is done with it, not that the food went out. On the waiter's tab those lines read \u201cCleared off the kitchen board\u201d." },
+      { type: "note", text: "Anyone who can work the board can clear it: it is the same thing as pressing Served on each ticket, done at once. It is written to Activity as one line — who, when, and how many." },
+      { type: "warn", text: "Clearing the kitchen board does not close the table. A tab still open on the floor stays open until it is settled or cancelled there — see \u201cTabs left open from an earlier day\u201d under Dine-in." },
       { type: "h", text: "Where the orders come from" },
       { type: "p", text: "Two doors, and both land here. A waiter sends a course from a table's tab; and a TAKEAWAY rung at the till arrives on its own the moment it is paid — you do not have to open a tab for it. Only the things a kitchen makes are on the docket: a bottle off the chiller is not work for the pass, so it stays off the board." },
       { type: "note", text: "A takeaway card shows the CUSTOMER'S name in big letters if the cashier typed one, and the word Takeaway if they did not. It is what you call out when the bag is ready, so it is worth typing the name." },

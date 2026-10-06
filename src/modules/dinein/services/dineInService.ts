@@ -1,4 +1,4 @@
-import { api, apiDelete, apiGet, apiPost } from "../../../common/api/client";
+import { api, apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
 import { printHtmlDocument } from "../../../common/print";
 
 export interface DiningTable {
@@ -21,9 +21,64 @@ export interface DiningTable {
   } | null;
 }
 
+/**
+ * An open tab, as the floor sees it. Mirrors `TabSummary::of()`.
+ *
+ * Deliberately NOT a `Ticket`: no lines. The floor is polled every few seconds
+ * and draws a tile per tab; it is told what each tab has REACHED, never what
+ * is on it.
+ */
+export interface FloorTab {
+  id: string;
+  ticket_number: string;
+  order_type: "dine_in" | "takeaway";
+  status: string;
+  opened_at: string | null;
+  guest_count: number | null;
+  customer_name: string | null;
+  /** Whose table this is. Null = nobody's, so anyone may work it. */
+  waiter_id: string | null;
+  waiter: { id: string; name: string } | null;
+  /** What is still to be collected — not the tab's whole value once part is paid. */
+  to_pay: number;
+  lines: number;
+  /** Ordered and not yet sent to the kitchen. */
+  unsent: number;
+  /** Dockets on the pass, waiting to be carried. */
+  ready: number;
+  cooking: number;
+  /** Something on it is paid for: it can be settled, not cancelled. */
+  part_paid: boolean;
+  /** Opened in a service that is over. */
+  from_earlier: boolean;
+}
+
+export interface FloorTable {
+  id: string;
+  name: string;
+  area: string | null;
+  seats: number | null;
+  sort_order: number;
+  is_active: boolean;
+  open_ticket: FloorTab | null;
+}
+
+/** The floor screen's one payload. */
+export interface Floor {
+  tables: FloorTable[];
+  /** Open tabs with no table to stand for them. Counter orders are not here: they are paid. */
+  takeaway: FloorTab[];
+  service_began: string;
+  server_time: string;
+}
+
 export interface TicketItem {
   id: string;
   product_id: string | null;
+  /** The size that was ordered, when the dish comes in sizes. */
+  variant_id?: string | null;
+  /** The extras chosen — what makes two lines of one dish the same order or not. */
+  modifier_option_ids?: string[] | null;
   product_name: string;
   variant_name: string | null;
   quantity: string;
@@ -31,7 +86,8 @@ export interface TicketItem {
   line_total: string;
   modifiers: Array<{ name: string; price?: number }> | null;
   note: string | null;
-  kot_status: "pending" | "fired" | "served" | "void" | string;
+  /** `cleared` = taken off the kitchen board in a clear-down, never claimed as served. */
+  kot_status: "pending" | "fired" | "served" | "cleared" | "void" | string;
   voided_at: string | null;
   sale_id: string | null;
 }
@@ -42,6 +98,8 @@ export interface Ticket {
   order_type: "dine_in" | "takeaway";
   status: "open" | "closed" | "void" | string;
   guest_count: number | null;
+  /** A takeaway's name — what the kitchen calls it by. */
+  customer_name?: string | null;
   opened_at: string;
   running_total: number;
   /** Who is serving this table — not necessarily who opened it. */
@@ -105,6 +163,16 @@ export interface WaiterReport {
 export const dineInService = {
   tables: () => apiGet<DiningTable[]>("/restaurant/tables", { params: { active_only: true } }),
 
+  /** Tables with what each tab has reached, and the takeaway tabs beside them. */
+  floor: () => apiGet<Floor>("/restaurant/floor"),
+
+  /**
+   * Close every tab an earlier service left open, in one go. Tabs with a
+   * payment on them are kept — `kept` says how many — because the rest of
+   * that bill is somebody's to settle, not to sweep.
+   */
+  closeOlderTabs: () => apiPost<{ closed: number; kept: number }>("/restaurant/floor/close-older", {}),
+
   createTable: (payload: { name: string; seats?: number; area?: string }) =>
     apiPost<DiningTable>("/restaurant/tables", payload),
   deleteTable: (tableId: string) => apiDelete<null>(`/restaurant/tables/${tableId}`),
@@ -121,6 +189,17 @@ export const dineInService = {
 
   addItems: (id: string, items: AddItemLine[]) =>
     apiPost<Ticket>(`/restaurant/tickets/${id}/items`, { items }),
+
+  /**
+   * More, fewer, or a note — on a line the kitchen has not been sent yet.
+   *
+   * `adjust` is a STEP (+1, −1), never a target. Four quick taps are four
+   * requests that each say "one more" and all arrive at four; four that each
+   * said "make it N" from what the screen last saw would arrive at two.
+   * Stepping a line to nothing takes it off the tab.
+   */
+  updateItem: (id: string, itemId: string, change: { adjust?: number; note?: string | null }) =>
+    apiPatch<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, change),
 
   voidItem: (id: string, itemId: string, reason?: string) =>
     apiDelete<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, { data: { reason } }),

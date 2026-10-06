@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { kitchenService, type BumpStatus, type KitchenBoard } from "../services/kitchenService";
+import {
+  kitchenService,
+  type BoardView,
+  type BumpStatus,
+  type ClearScope,
+  type KitchenBoard,
+} from "../services/kitchenService";
 
 /**
  * Poll every 8 seconds.
@@ -11,11 +17,21 @@ import { kitchenService, type BumpStatus, type KitchenBoard } from "../services/
  */
 const POLL_MS = 8_000;
 
-export function useKitchenBoard(params: { station?: string; includeServed?: boolean }) {
+const boardKey = (view: BoardView) => ["kitchen", "board", view] as const;
+
+/**
+ * The WHOLE board, every station.
+ *
+ * The station used to go to the server, so picking "Grill" fetched the grill
+ * and nothing else — and the screen then had no idea how many tickets the bar
+ * was holding, or whether to show a count beside its tab at all. A board is a
+ * few dozen rows on its worst night; it is fetched once and narrowed here, so
+ * switching station is instant and every tab can say how much is on it.
+ */
+export function useKitchenBoard(view: BoardView) {
   return useQuery({
-    queryKey: ["kitchen", "board", params.station ?? "all", params.includeServed ?? false],
-    queryFn: async () =>
-      (await kitchenService.board({ station: params.station, include_served: params.includeServed })).data,
+    queryKey: boardKey(view),
+    queryFn: async () => (await kitchenService.board(view)).data,
     refetchInterval: POLL_MS,
     refetchOnWindowFocus: true,
     // The board is never "stale" in a useful sense — it's a live queue.
@@ -30,8 +46,9 @@ export function useKitchenBoard(params: { station?: string; includeServed?: bool
  * sees nothing happen taps it again. The card moves immediately and rolls back
  * if the server disagrees.
  */
-export function useBumpKot(queryKey: readonly unknown[]) {
+export function useBumpKot(view: BoardView) {
   const qc = useQueryClient();
+  const queryKey = boardKey(view);
 
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: BumpStatus }) => kitchenService.bump(id, status),
@@ -45,11 +62,12 @@ export function useBumpKot(queryKey: readonly unknown[]) {
           ? board
           : {
               ...board,
-              // Served tickets leave the default board entirely — dropping the
-              // card is the honest optimistic result, not greying it out.
+              // Served tickets leave the working board entirely — dropping the
+              // card is the honest optimistic result, not greying it out. The
+              // served view keeps it: that view is where it now belongs.
               kots: board.kots
                 .map((k) => (k.id === id ? { ...k, status } : k))
-                .filter((k) => k.status !== "served"),
+                .filter((k) => view === "served" || k.status !== "served"),
             },
       );
 
@@ -67,6 +85,30 @@ export function useBumpKot(queryKey: readonly unknown[]) {
       // nothing — the answer is already known the moment the bump returns.
       // Across devices the floor's own poll still carries it.
       qc.invalidateQueries({ queryKey: ["dine-in"] });
+    },
+  });
+}
+
+/**
+ * Take tickets off the board in one go.
+ *
+ * Not optimistic, on purpose. A bump is one card the cook is looking at; this
+ * is a count the screen was TOLD, and if the server clears a different number
+ * — somebody else served two in the meantime — the screen should say the
+ * number that actually went.
+ */
+export function useClearBoard() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ scope, station }: { scope: ClearScope; station?: string }) =>
+      kitchenService.clear(scope, station),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["kitchen", "board"] });
+      // A cleared docket changes what the tab says about its lines, and what
+      // the dashboard says the kitchen still owes.
+      qc.invalidateQueries({ queryKey: ["dine-in"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

@@ -28,7 +28,7 @@ import { apiGet } from "../../../common/api/client";
 
 interface AuditLog {
   id: string;
-  event: "created" | "updated" | "deleted" | "imported";
+  event: "created" | "updated" | "deleted" | "imported" | "cleared";
   entity: string;
   entity_id: string;
   /**
@@ -50,11 +50,17 @@ interface AuditLog {
 // its hand-made price changes on the first page. Rendering it needs no special
 // case beyond a word and a colour — `Changes` already reads whatever values a
 // row carries, which for an import is the counts.
-const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning" } as const;
-const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported" } as const;
+//
+// `cleared` is the same kind of row: a kitchen board cleared down, or the tabs
+// an earlier service left open closed in one go. Forty tickets, one decision,
+// one line — with how many, and for the tabs what the food on them was worth.
+const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning", cleared: "warning" } as const;
+const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported", cleared: "cleared" } as const;
 
 /** Model name → what a shopkeeper calls it. Anything unlisted keeps its own name. */
 const THING: Record<string, string> = {
+  KitchenTicket: "Kitchen board",
+  RestaurantTicket: "Dine-in tabs",
   Tenant: "Shop settings",
   User: "Staff member",
   Customer: "Customer credit limit",

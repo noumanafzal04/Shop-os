@@ -118,7 +118,21 @@ describe("the drawer does not depend on the header being any particular size", (
   it("closes when you navigate", () => {
     // It never did. On a phone nobody notices; on a tablet the drawer is 290
     // of 820px and the page you asked for loads behind it.
-    expect(sidebar()).toMatch(/closeMobileSidebar\(\);\s*\},\s*\[location\.pathname\]/);
+    //
+    // And a rail a TAP was holding open lets go in the same breath: it is the
+    // same "you went somewhere" — see `isPeekHeld`. Both, in the one effect
+    // keyed on the path, so neither can be left behind by a refactor of the
+    // other.
+    expect(sidebar()).toMatch(
+      /closeMobileSidebar\(\);\s*releasePeek\(\);\s*\},\s*\[location\.pathname\]/,
+    );
+  });
+
+  it("opens to show a group when one is touched on a rail of icons", () => {
+    // A group's screens are only drawn when the labels are, so on a collapsed
+    // rail its button toggled a list nobody could see. A mouse never met it —
+    // hovering had already widened the rail — and a tablet met a dead button.
+    expect(sidebar()).toMatch(/if \(!showLabels\) \{\s*holdPeek\(\);/);
   });
 
   it("only peeks open for a real pointer", () => {

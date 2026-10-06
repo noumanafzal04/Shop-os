@@ -60,6 +60,25 @@ type SidebarContextType = {
    * combination of states or during any transition between them.
    */
   railWide: boolean;
+  /**
+   * The rail was opened by a TAP, on a rail that is otherwise icons.
+   *
+   * Hover-to-peek is for a mouse. A tablet has none, so on a collapsed rail a
+   * group's icon — Expense Manager, Catalog, anything with screens under it —
+   * did nothing at all when touched: it toggled a submenu that only draws
+   * when the labels are showing. This is the same peek, held open by a tap
+   * and let go by the next tap anywhere else or by going somewhere.
+   */
+  isPeekHeld: boolean;
+  holdPeek: () => void;
+  releasePeek: () => void;
+  /**
+   * A work screen's rail: icons only, never pinned wide.
+   *
+   * The floor, the tab and the kitchen board keep the whole width for the
+   * work and still show where everything else is. See WorkScreenLayout.
+   */
+  iconsOnly: boolean;
   activeItem: string | null;
   openSubmenu: string | null;
   toggleSidebar: () => void;
@@ -80,12 +99,17 @@ export const useSidebar = () => {
   return context;
 };
 
-export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
+/** Null outside a shell — for a control that may be drawn with or without one. */
+export const useSidebarIfAny = () => useContext(SidebarContext) ?? null;
+
+export const SidebarProvider: React.FC<{ children: React.ReactNode; iconsOnly?: boolean }> = ({
   children,
+  iconsOnly = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(
-    () => viewportWidth() >= RAIL_STARTS_COLLAPSED_BELOW,
+    () => !iconsOnly && viewportWidth() >= RAIL_STARTS_COLLAPSED_BELOW,
   );
+  const [isPeekHeld, setIsPeekHeld] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => viewportWidth() < DRAWER_BELOW);
   const [isHovered, setIsHovered] = useState(false);
@@ -104,6 +128,11 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!drawer) {
         setIsMobileOpen(false);
         setIsHovered(false);
+      } else {
+        // A held peek belongs to the pinned rail. Below `lg` the rail is a
+        // drawer with a scrim of its own, and a peek left held would widen it
+        // the moment it next opened.
+        setIsPeekHeld(false);
       }
     };
 
@@ -130,6 +159,13 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [isMobileOpen]);
 
   const toggleSidebar = () => {
+    // A work screen's rail is never pinned wide: the toggle holds it open
+    // over the page instead of taking the page's width away.
+    if (iconsOnly) {
+      setIsPeekHeld((prev) => !prev);
+
+      return;
+    }
     setIsExpanded((prev) => !prev);
   };
 
@@ -151,7 +187,11 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         isExpanded: isMobile ? false : isExpanded,
         isMobileOpen,
         isHovered,
-        railWide: (isMobile ? false : isExpanded) || isHovered || isMobileOpen,
+        railWide: (isMobile ? false : isExpanded) || isHovered || isPeekHeld || isMobileOpen,
+        isPeekHeld,
+        holdPeek: () => setIsPeekHeld(true),
+        releasePeek: () => setIsPeekHeld(false),
+        iconsOnly,
         activeItem,
         openSubmenu,
         toggleSidebar,

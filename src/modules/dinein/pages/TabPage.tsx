@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
@@ -17,17 +17,29 @@ import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup, ProductVariant } from "../../catalog/types";
 import { usePickableProducts } from "../../catalog/hooks/useCatalog";
 import { sizesOf, whyNotSellable } from "../../pos/availability";
-import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables } from "../hooks/useDineIn";
+import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables, useTabLines } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
-import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { QUICK_NOTES, isLive, piles, portions, totalOf, unsentByDish } from "../tabLines";
+import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 
-const KOT_BADGE: Record<string, { label: string; cls: string }> = {
-  pending: { label: "Pending", cls: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" },
-  fired: { label: "In kitchen", cls: "bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400" },
-  served: { label: "Served", cls: "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400" },
-};
+/**
+ * A control in the tab's header. A real button — bordered, a finger tall.
+ *
+ * These were four runs of bare text ("Move table", "Merge tab", "Hand over",
+ * "Cancel tab") in the type size of a table's row actions, which is what the
+ * class they borrowed was written for. On the screen a waiter holds in one
+ * hand they were the smallest things on it.
+ */
+const HEAD_ACTION =
+  "inline-flex min-h-11 items-center rounded-xl px-3.5 text-theme-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-200 transition hover:bg-gray-50 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-white/5";
+const HEAD_ACTION_DANGER =
+  "inline-flex min-h-11 items-center rounded-xl px-3.5 text-theme-sm font-semibold text-error-600 ring-1 ring-inset ring-error-200 transition hover:bg-error-50 dark:text-error-400 dark:ring-error-500/40 dark:hover:bg-error-500/10";
+
+/** A round control on an order line: a finger wide, and it says what it does. */
+const STEP =
+  "flex size-10 shrink-0 items-center justify-center rounded-xl text-xl font-bold leading-none transition disabled:opacity-40";
 
 export default function TabPage() {
   const { id } = useParams<{ id: string }>();
@@ -46,7 +58,8 @@ export default function TabPage() {
   const mine = mayWork(ticket?.waiter_id);
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
-  const { addItems, voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
+  const { voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
+  const lines = useTabLines(id);
 
   /**
    * THE WHOLE MENU, not the first fifteen.
@@ -113,18 +126,43 @@ export default function TabPage() {
   // server keeps it in its own column so it can never read as revenue.
   const [tip, setTip] = useState("");
 
-  const liveItems = useMemo(
-    () => (ticket?.items ?? []).filter((i) => !i.voided_at && i.kot_status !== "void"),
-    [ticket],
-  );
+  const liveItems = useMemo(() => (ticket?.items ?? []).filter(isLive), [ticket]);
   const unsettled = liveItems.filter((i) => !i.sale_id);
-  const firable = unsettled.filter((i) => i.kot_status === "pending");
+  const pile = useMemo(() => piles(ticket?.items ?? []), [ticket]);
+  const firable = pile.toSend;
+  // What a menu tile counts: what the server holds unsent, plus the taps on
+  // that dish still on their way there — so the number moves under the finger.
+  const unsent = useMemo(() => unsentByDish(ticket?.items ?? []), [ticket]);
+  const onTile = (productId: string) => (unsent[productId] ?? 0) + (lines.waiting[productId] ?? 0);
 
-  const menu = (products.data?.rows ?? []).filter((p) => {
+  // A NOTE FOR THE KITCHEN. The column has been on the line since the first
+  // day, and no screen ever wrote to it.
+  const noteModal = useModal();
+  const [noteFor, setNoteFor] = useState<TicketItem | null>(null);
+  const [noteText, setNoteText] = useState("");
+
+  // Below `md` the menu and the order take turns: there is no room for both.
+  const [pane, setPane] = useState<"menu" | "order">("menu");
+  // …and the header's four controls fold into one sheet.
+  const moreModal = useModal();
+
+  // "42m" on the header has to move on a tab nobody is touching.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const allDishes = products.data?.rows ?? [];
+  const menu = allDishes.filter((p) => {
     if (catFilter && p.category_id !== catFilter) return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+  // ONLY SECTIONS WITH SOMETHING IN THEM. Every category in the shop was a
+  // chip, including the ones with no dish — a new restaurant's "Starters",
+  // "Main Course" and "Deals" each filtered the menu to nothing.
+  const sections = (categories.data ?? []).filter((c) => allDishes.some((p) => p.category_id === c.id));
 
   /**
    * Why this dish cannot be ordered, or null — the screen's half of a fence the
@@ -194,24 +232,37 @@ export default function TabPage() {
     variantId: string | null = null,
   ) => {
     if (!id) return;
-    addItems.mutate(
-      {
-        id,
-        items: [{
-          product_id: productId,
-          variant_id: variantId,
-          quantity: 1,
-          modifier_option_ids: modifierOptionIds,
-          note,
-        }],
-      },
-      {
-        // The server's own sentence, not a shrug. It refuses for reasons a
-        // waiter can act on — sold out, not enough left, a retired size — and
-        // "Couldn't add the item." threw every one of them away.
-        onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't add the item."),
-      },
-    );
+    lines
+      .add({
+        product_id: productId,
+        variant_id: variantId,
+        quantity: 1,
+        modifier_option_ids: modifierOptionIds,
+        note,
+      })
+      // The server's own sentence, not a shrug. It refuses for reasons a
+      // waiter can act on — sold out, not enough left, a retired size — and
+      // "Couldn't add the item." threw every one of them away.
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't add the item."));
+  };
+
+  /** One more, or one fewer, of a line not yet sent. Down to nothing removes it. */
+  const stepLine = (item: TicketItem, by: number) => {
+    lines.step(item, by).catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't change that line."));
+  };
+
+  const openNote = (item: TicketItem) => {
+    setNoteFor(item);
+    setNoteText(item.note ?? "");
+    noteModal.openModal();
+  };
+
+  const saveNote = () => {
+    if (!noteFor) return;
+    lines
+      .note(noteFor, noteText.trim())
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't save the note."));
+    noteModal.closeModal();
   };
 
   const modGroupValid = (g: ModifierGroup) => {
@@ -254,6 +305,9 @@ export default function TabPage() {
           const kots = res.data;
           const label = kots.map((k) => `#${k.kot_number}${k.station ? ` ${k.station}` : ""}`).join(", ");
           toast.success(kots.length === 1 ? `Kitchen ticket ${label} sent` : `${kots.length} kitchen tickets sent (${label})`);
+          // On a phone the waiter was looking at the order to send it; the
+          // next thing they do is take the next thing the table says.
+          setPane("menu");
 
           // Printing IS sending, for a kitchen without a screen: a KOT that
           // never came out of the printer has not reached anyone, whatever the
@@ -264,7 +318,7 @@ export default function TabPage() {
             );
           }
         },
-        onError: () => toast.error("Couldn't fire the order."),
+        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't send the order."),
       },
     );
   };
@@ -375,178 +429,500 @@ export default function TabPage() {
     </div>;
   }
 
+  const takeaway = ticket.order_type !== "dine_in";
+  const since = sinceLabel(ticket.opened_at, now);
+  const toSendCount = portions(firable);
+  const paidTotal = totalOf(pile.paid);
+  const toPay = totalOf(unsettled);
+
+  /** A line the kitchen has, or had. It is what happened: it can be voided, not changed. */
+  const sentLine = (i: TicketItem, tone: "kitchen" | "out" | "paid") => (
+    <li key={i.id} className="flex items-start gap-3 px-3 py-2.5">
+      <span
+        className={`flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-1.5 text-theme-sm font-bold tabular-nums ${
+          tone === "kitchen"
+            ? "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+            : tone === "out"
+              ? "bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-300"
+              : "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"
+        }`}
+      >
+        {Number(i.quantity)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-theme-sm font-semibold leading-snug text-gray-900 dark:text-white/90">
+          {i.product_name}
+          {i.variant_name ? ` (${i.variant_name})` : ""}
+        </p>
+        {i.modifiers && i.modifiers.length > 0 && (
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">{i.modifiers.map((m) => m.name).join(" · ")}</p>
+        )}
+        {i.note && (
+          <p className="mt-0.5 text-theme-xs font-bold uppercase text-error-600 dark:text-error-400">{i.note}</p>
+        )}
+        {i.kot_status === "cleared" && (
+          <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">Cleared off the kitchen board</p>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className="text-theme-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(i.line_total)}</span>
+        {tone !== "paid" && mine && (
+          <button
+            type="button"
+            onClick={() => onVoid(i)}
+            aria-label={`Void ${i.product_name}`}
+            className="inline-flex min-h-8 items-center rounded-lg px-2 text-theme-xs font-semibold text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
+          >
+            Void
+          </button>
+        )}
+      </div>
+    </li>
+  );
+
+  const pileHead = (title: string, count: number, cls: string) => (
+    <h3 className={`flex items-center justify-between rounded-t-xl px-3 py-2 text-theme-xs font-bold uppercase tracking-wide ${cls}`}>
+      {title}
+      <span className="tabular-nums">{count}</span>
+    </h3>
+  );
+
   return (
-    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-50 dark:bg-gray-950`}>
+    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-gray-100 dark:bg-gray-950`}>
       <PageMeta title={`Tab ${ticket.ticket_number}`} description="Dine-in tab" />
 
       {/* Wraps, for the same reason the floor's header does — and this one
           carries four more controls, so it ran off a phone by more. */}
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200 bg-white px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <BackLink to="/tenant/dine-in" label="Floor" />
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-gray-800 sm:text-lg dark:text-white/90">
-              {ticket.table?.name ?? "Takeaway"} · {ticket.ticket_number}
-            </h1>
-            <p className="truncate text-theme-xs text-gray-400">
-              {ticket.order_type === "dine_in" ? "Dine-in" : "Takeaway"}
-              {ticket.guest_count ? ` · ${ticket.guest_count} guests` : ""}
-              {ticket.waiter ? ` · ${ticket.waiter.name}` : ""}
-            </p>
+      <header className="shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <BackLink to="/tenant/dine-in" label="Floor" />
+            <div className="min-w-0">
+              {/* The table is how a waiter finds the tab, so it is the heading.
+                  The tab's number is a reference and goes with the references. */}
+              <h1 className="truncate text-xl font-bold leading-tight text-gray-900 dark:text-white">
+                {ticket.table?.name ?? ticket.customer_name?.trim() ?? "Takeaway"}
+              </h1>
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                <span
+                  className={`rounded-md px-1.5 py-0.5 font-semibold ${
+                    takeaway
+                      ? "bg-theme-purple-500/10 text-theme-purple-500"
+                      : "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                  }`}
+                >
+                  {takeaway ? "Takeaway" : "Dine-in"}
+                </span>
+                <span>{ticket.ticket_number}</span>
+                {ticket.guest_count ? <span>{ticket.guest_count} guests</span> : null}
+                {since ? <span>{since}</span> : null}
+                {ticket.waiter ? <span>{ticket.waiter.name}</span> : null}
+              </p>
+            </div>
           </div>
+          {/* ON A PHONE, ONE BUTTON. Four of them wrapped onto two rows and
+              took a fifth of the screen before a single dish was on it — for
+              things done to a tab perhaps once in an evening. */}
+          {mine && (
+            <button type="button" onClick={moreModal.openModal} className={`${HEAD_ACTION} sm:hidden`} aria-label="More for this tab">
+              More
+            </button>
+          )}
+          {mine && (
+            <div className="hidden flex-wrap items-center gap-2 sm:flex">
+              {/* A floor moves: a party changes table, and two tables turn out to
+                  be one party. Both used to mean voiding the tab and re-ringing
+                  the meal, which loses the KOTs already fired. */}
+              <button type="button" onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }} className={HEAD_ACTION}>
+                Move table
+              </button>
+              <button type="button" onClick={() => { setMergeSource(""); mergeModal.openModal(); }} className={HEAD_ACTION}>
+                Merge tab
+              </button>
+              {/* Going off shift with open tabs. Without this the only way to
+                  pass a table on was a permanent tables.serve_any — the blunt
+                  instrument that permission exists to avoid. */}
+              <button type="button" onClick={() => { setHandTo(""); handOverModal.openModal(); }} className={HEAD_ACTION}>
+                Hand over
+              </button>
+              <button type="button" onClick={onCancel} className={HEAD_ACTION_DANGER}>Cancel tab</button>
+            </div>
+          )}
         </div>
-        {mine && (
-          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-            {/* A floor moves: a party changes table, and two tables turn out to
-                be one party. Both used to mean voiding the tab and re-ringing
-                the meal, which loses the KOTs already fired. */}
-            <button onClick={() => { setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}
-              className={ROW_ACTION}>
-              Move table
+
+        {/* On a phone the menu and the order take turns. Each tab says how
+            much is behind it, so nobody has to switch to find out. */}
+        <div role="tablist" aria-label="Show" className="flex gap-1 px-2 md:hidden">
+          {([["menu", "Menu", null], ["order", "Order", liveItems.length]] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={pane === key}
+              aria-label={
+                count === null || count === 0
+                  ? label
+                  : toSendCount > 0 ? `${label}, ${toSendCount} to send` : `${label}, ${count} on the tab`
+              }
+              onClick={() => setPane(key)}
+              className={`flex min-h-11 flex-1 items-center justify-center gap-2 border-b-[3px] text-theme-sm font-bold transition ${
+                pane === key
+                  ? "border-brand-500 text-brand-600 dark:text-brand-400"
+                  : "border-transparent text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              {label}
+              {count !== null && count > 0 && (
+                <span
+                  className={`rounded-md px-1.5 text-theme-xs tabular-nums ${
+                    toSendCount > 0 ? "bg-warning-500 text-gray-900" : "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                  }`}
+                >
+                  {toSendCount > 0 ? `${toSendCount} to send` : count}
+                </span>
+              )}
             </button>
-            <button onClick={() => { setMergeSource(""); mergeModal.openModal(); }}
-              className={ROW_ACTION}>
-              Merge tab
-            </button>
-            {/* Going off shift with open tabs. Without this the only way to
-                pass a table on was a permanent tables.serve_any — the blunt
-                instrument that permission exists to avoid. */}
-            <button onClick={() => { setHandTo(""); handOverModal.openModal(); }}
-              className={ROW_ACTION}>
-              Hand over
-            </button>
-            <button onClick={onCancel} className={ROW_ACTION_DANGER}>Cancel tab</button>
-          </div>
-        )}
+          ))}
+        </div>
       </header>
 
       {!mine && (
-        <div className="border-b border-warning-200 bg-warning-50 px-5 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+        <div className="shrink-0 border-b border-warning-200 bg-warning-50 px-5 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
           {ticket.waiter?.name ?? "Another waiter"} is serving this table. You can see the tab but not change it —
           ask them or a supervisor to hand it over.
         </div>
       )}
 
-      {/* TWO SHAPES, BECAUSE A TAB IS WORKED ON TWO KINDS OF SCREEN.
+      {/* SIDE BY SIDE FROM A TABLET UP, AND ONE AT A TIME ON A PHONE.
        *
-       * This was `w-3/5` / `w-2/5` at every width, with no breakpoint at all —
-       * so a waiter on a 390px phone got 234px of menu and 156px of tab, and
-       * the tab pane carries a name, a quantity, a KOT badge and a price on
-       * every line. The till learned this lesson already (PosPage's three
-       * shapes); the tab workspace never had it applied.
-       *
-       * Below `lg` the two stack and each scrolls on its own, so the menu can
-       * use the whole width and the tab is a full-width list underneath rather
-       * than a column too narrow to read. `lg` is the tablet-landscape
-       * breakpoint in this codebase, which is the smallest screen the side-by-
-       * side layout is honest on.
+       * This was `w-3/5` / `w-2/5` at every width — 234px of menu beside 156px
+       * of tab on a phone — and then stacked below `lg`, which on a tablet
+       * held upright put the order underneath the menu and out of sight while
+       * it was being taken. A tablet is where this screen is used, in either
+       * hand, so the two panes sit beside each other from `md`: the order
+       * keeps a fixed, readable width and the menu takes everything else.
        */}
-      <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* Menu */}
-        <div className="flex min-h-0 flex-1 flex-col border-b border-gray-200 lg:w-3/5 lg:flex-none lg:border-b-0 lg:border-r dark:border-gray-800">
-          <div className="flex flex-wrap gap-2 border-b border-gray-200 p-3 dark:border-gray-800">
-            <Input placeholder="Search menu…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
-            <div className="flex flex-wrap gap-1">
-              <button onClick={() => setCatFilter("")} className={chip(catFilter === "")}>All</button>
-              {(categories.data ?? []).map((c) => (
-                <button key={c.id} onClick={() => setCatFilter(c.id)} className={chip(catFilter === c.id)}>{c.name}</button>
-              ))}
-            </div>
+        {/* `min-w-0`, and it is load-bearing. A flex child will not shrink
+            below its content, and this one's content includes a row of
+            section chips that does not wrap — so without it the pane pushed
+            the order thirteen pixels off the side of a tablet, total and all. */}
+        <div className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${pane === "menu" ? "flex" : "hidden"}`}>
+          <div className="shrink-0 space-y-2 border-b border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+            <Input
+              placeholder="Search menu…"
+              aria-label="Search menu"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {/* ONE ROW that slides, not a paragraph that wraps. Twelve
+                sections wrapped onto three lines and took a row of dishes off
+                the screen to do it. */}
+            {sections.length > 0 && (
+              <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3" role="group" aria-label="Section">
+                <button type="button" onClick={() => setCatFilter("")} aria-pressed={catFilter === ""} className={chip(catFilter === "")}>All</button>
+                {sections.map((c) => (
+                  <button key={c.id} type="button" onClick={() => setCatFilter(c.id)} aria-pressed={catFilter === c.id} className={chip(catFilter === c.id)}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="grid flex-1 auto-rows-min grid-cols-2 gap-3 overflow-y-auto p-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto p-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {products.isLoading ? (
-              Array.from({ length: 12 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />)
+              Array.from({ length: 12 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)
             ) : menu.length === 0 ? (
-              <p className="col-span-full py-10 text-center text-sm text-gray-400">No menu items match.</p>
+              <p className="col-span-full py-10 text-center text-sm text-gray-500 dark:text-gray-400">No menu items match.</p>
             ) : (
               menu.map((p) => {
                 const off = whyNot(p);
                 // Sizes are asked for in the sheet, never shown on the tile —
                 // see the note on `sizeFor`.
                 const asks = sizesOf(p).length > 0;
+                const count = onTile(p.id);
+
                 return (
                   <button
                     key={p.id}
-                      onClick={() => addProduct(p)}
-                      disabled={addItems.isPending || !mine || off !== null}
-                      /* `min-h-24`, not `h-24`. The fixed height was the only one
-                         of the three product grids that physically could not
-                         absorb anything new: a chip row underneath it would have
-                         been clipped by its own tile. */
-                      className="flex min-h-24 w-full flex-col justify-between rounded-xl border border-gray-200 bg-white p-3 text-left transition-colors hover:border-brand-400 disabled:opacity-50 dark:border-gray-800 dark:bg-white/[0.03]"
-                    >
-                      <span className="line-clamp-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">{p.name}</span>
-                      <span className="flex items-baseline justify-between gap-2">
-                        <span className="text-theme-sm font-semibold text-brand-500">
-                          {asks ? "from " : ""}{money(p.price)}
-                        </span>
-                        {/* What the server already refuses, said before a waiter
-                            promises it to a table. */}
-                        {off !== null && (
-                          <span className="text-theme-xs font-semibold uppercase text-error-500">
-                            {p.sold_out ? "off" : "none left"}
-                          </span>
-                        )}
+                    type="button"
+                    onClick={() => addProduct(p)}
+                    /* NOT disabled while a request is in the air. Taps queue
+                       (useTabLines); a menu that greyed out for every round
+                       trip dropped the taps that landed while it was grey. */
+                    disabled={!mine || off !== null}
+                    /* `min-h-24`, not `h-24`: a tile has to be able to grow
+                       for a long name rather than clip it. */
+                    className={`relative flex min-h-24 w-full flex-col justify-between rounded-2xl border-2 p-3 text-left transition active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 ${
+                      count > 0
+                        ? "border-brand-500 bg-brand-50 dark:bg-brand-500/15"
+                        : "border-gray-200 bg-white hover:border-brand-300 dark:border-gray-800 dark:bg-gray-900"
+                    }`}
+                  >
+                    {/* How many of this are waiting to be sent — on the tile
+                        the finger is already on. */}
+                    {count > 0 && (
+                      <span
+                        data-testid="tile-count"
+                        className="absolute -right-1.5 -top-1.5 flex h-7 min-w-7 items-center justify-center rounded-full bg-brand-500 px-1.5 text-theme-sm font-bold tabular-nums text-white ring-2 ring-white dark:ring-gray-950"
+                      >
+                        {count}
                       </span>
-                    </button>
+                    )}
+                    <span className="line-clamp-2 pr-3 text-[15px] font-semibold leading-snug text-gray-900 dark:text-white/90">{p.name}</span>
+                    <span className="mt-2 flex items-baseline justify-between gap-2">
+                      <span className="text-theme-sm font-bold tabular-nums text-brand-600 dark:text-brand-400">
+                        {asks ? "from " : ""}{money(p.price)}
+                      </span>
+                      {/* What the server already refuses, said before a waiter
+                          promises it to a table. */}
+                      {off !== null && (
+                        <span className="rounded-md bg-error-50 px-1.5 py-0.5 text-theme-xs font-bold uppercase text-error-600 dark:bg-error-500/15 dark:text-error-400">
+                          {p.sold_out ? "off" : "none left"}
+                        </span>
+                      )}
+                    </span>
+                  </button>
                 );
               })
             )}
           </div>
         </div>
 
-        {/* Tab */}
-        <div className="flex min-h-0 flex-1 flex-col lg:w-2/5 lg:flex-none">
-          <div className="flex-1 overflow-y-auto p-4">
+        {/* The order */}
+        <div
+          className={`min-h-0 min-w-0 flex-1 flex-col border-gray-200 bg-white md:flex md:w-[330px] md:flex-none md:border-l lg:w-[370px] xl:w-[410px] dark:border-gray-800 dark:bg-gray-900 ${
+            pane === "order" ? "flex" : "hidden"
+          }`}
+        >
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
             {liveItems.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">Tap menu items to start the tab.</p>
-            ) : (
-              <div className="space-y-2">
-                {liveItems.map((i) => {
-                  const badge = KOT_BADGE[i.kot_status] ?? KOT_BADGE.pending;
-                  return (
-                    <div key={i.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                            {Number(i.quantity)}× {i.product_name}
-                            {i.variant_name ? ` (${i.variant_name})` : ""}
-                          </p>
-                          {i.modifiers && i.modifiers.length > 0 && (
-                            <p className="text-theme-xs text-gray-400">{i.modifiers.map((m) => m.name).join(", ")}</p>
-                          )}
-                          {i.note && <p className="text-theme-xs italic text-gray-400">"{i.note}"</p>}
-                          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-theme-xs font-medium ${badge.cls}`}>{badge.label}</span>
-                          {i.sale_id && <span className="ml-1 text-theme-xs text-success-600">· paid</span>}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">{money(i.line_total)}</span>
-                          {!i.sale_id && mine && (
-                            <button onClick={() => onVoid(i)} className="text-theme-xs text-error-500 hover:text-error-600">Void</button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="px-4 py-12 text-center">
+                <p className="text-base font-semibold text-gray-700 dark:text-gray-200">Nothing ordered yet</p>
+                <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+                  Tap a dish to put it on the tab. Tap it again for one more.
+                </p>
               </div>
+            ) : (
+              <>
+                {/* NOT SENT YET — the only lines that can still change, so
+                    they are the only ones with controls on them. */}
+                {firable.length > 0 && (
+                  <section aria-label="Not sent yet" className="rounded-xl border-2 border-warning-300 dark:border-warning-500/50">
+                    {pileHead("Not sent yet", toSendCount, "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-300")}
+                    <ul className="divide-y divide-warning-100 dark:divide-warning-500/20">
+                      {firable.map((i) => (
+                        <li key={i.id} className="px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-theme-sm font-semibold leading-snug text-gray-900 dark:text-white/90">
+                                {i.product_name}
+                                {i.variant_name ? ` (${i.variant_name})` : ""}
+                              </p>
+                              {i.modifiers && i.modifiers.length > 0 && (
+                                <p className="text-theme-xs text-gray-500 dark:text-gray-400">{i.modifiers.map((m) => m.name).join(" · ")}</p>
+                              )}
+                            </div>
+                            <span className="shrink-0 text-theme-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(i.line_total)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            {mine ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => stepLine(i, -1)}
+                                  aria-label={Number(i.quantity) <= 1 ? `Remove ${i.product_name}` : `One fewer ${i.product_name}`}
+                                  className={`${STEP} ${
+                                    Number(i.quantity) <= 1
+                                      ? "bg-error-50 text-error-600 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-400"
+                                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200"
+                                  }`}
+                                >
+                                  {Number(i.quantity) <= 1 ? "×" : "−"}
+                                </button>
+                                <span className="min-w-8 text-center text-lg font-bold tabular-nums text-gray-900 dark:text-white" aria-label={`${Number(i.quantity)} of ${i.product_name}`}>
+                                  {Number(i.quantity)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => stepLine(i, 1)}
+                                  aria-label={`One more ${i.product_name}`}
+                                  className={`${STEP} bg-brand-500 text-white hover:bg-brand-600`}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{Number(i.quantity)}×</span>
+                            )}
+                            {/* The note IS the control: said, it reads as the
+                                instruction it is, and a press changes it. */}
+                            {mine ? (
+                              <button
+                                type="button"
+                                onClick={() => openNote(i)}
+                                className={`inline-flex min-h-10 max-w-[60%] items-center rounded-xl px-3 text-theme-xs font-bold ${
+                                  i.note
+                                    ? "bg-error-50 uppercase text-error-600 dark:bg-error-500/15 dark:text-error-400"
+                                    : "text-brand-600 ring-1 ring-inset ring-brand-200 hover:bg-brand-50 dark:text-brand-300 dark:ring-brand-500/40 dark:hover:bg-brand-500/10"
+                                }`}
+                              >
+                                <span className="truncate">{i.note || "+ Kitchen note"}</span>
+                              </button>
+                            ) : (
+                              i.note && <span className="truncate text-theme-xs font-bold uppercase text-error-600 dark:text-error-400">{i.note}</span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {pile.inKitchen.length > 0 && (
+                  <section aria-label="In the kitchen" className="rounded-xl border border-orange-200 dark:border-orange-500/30">
+                    {pileHead("In the kitchen", portions(pile.inKitchen), "bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300")}
+                    <ul className="divide-y divide-gray-100 dark:divide-gray-800">{pile.inKitchen.map((i) => sentLine(i, "kitchen"))}</ul>
+                  </section>
+                )}
+
+                {pile.out.length > 0 && (
+                  <section aria-label="Served" className="rounded-xl border border-success-200 dark:border-success-500/30">
+                    {pileHead("Served", portions(pile.out), "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400")}
+                    <ul className="divide-y divide-gray-100 dark:divide-gray-800">{pile.out.map((i) => sentLine(i, "out"))}</ul>
+                  </section>
+                )}
+
+                {pile.paid.length > 0 && (
+                  <section aria-label="Paid" className="rounded-xl border border-gray-200 dark:border-gray-800">
+                    {pileHead("Paid", portions(pile.paid), "bg-gray-50 text-gray-600 dark:bg-white/5 dark:text-gray-300")}
+                    <ul className="divide-y divide-gray-100 opacity-70 dark:divide-gray-800">{pile.paid.map((i) => sentLine(i, "paid"))}</ul>
+                  </section>
+                )}
+              </>
             )}
           </div>
 
-          <div className="border-t border-gray-200 p-4 dark:border-gray-800">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Running total</span>
-              <span className="text-xl font-bold text-gray-800 dark:text-white/90">{money(ticket.running_total)}</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={onFire} disabled={firable.length === 0 || fire.isPending || !mine}>
-                {fire.isPending ? "Firing…" : `Fire to kitchen${firable.length ? ` (${firable.length})` : ""}`}
-              </Button>
-              <Button size="sm" onClick={openSettle} disabled={unsettled.length === 0 || !mine}>Settle</Button>
+          <div className="shrink-0 space-y-3 border-t border-gray-200 p-3 dark:border-gray-800">
+            <dl className="space-y-0.5">
+              {/* Once part of it is paid, the number a waiter needs is what
+                  is LEFT — the same figure the floor's tile shows. */}
+              {paidTotal > 0 && (
+                <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
+                  <dt>Running total</dt>
+                  <dd className="tabular-nums">{money(ticket.running_total)}</dd>
+                </div>
+              )}
+              {paidTotal > 0 && (
+                <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
+                  <dt>Paid</dt>
+                  <dd className="tabular-nums">− {money(paidTotal)}</dd>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between">
+                <dt className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                  {paidTotal > 0 ? "Still to pay" : "Running total"}
+                  {taxRate > 0 && <span className="ml-1 text-theme-xs font-normal text-gray-400">+ tax at the bill</span>}
+                </dt>
+                <dd className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
+                  {money(paidTotal > 0 ? toPay : ticket.running_total)}
+                </dd>
+              </div>
+            </dl>
+            {/* THE NEXT THING TO DO IS THE BIG ONE. With food waiting to be
+                sent, that is sending it; with nothing waiting, it is the bill.
+                The two were always the same size, side by side, and the one a
+                waiter forgets — sending — was the quieter of the two. */}
+            <div className={`grid gap-2 ${firable.length > 0 ? "grid-cols-[2fr_1fr]" : "grid-cols-[1fr_2fr]"}`}>
+              <button
+                type="button"
+                onClick={onFire}
+                disabled={firable.length === 0 || fire.isPending || lines.busy || !mine}
+                className={`min-h-14 rounded-xl px-3 text-base font-bold transition disabled:opacity-40 ${
+                  firable.length > 0
+                    ? "bg-warning-500 text-gray-900 hover:bg-warning-400 active:bg-warning-600"
+                    : "text-gray-500 ring-1 ring-inset ring-gray-200 dark:text-gray-400 dark:ring-gray-700"
+                }`}
+              >
+                {fire.isPending ? "Sending…" : firable.length > 0 ? `Send to kitchen (${toSendCount})` : "Send to kitchen"}
+              </button>
+              <button
+                type="button"
+                onClick={openSettle}
+                disabled={unsettled.length === 0 || !mine}
+                className={`min-h-14 rounded-xl px-3 text-base font-bold transition disabled:opacity-40 ${
+                  firable.length > 0
+                    ? "text-gray-700 ring-1 ring-inset ring-gray-200 hover:bg-gray-50 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-white/5"
+                    : "bg-brand-500 text-white hover:bg-brand-600"
+                }`}
+              >
+                Settle
+              </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* The header's controls, for a phone. Each closes the sheet and
+          opens what it always opened. */}
+      <Modal isOpen={moreModal.isOpen} onClose={moreModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {ticket.table?.name ?? "Takeaway"} · {ticket.ticket_number}
+        </h3>
+        <div className="grid gap-2">
+          <button type="button" className={`${HEAD_ACTION} justify-center`} onClick={() => { moreModal.closeModal(); setMoveTable(ticket.table?.id ?? ""); moveModal.openModal(); }}>
+            Move table
+          </button>
+          <button type="button" className={`${HEAD_ACTION} justify-center`} onClick={() => { moreModal.closeModal(); setMergeSource(""); mergeModal.openModal(); }}>
+            Merge tab
+          </button>
+          <button type="button" className={`${HEAD_ACTION} justify-center`} onClick={() => { moreModal.closeModal(); setHandTo(""); handOverModal.openModal(); }}>
+            Hand over
+          </button>
+          <button type="button" className={`${HEAD_ACTION_DANGER} justify-center`} onClick={() => { moreModal.closeModal(); onCancel(); }}>
+            Cancel tab
+          </button>
+        </div>
+      </Modal>
+
+      {/* A note for the kitchen, on a line not yet sent. */}
+      <Modal isOpen={noteModal.isOpen} onClose={noteModal.closeModal} className="max-w-sm p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Kitchen note</h3>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
+          {noteFor ? `${Number(noteFor.quantity)}× ${noteFor.product_name}` : ""} — printed on the kitchen ticket, in capitals.
+        </p>
+        <Label htmlFor="tab-note">Note</Label>
+        <Input
+          id="tab-note"
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
+          placeholder="e.g. No green chilli"
+        />
+        <div className="mt-3 flex flex-wrap gap-1.5" role="group" aria-label="Common notes">
+          {QUICK_NOTES.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setNoteText((t) => (t.trim() === "" ? q : t.includes(q) ? t : `${t.trim()}, ${q}`))}
+              className="inline-flex min-h-10 items-center rounded-xl bg-gray-100 px-3 text-theme-xs font-semibold text-gray-700 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20"
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+        <div className="mt-6 flex justify-between gap-3">
+          {noteFor?.note ? (
+            <Button size="sm" variant="danger" onClick={() => { setNoteText(""); lines.note(noteFor, "").catch(() => toast.error("Couldn't clear the note.")); noteModal.closeModal(); }}>
+              Remove note
+            </Button>
+          ) : <span />}
+          <div className="flex gap-3">
+            <Button size="sm" variant="outline" onClick={noteModal.closeModal}>Cancel</Button>
+            <Button size="sm" onClick={saveNote}>Save note</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modifier picker */}
       {/* Which size — for a waiter who taps the dish rather than a size chip.
@@ -893,7 +1269,9 @@ export default function TabPage() {
 }
 
 function chip(active: boolean) {
-  return `rounded-full px-3 py-1 text-theme-xs font-medium transition-colors ${
-    active ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+  return `inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-xl px-3.5 text-theme-sm font-semibold transition-colors ${
+    active
+      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-200 dark:hover:bg-white/20"
   }`;
 }

@@ -503,8 +503,10 @@ export function adminNav(
 const SECTION_ROOTS = ["/tenant", "/admin"];
 
 const AppSidebar: React.FC = () => {
-  const { isExpanded, isMobileOpen, railWide, setIsHovered, closeMobileSidebar } =
-    useSidebar();
+  const {
+    isExpanded, isMobileOpen, railWide, setIsHovered, closeMobileSidebar,
+    isPeekHeld, holdPeek, releasePeek,
+  } = useSidebar();
   const location = useLocation();
   const role = useAuthStore((s) => s.user?.role);
   const features = useAuthStore(
@@ -557,6 +559,8 @@ const AppSidebar: React.FC = () => {
   // closing a drawer that was never open is free.
   useEffect(() => {
     closeMobileSidebar();
+    // …and so does a rail a tap was holding open.
+    releasePeek();
     // Deliberately keyed on the path alone. Adding the callback would re-run
     // this on every provider render and shut a drawer nobody navigated with.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -636,6 +640,19 @@ const AppSidebar: React.FC = () => {
   }, [location, isActive]);
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
+    // ON A RAIL OF ICONS, A GROUP HAS NOWHERE TO OPEN.
+    //
+    // Its screens are only drawn when the labels are, so on a collapsed rail
+    // this toggled a list nobody could see: a mouse never noticed, because
+    // hovering had already widened the rail, and a tablet met a button that
+    // did nothing. Touching a group now opens the rail to show it.
+    if (!showLabels) {
+      holdPeek();
+      setOpenSubmenu({ type: menuType, index });
+
+      return;
+    }
+
     setOpenSubmenu((prevOpenSubmenu) => {
       if (
         prevOpenSubmenu &&
@@ -817,6 +834,13 @@ const AppSidebar: React.FC = () => {
      * measurement can be wrong, and it carries its own close (below). The
      * pinned rail at `lg` keeps the old stacking, where it sits beside the
      * header and never meets it. */
+    <>
+    {/* A peek held by a tap is let go by the next tap anywhere else. Clear,
+        not dimmed: nothing has been taken away from the page, and at `lg`
+        only — below it the rail is a drawer and Backdrop is its scrim. */}
+    {isPeekHeld && (
+      <div className="fixed inset-0 z-40 hidden lg:block" onClick={releasePeek} aria-hidden />
+    )}
     <aside
       className={`fixed inset-y-0 left-0 z-100002 flex h-dvh flex-col border-r text-gray-900 transition-all duration-300 ease-in-out lg:z-50 ${railClass}
         ${showLabels ? "w-[290px]" : "w-[90px]"}
@@ -933,6 +957,7 @@ const AppSidebar: React.FC = () => {
         </div>
       )}
     </aside>
+    </>
   );
 };
 
