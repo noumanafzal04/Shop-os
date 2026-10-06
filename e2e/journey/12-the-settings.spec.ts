@@ -567,6 +567,159 @@ test("G4 · Till PIN: taken away again, and the list says so", async ({ page }) 
   await expect(row).toContainText("No PIN — password only");
 });
 
+// ── G6: Point of Sale › Quotes & advances ────────────────────────────
+
+const TERMS = "QA terms: prices firm for one week. Fitting not included.";
+
+/** A date N days from today, the way the quotation prints it: 13 Oct 2026. */
+const inDays = (n: number): { iso: string; printed: string } => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const pad = (v: number) => String(v).padStart(2, "0");
+
+  return {
+    iso: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    printed: `${pad(d.getDate())} ${d.toLocaleString("en-GB", { month: "short" })} ${d.getFullYear()}`,
+  };
+};
+
+const postDocument = (request: APIRequestContext, data: Settings) =>
+  request.post(`${API}/sale-documents`, { headers: { Accept: "application/json", Authorization: `Bearer ${token()}` }, data });
+
+test("G6 · Quotes & advances: the validity, the terms and the minimum advance are the shop's own", async ({ page, request }) => {
+  await choose(page, request, { tab: "Point of Sale", sub: "Quotes & advances" },
+    async (p) => {
+      await setSwitch(p, "Write quotations", true);
+      await setSwitch(p, "Hold goods on advance", true);
+      await p.getByLabel("Quotation valid for").fill("7");
+      await p.getByLabel("Printed terms").fill(TERMS);
+      await p.getByLabel("Minimum advance").fill("40");
+      await p.getByLabel("Collect within").fill("10");
+    },
+    { quotation_valid_days: 7, quotation_terms: TERMS, layaway_min_deposit_percent: 40, layaway_days: 10 },
+    async (p) => {
+      await expect(p.getByLabel("Quotation valid for")).toHaveValue("7");
+      await expect(p.getByLabel("Printed terms")).toHaveValue(TERMS);
+      await expect(p.getByLabel("Minimum advance")).toHaveValue("40");
+      await expect(p.getByLabel("Collect within")).toHaveValue("10");
+    },
+  );
+
+  // Whatever is handed to the printer, kept to read.
+  await page.addInitScript(() => {
+    window.print = () => {
+      (window.top as unknown as { __paper?: string }).__paper = document.documentElement.innerText;
+    };
+  });
+
+  // Oil: 2,850 at 18% = 3,363.
+  await openTill(page);
+  await ring(page, item("oil").name);
+  await page.getByRole("button", { name: /^Quote/ }).first().click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Save this ticket" }) });
+  await expect(sheet).toBeVisible();
+
+  // ON ADVANCE: forty percent of 3,363 is 1,345.20 — so 1,346, and not a rupee less.
+  await sheet.getByRole("button", { name: /^On advance/ }).click();
+  await sheet.getByPlaceholder("03xx-xxxxxxx").fill("03001110009");
+  const advance = sheet.getByPlaceholder("1346");
+  await expect(advance, "the till does not ask for the shop's minimum advance").toBeVisible();
+  await advance.fill("1000");
+  await expect(sheet.getByRole("button", { name: "Hold the goods" })).toBeDisabled();
+  await advance.fill("1346");
+  await expect(sheet.getByRole("button", { name: "Hold the goods" })).toBeEnabled();
+
+  // …and the server holds the same line for anyone who goes round the form.
+  const oil = (await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent(item("oil").name)}`))[0];
+  const short = await postDocument(request, {
+    kind: "layaway", items: [{ product_id: oil.id, quantity: 1 }], customer_phone: "03001110009",
+    deposit: { amount: 1000, method: "cash" },
+  });
+  expect(short.status()).toBe(422);
+  expect(((await short.json()) as { meta: { error_code: string } }).meta.error_code).toBe("DEPOSIT_BELOW_MINIMUM");
+
+  // A QUOTATION: saved, and the paper carries the shop's terms and a date seven days out.
+  await sheet.getByRole("button", { name: /^Quotation/ }).click();
+  await sheet.getByRole("button", { name: "Save quotation" }).click();
+  await expect(page.getByText(/Quotation \S+ saved/)).toBeVisible({ timeout: 20_000 });
+
+  const due = inDays(7);
+  const doc = (await ask<Array<Record<string, unknown>>>(request, "owner", "/sale-documents?per_page=5"))[0];
+  expect(doc.kind).toBe("quotation");
+  expect(String(doc.expires_at).slice(0, 10), "the quotation is not valid for the seven days the shop set").toBe(due.iso);
+
+  const paper = await page.waitForFunction(() => (window as unknown as { __paper?: string }).__paper, null, { timeout: 20_000 });
+  const text = String(await paper.jsonValue());
+  expect(text).toContain(TERMS);
+  // The paper prints it in capitals; the date is the date either way.
+  expect(text.toLowerCase()).toContain(`valid until ${due.printed.toLowerCase()}`);
+
+  // WHEN it was written, by the shop's clock. This paper said 07:53 AM for a
+  // quotation written at 12:53 in the afternoon — every printed document was
+  // in UTC, five hours early.
+  const clock = (d: Date) => d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Karachi" });
+  const now = new Date();
+  const lately = [0, 1, 2].map((m) => clock(new Date(now.getTime() - m * 60_000)));
+  expect(lately.some((t) => text.includes(t)), `the quotation is not timed by the shop's clock (${lately[0]}): ${text.slice(0, 160)}`).toBe(true);
+  // A number with no name is not called "Customer".
+  expect(text).not.toMatch(/Customer\s+Customer ·/);
+  remember({ settingsStageQuotes: Number(record().settingsStageQuotes ?? 0) + 1 });
+});
+
+test("G6 · Quotations switched off: the till does not offer one and the server will not write one", async ({ page, request }) => {
+  await choose(page, request, { tab: "Point of Sale", sub: "Quotes & advances" },
+    (p) => setSwitch(p, "Write quotations", false),
+    { quotations_enabled: false },
+    async (p) => { await expect(toggle(p, "Write quotations")).toHaveAttribute("aria-checked", "false"); },
+  );
+
+  await openTill(page);
+  await ring(page, item("oil").name);
+  await page.getByRole("button", { name: /^Quote/ }).first().click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Save this ticket" }) });
+  await expect(sheet.getByRole("button", { name: /^Quotation/ }), "a shop that writes no quotations was offered one").toBeDisabled();
+  // It opens on the thing the shop still does.
+  await expect(sheet.getByRole("button", { name: "Hold the goods" })).toBeVisible();
+
+  const oil = (await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent(item("oil").name)}`))[0];
+  const refused = await postDocument(request, { kind: "quotation", items: [{ product_id: oil.id, quantity: 1 }] });
+  expect(refused.status()).toBe(403);
+  expect(((await refused.json()) as { message: string }).message).toBe("This shop does not issue quotations.");
+
+  await restore(request, { quotations_enabled: true, quotation_valid_days: 15, quotation_terms: null, layaway_min_deposit_percent: 20, layaway_days: 30 });
+});
+
+// ── G7: Point of Sale › Kitchen ──────────────────────────────────────
+
+test("G7 · Kitchen: stations are typed one to a line, and stay as typed", async ({ page, request }) => {
+  const before = await held(request);
+
+  await openSettings(page, "Point of Sale", "Kitchen");
+  const stations = page.getByLabel("Stations");
+  await stations.click();
+  await stations.press("ControlOrMeta+a");
+  await stations.press("Delete");
+  // TYPED, key by key, the way a person does — Enter for the next line, and
+  // a station whose name is two words.
+  await stations.pressSequentially("Kitchen");
+  await stations.press("Enter");
+  await stations.pressSequentially("Hot Grill");
+  await expect(stations, "the box ate the Enter or the space as it was typed").toHaveValue("Kitchen\nHot Grill");
+
+  await setSwitch(page, "Print kitchen tickets", false);
+  await save(page);
+
+  const now = await held(request);
+  expect(now.kitchen_stations).toEqual(["Kitchen", "Hot Grill"]);
+  expect(now.kot_auto_print).toBe(false);
+
+  await openSettings(page, "Point of Sale", "Kitchen");
+  await expect(page.getByLabel("Stations")).toHaveValue("Kitchen\nHot Grill");
+  await expect(toggle(page, "Print kitchen tickets")).toHaveAttribute("aria-checked", "false");
+
+  await restore(request, { kitchen_stations: before.kitchen_stations ?? [], kot_auto_print: before.kot_auto_print ?? true });
+});
+
 // ── G9: one screen must not undo another ─────────────────────────────
 
 test("G9 · saving one tab does not put back a setting somebody changed elsewhere", async ({ page, request }) => {

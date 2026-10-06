@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -424,7 +425,7 @@ export default function PurchaseOrdersPage() {
                   {isSerial && (
                     <div className="mt-2">
                       <label className="mb-1 block text-theme-xs text-gray-400">Serials / IMEIs — one per line ({serialCount}/{row.quantity || 0})</label>
-                      <textarea
+                      <NamedTextarea
                         value={row.serials}
                         onChange={(e) => setRcvField(it.id, { serials: e.target.value })}
                         rows={Math.min(6, Math.max(2, Number(row.quantity) || 2))}

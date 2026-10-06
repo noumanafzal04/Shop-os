@@ -1887,6 +1887,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
         "If the printer still feeds a long blank tail, its own driver is set to a fixed sheet. Open the printer\u2019s preferences on that computer and choose its roll / \u201creceipt\u201d paper.",
       ]},
       { type: "note", text: "Test print, on each device here, goes out through the same path as a real receipt. If the test page comes out the right width, your receipts will." },
+
+      { type: "h", text: "The time printed on a receipt" },
+      { type: "warn", text: "Every printed paper was showing the wrong time. A sale rung at 12:47 in the afternoon printed \u201c07:47 AM\u201d \u2014 five hours early \u2014 and a sale after midnight was dated the day BEFORE. Receipts, quotations and advances, the shift Z-report and kitchen tickets all had it. They now print the time on your shop\u2019s own clock. Nothing stored was wrong: reports, the sales list and the till always showed the right time, so receipts already handed out are the only place the old time appears." },
     ],
   },
   {
@@ -2233,6 +2236,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "warn",
         text: "Save sends only what YOU changed on this screen. It used to send back every setting as it stood when you opened the page — so if you chose a new colour in Appearance, or somebody else changed the tax rate from another computer, and you then pressed Save here for something unrelated, their change was quietly put back. Both of you saw \u201cSettings saved\u201d. That is fixed: two people can have Settings open and neither undoes the other.",
+      },
+      { type: "h", text: "Kitchen stations" },
+      {
+        type: "p",
+        text: "Settings → Point of Sale → Kitchen → Stations. Type one station to a line \u2014 Kitchen, Bar, Hot Grill \u2014 and press Enter for the next. A fired order then prints one ticket per station.",
+      },
+      {
+        type: "note",
+        text: "This box used to swallow the Enter key and any space as you typed, so a second station could not be typed at all and \u201cHot Grill\u201d came out as \u201cHotGrill\u201d; the only way to enter two was to paste them. It now keeps exactly what you type. The kitchen ticket also prints your shop\u2019s name at the top, which it never did.",
       },
       { type: "h", text: "Tips at the counter" },
       {

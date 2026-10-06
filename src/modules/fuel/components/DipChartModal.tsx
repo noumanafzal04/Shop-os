@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "../../../components/ui/button/Button";
@@ -85,7 +86,8 @@ export function DipChartModal({ tank, isOpen, onClose }: {
           Once it is here, the close screen takes a stick reading and works the litres out itself.
         </p>
 
-        <textarea
+        <NamedTextarea
+          aria-label="Calibration chart: depth in millimetres, then litres, one row to a line"
           className="mt-4 h-56 w-full rounded-xl border border-gray-300 bg-transparent px-3 py-2 font-mono text-theme-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:text-white/90"
           value={text}
           onChange={(e) => setText(e.target.value)}

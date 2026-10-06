@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
+import { StationsField } from "../components/StationsField";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -1142,7 +1144,7 @@ export default function ShopSettingsPage() {
                             label="Printed terms"
                             hint="Goes at the foot of every quotation — delivery time, warranty, whether fitting is included."
                           >
-                            <textarea
+                            <NamedTextarea
                               rows={3}
                               className="dark:bg-dark-900 h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
                               value={(prefs.quotation_terms as string) ?? ""}
@@ -1264,16 +1266,10 @@ export default function ShopSettingsPage() {
                         label="Stations"
                         hint="One line each — Kitchen, Bar, Grill. A fired order splits into one ticket per station, so the bar never gets the biryani. Leave empty for a single kitchen printer."
                       >
-                        <textarea
-                          rows={3}
+                        <StationsField
                           className="dark:bg-dark-900 h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
-                          value={(Array.isArray(prefs.kitchen_stations) ? prefs.kitchen_stations : []).join("\n")}
-                          onChange={(e) =>
-                            setP(
-                              "kitchen_stations",
-                              e.target.value.split("\n").map((x) => x.trim()).filter(Boolean),
-                            )
-                          }
+                          value={Array.isArray(prefs.kitchen_stations) ? (prefs.kitchen_stations as string[]) : []}
+                          onChange={(stations) => setP("kitchen_stations", stations)}
                           placeholder={"Kitchen\nBar"}
                         />
                       </Field>
