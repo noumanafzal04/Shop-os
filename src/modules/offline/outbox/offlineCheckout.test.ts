@@ -7,8 +7,10 @@ import { putMany, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogItem } from "../sync/catalogService";
 import type { OfflineCart } from "./canSellOffline";
-import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally, promotionLocally } from "./offlineCheckout";
+import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally, promotionLocally, unpriceableOffer } from "./offlineCheckout";
 import { allRows, OUTBOX_STATUS } from "./outbox";
+import { useAuthStore } from "../../../stores/authStore";
+import type { User } from "../../auth/types";
 
 /**
  * Completing a sale with no server.
@@ -84,9 +86,21 @@ const input = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/**
+ * Sign a shop in, with or without the promotions module.
+ *
+ * Until this existed every test here priced as a shop that was nobody: no
+ * session, so no module map. That was fine while the engine never asked what
+ * the shop had — and it is exactly why it never did.
+ */
+const signIn = (features: Record<string, boolean>): void => {
+  useAuthStore.setState({ user: { id: CASHIER, tenant: { id: SHOP, features } } as unknown as User });
+};
+
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetDbCache();
+  signIn({ pos: true, promotions: true });
 });
 
 describe("ringing it", () => {
@@ -556,6 +570,74 @@ describe("what the queued row carries about WHEN and WHO", () => {
   });
 });
 
+
+describe("a shop that no longer has promotions", () => {
+  /**
+   * The module was switched off with a live promotion still in it. Nothing
+   * deleted the promotion — it comes back with the module — so it is still in
+   * this till's copy. The server no longer applies it and the screen no longer
+   * shows it. A till that went on applying it offline would hand over a slip
+   * for Rs 180 on a sale the server rings at 200.
+   */
+  const leftBehind = async (type = "percent"): Promise<void> => {
+    await seed();
+    await putMany(STORE.PROMOTIONS, [
+      {
+        id: "promo-1", name: "Left behind", is_active: true, type, value: 10, scope: "order",
+        category_id: null, product_ids: null, min_spend: null, min_qty: null, max_discount: null,
+        starts_on: null, ends_on: null, days_of_week: null, start_time: null, end_time: null,
+        priority: 0, buy_qty: null, get_qty: null, get_discount_pct: null,
+      },
+    ]);
+  };
+
+  it("applies it while the shop has the module — or the rest of this proves nothing", async () => {
+    await leftBehind();
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    expect((await completeOffline(input({ lines }))).total).toBe(180);
+  });
+
+  it("charges the shelf price once the module is off", async () => {
+    await leftBehind();
+    signIn({ pos: true, promotions: false });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    const sale = await completeOffline(input({ lines }));
+
+    expect(sale.discount).toBe(0);
+    expect(sale.total).toBe(200);
+  });
+
+  it("shows no promotion on the screen either", async () => {
+    await leftBehind();
+    signIn({ pos: true, promotions: false });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    expect(await promotionLocally(lines, 0)).toBeNull();
+  });
+
+  it("is not refused over an offer it cannot work out and will never apply", async () => {
+    // With the module ON this exact promotion stops the whole shop selling
+    // offline. A shop that cannot see, edit or end it must not be held by it.
+    await leftBehind("tiered-mystery");
+    expect(await unpriceableOffer()).toBe(true);
+
+    signIn({ pos: true, promotions: false });
+
+    expect(await unpriceableOffer()).toBe(false);
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+    await expect(completeOffline(input({ lines }))).resolves.toBeTruthy();
+  });
+
+  it("treats a module map that does not say as OFF — the same answer the screen gives", async () => {
+    await leftBehind();
+    signIn({ pos: true });
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 2 }]);
+
+    expect((await completeOffline(input({ lines }))).total).toBe(200);
+  });
+});
 
 describe("the promotion on the screen, when there is nobody to ask", () => {
   /**

@@ -1,7 +1,8 @@
 import { get, getAll, getSingleton, putMany, remove } from "../db/repo";
 import { STORE } from "../db/schema";
-import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
+import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { shopNow } from "../clock";
+import { heldPromotions } from "./heldPromotions";
 import type { CartLine, PriceLevel } from "./priceCart";
 import { comparePricing, type PricingVariance, type ServerTotals } from "./shadow";
 import { bumpTally } from "./shadowTally";
@@ -151,7 +152,7 @@ async function evaluate(
       {
         default_tax_rate: Number(settings.default_tax_rate ?? 0),
         tax_inclusive: Boolean(settings.tax_inclusive),
-        promotions: await getAll<CatalogPromotion>(STORE.PROMOTIONS),
+        promotions: await heldPromotions(),
         // SERVER time, drift applied — never the tablet's own clock. A slow
         // tablet would otherwise run a flash sale that ended on Tuesday, and
         // the whole point of a mirror is that it cannot disagree with the

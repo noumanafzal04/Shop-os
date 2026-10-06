@@ -4,8 +4,9 @@ import { driftMs, shopNow } from "../clock";
 import { hoursSinceContact } from "../contact";
 import { deviceId } from "../device/deviceId";
 import { priceCart, type CartLine } from "../pricing/priceCart";
-import type { CatalogItem, CatalogPromotion, CatalogTaxGroup } from "../sync/catalogService";
+import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { unsupportedPromotions } from "../pricing/bestPromotion";
+import { heldPromotions } from "../pricing/heldPromotions";
 import {
   canSellOffline,
   OFFLINE_SELLING_OFF,
@@ -193,7 +194,7 @@ export async function pastHardStop(cartStartedAt: number | null = null): Promise
 export async function unpriceableOffer(): Promise<boolean> {
   try {
     const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
-    const promotions = await getAll<CatalogPromotion>(STORE.PROMOTIONS);
+    const promotions = await heldPromotions();
 
     return (
       unsupportedPromotions(promotions, await shopNow(), String(settings?.timezone ?? "Asia/Karachi"))
@@ -271,7 +272,7 @@ async function pricedFromCache(lines: CartLine[], cartDiscount: number) {
       // The shop's automatic promotions, judged against SERVER time with this
       // till's measured drift applied — never the tablet's own clock, which
       // would run a flash sale that ended on Tuesday.
-      promotions: await getAll<CatalogPromotion>(STORE.PROMOTIONS),
+      promotions: await heldPromotions(),
       now: await shopNow(),
       timezone: String(settings.timezone ?? "Asia/Karachi"),
     },

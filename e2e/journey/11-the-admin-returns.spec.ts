@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { Browser, Page } from "@playwright/test";
-import { ADMIN_STATE, OWNER_STATE, Watch, ask, expect, record, rupees, session, settled, test } from "./kit";
+import { ADMIN_STATE, OWNER_STATE, Watch, ask, expect, record, remember, rupees, session, settled, test } from "./kit";
 import { item } from "./shop";
 import { complete, openTill, quantity, ring, tender } from "./till";
 
@@ -25,6 +25,24 @@ const BASE = process.env.E2E_BASE_URL ?? "http://localhost:4173";
 
 /** The module taken away, and the screens that go with it. */
 const MODULE = { label: "Coupons & Promotions", key: "promotions", screens: ["/tenant/coupons", "/tenant/promotions"] } as const;
+
+/**
+ * Sales this stage has rung, over every time it has been run.
+ *
+ * The stage counts the shop's sales twice, and rings two each time it runs.
+ * Kept in the record so that a second run expects two more rather than
+ * calling its own first run a discrepancy.
+ */
+const rung = (): number => Number(record().adminStageSales ?? 0);
+const rangOne = (): void => { remember({ adminStageSales: rung() + 1 }); };
+
+/** Every bill the journey has rung in this shop. */
+const everySale = (): number | null => {
+  const r = record();
+  const before = r.before as { sales_count: number } | undefined;
+
+  return before ? before.sales_count + Number(r.volumeSales ?? 0) + rung() : null;
+};
 
 /** The owner's browser, watched like every other page in the journey. */
 async function asOwner<T>(browser: Browser, expected: RegExp[], work: (page: Page) => Promise<T>): Promise<T> {
@@ -76,9 +94,25 @@ const tenantPage = async (page: Page) => {
 const setModule = async (page: Page, on: boolean) => {
   await tenantPage(page);
   const toggle = page.getByRole("switch", { name: MODULE.label, exact: true });
-  await expect(toggle).toHaveAttribute("aria-checked", String(!on));
+  await expect(toggle).toBeVisible();
+  // Already so — a stage started again after stopping halfway.
+  if ((await toggle.getAttribute("aria-checked")) === String(on)) return;
+  if (!on) {
+    // The screen says what ELSE goes with it, before the press: bank card
+    // offers stand on promotions, and are taken down with them.
+    await expect(page.getByText(/Switching this off also switches off .*Bank Card Offers/i).first()).toBeVisible();
+  }
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", String(on));
+  // …and switching it back on does not bring them back, as the screen warned.
+  // An admin restoring the shop restores both.
+  const dependent = page.getByRole("switch", { name: "Bank Card Offers", exact: true });
+  if (on) {
+    if ((await dependent.getAttribute("aria-checked")) === "false") await dependent.click();
+    await expect(dependent).toHaveAttribute("aria-checked", "true");
+  } else {
+    await expect(dependent, "the module that depends on it stayed on").toHaveAttribute("aria-checked", "false");
+  }
   await page.getByRole("button", { name: "Save modules" }).click();
   await expect(page.getByText("Saved ✓")).toBeVisible({ timeout: 20_000 });
 };
@@ -87,7 +121,9 @@ test("F1 · the shop's page says how much it has used, and it is what the shop d
   const r = record();
   await tenantPage(page);
 
-  const usage = page.locator("div").filter({ has: page.getByRole("heading", { name: "Usage & limits" }) }).last();
+  // The CARD, not the strip with its heading in: "the last div that holds the
+  // heading" is the heading's own row, which holds nothing else.
+  const usage = page.locator('xpath=//h3[normalize-space(.)="Usage & limits"]/ancestor::div[contains(@class,"rounded-2xl")][1]');
   const text = (await usage.innerText()).replace(/,/g, "");
   const used = (label: string): number => {
     const m = text.match(new RegExp(`${label}[^0-9]*?([0-9]+)\\s*/`, "i"));
@@ -103,8 +139,8 @@ test("F1 · the shop's page says how much it has used, and it is what the shop d
   // The cashier. The owner is not staff.
   expect(used("staff members")).toBe(1);
   // Every bill the journey rang this month: the day, the one at the till, the volume.
-  const before = r.before as { sales_count: number } | undefined;
-  if (before) expect(used("orders this month")).toBe(before.sales_count + Number(r.volumeSales ?? 0));
+  const all = everySale();
+  if (all !== null) expect(used("orders this month")).toBe(all);
 
   // The owner is listed, by name, as the owner.
   await expect(page.getByText(r.ownerEmail).first()).toBeVisible();
@@ -132,6 +168,11 @@ test("F2 · a module is switched off, and the owner's shop loses it cleanly", as
     for (const href of links) {
       await owner.goto(href);
       await settled(owner);
+      // A person's pace. Each of these is a full reload — the whole shell
+      // asked for again — and forty-six of them in forty seconds is past the
+      // 240 requests a minute one person is allowed, which is the product
+      // working and not a finding.
+      await owner.waitForTimeout(700);
       if (new URL(owner.url()).pathname.replace(/\/$/, "") !== href.replace(/\/$/, "")) bounced.push(`${href} → ${new URL(owner.url()).pathname}`);
     }
     expect(bounced).toEqual([]);
@@ -161,6 +202,7 @@ test("F2 · with promotions off, the till charges the shelf price — and the se
     expect(due).toBe(630);
 
     const sale = await complete(owner, request);
+    rangOne();
     expect(Number(sale.total)).toBe(630);
     expect(Number(sale.discount)).toBe(0);
   });
@@ -186,6 +228,7 @@ test("F2 · switched back on, the offers are as they were left", async ({ page, 
     await quantity(owner, soap.name, 5);
     expect(await tender(owner, "Card")).toBe(504);
     const sale = await complete(owner, request);
+    rangOne();
     expect(Number(sale.total)).toBe(504);
   });
 });
@@ -236,23 +279,39 @@ test("F3 · activated: the owner is back in, and the shop is as it was", async (
   await asOwner(browser, [], async (owner) => {
     await owner.goto("/tenant/sales");
     await settled(owner);
-    const before = r.before as { sales_count: number } | undefined;
     const count = rupees(await owner.getByText(/[0-9,]+ sales/).first().innerText());
     // Nothing was lost by being switched off for a minute: every sale of the
-    // journey, and the two rung in this stage.
-    if (before) expect(count).toBe(before.sales_count + Number(r.volumeSales ?? 0) + 2);
+    // journey, and the ones rung in this stage.
+    const all = everySale();
+    if (all !== null) expect(count).toBe(all);
     else expect(count).toBeGreaterThan(10);
   });
 });
 
 // Kept last and separate: the admin's own trail of what was just done.
-test("F4 · the admin's audit log has the suspension and the module change", async ({ page }) => {
+test("F4 · the admin's audit log says what was done, and to which business", async ({ page }) => {
   const r = record();
 
   await page.goto("/admin/audit-logs");
+  // Found by the BUSINESS. It could only be searched by a person's name, and
+  // the row for a suspension did not say whose it was.
+  await page.getByPlaceholder("Search a person or a business…").fill(r.business);
+  const mine = page.getByRole("row").filter({ hasText: r.business });
+  await expect(mine.first()).toBeVisible({ timeout: 20_000 });
+
+  await expect(mine.filter({ hasText: "status: active → suspended" }).first(), "the suspension is not on the trail").toBeVisible();
+  await expect(mine.filter({ hasText: "status: suspended → active" }).first(), "the activation is not on the trail").toBeVisible();
+
+  // One line for the one module that moved — it was the whole module map,
+  // twice, as JSON.
+  await expect(mine.filter({ hasText: `${MODULE.label}: on → off` }).first(), "switching the module off is not on the trail").toBeVisible();
+  await expect(mine.filter({ hasText: `${MODULE.label}: off → on` }).first()).toBeVisible();
+  await expect(page.getByText(/\{"[a-z_]+":(true|false)/)).toHaveCount(0);
+
+  // Every row the search returned is about this business and says so: the
+  // Business column, read cell by cell once the list has stopped loading.
   await settled(page);
-  await expect(page.getByText(r.business).first()).toBeVisible({ timeout: 20_000 });
-  const trail = (await page.locator("main, body").first().innerText()).toLowerCase();
-  expect(trail, "the audit log does not mention the suspension").toMatch(/suspend/);
-  expect(trail, "the audit log does not mention the activation").toMatch(/activat/);
+  const businesses = await page.locator("tbody tr td:nth-child(3)").allInnerTexts();
+  expect(businesses.length).toBeGreaterThan(4);
+  expect([...new Set(businesses.map((b) => b.trim()))]).toEqual([r.business]);
 });

@@ -399,7 +399,9 @@ test("E5 · the shelf went down by what was sold, item by item", async ({ page, 
   await page.getByPlaceholder(/search/i).first().fill(bulk(n).name);
   const row = page.getByRole("row").filter({ hasText: bulk(n).name }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(row).toContainText((STOCK - g.sold.get(n)!).toLocaleString("en-PK"));
+  // Plain digits: a quantity is not money, and the shop's quantity format
+  // has no separators on purpose (4999, not 4,999).
+  await expect(row).toContainText(String(STOCK - g.sold.get(n)!));
 });
 
 test("E6 · every screen opens with thousands behind it — nothing refused, nothing slow", async ({ page }) => {
@@ -439,7 +441,12 @@ test("E6 · no answer the screens were sent is heavier than a page of it should 
   page.on("response", async (res) => {
     if (!res.url().includes("/api/") || res.request().method() !== "GET") return;
     const size = Number(res.headers()["content-length"] ?? 0) || (await res.body().catch(() => Buffer.alloc(0))).length;
-    if (size > 400_000) heavy.push(`${new URL(res.url()).pathname.replace("/api/v1", "")} — ${(size / 1024).toFixed(0)} KB`);
+    const where = new URL(res.url()).pathname.replace("/api/v1", "");
+    // The one answer that is MEANT to be the whole shelf: a till keeps its own
+    // copy so it can sell with the line down. It comes a thousand at a time
+    // and only on a device's first load — the next case holds it to that.
+    if (/^\/pos\/(bootstrap|catalog)$/.test(where)) return;
+    if (size > 400_000) heavy.push(`${where} — ${(size / 1024).toFixed(0)} KB`);
   });
 
   for (const href of ["/tenant", "/tenant/products", "/tenant/inventory", "/tenant/sales", "/tenant/pos", "/tenant/reports", "/tenant/purchase-orders", "/tenant/promotions"]) {
@@ -448,4 +455,46 @@ test("E6 · no answer the screens were sent is heavier than a page of it should 
   }
 
   expect([...new Set(heavy)]).toEqual([]);
+});
+
+test("E7 · the till's own copy of the shelf holds every one of them, once", async ({ page }) => {
+  test.setTimeout(180_000);
+
+  // A browser that has never been a till: this is a device's first load.
+  const rounds: number[] = [];
+  page.on("response", async (res) => {
+    if (!/\/pos\/(bootstrap|catalog)(\?|$)/.test(res.url())) return;
+    const body = (await res.json().catch(() => null)) as { data?: { products?: { items?: unknown[] } } } | null;
+    rounds.push(body?.data?.products?.items?.length ?? -1);
+  });
+
+  await openTill(page);
+
+  const held = async () =>
+    page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((done, fail) => {
+        const open = indexedDB.open("shopos-till");
+        open.onsuccess = () => done(open.result);
+        open.onerror = () => fail(open.error);
+      });
+      if (!db.objectStoreNames.contains("catalog")) { db.close(); return { bulk: 0, distinct: 0 }; }
+      const rows = await new Promise<Array<{ id: string; name?: string }>>((done, fail) => {
+        const all = db.transaction("catalog").objectStore("catalog").getAll();
+        all.onsuccess = () => done(all.result as Array<{ id: string; name?: string }>);
+        all.onerror = () => fail(all.error);
+      });
+      db.close();
+      const bulk = rows.filter((r) => String(r.name ?? "").startsWith("QA Bulk Item"));
+
+      return { bulk: bulk.length, distinct: new Set(bulk.map((r) => r.name)).size };
+    });
+
+  // Two thousand imported in one second is exactly the case a cursor of time
+  // alone steps over: a thousand arrive, and the rest of that second is lost.
+  await expect.poll(async () => (await held()).bulk, { timeout: 90_000, message: "the till never finished copying the shelf" }).toBe(PRODUCTS);
+  expect((await held()).distinct).toBe(PRODUCTS);
+
+  // …and it came in pieces, not as one answer the size of the shop.
+  expect(rounds.length, "the shelf was copied in a single request").toBeGreaterThanOrEqual(2);
+  expect(Math.max(...rounds)).toBeLessThanOrEqual(1000);
 });

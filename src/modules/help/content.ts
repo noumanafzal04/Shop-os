@@ -433,6 +433,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ["Parent SKU", "What turns a row into a SIZE of another item. See below."],
       ]},
       { type: "note", text: "The sample rows are named \u201cEXAMPLE \u2014 delete this row\u201d. If you upload the template without touching them they will import as real products, so they are named to be easy to spot and delete." },
+      { type: "note", text: "One file holds up to 2,000 products. A bigger catalogue goes in as two files \u2014 a file one row over is refused whole, and says so, rather than taking the first 2,000 and leaving you to work out which ones." },
+      { type: "warn", text: "After a big import the list used to lose a handful of items between pages: they were in the shop and could be found by searching, but paging through with Next skipped them and showed a few others twice. Every list in the shop \u2014 products, sales, orders, customers, the ledger \u2014 now shows each row on exactly one page." },
 
       { type: "h", text: "Importing items that come in sizes" },
       { type: "p", text: "A size is its own ROW, not a squashed-up cell. Put the parent item's SKU in the Parent SKU column and the row becomes a size of that item, with its own price, cost, stock and barcode." },
@@ -2019,7 +2021,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year", "staff", "salesman", "commission", "target"],
     body: [
       { type: "p", text: "What sold, who bought it, and who sold it." },
-      { type: "p", text: "Profit is takings, less anything refunded, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "p", text: "Profit is takings, less anything refunded, less the sales tax inside them, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "warn", text: "Sales tax is not yours, and profit no longer counts it. A bill of Rs 1,180 at 18% is Rs 1,000 of your money and Rs 180 you are holding for the government. Profit used to be worked out on the whole 1,180, so a shop that charged tax looked more profitable than it was by exactly the amount it would later have to hand over. The card reads 'Sales Tax (not yours)' and sits in the row between Refunds and Cost of Goods, so the cards add up left to right with a calculator." },
+      { type: "h", text: "The Tax tab" },
+      { type: "keys", items: [
+        ["Tax collected", "The tax on everything you rang up in the period."],
+        ["Tax refunded", "The tax you handed back with returned goods. A return gives the customer the tax too, so you do not owe it."],
+        ["Tax payable", "Collected less refunded. This is the figure to file — it is the same number as the 'Sales Tax (not yours)' card."],
+      ] },
       { type: "note", text: "Revenue here is what you rang up, before refunds — a Refunds figure sits next to it whenever the shop handed something back, and profit already has it taken off. Refunds are dated by the day the money went out, not the day of the sale, so a bag returned on Thursday against Monday's invoice does not change Monday. That matters: Monday may already be closed and banked." },
       { type: "warn", text: "A sale with one item returned used to disappear from this screen entirely — the whole invoice, not just the returned item. It now stays, at its full value, with the refund shown separately." },
       { type: "p", text: "Two different years are on offer, and they are different questions. This Year is January to December — what you made, the way you'd say it out loud. Tax Year is 1 July to 30 June, which is the window FBR's return, your audited accounts and your advance tax all sit inside. For anything you file, use Tax Year." },
