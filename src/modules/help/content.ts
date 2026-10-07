@@ -745,6 +745,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "With \u201cRequire open shift\u201d on and no drawer open, the till says so under the Pay button and will not take a payment. Without it, you can sell straight away and the sale simply belongs to no shift — which also means no shift report will account for it." },
       { type: "h", text: "The screen" },
       { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
+      { type: "note", text: "Anything sold by weight or volume can be sold by the money: tap By rupees on its line and type the amount — \u201cRs 2,000 of petrol\u201d, \u201cRs 500 of sugar\u201d. The sheet shows how much that buys before you set it, the bill is charged that amount to the rupee, and the line says so. Typing a quantity afterwards goes back to selling by quantity." },
       { type: "note", text: "Enter adds the item whose code was scanned, however fast the scanner is \u2014 your own labels with letters in them too. It used to add whatever was first on the screen when a code arrived faster than the list could answer it." },
       { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
 
@@ -1685,10 +1686,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "A tanker arrives" },
       { type: "p", text: "Record the delivery against the tank: what was ordered, what the dip says arrived, and what it cost. Fuel stock rises by what actually went in, not by what the invoice claimed." },
+      { type: "keys", items: [
+        ["From", "Which supplier the tanker came from. Asked when your shop keeps a supplier book."],
+        ["The dips", "Before and after the discharge — both, or neither. One dip by itself says nothing and the sheet will not take it. With both, the load is received on what they say arrived and the difference is kept as a shortage, in litres, to take up with the supplier."],
+        ["Rate per litre", "What this load cost. It is blended into what the fuel in that tank cost, so your margin follows every tanker. Leave it blank and the cost is left as it was."],
+      ]},
+      { type: "note", text: "Fuel on your shelf is whatever your tanks hold. The moment you install a tank and say how much is in it, that fuel is in stock — and whenever a shift closes, stock is set to what the dipstick said." },
       { type: "h", text: "The rate changes" },
+      { type: "p", text: "New rate asks when it takes effect. Now changes the pumps at once. At a time records it now and changes the pumps by itself at that hour — midnight tonight is offered, because that is when a notified rate nearly always applies. Until then the rate history shows it as Not at the pumps yet, and tonight's fuel is still tonight's price." },
       {
         type: "warn",
-        text: "Record a rate change at the moment it takes effect. Every sale is priced at the rate in force when it was rung, so a change entered late prices the wrong litres — and on a forecourt that is the difference between a clean shift and an unexplainable one.",
+        text: "Every sale is priced at the rate in force when it was rung. Enter the new rate when the notice arrives and choose At a time — nobody has to be at the screen at midnight. A change entered late, with Now, prices the wrong litres.",
       },
     ],
   },

@@ -171,6 +171,8 @@ export interface FuelPriceChange {
   old_price: string;
   new_price: string;
   effective_at: string;
+  /** Null while a rate is recorded and waiting for its hour. */
+  applied_at?: string | null;
   reason: string | null;
   changed_by?: { id: string; name: string } | null;
 }

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 /**
  * A number pad for a till with no keyboard.
  *
@@ -24,6 +26,7 @@ export function NumPad({
   disabled,
   allowDecimal = true,
   className = "",
+  keyboard = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -34,6 +37,16 @@ export function NumPad({
   /** A quantity of units has no decimal; a weight does. */
   allowDecimal?: boolean;
   className?: string;
+  /**
+   * Take the same keys from a real keyboard while this pad is on screen.
+   *
+   * The pad was written for a till with no keyboard, and one sheet it lives on
+   * — "how many litres, or how many rupees" — turned out to be the only way to
+   * sell by money at all. A counter WITH a keyboard had to click sixteen
+   * buttons with a mouse to say "2000". Off by default: beside a real text
+   * field (the tender sheet) the keys belong to the field.
+   */
+  keyboard?: boolean;
 }) {
   const press = (key: string) => {
     if (key === "." && (!allowDecimal || value.includes("."))) return;
@@ -43,6 +56,23 @@ export function NumPad({
     if (value === "0" && key !== ".") return onChange(key);
     onChange(value + key);
   };
+
+  // The latest of everything the listener reads, without re-subscribing per keystroke.
+  const live = useRef({ value, press, onChange, onSubmit, disabled });
+  live.current = { value, press, onChange, onSubmit, disabled };
+  useEffect(() => {
+    if (!keyboard) return;
+    const onKey = (e: KeyboardEvent) => {
+      const now = live.current;
+      if (now.disabled || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key) || e.key === ".") { e.preventDefault(); now.press(e.key); }
+      else if (e.key === "Backspace") { e.preventDefault(); now.onChange(now.value.slice(0, -1)); }
+      else if (e.key === "Enter" && now.onSubmit) { e.preventDefault(); now.onSubmit(); }
+    };
+    window.addEventListener("keydown", onKey);
+
+    return () => window.removeEventListener("keydown", onKey);
+  }, [keyboard]);
 
   const keyClass =
     "flex h-12 items-center justify-center rounded-xl border border-gray-200 bg-white text-lg font-semibold tabular-nums text-gray-800 transition-colors active:bg-brand-50 active:border-brand-400 disabled:opacity-40 dark:border-gray-700 dark:bg-white/[0.03] dark:text-white/90 dark:active:bg-brand-500/10";

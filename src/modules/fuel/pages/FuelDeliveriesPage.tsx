@@ -11,6 +11,9 @@ import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDeliveries, useFuelMutations, useFuelTanks, usePriceChanges } from "../hooks/useFuel";
+import { useSuppliers } from "../../purchases/hooks/usePurchases";
+import { useAuthStore } from "../../../stores/authStore";
+import { isWaiting, nextMidnight, rateTiming } from "../rateTiming";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 })} L`;
 
@@ -35,8 +38,26 @@ export default function FuelDeliveriesPage() {
   const deliveryModal = useModal();
   const rateModal = useModal();
 
-  const [form, setForm] = useState({ fuel_tank_id: "", invoiced_litres: "", dip_before: "", dip_after: "", unit_cost: "", invoice_number: "", tanker_number: "" });
-  const [rate, setRate] = useState({ product_id: "", new_price: "", reason: "" });
+  const [form, setForm] = useState({ fuel_tank_id: "", supplier_id: "", invoiced_litres: "", dip_before: "", dip_after: "", unit_cost: "", invoice_number: "", tanker_number: "" });
+  const [rate, setRate] = useState({ product_id: "", new_price: "", reason: "", later: false, at: "" });
+
+  /**
+   * WHO THE TANKER CAME FROM.
+   *
+   * The list below has always had a Supplier column and the server has always
+   * taken one — and every row read "—", because this form never asked. Asked
+   * only where the shop keeps a supplier book at all.
+   */
+  const keepsSuppliers = useAuthStore(
+    (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.purchasing ?? false,
+  );
+  const suppliers = useSuppliers({ is_active: true }, { enabled: keepsSuppliers });
+  const supplierOptions = (suppliers.data?.data ?? []).map((x) => ({ value: x.id, label: x.name }));
+
+  // One dip without the other says nothing: the server refuses it, and the
+  // form used to drop both in silence and receive on the invoice.
+  const oneDip = (form.dip_before !== "") !== (form.dip_after !== "");
+  const timing = rateTiming(rate.later, rate.at);
 
   const tankOptions = (tanks.data ?? []).map((t) => ({ value: t.id, label: t.name }));
   // Only what a tank holds can be repriced through the notification log.
@@ -48,6 +69,7 @@ export default function FuelDeliveriesPage() {
     try {
       await m.createDelivery.mutateAsync({
         fuel_tank_id: form.fuel_tank_id,
+        ...(form.supplier_id ? { supplier_id: form.supplier_id } : {}),
         invoiced_litres: Number(form.invoiced_litres),
         ...(form.dip_before && form.dip_after
           ? { dip_before: Number(form.dip_before), dip_after: Number(form.dip_after) }
@@ -57,7 +79,7 @@ export default function FuelDeliveriesPage() {
         ...(form.tanker_number ? { tanker_number: form.tanker_number } : {}),
       });
       toast.success("Delivery recorded");
-      setForm({ fuel_tank_id: "", invoiced_litres: "", dip_before: "", dip_after: "", unit_cost: "", invoice_number: "", tanker_number: "" });
+      setForm({ fuel_tank_id: "", supplier_id: "", invoiced_litres: "", dip_before: "", dip_after: "", unit_cost: "", invoice_number: "", tanker_number: "" });
       deliveryModal.closeModal();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not record the delivery");
@@ -69,10 +91,12 @@ export default function FuelDeliveriesPage() {
       await m.createPrice.mutateAsync({
         product_id: rate.product_id,
         new_price: Number(rate.new_price),
+        ...(timing.effectiveAt ? { effective_at: timing.effectiveAt } : {}),
         ...(rate.reason ? { reason: rate.reason } : {}),
       });
-      toast.success("Rate updated");
-      setRate({ product_id: "", new_price: "", reason: "" });
+      // Said as what happened: a rate that waits has not moved a pump.
+      toast.success(timing.effectiveAt ? "Rate recorded — it reaches the pumps at its hour" : "Rate updated");
+      setRate({ product_id: "", new_price: "", reason: "", later: false, at: "" });
       rateModal.closeModal();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update the rate");
@@ -164,8 +188,13 @@ export default function FuelDeliveriesPage() {
               <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 <div>
                   <span className="text-sm text-gray-800 dark:text-white/90">{c.product?.name ?? "—"}</span>
+                  {isWaiting(c) && (
+                    <span data-testid="rate-waiting" className="ml-2 rounded bg-warning-50 px-1.5 py-0.5 text-theme-xs font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-300">
+                      Not at the pumps yet
+                    </span>
+                  )}
                   <span className="ml-2 text-theme-xs text-gray-400">
-                    {new Date(c.effective_at).toLocaleString()}
+                    {isWaiting(c) ? "from " : ""}{new Date(c.effective_at).toLocaleString()}
                     {c.reason ? ` · ${c.reason}` : ""}
                   </span>
                 </div>
@@ -187,7 +216,7 @@ export default function FuelDeliveriesPage() {
           footer={
             <>
               <Button size="sm" variant="outline" onClick={deliveryModal.closeModal}>Cancel</Button>
-              <Button size="sm" onClick={saveDelivery} disabled={!form.fuel_tank_id || !form.invoiced_litres || m.createDelivery.isPending}>
+              <Button size="sm" onClick={saveDelivery} disabled={!form.fuel_tank_id || !form.invoiced_litres || oneDip || m.createDelivery.isPending}>
                 Record
               </Button>
             </>
@@ -198,6 +227,17 @@ export default function FuelDeliveriesPage() {
               <Label>Into</Label>
               <Select options={tankOptions} placeholder="Pick the tank" value={form.fuel_tank_id} onChange={(v) => setForm((f) => ({ ...f, fuel_tank_id: v }))} />
             </div>
+            {keepsSuppliers && (
+              <div>
+                <Label>From</Label>
+                <Select
+                  aria-label="Who the tanker came from"
+                  options={[{ value: "", label: supplierOptions.length ? "Not said" : "No suppliers on record yet" }, ...supplierOptions]}
+                  value={form.supplier_id}
+                  onChange={(v) => setForm((f) => ({ ...f, supplier_id: v }))}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Invoiced litres</Label>
@@ -218,10 +258,16 @@ export default function FuelDeliveriesPage() {
                 <Input type="number" value={form.dip_after} onChange={(e) => setForm((f) => ({ ...f, dip_after: e.target.value }))} />
               </div>
             </div>
-            <p className="text-theme-xs text-gray-400">
-              The dips are the station's own count. Given both, the delivery is received on what they say
-              arrived — not on the invoice — and the difference is recorded as a shortage.
-            </p>
+            {oneDip ? (
+              <p className="text-theme-xs text-error-500" data-testid="one-dip">
+                One dip says nothing by itself — give the dip before AND after, or neither.
+              </p>
+            ) : (
+              <p className="text-theme-xs text-gray-400">
+                The dips are the station's own count. Given both, the delivery is received on what they say
+                arrived — not on the invoice — and the difference is recorded as a shortage.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Invoice no.</Label>
@@ -243,8 +289,8 @@ export default function FuelDeliveriesPage() {
           footer={
             <>
               <Button size="sm" variant="outline" onClick={rateModal.closeModal}>Cancel</Button>
-              <Button size="sm" onClick={saveRate} disabled={!rate.product_id || !rate.new_price || m.createPrice.isPending}>
-                Apply
+              <Button size="sm" onClick={saveRate} disabled={!rate.product_id || !rate.new_price || timing.problem !== null || m.createPrice.isPending}>
+                {rate.later ? "Record" : "Apply"}
               </Button>
             </>
           }
@@ -257,6 +303,43 @@ export default function FuelDeliveriesPage() {
             <div>
               <Label>New rate</Label>
               <Input type="number" value={rate.new_price} onChange={(e) => setRate((r) => ({ ...r, new_price: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Takes effect</Label>
+              <div className="flex gap-2" role="group" aria-label="When the rate takes effect">
+                {([[false, "Now"], [true, "At a time"]] as const).map(([later, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={rate.later === later}
+                    onClick={() => setRate((r) => ({ ...r, later, at: later && !r.at ? nextMidnight() : r.at }))}
+                    className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+                      rate.later === later
+                        ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                        : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {rate.later && (
+                <div className="mt-2">
+                  <Input
+                    aria-label="When the rate takes effect"
+                    type="datetime-local"
+                    value={rate.at}
+                    onChange={(e) => setRate((r) => ({ ...r, at: e.target.value }))}
+                  />
+                  {timing.problem ? (
+                    <p className="mt-1 text-theme-xs text-error-500">{timing.problem}</p>
+                  ) : (
+                    <p className="mt-1 text-theme-xs text-gray-400">
+                      Recorded now; the pumps keep today's rate until then, and change by themselves.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <Label>Reason</Label>

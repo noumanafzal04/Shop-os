@@ -3502,8 +3502,31 @@ export default function PosPage() {
                                 )}
                                 {lineTax > 0 && <span className="sm:hidden">tax {money(lineTax)}</span>}
                               </div>
-                              {(l.tracks_serial || hasWholesale) && (
+                              {(l.tracks_serial || hasWholesale || isWeight) && (
                                 <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                  {/* "DO HAZAAR KA DAAL DO."
+                                      Selling by money lived only on the
+                                      on-screen keypad's sheet, and that sheet
+                                      opened only when the keypad was switched
+                                      on — a switch that is off by default and
+                                      kept inside the tender sheet. So on an
+                                      ordinary till the commonest request at a
+                                      pump, and at a kiryana's sugar sack,
+                                      could not be rung: the cashier divided
+                                      by the rate in their head. Any line sold
+                                      by weight or volume says it here. */}
+                                  {isWeight && (
+                                    <button type="button"
+                                      aria-label={`Sell ${l.name} by rupees`}
+                                      onClick={() => {
+                                        setPadMode("amount");
+                                        setPadLine({ key: l.key, weight: true });
+                                        setPadQty(l.amountAsked !== undefined ? String(l.amountAsked) : "");
+                                      }}
+                                      className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-300">
+                                      By rupees
+                                    </button>
+                                  )}
                                   {l.tracks_serial && (
                                     <button type="button" onClick={() => { setSerialAsked(false); setSerialKey(l.key); serialModal.openModal(); }}
                                       title={owed(l) > 0 && l.unnumbered_ok ? "Going out without a number — tap to write one" : undefined}
@@ -5122,6 +5145,8 @@ export default function PosPage() {
                 onSubmit={commit}
                 submitLabel={byAmount ? "Set amount" : "Set quantity"}
                 allowDecimal={padLine.weight}
+                // This sheet is all there is on screen: a real keyboard types into it.
+                keyboard
               />
             </>
           );

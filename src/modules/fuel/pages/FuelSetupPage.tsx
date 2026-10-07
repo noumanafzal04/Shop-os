@@ -9,7 +9,7 @@ import { useModal } from "../../../hooks/useModal";
 import { DipChartModal } from "../components/DipChartModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
-import { useProducts } from "../../catalog/hooks/useCatalog";
+import { usePickableProducts } from "../../catalog/hooks/useCatalog";
 import { useCurrentShift, useFuelMutations, useFuelPumps, useFuelTanks } from "../hooks/useFuel";
 import { Link } from "react-router";
 import Alert from "../../../components/ui/alert/Alert";
@@ -28,7 +28,10 @@ export default function FuelSetupPage() {
   const confirm = useConfirm();
   const tanks = useFuelTanks();
   const pumps = useFuelPumps();
-  const products = useProducts({});
+  // EVERY product, not page one. A tank's "Holds" list was the first fifteen
+  // items of the catalogue with no search and no pager — on a station that
+  // also sells lubricants and a tuck shop, its own petrol might not be in it.
+  const products = usePickableProducts(true);
   const m = useFuelMutations();
 
   /**
@@ -107,7 +110,7 @@ export default function FuelSetupPage() {
     }
   };
 
-  const productOptions = (products.data?.data ?? []).map((p) => ({ value: p.id, label: p.name }));
+  const productOptions = (products.data?.rows ?? []).map((p) => ({ value: p.id, label: p.name }));
   const tankOptions = (tanks.data ?? []).map((t) => ({ value: t.id, label: t.name }));
 
   return (
