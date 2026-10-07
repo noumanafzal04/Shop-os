@@ -155,3 +155,53 @@ Findings 34–39, all from one root (the server's "today" is not the shop's):
 | 38 | while there | A quotation past its date had not lapsed; a bill due today was not due and could not be posted; a bill dated today was "in the future" | the same |
 | 39 | the owner's question | A scale's price label read as paisa — Rs 450 rang up as Rs 4.50 | whole rupees by default |
 
+
+## Stage J — the menu deepens, and a bill is shared (2026-10-07)
+
+`JOURNEY_TRADE=food … e2e/journey/21`, continued on the food shop lived
+through stage H on 2026-10-06.
+
+| Stage | Cases | Result |
+|---|---|---|
+| J — sizes, a required choice, extras, a recipe, move, merge, split bill | 10 | 10 passed |
+
+Sizes, required choices, extras, joining, the kitchen's paper, moving and
+merging, part-settling, two tenders on one bill and recipe depletion all did
+what a restaurant needs, to the paisa. Two things a shop would have met:
+
+| # | Found at | What a shop met | Fix |
+|---|---|---|---|
+| 40 | J8, reading the screen before the case was written | **The sheet a bill is split on named a line by the dish alone** — a table with a Half and a Full saw "Karahi" twice, told apart only by price, and every button on either line had the same name | one name for a line wherever it is named: dish, size, and what was chosen with it (`lineName` / `lineSpoken`) |
+| 41 | J7 | The merge sheet read "Choose a tab" over an empty list while the open tabs were still being fetched — on a slow line, "no other table is open" | it says Loading… until the list answers |
+| 42 | harness | J7 read the merge list the instant the sheet opened | waits for the option |
+
+Finding 40 has a re-runnable case of its own in `food.tab-order.spec.ts`
+(desktop, tablet and phone), because a journey's bill is settled once.
+
+Not in the food stages yet: a deal with a sized item at the table, per-size
+recipes, 86-ing a dish mid-service, a tab handed over between waiters.
+
+
+## Stage K — a chemist's own day (2026-10-07)
+
+`JOURNEY_TRADE=pharmacy … e2e/journey/22`, on the pharmacy shop made by the
+breadth run (stages A and B, 2026-10-06).
+
+| Stage | Cases | Result |
+|---|---|---|
+| K — lots, first-to-expire, prescriptions, a controlled drug, an expired lot, a substitute, a recall | 8 | 8 passed |
+
+Lots, FEFO, the prescription record, the controlled-drug fence (both halves
+of it), the expired-stock fence, write-off and recall were right first time.
+
+| # | Found at | What a shop met | Fix |
+|---|---|---|---|
+| 43 | K7 | **"Same salt, in stock" could not be opened by touch** — an out-of-stock medicine's tile was a disabled button, so the sheet built for exactly that moment was reachable only by keyboard | an out-of-stock medicine stays pressable at a chemist; the tile says what the press does |
+| 44 | K7, on the screenshot | A notice about one customer's medicine ("Substituted with…", "℞ needs a prescription") stayed over the next customer's empty cart until somebody pressed ✕ | what is said of a line goes with its sale |
+| 45 | reading the batch list | A lot that expires TODAY was marked EXPIRED from five in the morning | judged by the date on the shop's wall (`isPastDate`) |
+| 46 | harness | K3 looked at the copy of the notice drawn for a phone; K6 looked for a written-off lot under "To claim" | looks at the one a cashier sees; looks under "Written off" |
+| 47 | Help | Help said a bill could be "split evenly". It cannot — it is split by lowering lines, and paid two ways | the Help says what the sheet does |
+
+Next: retail (serials, warranty), auto (vehicles, bay board, trade-in),
+petroleum (meters, dips, a tanker), services, online, finance.
+

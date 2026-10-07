@@ -1,6 +1,8 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 10:40: ALL PUSHED; 3 decisions built (ShopDay, reopen, rupee labels); next = food cases, then pharmacy
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 11:55: ALL PUSHED; ShopDay, reopen, Primary sidebar, journey I+J+K; next = retail, auto, petroleum…
+- [Sidebar Default Primary](shopos-sidebar-default-primary.md) — USER: sidebar default PRIMARY (shop/demo/admin); canvas order Primary·White·Tinted·Dark; one constant
+- [Journey Stages J & K](shopos-journey-stages-j-k.md) — food menu+bill 10/10, chemist 8/8; same-salt sheet was keyboard-only; split sheet named lines by dish
 - [Shop Day](shopos-shop-day.md) — STANDING: day turns at ONE hour (05:00, setting 0–8); moments → ShopDay, box dates → wall date; no today()/whereDate on a moment
 - [Food Journey Stage H](shopos-food-journey-stage-h.md) — 8 restaurant cases green; found Add-item opening as Physical product in food/pharmacy; a journey is lived once
 - [Landing Real Screens](shopos-landing-real-screens.md) — hero = dashboard ONLY, tilted + same screen on phone; POS own section; NOTHING above the fold in a scroll-reveal; check 1366×768

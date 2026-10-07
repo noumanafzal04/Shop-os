@@ -8325,3 +8325,56 @@ Backend 3,161 tests (3,141 passed, 20 skipped), exit 0. Panel 171 files /
 recipes, split bill, move / merge), then pharmacy, retail, auto, petroleum,
 services, online, finance.
 
+
+## The menu deepens, and a bill is shared — the journey's stage J, 2026-10-07
+
+`panel/e2e/journey/21-food-the-menu-and-the-bill.spec.ts`, cases in
+`docs/qa/journey/CASES.md` (Stage J), run in `RUNS.md`. 10 of 10 on the food
+shop lived through stage H: a dish in sizes, a required choice and paid
+extras, a recipe costed from its ingredients, the same order joining its
+line, the kitchen's paper, a party moving table, two tabs merged, a bill
+part-paid and the rest paid two ways, and the recipe taking its stock.
+
+Everything a restaurant's money depends on held, to the paisa. Two faults a
+shop would have met:
+
+| Found by | Fault | Now |
+|---|---|---|
+| J8 | The sheet a bill is split on named a line by the dish alone — a Half and a Full were "Karahi" twice, and every button on either had one name | `lineName` / `lineExtras` / `lineSpoken` in `dinein/tabLines.ts`: dish, size, what was chosen — wherever a line is named |
+| J7 | The merge sheet read "Choose a tab" over an empty list while loading | says Loading… |
+| reading the batch list for the chemist's stage | A lot that expires TODAY was marked EXPIRED from five in the morning (`new Date("2026-10-07") < new Date()`) | `isPastDate` in `common/shopDay.ts` — the wall date, as the till judges it; the quotations list uses it too |
+
+Finding one has a re-runnable browser case in `e2e/food.tab-order.spec.ts`
+at three sizes, because a journey's bill is settled once.
+
+No backend change.
+
+
+## A chemist's own day — the journey's stage K, 2026-10-07
+
+`panel/e2e/journey/22-pharmacy-the-dispensary.spec.ts`, 8 of 8. Decision:
+`shopos-out-of-stock-is-not-a-dead-button`.
+
+| Found by | Fault | Now |
+|---|---|---|
+| K7 | "Same salt, in stock" could only be opened with a keyboard: an out-of-stock tile was a disabled button | `offersEquivalent` — an out-of-stock medicine stays pressable at a chemist |
+| K7 | A line's notice stayed over the next customer's cart | cleared with the sale (`sayOfALine`) |
+| the batch list | A lot expiring today marked EXPIRED from 5 am | `isPastDate` |
+| Help | "split evenly" promised and not built | Help corrected |
+
+## The menu is in the brand colour — 2026-10-07
+
+Decision: `shopos-the-menu-is-in-the-brand-colour`. Sidebar default is
+**Primary** for a shop that never chose, a new demo and the platform console;
+Appearance offers Primary · White · Tinted · Dark in that order.
+`DEFAULT_SIDEBAR` (panel) and `ShopSettings::defaults()` (server) — a guard
+test reads both. No migration; a shop that saved Appearance keeps what it
+saved.
+
+Backend 3,162 tests (3,142 passed, 20 skipped), exit 0. Panel 172 files /
+2,013 tests, `npm run build` exit 0.
+
+**Next for the journey:** retail (serials, warranty), auto, petroleum,
+services, online, finance; and for food — a deal with a sized item at the
+table, per-size recipes, 86 mid-service, a tab handed over.
+

@@ -184,6 +184,43 @@ A takeaway biryani at the counter = 472.50.
 | H7 | Till → Kitchen | A takeaway paid at the counter | 472.50; its kitchen slip prints; its card on the board is headed by the RECEIPT NUMBER; it is not a tab on the floor |
 | H8 | Reports | The books | 2 sales, revenue 1,606.50, tax held 76.50 |
 
+## Stage J — the menu deepens, and a bill is shared (`21-food-the-menu-and-the-bill.spec.ts`, `JOURNEY_TRADE=food`)
+
+Run after stage H on the same shop. Figures worked out in the spec (tax 5%):
+Karahi Half 900 · Full 1,600 · Extra naan +60. The table's tab comes to
+5,300 (2 × Full with naan 3,320 · Half 900 · 2 × biryani 900 · lemonade 180);
+the two bills are 2,215.50 and 3,349.50 = 5,565. A biryani is 0.25 kg rice
+(300/kg) + 0.2 kg chicken (700/kg) = 215 a portion.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| J1 | Products | A dish in two sizes | sizes are typed and Enter adds one WITHOUT creating the dish; each has its own price; the server holds both; the list shows where the price starts |
+| J2 | Products | A required choice (Spice, exactly 1) and paid extras (up to 2) | the group says "required" / "optional" as it is set; saved; still there when the dish is opened again |
+| J3 | Products | Ingredients on the shelf and a recipe | the two raw items are offered as ingredients; the server costs the dish at 215 from theirs; the form says so beside the price |
+| J4 | Tab | Size, answer, extra | the tile says "from Rs 900"; both sizes offered at their prices; it cannot go on the tab until the choice is made; Full + naan = 1,660; a Half is ANOTHER line; the same again JOINS (one line of 2, 3,320); the two lines' buttons have different names; one ticket, and the cook's paper says Full, Half, Hot, Mild, Extra naan and no prices |
+| J5 | Kitchen | The card | two Fulls on one row with hot and the naan; the Half apart, mild; worked off the board |
+| J6 | Tab → Floor | The party moves table | only free tables (and its own) offered; same order, same 5,120, on the new table; the old one Free |
+| J7 | Tab → Floor → Kitchen | Two tables are one party: merge | the other tab is offered; its lemonade arrives still "in the kitchen" (not rung again); 5,300; its table Free; the bar's ticket survives and now names the table he sits at; one open tab in the shop |
+| J8 | Tab | Some of the bill now | the sheet names each line's SIZE and extras; opens on the whole 5,565; one Full + one biryani = 2,110 + 105.50 = 2,215.50 by card; the tab stays open with two lines Paid; the floor shows 3,190 still to pay |
+| J9 | Tab | The rest, two ways | 3,190 + 159.50 = 3,349.50; 2,000 cash + 1,349.50 card on ONE sale as two tenders; the two bills are 5,565 to the paisa; both tables Free |
+| J10 | Inventory | The recipe took its stock | rice down 0.5 kg, chicken 0.4 kg; the biryani on the bill carries a cost of 215; Inventory shows 9.5 |
+
+## Stage K — a chemist's own day (`22-pharmacy-the-dispensary.spec.ts`, `JOURNEY_TRADE=pharmacy`)
+
+Run after stages A and B for a pharmacy. No tax. Panadol 5 a tablet; Amoxil
+20; Xanax 30; Nurofen 12.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| K1 | Products | A medicine is carded | "Add item" opens as a MEDICINE; salt, strength, form; opening stock CANNOT be saved without an expiry; the stock is filed as a lot under the number typed |
+| K2 | Inventory | A second lot, later date | no date, no lot; both listed with what is left; 300 on the shelf; the lot with twenty days left is named at the top of Inventory and is not called expired |
+| K3 | Till | Scanned, first to expire first out | the till names the short-dated lot and its days; 120 sold = 600; lot A is empty and the last twenty came from lot B |
+| K4 | Till → Dispensary | A prescription medicine | no prescription box until something needs one; the cashier is told and asked; Rx number, patient, prescriber and directions are on the sale; the register row has drug, quantity, LOT, patient, prescriber, Rx — and an over-the-counter sale is not in it |
+| K5 | Till → Dispensary | A schedule-controlled drug | giving it a schedule makes it prescription-only; refused with no prescription, in words, nothing sold, stock untouched; refused with a number and no prescriber; sold with both; "Controlled only" lists it and not the Amoxil |
+| K6 | Inventory → Till → Disposals | An expired lot | listed as EXPIRED (the live lot is not); 39 by count, 29 sellable — the 30th is refused with both numbers and the expired lot is untouched; removed from the top of Inventory as written off / expired; on the disposals list with why |
+| K7 | Till | The brand is out | the tile says "Out — tap for same salt" and CAN be pressed; it is not rung; the sheet names what it is instead of, offers the same salt and strength with its stock, and not another salt; the equivalent goes on the bill at ITS price |
+| K8 | Dispensary | A batch is recalled | nothing left to pull; one sale to call, for exactly the hundred that came from that lot; a walk-in with no phone is flagged; the lot behind it shows 180 in stock and the other twenty |
+
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
 Run on the mart shop after stage G. The drawer is counted through the API
