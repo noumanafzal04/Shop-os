@@ -1,16 +1,25 @@
 ---
 name: shopos-day-closed-no-reopen
-description: OPEN decision — a business day closed off cannot be reopened and takes no more shifts that date; with require-shift on, no sales until tomorrow
+description: SHIPPED 2026-10-07 — today's closed day can be opened again (reason, whoever may close it, one trail line); never yesterday's, never once trading moved on
 metadata:
   type: project
 ---
 
-`CloseBusinessDayAction::open()` refuses a shift on a trading date already closed (409 `BUSINESS_DAY_CLOSED`, "Trading on <date> has already been closed off"). There is no reopen route. With `pos_require_shift` on, the till cannot sell again until the next local date.
+Was OPEN (a closed day took no shift and had no way back). The user said to build the best answer; built and pushed.
 
-**Why it came up:** 2026-10-06 the journey run from stage 01 in one sitting — stage 08 closes the day, stage 12 then could not open a shift. The product was right; the "Close off the day" sheet only said the figures freeze.
+**What exists:** `ReopenBusinessDayAction` + `POST /pos/days/{day}/reopen {reason}`; `GET /pos/day` returns `meta.closed_today` (id, date, closed_at/by, branch, sales_total, `can_reopen`) when nothing is trading; panel `ClosedTodayCard` on Day & banking; journey stage I (`e2e/journey/13-…`).
 
-**Done:** the close sheet now says "No shift can be opened again today…" (`data-testid="close-day-consequence"`, DayPage) and Help says close off when the shop is SHUT.
+**The fences (each has a test and a mutation):**
+- only a day dated >= `ShopDay::today()` → `BUSINESS_DAY_TOO_OLD` otherwise;
+- only while no LATER day exists at that branch → `BUSINESS_DAY_MOVED_ON`;
+- `Permissions::SUPERVISES_TILLS` (same as close) — a cashier sees the day named with no button;
+- a reason, min 3.
 
-**Open for the user:** an owner-only "reopen today" (only while nothing is banked against the day; logged to the activity trail). Do not build without asking — frozen day figures are a deliberate rule ([[shopos-which-day-is-open]]).
+**Effects:** status open, frozen totals cleared (summed again at the proper close from ALL shifts), shifts untouched, `reopened_by/at/reason` kept on the row (migration `2026_10_07_000001`), ONE `reopened` audit row with the old sign-off as `old_values` (model auditing suppressed for that update).
 
-**How to apply:** journey stage 12's two close-shift cases `test.skip` when `record().dayClosedOn === today`; a same-day full run is 103/105 by design.
+**How to apply:**
+- The journey no longer skips on a same-day run: stage G's `openShift` opens the day again via `reopenToday()` in `e2e/journey/till.ts`. Same-day full run = 105/105 + stage I.
+- `candidateAnywhere()` exists because a single-branch owner is ALWAYS in the all-branches view (no X-Branch-Id) — the first version offered the way back only to chains.
+- A relation named `reopenedBy` serialises over the `reopened_by` column (same as `closed_by`): assert `data.reopened_by.id`.
+
+Decision: `docs/decisions/shopos-a-day-closed-by-mistake.md`. Related: [[shopos-shop-day]], [[shopos-which-day-is-open]]

@@ -128,3 +128,30 @@ has already settled its bill.
 
 Not in this stage yet, from the list in CASES.md: sizes and modifiers on a
 dish, recipes, splitting a bill, moving and merging tabs.
+
+
+## Stage I — a day closed by mistake (2026-10-07)
+
+`JOURNEY_TRADE=mart … e2e/journey/13`, on the mart shop lived on 2026-10-06.
+
+| Stage | Cases | Result |
+|---|---|---|
+| I — closed at the wrong hour, opened again | 5 | 5 passed |
+| G2 — the three drawer cases, run on a day closed off first | 3 | 3 passed (were 1 run + 2 stood aside) |
+
+Then the stage was broken six ways in the browser — the screen saying "No
+day open yet", the closed day never reaching it, the "opened again" line,
+the way back on the close sheet, the hour the day ends, the till's refusal
+naming the way out — and failed each time.
+
+Findings 34–39, all from one root (the server's "today" is not the shop's):
+
+| # | Found at | What a shop met | Fix |
+|---|---|---|---|
+| 34 | the owner's question | Reports cut the day at 05:00, the till and every "Today" at midnight: at 1 am "Today" on the sales list was empty while the dashboard kept counting | one hour for all of them, 05:00 unless chosen (`ShopDay`) |
+| 35 | reading the till | A shift opened after midnight started a SECOND trading day beside the evening's | it joins the evening's day while that is open |
+| 36 | the owner's question | A day closed by mistake could not be opened again | today's can, with a reason, by whoever may close it |
+| 37 | while there | A medicine that expired yesterday was sellable until 5 am | expiry is judged by the date on the shop's wall |
+| 38 | while there | A quotation past its date had not lapsed; a bill due today was not due and could not be posted; a bill dated today was "in the future" | the same |
+| 39 | the owner's question | A scale's price label read as paisa — Rs 450 rang up as Rs 4.50 | whole rupees by default |
+

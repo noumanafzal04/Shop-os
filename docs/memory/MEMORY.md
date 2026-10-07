@@ -1,6 +1,7 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-06 ~23:50: ALL PUSHED; food journey stage H 16/16; NEXT more food cases, then pharmacy & other trades
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 10:40: ALL PUSHED; 3 decisions built (ShopDay, reopen, rupee labels); next = food cases, then pharmacy
+- [Shop Day](shopos-shop-day.md) — STANDING: day turns at ONE hour (05:00, setting 0–8); moments → ShopDay, box dates → wall date; no today()/whereDate on a moment
 - [Food Journey Stage H](shopos-food-journey-stage-h.md) — 8 restaurant cases green; found Add-item opening as Physical product in food/pharmacy; a journey is lived once
 - [Landing Real Screens](shopos-landing-real-screens.md) — hero = dashboard ONLY, tilted + same screen on phone; POS own section; NOTHING above the fold in a scroll-reveal; check 1366×768
 - [Dashboard, Rail, Theme](shopos-dashboard-rail-theme-oct06.md) — one status line, 4 tiles, filled sales card; rail sections; black line = scroller; theme cached; NO shop card in rail
@@ -10,14 +11,14 @@
 - [Work Screen Rail](shopos-work-screen-rail.md) — floor/tab/kitchen keep an icon rail (not POS); a group on a collapsed rail was a dead button on tablets
 - [Demo Item Types](shopos-demo-item-types.md) — FIXED: every Try-demo shop had item_type = BUSINESS type; food demo had no tables; test only asserted "created"
 - [Which Paper Is Which](shopos-which-paper-is-which.md) — "invoice looks like kitchen receipt" = KOT auto-print; roll: no page margin, 5mm own padding, measured as printed
-- [Day Closed, No Reopen](shopos-day-closed-no-reopen.md) — OPEN: closed day takes no shifts & cannot be reopened; warning added; same-day journey = 103/105
+- [Reopen Today](shopos-day-closed-no-reopen.md) — SHIPPED: today's closed day opens again (reason, closer's permission); journey same-day = 105/105 + stage I
 - [Build Check Is tsc -b](shopos-build-check-is-tsc-b.md) — STANDING: `npm run build` before every panel push; my quick tsc missed 3 errors that broke a deploy
 - [Settings: What Listens](shopos-settings-what-listens.md) — stage G, 30 cases; tips at counter, stale Save, wrong PIN ×2, stations box; hardware truth
-- [Paper Reads The Shop's Clock](shopos-paper-reads-shops-clock.md) — STANDING: ShopTime::show() for printed times; OPEN: report days are UTC (5 AM PKT)
+- [Paper Reads The Shop's Clock](shopos-paper-reads-shops-clock.md) — STANDING: ShopTime::show() for printed times; report days resolved by ShopDay
 - [A Roll Is A Roll](shopos-roll-is-a-roll.md) — `size: 80mm auto` is invalid CSS → A4; PrintPaper + fitRoll; never assert a CSS string
 - [Line Keys](shopos-line-keys.md) — FIXED: after a reload two cart rows shared a key (discount/qty/REMOVE hit both); rekeyed()
 - [Withdrawn Module, No Rules](shopos-withdrawn-module-no-rules.md) — DECIDED: off module's rules don't act; auto = skipped, named = refused; 3 places
-- [Offline Scale Label](shopos-offline-scale-label.md) — FIXED: scale label rang nothing offline; fixtures; OPEN: price label decimals
+- [Offline Scale Label](shopos-offline-scale-label.md) — FIXED: label rang nothing offline; one fixture file; price label = whole rupees
 - [The Journey](shopos-the-journey.md) — UI QA journey: 11 stages, admin→owner→sales→books→volume→admin; how to run; watched cases
 - [Pages Hold Still](shopos-pages-hold-still.md) — STANDING: ->stably() before every paginate(); the obvious paging test cannot fail
 - [ShopOS Business-OS Roadmap](shopos-businessos-roadmap.md) — catalog foundation done; phased plan for POS/Suppliers/Food-menu

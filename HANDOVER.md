@@ -8283,3 +8283,45 @@ Backend: one field added to the kitchen board's row. No migration.
 **Next for the journey:** the rest of the food list (sizes and modifiers,
 recipes, split bill, move / merge), then pharmacy (batches, FEFO, Rx), retail
 (serials, warranty), auto, petroleum, services, online, finance.
+
+
+## One day, a way back, and a label in rupees — 2026-10-07
+
+Three open decisions, settled on the owner's word ("khud se perfect banao").
+Decisions: `shopos-a-shops-day-turns-once`, `shopos-a-day-closed-by-mistake`,
+`shopos-a-price-label-is-rupees`.
+
+| Question | Was | Now |
+|---|---|---|
+| When does a shop's day end? | reports cut it at 05:00 (UTC midnight), the till and every "Today" button at midnight — for five hours a night they were different dates | ONE hour: 05:00 unless the shop chooses another (0–8). `ShopDay` on the server, `common/shopDay.ts` in the panel |
+| A day closed by mistake | no way back; with "Require open shift" on, no sale until tomorrow | today's day can be opened again by whoever may close it, with a reason; one line on the trail |
+| Scale price label | five digits read as paisa: max Rs 999.99 | whole rupees by default; paisa is a setting |
+
+**Found on the way** (same root: the server's "today" is not the shop's):
+
+- a medicine that expired yesterday was sellable until five in the morning;
+- a quotation past its date had not lapsed; rent due today was not due;
+- a bill dated today was refused as "the future" at one in the morning;
+- a shift opened after midnight started a second trading day;
+- one test had failed every night between midnight and five, unseen.
+
+**How the till picks its day** — `BusinessDay::tradingDateAt`: the shop's
+business date, unless that day has been closed off and the calendar has moved
+on (then the new date: a pump that closes at midnight keeps selling).
+
+**Deploy:** backend first — it has ONE migration
+(`2026_10_07_000001_a_day_closed_by_mistake`, three nullable columns) — then
+the panel. No figure any shop has been shown changes: unset, the day is cut
+where it always was.
+
+**Deliberately not moved** (listed in the decision): platform figures,
+commission invoices, rider earnings, retention horizon, entitlement dates,
+warranty days, the nightly expiry notifier.
+
+Backend 3,161 tests (3,141 passed, 20 skipped), exit 0. Panel 171 files /
+1,990 tests, `npm run build` exit 0. Journey stage I: 5 of 5 in a browser.
+
+**Next for the journey:** the rest of the food list (sizes and modifiers,
+recipes, split bill, move / merge), then pharmacy, retail, auto, petroleum,
+services, online, finance.
+

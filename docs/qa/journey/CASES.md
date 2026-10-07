@@ -184,6 +184,23 @@ A takeaway biryani at the counter = 472.50.
 | H7 | Till → Kitchen | A takeaway paid at the counter | 472.50; its kitchen slip prints; its card on the board is headed by the RECEIPT NUMBER; it is not a tab on the floor |
 | H8 | Reports | The books | 2 sales, revenue 1,606.50, tax held 76.50 |
 
+## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
+
+Run on the mart shop after stage G. The drawer is counted through the API
+here — counting is stage C's subject and stage G's; in this stage it is
+plumbing between the two things it is about.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| I1 | Till → Day & banking | A morning's sale, the drawer counted, the day closed off | the day says the hour it runs until; the close sheet says BEFOREHAND there is a way back; afterwards the screen names the closed day — not "No day open yet" — and offers Open today again |
+| I2 | Till | A shift on the closed day | refused, and the refusal says a manager can open the day again from Day & banking; no shift opens |
+| I3 | Day & banking → Till | Opened again | nothing without a reason, and two letters is not one; the SAME day is open and says it was closed and opened again, with the reason; a second shift sells in it |
+| I4 | Activity | The trail | one line: Trading day · opened again · the reason |
+| I5 | Day & banking | Closed off properly | the day is both shifts and both sales; that it was opened again stays on it |
+
+Stage G's two drawer cases no longer stand aside on the day stage C closes
+the shop: the day is opened again, as a shop would.
+
 ## Results
 
 Recorded per run in `docs/qa/journey/RUNS.md`: date, type, cases passed,

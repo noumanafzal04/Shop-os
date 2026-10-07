@@ -1,6 +1,6 @@
 ---
 name: shopos-paper-reads-shops-clock
-description: STANDING — printed times go through ShopTime::show(); app zone is UTC; OPEN decision: reports/ledger days are UTC days (5 AM PKT)
+description: STANDING — printed times go through ShopTime::show(); app zone is UTC; report days RESOLVED 2026-10-07 by ShopDay
 metadata:
   type: feedback
 ---
@@ -11,7 +11,7 @@ metadata:
 
 **How to apply:**
 - New printed/emailed/SMS text with a time → ShopTime. Test with FIXED moments (`Carbon::setTestNow`), never "now" — it passes 19 hours a day.
-- **OPEN, not fixed:** `ReportService::resolvePeriod` uses `CarbonImmutable::today()` and `startOfDay()` in UTC, the ledger groups by `DATE(sold_at)` in UTC → a shop's "day" is 05:00–05:00 PKT. Receipts now say local date, books say UTC date for 00:00–05:00 sales. Needs the user's decision (recommend explicit shop-local day boundary). Do not change silently — thousands of tests assume UTC days.
+- **Report days — RESOLVED 2026-10-07:** one rule, `ShopDay` ([[shopos-shop-day]]). Default still cuts at UTC midnight (= 05:00 PKT) so no figure moved; a shop may choose 0–8.
 - Same paper: kitchen ticket read `$tenant->name` (null; column is `business_name`) — see [[shopos-silent-nulls]]. `Customer::UNNAMED` / `knownName()` is the one rule for the phone-only placeholder.
 
 Related: [[shopos-today-in-utc]], [[shopos-first-of-the-month]]
