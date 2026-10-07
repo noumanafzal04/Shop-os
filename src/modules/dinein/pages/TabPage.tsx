@@ -20,7 +20,7 @@ import { sizesOf, whyNotSellable } from "../../pos/availability";
 import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables, useTabLines } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
-import { QUICK_NOTES, isLive, piles, portions, totalOf, unsentByDish } from "../tabLines";
+import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "../tabLines";
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 
@@ -291,7 +291,7 @@ export default function TabPage() {
   };
 
   const onVoid = async (item: TicketItem) => {
-    const ok = await confirm({ title: "Void this item?", message: item.product_name, confirmLabel: "Void", tone: "danger" });
+    const ok = await confirm({ title: "Void this item?", message: lineSpoken(item), confirmLabel: "Void", tone: "danger" });
     if (!ok || !id) return;
     voidItem.mutate({ id, itemId: item.id }, { onError: () => toast.error("Couldn't void the item.") });
   };
@@ -470,7 +470,7 @@ export default function TabPage() {
           <button
             type="button"
             onClick={() => onVoid(i)}
-            aria-label={`Void ${i.product_name}`}
+            aria-label={`Void ${lineSpoken(i)}`}
             className="inline-flex min-h-8 items-center rounded-lg px-2 text-theme-xs font-semibold text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
           >
             Void
@@ -732,7 +732,7 @@ export default function TabPage() {
                                 <button
                                   type="button"
                                   onClick={() => stepLine(i, -1)}
-                                  aria-label={Number(i.quantity) <= 1 ? `Remove ${i.product_name}` : `One fewer ${i.product_name}`}
+                                  aria-label={Number(i.quantity) <= 1 ? `Remove ${lineSpoken(i)}` : `One fewer ${lineSpoken(i)}`}
                                   className={`${STEP} ${
                                     Number(i.quantity) <= 1
                                       ? "bg-error-50 text-error-600 hover:bg-error-100 dark:bg-error-500/15 dark:text-error-400"
@@ -741,13 +741,13 @@ export default function TabPage() {
                                 >
                                   {Number(i.quantity) <= 1 ? "×" : "−"}
                                 </button>
-                                <span className="min-w-8 text-center text-lg font-bold tabular-nums text-gray-900 dark:text-white" aria-label={`${Number(i.quantity)} of ${i.product_name}`}>
+                                <span className="min-w-8 text-center text-lg font-bold tabular-nums text-gray-900 dark:text-white" aria-label={`${Number(i.quantity)} of ${lineSpoken(i)}`}>
                                   {Number(i.quantity)}
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => stepLine(i, 1)}
-                                  aria-label={`One more ${i.product_name}`}
+                                  aria-label={`One more ${lineSpoken(i)}`}
                                   className={`${STEP} bg-brand-500 text-white hover:bg-brand-600`}
                                 >
                                   +
@@ -1073,7 +1073,11 @@ export default function TabPage() {
         <Select
           value={mergeSource}
           options={[
-            { value: "", label: "— Choose a tab —" },
+            // The list is fetched when this sheet opens. Until it answers the
+            // box says so — it used to read "Choose a tab" over a list with
+            // nothing in it, which on a slow line looks like no other table
+            // is open.
+            { value: "", label: openTabs.isPending ? "Loading…" : "— Choose a tab —" },
             // Only tabs you may work. Folding another waiter's table into
             // yours moves their takings onto your name, so the server refuses
             // it — offering it here would only produce a refusal.
@@ -1111,7 +1115,10 @@ export default function TabPage() {
             return (
               <div key={i.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 dark:border-gray-800">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-theme-sm text-gray-700 dark:text-gray-200">{i.product_name}</p>
+                  {/* WHICH ONE. A table with a Half and a Full is deciding
+                      who pays for which; "Karahi" twice does not help. */}
+                  <p className="truncate text-theme-sm text-gray-700 dark:text-gray-200">{lineName(i)}</p>
+                  {lineExtras(i) !== "" && <p className="truncate text-theme-xs text-gray-500 dark:text-gray-400">{lineExtras(i)}</p>}
                   <p className="text-theme-xs text-gray-400">{lineQty}× · {money(i.line_total)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
@@ -1120,7 +1127,7 @@ export default function TabPage() {
                     onClick={() => setQ(q - 1)}
                     disabled={q <= 0}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-                    aria-label={`Settle less ${i.product_name}`}
+                    aria-label={`Settle less ${lineSpoken(i)}`}
                   >−</button>
                   <span className="w-7 text-center text-theme-sm tabular-nums text-gray-800 dark:text-white/90">{q}</span>
                   <button
@@ -1128,7 +1135,7 @@ export default function TabPage() {
                     onClick={() => setQ(q + 1)}
                     disabled={q >= lineQty}
                     className="flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-                    aria-label={`Settle more ${i.product_name}`}
+                    aria-label={`Settle more ${lineSpoken(i)}`}
                   >+</button>
                 </div>
               </div>

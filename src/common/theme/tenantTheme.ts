@@ -181,6 +181,35 @@ export function contrastInk(hex: string): string {
 export type TintLevel = "none" | "subtle" | "strong";
 export type SidebarStyle = "light" | "tinted" | "primary" | "dark";
 
+/**
+ * THE MENU'S COLOUR WHEN NOBODY HAS CHOSEN ONE.
+ *
+ * The shop's own colour, edge to edge. It is the default in every place a
+ * default is needed — a shop that has never opened Appearance, a demo made a
+ * minute ago, and the platform console, which has no Appearance to open — so
+ * the product looks like one product before anybody has touched it. White is
+ * a choice a shop can make; it stopped being what a shop gets by not choosing.
+ *
+ * One constant, because "what the sidebar is by default" was written in five
+ * files, and the server (ShopSettings::defaults) is a sixth.
+ */
+export const DEFAULT_SIDEBAR: SidebarStyle = "primary";
+
+/**
+ * The sidebar styles, in the order the Appearance canvas offers them.
+ *
+ * The default FIRST — a default that sits third in its own list reads as an
+ * option somebody has to go looking for. White second: the one a shop that
+ * wants no colour on its menu will pick.
+ */
+export const SIDEBAR_CHOICES: ReadonlyArray<{ value: SidebarStyle; label: string }> = [
+  // The shop's own colour, edge to edge, white writing on it.
+  { value: "primary", label: "Primary" },
+  { value: "light", label: "White" },
+  { value: "tinted", label: "Tinted" },
+  { value: "dark", label: "Dark" },
+];
+
 /** WCAG relative luminance of a #rrggbb colour. */
 function luminance(hex: string): number {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
@@ -238,7 +267,7 @@ const TINT_STRENGTH: Record<TintLevel, number> = {
 export function applyTenantTheme(options: TenantThemeOptions = {}): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const { primary, secondary, tint = "subtle", sidebar = "light" } = options;
+  const { primary, secondary, tint = "subtle", sidebar = DEFAULT_SIDEBAR } = options;
 
   // The sidebar rail reads this in AppSidebar; kept on the root so it survives
   // navigation and applies before the sidebar mounts (no flash of the wrong

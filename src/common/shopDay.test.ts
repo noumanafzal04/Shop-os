@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  setShopDayRule, shopDateOf, shopToday, shopTodayDate, shopWallToday, turnsAtLabel,
+  isPastDate, setShopDayRule, shopDateOf, shopToday, shopTodayDate, shopWallToday, turnsAtLabel,
   turnHourChoices, usualTurnMinutes, zoneOffsetMinutes,
 } from "./shopDay";
 
@@ -160,5 +160,40 @@ describe("the hours a shop may choose", () => {
 
     expect(choices.map((c) => c.value)).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8"]);
     expect(choices.map((c) => c.label)).toEqual(["Midnight", "1 am", "2 am", "3 am", "4 am", "5 am", "6 am", "7 am", "8 am"]);
+  });
+});
+
+describe("a date on a box", () => {
+  const rule = { zone: "Asia/Karachi", turnsAtMinutes: 300 };
+
+  it("is good through its own day, to the last minute of it", () => {
+    setShopDayRule(rule);
+
+    // Expires on the 7th. At six in the morning on the 7th it is NOT expired —
+    // the old check, `new Date("2026-10-07") < new Date()`, said it was.
+    expect(isPastDate("2026-10-07", karachi("2026-10-07T06:00:00"))).toBe(false);
+    expect(isPastDate("2026-10-07", karachi("2026-10-07T23:59:00"))).toBe(false);
+  });
+
+  it("is past from midnight on the shop's wall, not from the hour its books turn", () => {
+    setShopDayRule(rule);
+
+    // Half past midnight on the 8th: the shop's BUSINESS day is still the
+    // 7th, and the strip is expired all the same — by the calendar.
+    expect(isPastDate("2026-10-07", karachi("2026-10-08T00:30:00"))).toBe(true);
+    expect(isPastDate("2026-10-06", karachi("2026-10-07T06:00:00"))).toBe(true);
+  });
+
+  it("reads the date out of a timestamp the server sent for a date", () => {
+    setShopDayRule(rule);
+
+    expect(isPastDate("2026-10-07T00:00:00.000000Z", karachi("2026-10-07T12:00:00"))).toBe(false);
+    expect(isPastDate("2026-10-06T00:00:00.000000Z", karachi("2026-10-07T12:00:00"))).toBe(true);
+  });
+
+  it("is never past when there is no date", () => {
+    expect(isPastDate(null)).toBe(false);
+    expect(isPastDate(undefined)).toBe(false);
+    expect(isPastDate("")).toBe(false);
   });
 });

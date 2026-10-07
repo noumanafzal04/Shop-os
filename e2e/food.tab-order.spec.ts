@@ -150,3 +150,72 @@ test("three taps are one line of three, and the kitchen reads what was sent", as
   await expect(sat).toContainText("210");
   await expect(sat).toContainText("4 guests");
 });
+
+/**
+ * A HALF AND A FULL ARE TWO THINGS — wherever a line is named.
+ *
+ * The order pane wrote "Karahi (Full)". The sheet a bill is SPLIT on wrote
+ * "Karahi", twice, and every button on either line was named by the dish
+ * alone. A table deciding who pays for which was shown two rows it could only
+ * tell apart by price. Found by the restaurant's journey (stage J).
+ */
+const SIZED = "E2E Tab Karahi";
+
+async function theSizedDish(request: APIRequestContext): Promise<void> {
+  const auth = foodAuth();
+  const found = await request.get(`${API}/products?search=${encodeURIComponent(SIZED)}&per_page=10`, { headers: auth });
+  if (((await found.json()) as { data: Array<{ name: string }> }).data.some((p) => p.name === SIZED)) return;
+
+  const made = await request.post(`${API}/products`, {
+    headers: auth,
+    data: {
+      item_type: "food_item", name: SIZED, description: "A fixture for a dish that comes in sizes.", price: 800, is_active: true,
+      variants: [{ name: "Half", price: 800 }, { name: "Full", price: 1400 }],
+    },
+  });
+  expect(made.ok(), `could not make the sized fixture dish: ${made.status()} ${await made.text()}`).toBeTruthy();
+}
+
+test("a Half and a Full are told apart on the tab and on the sheet the bill is split on", async ({ page, request }) => {
+  await theSizedDish(request);
+  const table = await aFreeTable(request);
+
+  await page.goto("/tenant/dine-in");
+  await page.getByRole("button", { name: new RegExp(`^${table}\\b`) }).click();
+  const seat = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: `Open tab — ${table}` }) });
+  await seat.getByRole("group", { name: "Party size" }).getByRole("button", { name: "2", exact: true }).click();
+  await seat.getByRole("button", { name: "Open tab" }).click();
+  await expect(page).toHaveURL(/\/tenant\/dine-in\/tickets\//, { timeout: 20_000 });
+  toClear = page.url().split("/").pop() ?? null;
+
+  await page.getByLabel("Search menu").fill(SIZED);
+  const tile = page.getByRole("button").filter({ hasText: SIZED }).first();
+  await expect(tile).toBeVisible({ timeout: 20_000 });
+  for (const size of ["Half", "Full"]) {
+    await lookAt(page, "Menu");
+    await tile.click();
+    await page.getByRole("dialog").filter({ has: page.getByText("Which size?") }).locator(`[data-tab-size="${size}"]`).click();
+  }
+
+  // Two lines, and each control on them says WHICH.
+  await lookAt(page, "Order");
+  const unsent = page.getByRole("region", { name: "Not sent yet" });
+  await expect(unsent.getByRole("listitem")).toHaveCount(2, { timeout: 15_000 });
+  await expect(unsent.getByRole("button", { name: `One more ${SIZED} (Half)`, exact: true })).toHaveCount(1);
+  await expect(unsent.getByRole("button", { name: `One more ${SIZED} (Full)`, exact: true })).toHaveCount(1);
+  await expect(unsent.getByLabel(`1 of ${SIZED} (Half)`, { exact: true })).toBeVisible();
+
+  // The sheet the bill is split on names the size on each row…
+  await page.getByRole("button", { name: "Settle", exact: true }).click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Settle tab" }) });
+  await expect(sheet.getByText(`${SIZED} (Half)`, { exact: true })).toBeVisible();
+  await expect(sheet.getByText(`${SIZED} (Full)`, { exact: true })).toBeVisible();
+  // …and taking the Half off the bill is a button that says so, and does that.
+  await sheet.getByRole("button", { name: `Settle less ${SIZED} (Half)`, exact: true }).click();
+  await expect(sheet.getByText("1 item(s)")).toBeVisible();
+  await expect(sheet.getByRole("button", { name: `Settle less ${SIZED} (Half)`, exact: true })).toBeDisabled();
+  await expect(sheet.getByRole("button", { name: `Settle less ${SIZED} (Full)`, exact: true })).toBeEnabled();
+  // 1,400 is what is being paid for — the Full, not the Half.
+  await expect(sheet.getByText("1 item(s)").locator("xpath=following-sibling::span[1]")).toContainText("1,400");
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+});

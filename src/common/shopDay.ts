@@ -131,6 +131,24 @@ export function shopWallToday(now: Date = new Date()): string {
 }
 
 /**
+ * Has a date printed on something GONE BY — an expiry, a "valid until"?
+ *
+ * Good THROUGH the date, and past it from the next morning on the shop's
+ * wall: the server's rule (`ShopDay::calendarToday`), so a badge here cannot
+ * say "expired" about a lot the till will still sell, or the other way round.
+ *
+ * Written because the batch list asked `new Date(expiry) < new Date()`. A
+ * bare date parses as midnight UTC — five in the morning in Karachi — so a
+ * strip that expires TODAY was marked EXPIRED from five o'clock on its last
+ * good day.
+ */
+export function isPastDate(date: string | null | undefined, now: Date = new Date()): boolean {
+  if (!date) return false;
+
+  return date.slice(0, 10) < shopWallToday(now);
+}
+
+/**
  * `shopToday()` as a Date whose LOCAL parts are that date.
  *
  * For range arithmetic ("last 7 days", "this month"), which is done on local

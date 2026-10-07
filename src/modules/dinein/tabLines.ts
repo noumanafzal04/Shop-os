@@ -105,3 +105,32 @@ export const totalOf = (items: TicketItem[]): number =>
  * Offered beside the box, never instead of it: an allergy is typed.
  */
 export const QUICK_NOTES = ["No chilli", "Less spicy", "Extra spicy", "No onion", "Well done", "No ice", "Packed"];
+
+// ── what a line is called ────────────────────────────────────────────
+
+/**
+ * THE DISH, ITS SIZE — the name of a line wherever a line is named.
+ *
+ * The order pane wrote "Karahi (Full)". The sheet the bill is SPLIT on wrote
+ * "Karahi" — so a table that ordered a Half and a Full was shown two rows
+ * reading the same thing, told apart only by their prices, at the one moment
+ * somebody is deciding who pays for which. And every button on a line was
+ * named by the dish alone: "One more Karahi", twice.
+ */
+export const lineName = (i: Pick<TicketItem, "product_name" | "variant_name">): string =>
+  i.variant_name ? `${i.product_name} (${i.variant_name})` : i.product_name;
+
+/** What was chosen with it — "Hot · Extra naan" — or nothing. */
+export const lineExtras = (i: Pick<TicketItem, "modifiers">): string =>
+  (i.modifiers ?? []).map((m) => m.name).join(" · ");
+
+/**
+ * A line, said in full, for the NAME of a control on it.
+ *
+ * Two lines of one dish are two different things to press, and a name that
+ * cannot tell them apart is the same button twice to anybody not looking at
+ * the screen. A plain dish reads exactly as it always did.
+ */
+export const lineSpoken = (i: Pick<TicketItem, "product_name" | "variant_name" | "modifiers">): string =>
+  [lineName(i), lineExtras(i)].filter((part) => part !== "").join(", ");
+

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinable, piles, portions, totalOf, unsentByDish } from "./tabLines";
+import { joinable, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "./tabLines";
 import type { TicketItem } from "./services/dineInService";
 
 let n = 0;
@@ -98,3 +98,34 @@ describe("what a menu tile and the footer say", () => {
     expect(totalOf(tab.slice(0, 2))).toBe(700.3);
   });
 });
+
+describe("what a line is called", () => {
+  const karahi = { product_name: "Chicken Karahi", variant_name: "Full", modifiers: [{ name: "Hot" }, { name: "Extra naan", price: 60 }] };
+  const half = { product_name: "Chicken Karahi", variant_name: "Half", modifiers: [{ name: "Mild" }] };
+  const biryani = { product_name: "Chicken Biryani", variant_name: null, modifiers: null };
+
+  it("names the size, because a Half and a Full are not one thing", () => {
+    expect(lineName(karahi)).toBe("Chicken Karahi (Full)");
+    expect(lineName(half)).toBe("Chicken Karahi (Half)");
+    expect(lineName(biryani)).toBe("Chicken Biryani");
+  });
+
+  it("says what was chosen with it, in the order it was chosen", () => {
+    expect(lineExtras(karahi)).toBe("Hot · Extra naan");
+    expect(lineExtras(biryani)).toBe("");
+    expect(lineExtras({ modifiers: [] })).toBe("");
+  });
+
+  it("gives two lines of one dish two different names to press", () => {
+    expect(lineSpoken(karahi)).toBe("Chicken Karahi (Full), Hot · Extra naan");
+    expect(lineSpoken(half)).toBe("Chicken Karahi (Half), Mild");
+    expect(lineSpoken(karahi)).not.toBe(lineSpoken(half));
+    // The same size with different extras is a different line too.
+    expect(lineSpoken({ ...karahi, modifiers: [{ name: "Mild" }] })).not.toBe(lineSpoken(karahi));
+  });
+
+  it("leaves a plain dish exactly as it always read", () => {
+    expect(lineSpoken(biryani)).toBe("Chicken Biryani");
+  });
+});
+

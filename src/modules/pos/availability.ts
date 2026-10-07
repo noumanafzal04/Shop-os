@@ -125,3 +125,31 @@ export function whyNotSellable(
 
   return null;
 }
+
+/**
+ * OUT OF STOCK, AND STILL WORTH PRESSING.
+ *
+ * At a chemist an out-of-stock brand is rarely the end of the sale: the
+ * customer needs the SALT, and something else on the shelf usually has it.
+ * The till has had a sheet for exactly that — "Same salt, in stock" — since
+ * the pharmacy work, opened from the same place a product is rung.
+ *
+ * And nobody could reach it. An out-of-stock tile is a DISABLED button, so
+ * the tap that was meant to open the sheet never arrived; the only way in
+ * was to arrow down to the product and press Enter on a keyboard. On a
+ * tablet — where a chemist's till actually is — the feature did not exist.
+ *
+ * So for the items the sheet can answer about, "out" is not "dead": the tile
+ * stays pressable, says what pressing it does, and still cannot be rung.
+ *
+ *   a medicine, in a chemist's that keeps stock   → pressable
+ *   86'd by hand                                   → not: somebody decided
+ *   anything that is not a medicine                → not: there is no salt to match
+ */
+export function offersEquivalent(
+  p: { sold_out?: boolean | null; item_type?: string | null },
+  shop: { pharmacy: boolean; inventory: boolean },
+): boolean {
+  return shop.pharmacy && shop.inventory && p.sold_out !== true && p.item_type === "medicine";
+}
+

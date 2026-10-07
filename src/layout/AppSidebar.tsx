@@ -39,6 +39,7 @@ import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { useAdminInbox } from "../modules/admin/hooks/useAdmin";
 import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
 import { boardWords, hasJobBoard } from "../modules/workshop/words";
+import { DEFAULT_SIDEBAR } from "../common/theme/tenantTheme";
 
 type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
 
@@ -619,11 +620,13 @@ const AppSidebar: React.FC = () => {
   // rather than the settings query — means the rail repaints live as the
   // merchant tries options, and still shows the stored choice on a cold load.
   const [sidebarStyle, setSidebarStyle] = useState<string>(
-    () => (typeof document !== "undefined" ? document.documentElement.dataset.sidebar : undefined) ?? "light",
+    // No attribute yet means nobody has been asked — the platform console,
+    // which has no Appearance at all, is always here. That is the default.
+    () => (typeof document !== "undefined" ? document.documentElement.dataset.sidebar : undefined) ?? DEFAULT_SIDEBAR,
   );
   useEffect(() => {
     const el = document.documentElement;
-    const sync = () => setSidebarStyle(el.dataset.sidebar ?? "light");
+    const sync = () => setSidebarStyle(el.dataset.sidebar ?? DEFAULT_SIDEBAR);
     sync();
     const observer = new MutationObserver(sync);
     observer.observe(el, { attributes: true, attributeFilter: ["data-sidebar"] });

@@ -43,7 +43,7 @@ import { deniedReason } from "../../../common/api/denied";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
-import { catalogSizeStock, sizesOf, whyNotSellable as sellableRule } from "../availability";
+import { catalogSizeStock, offersEquivalent, sizesOf, whyNotSellable as sellableRule } from "../availability";
 import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
 // The till prints the kitchen's slip through the same call the dine-in tab's
 // Fire button uses — one renderer, so a counter docket and a floor docket
@@ -760,6 +760,22 @@ export default function PosPage() {
   const [rxPatient, setRxPatient] = useState("");
   // Soft cashier warning (Rx / near-expiry) — never blocks the sale.
   const [posNotice, setPosNotice] = useState<string | null>(null);
+  /**
+   * A notice that is ABOUT A LINE on this bill — "℞ needs a prescription",
+   * "batch LOT-A expires in 20 days", "Substituted with Nurofen".
+   *
+   * The strip is shared with things that are not about the bill at all (the
+   * receipt did not print, the drawer is not wired), and none of it was ever
+   * taken down except by the ✕. So a warning about one customer's medicine
+   * sat over the next customer's empty cart for as long as nobody dismissed
+   * it. What was said of a line goes when the sale it was on goes; what was
+   * said about the till stays until somebody has read it.
+   */
+  const lineNotice = useRef<string | null>(null);
+  const sayOfALine = (message: string | null) => {
+    lineNotice.current = message;
+    setPosNotice(message);
+  };
   // Pharmacy: the drug whose equivalents the counter is looking at.
   const [substituteFor, setSubstituteFor] = useState<string | null>(null);
   // The last print attempt, so the receipt modal can ask "did it come out?"
@@ -1223,6 +1239,16 @@ export default function PosPage() {
     setBankId(null); setCardLast4(""); setCardType(null); setBankDiscount(0);
     setRxNumber(""); setRxPrescriber(""); setRxPatient("");
     setCustomerPoints(null); setRedeemPts(""); setPromo(null);
+    // What was said of a line on THIS bill goes with the bill. Anything else
+    // on the strip — a receipt that did not print — is left for whoever has
+    // to act on it.
+    //
+    // Read into a local FIRST. The updater below runs when React gets round
+    // to it, and by then the ref on the next line has been emptied — the
+    // first version compared the notice with `null` and cleared nothing.
+    const said = lineNotice.current;
+    lineNotice.current = null;
+    setPosNotice((showing) => (showing !== null && showing === said ? null : showing));
   };
 
   /**
@@ -1579,7 +1605,7 @@ export default function PosPage() {
   const addLine = (p: CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] }, variantId: string | null = null, variantName?: string, variantPrice?: string | number, qtyOverride?: number, unitId?: string | null) => {
     // Rx warning when an item is tapped from the grid/list (scan handles its own).
     if ("requires_prescription" in p && p.requires_prescription) {
-      setPosNotice(`℞ ${p.name} requires a prescription`);
+      sayOfALine(`℞ ${p.name} requires a prescription`);
     }
     const basePrice = sellingPrice(p);
     const packs = variantId == null && "units" in p ? p.units : undefined;
@@ -1722,7 +1748,7 @@ export default function PosPage() {
       // line is the first half of that. It names the lot the customer will
       // actually be handed, because depletion gives out the oldest lot first.
       if (data.aged) notices.push(`${data.product.name}: lot ${data.aged.batch_number} is ${data.aged.age} ${data.aged.status === "old" ? "— past what you call old" : "old"}`);
-      setPosNotice(notices.length ? notices.join(" · ") : null);
+      sayOfALine(notices.length ? notices.join(" · ") : null);
       setSearch("");
       posSound.success();
     } catch (e) {
@@ -1753,6 +1779,15 @@ export default function PosPage() {
   // Add a product from the results — opens the modifier config if it has
   // choices, blocks out-of-stock, then clears the box so the next scan/search
   // starts fresh (focus never leaves the input, so the cashier keeps typing).
+  /**
+   * Out of stock, but the tap still does something: at a chemist it asks
+   * what else has the same salt. See `offersEquivalent` — the tiles and rows
+   * below are DISABLED when out, which is why this sheet was unreachable by
+   * touch until they asked the same question.
+   */
+  const asksForEquivalent = (p: Pick<CatalogProduct, "sold_out"> & { item_type?: string | null }): boolean =>
+    offersEquivalent(p, { pharmacy: isPharmacy, inventory: has("inventory") });
+
   const commitProduct = (p: CatalogProduct) => {
     // Eighty-sixed beats every other reason. A dish that tracks no stock can
     // never be "out" by quantity — that is deliberate, because food is made to
@@ -1761,7 +1796,7 @@ export default function PosPage() {
     // so the waiter finds out before the customer does.
     if (p.sold_out) {
       posSound.error();
-      setPosNotice(`${p.name} is sold out.`);
+      sayOfALine(`${p.name} is sold out.`);
       setSearch("");
 
       return;
@@ -1776,11 +1811,11 @@ export default function PosPage() {
       // The equivalents lookup is the Inventory module's (it reads stock by
       // salt). A chemist without it gets the plain message, not a sheet that
       // is refused the moment it opens.
-      if (isPharmacy && has("inventory")) {
+      if (asksForEquivalent(p)) {
         setSubstituteFor(p.id);
-        setPosNotice(`${p.name} is out of stock — checking for an equivalent`);
+        sayOfALine(`${p.name} is out of stock — checking for an equivalent`);
       } else {
-        setPosNotice(`${p.name} is out of stock`);
+        sayOfALine(`${p.name} is out of stock`);
       }
       return;
     }
@@ -2281,7 +2316,7 @@ export default function PosPage() {
             .then((full) => {
               if (full && sizesOf(full).length > 0) {
                 setSizeFor(full);
-                setPosNotice(`${alt.name} — which strength?`);
+                sayOfALine(`${alt.name} — which strength?`);
 
                 return;
               }
@@ -2290,7 +2325,9 @@ export default function PosPage() {
               // its tax rate among them — so a substituted medicine was
               // taxed at the shop default whatever it was really on.
               addLine(full ?? { id: alt.id, name: alt.name, price: alt.price });
-              setPosNotice(`Substituted with ${alt.name}`);
+              sayOfALine(`Substituted with ${alt.name}`);
+              // The search that found the brand that was out has done its job.
+              setSearch("");
               posSound.success();
             });
         }}
@@ -2880,7 +2917,10 @@ export default function PosPage() {
                          gained a sized product. */
                       data-pos-sized={sizes.length > 0 ? "1" : undefined}
                       ref={i === activeIndex ? activeRef : null}
-                      disabled={out}
+                      /* Out, but not dead, where the tap can offer the same
+                         salt. It still cannot be rung — commitProduct refuses
+                         it and opens the sheet instead. */
+                      disabled={out && !asksForEquivalent(p)}
                       onClick={() => commitProduct(p)}
                       /* The tile has to look like an object, not a tint.
                        *
@@ -2961,7 +3001,7 @@ export default function PosPage() {
                                 "Sold out" is the kitchen saying not tonight.
                                 Showing one for the other sends the wrong
                                 person to the wrong screen. */}
-                            {p.sold_out ? "Sold out" : "Out of stock"}
+                            {p.sold_out ? "Sold out" : asksForEquivalent(p) ? "Out — tap for same salt" : "Out of stock"}
                           </span>
                         )}
                         {sale && <span className="absolute left-1.5 top-1.5 rounded bg-error-500 px-1.5 py-0.5 text-[10px] font-bold text-white">SALE</span>}
@@ -2981,7 +3021,7 @@ export default function PosPage() {
                           <span className="mb-0.5 flex flex-wrap items-center gap-1">
                             {out && (
                               <span className="rounded bg-gray-800 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-gray-700">
-                                {p.sold_out ? "Sold out" : "Out of stock"}
+                                {p.sold_out ? "Sold out" : asksForEquivalent(p) ? "Out — tap for same salt" : "Out of stock"}
                               </span>
                             )}
                             {sale && <span className="rounded bg-error-500 px-1.5 py-0.5 text-[10px] font-bold text-white">SALE</span>}
@@ -3044,7 +3084,8 @@ export default function PosPage() {
                       // Same marker as the tile — see the note there.
                       data-pos-sized={sizesOf(p).length > 0 ? "1" : undefined}
                       ref={active ? activeRef : null}
-                      disabled={out}
+                      // Same rule as the tile: out, but the tap can ask for the same salt.
+                      disabled={out && !asksForEquivalent(p)}
                       onClick={() => commitProduct(p)}
                       className={`group relative flex w-full items-center gap-3 px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${active ? "bg-brand-50 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-brand-500 dark:bg-pos-plate-active" : "hover:bg-gray-50 dark:hover:bg-white/[0.04]"}`}
                     >
@@ -3079,7 +3120,7 @@ export default function PosPage() {
                             <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
                           </svg>
                         )}
-                        {out ? (p.sold_out ? "86" : "Out") : "Add"}
+                        {out ? (p.sold_out ? "86" : asksForEquivalent(p) ? "Same salt?" : "Out") : "Add"}
                       </span>
                     </button>
                   );

@@ -25,6 +25,7 @@ import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { formatQuantity, formatQuantityWithUnit } from "../../../common/format/quantity";
+import { isPastDate } from "../../../common/shopDay";
 
 
 type AdjustType = "in" | "out" | "set";
@@ -711,7 +712,8 @@ export default function InventoryPage() {
           ) : (
             <div className="max-h-48 space-y-1 overflow-y-auto">
               {(batches.data ?? []).map((b) => {
-                const expired = b.expiry_date !== null && new Date(b.expiry_date) < new Date();
+                // By the date on the shop's wall, as the till judges it — see isPastDate.
+                const expired = isPastDate(b.expiry_date);
                 return (
                   <div key={b.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 text-theme-sm dark:border-gray-800">
                     <span className="text-gray-700 dark:text-gray-300">

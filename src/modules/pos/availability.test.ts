@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { catalogSizeStock, catalogStock, sizesOf, whyNotSellable } from "./availability";
+import { catalogSizeStock, catalogStock, offersEquivalent, sizesOf, whyNotSellable } from "./availability";
 import type { Product, ProductVariant } from "../catalog/types";
 
 /**
@@ -218,3 +218,27 @@ describe("one size can be off while the others sell", () => {
     expect(whyNotSellable(pizza, noField as never)).toBeNull();
   });
 });
+
+describe("out of stock, and still worth pressing", () => {
+  const chemist = { pharmacy: true, inventory: true };
+  const strip = { item_type: "medicine", sold_out: false };
+
+  it("keeps an out-of-stock medicine pressable at a chemist that keeps stock", () => {
+    expect(offersEquivalent(strip, chemist)).toBe(true);
+  });
+
+  it("does not for anything with no salt to match", () => {
+    expect(offersEquivalent({ item_type: "physical_product", sold_out: false }, chemist)).toBe(false);
+    expect(offersEquivalent({ sold_out: false }, chemist)).toBe(false);
+  });
+
+  it("does not for something taken off by hand — that was a decision, not a count", () => {
+    expect(offersEquivalent({ ...strip, sold_out: true }, chemist)).toBe(false);
+  });
+
+  it("does not outside a chemist's, or in one with no stock module to look in", () => {
+    expect(offersEquivalent(strip, { pharmacy: false, inventory: true })).toBe(false);
+    expect(offersEquivalent(strip, { pharmacy: true, inventory: false })).toBe(false);
+  });
+});
+

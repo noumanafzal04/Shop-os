@@ -7,6 +7,8 @@ import { useShopSettings, useUpdateShopSettings } from "../../modules/shop/hooks
 import {
   applyTenantTheme,
   DEFAULT_PRIMARY,
+  DEFAULT_SIDEBAR,
+  SIDEBAR_CHOICES,
   THEME_PRESETS,
   type SidebarStyle,
   type TintLevel,
@@ -119,7 +121,12 @@ function Choice<T extends string>({
   options: Array<{ value: T; label: string; preview?: React.ReactNode }>;
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    /* One row, read left to right, whatever the count. Four in a grid of
+       three left the last one alone on a line of its own — which, for the
+       sidebar, made "Dark" look like a different kind of choice. Both class
+       names are written out: a class built from a number is one Tailwind
+       never generates. */
+    <div className={`grid gap-2 ${options.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -197,11 +204,11 @@ export default function ThemeCustomizer() {
   // values change (another device, or our own save landing).
   const [primary, setPrimary] = useState<string | null>(null);
   const [tint, setTint] = useState<TintLevel>("subtle");
-  const [sidebar, setSidebar] = useState<SidebarStyle>("light");
+  const [sidebar, setSidebar] = useState<SidebarStyle>(DEFAULT_SIDEBAR);
 
   const storedPrimary = settings.data?.theme_primary ?? null;
   const storedTint = (settings.data?.theme_tint ?? "subtle") as TintLevel;
-  const storedSidebar = (settings.data?.theme_sidebar ?? "light") as SidebarStyle;
+  const storedSidebar = (settings.data?.theme_sidebar ?? DEFAULT_SIDEBAR) as SidebarStyle;
 
   useEffect(() => {
     setPrimary(storedPrimary);
@@ -248,7 +255,7 @@ export default function ThemeCustomizer() {
   const resetAll = () => {
     setPrimary(null);
     setTint("subtle");
-    setSidebar("light");
+    setSidebar(DEFAULT_SIDEBAR);
   };
 
   // Owner-only, in full. Everything in this canvas is the SHOP's look — saved
@@ -474,17 +481,13 @@ export default function ThemeCustomizer() {
             </label>
           </Group>
 
-          <Group title="Sidebar" hint="The menu's colour: white, a soft tint, your brand colour, or dark.">
+          <Group title="Sidebar" hint="The menu's colour: your brand colour, white, a soft tint, or dark.">
             <Choice<SidebarStyle>
               value={sidebar}
               onChange={setSidebar}
-              options={[
-                { value: "light", label: "White", preview: <SidebarPreview variant="light" /> },
-                { value: "tinted", label: "Tinted", preview: <SidebarPreview variant="tinted" /> },
-                // The shop's own colour, edge to edge, white writing on it.
-                { value: "primary", label: "Primary", preview: <SidebarPreview variant="primary" /> },
-                { value: "dark", label: "Dark", preview: <SidebarPreview variant="dark" /> },
-              ]}
+              /* In the order they are offered: what a shop gets without
+                 choosing comes first, and the plain one second. */
+              options={SIDEBAR_CHOICES.map((choice) => ({ ...choice, preview: <SidebarPreview variant={choice.value} /> }))}
             />
           </Group>
 

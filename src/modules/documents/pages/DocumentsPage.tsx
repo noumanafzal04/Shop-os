@@ -8,6 +8,7 @@ import { useDocumentSummary, useDocuments } from "../hooks/useDocuments";
 import type { DocumentKind, SaleDocument } from "../services/documentService";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords, hasJobBoard, type BoardWords } from "../../workshop/words";
+import { isPastDate } from "../../../common/shopDay";
 
 /**
  * WHICH KINDS THIS SHOP ACTUALLY WRITES.
@@ -207,7 +208,9 @@ function Row({
   money: (n: string | number) => string;
 }) {
   const balance = Number(doc.total) - Number(doc.deposit_paid);
-  const overdue = doc.status === "open" && !!doc.expires_at && new Date(doc.expires_at) < startOfToday();
+  // Past its date on the shop's wall — the rule the server's own "lapsed"
+  // list uses, so a row is never overdue here and live there.
+  const overdue = doc.status === "open" && isPastDate(doc.expires_at);
   const summary = (doc.items ?? []).map((i) => i.product_name).join(", ");
 
   return (
@@ -251,12 +254,6 @@ function Row({
   );
 }
 
-/** Midnight today — comparing a date-only string to `now` would fire a day early. */
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 function Tile({
   label,
