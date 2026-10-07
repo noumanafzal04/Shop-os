@@ -1,6 +1,8 @@
 # Memory Index
 
 - [RESUME HERE](shopos-resume-here.md) — 2026-10-07 11:55: ALL PUSHED; ShopDay, reopen, Primary sidebar, journey I+J+K; next = retail, auto, petroleum…
+- [A Job Grows](shopos-job-grows.md) — stage M auto 10/10; job card could not take lines after booking; till vehicle box unreachable; 5pm stored as 10pm
+- [Unit Sold By Its Number](shopos-unit-sold-by-number.md) — stage L retail 12/12; refunded phones stuck "sold" + data repair; Enter rang first tile for fast codes
 - [Sidebar Default Primary](shopos-sidebar-default-primary.md) — USER: sidebar default PRIMARY (shop/demo/admin); canvas order Primary·White·Tinted·Dark; one constant
 - [Journey Stages J & K](shopos-journey-stages-j-k.md) — food menu+bill 10/10, chemist 8/8; same-salt sheet was keyboard-only; split sheet named lines by dish
 - [Shop Day](shopos-shop-day.md) — STANDING: day turns at ONE hour (05:00, setting 0–8); moments → ShopDay, box dates → wall date; no today()/whereDate on a moment

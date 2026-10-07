@@ -1,11 +1,13 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-07 ~11:55 — ALL PUSHED: 3 decisions (ShopDay, reopen day, rupee labels), sidebar default Primary, journey stages I+J+K; NEXT = retail, auto, petroleum, services, online, finance
+description: RESUME POINT 2026-10-07 ~15:00 — stages L (retail) + M (auto) DONE, NOT COMMITTED (user hasn't said push); earlier work pushed; NEXT = petroleum, services, online, finance
 metadata:
   type: project
 ---
 
 **State at 2026-10-07 ~11:55 PKT — everything is COMMITTED AND PUSHED** (backend `ee29add`, panel `e04edaf`, root docs after it). Backend 3,162 tests exit 0; vitest 172 files / 2,013; `npm run build` exit 0. Dev DB has migration `2026_10_07_000001` applied.
+
+**2026-10-07 ~13:30 — stage L (retail) DONE, UNCOMMITTED** in backend + panel + root docs ([[shopos-unit-sold-by-number]]). Backend 3,193 tests exit 0; vitest 177 files / 2,085; `npm run build` exit 0. Dev DB has migration `2026_10_07_000002_units_that_came_back` (DATA ONLY) applied. Deploy note: backend first (TWO migrations now: …000001 schema, …000002 data repair), then panel. Commit + push only when the user says.
 
 **Done 2026-10-07 (the three decisions, on "khud se perfect banao"):**
 - One day rule, server + panel ([[shopos-shop-day]]) — and the wall-date fixes it exposed (expired medicine sellable to 05:00, lapsed quotes, due bills).
@@ -17,7 +19,7 @@ metadata:
 **Deploy note for the user:** backend first (ONE migration), then panel. No historic figure changes.
 
 **Next, in order:**
-1. The other trades' own journey stages — retail (serials, warranty), auto (vehicles, bay board, trade-in), petroleum (meters, dips, a tanker), services, online, finance — per `docs/qa/journey/CASES.md`; food leftovers (deal with a sized item at the table, per-size recipes, 86 mid-service, hand-over). The biggest remaining piece of the standing QA request.
+1. The other trades' own journey stages — ~~retail~~ (stage L), ~~auto~~ (stage M, [[shopos-job-grows]]) — next petroleum, services, online, finance. Was: auto (vehicles, bay board, trade-in), petroleum (meters, dips, a tanker), services, online, finance — per `docs/qa/journey/CASES.md`; food leftovers (deal with a sized item at the table, per-size recipes, 86 mid-service, hand-over). The biggest remaining piece of the standing QA request.
 2. No open decisions left for the user.
 3. Not built: a printed "bill please" for a table before it is settled.
 4. Carried over: `core/src/api/client.ts` retries every 401; mobile bottom-sheet; Partner/Customer APKs.

@@ -34,3 +34,5 @@ who RANG them and the panel called it "Staff performance". Fixed with
 `sales.served_by` — see [[shopos-who-sold-it]].
 
 Payment/launch context in [[shopos-payments-status]].
+
+**2026-10-07 — per-serial returns were reachable from the API only.** The returns desk never sent a number, so refunded units stayed `sold`. Fixed in stage L — see [[shopos-unit-sold-by-number]]. (Third stale "remaining/done" claim about this feature: "reachable from SalesPage" was wrong.)

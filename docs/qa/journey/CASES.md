@@ -221,6 +221,44 @@ Run after stages A and B for a pharmacy. No tax. Panadol 5 a tablet; Amoxil
 | K7 | Till | The brand is out | the tile says "Out — tap for same salt" and CAN be pressed; it is not rung; the sheet names what it is instead of, offers the same salt and strength with its stock, and not another salt; the equivalent goes on the bill at ITS price |
 | K8 | Dispensary | A batch is recalled | nothing left to pull; one sale to call, for exactly the hundred that came from that lot; a walk-in with no phone is flagged; the lot behind it shows 180 in stock and the other twenty |
 
+## Stage L — a phone shop's own day (`23-retail-the-serial-and-the-warranty.spec.ts`, `JOURNEY_TRADE=retail`)
+
+Run after stages A and B for a retail shop. No tax. A phone is Rs 45,000 with
+twelve months' cover; five arrive, numbered …801 to …805.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| L1 | Products | A phone is carded to be sold by its number | no warranty box until "capture a serial" is ticked; the phone tracks serials with 12 months; a phone case does not |
+| L2 | Purchases | Five arrive, each number written as it is unpacked | no one-press "Receive all"; six numbers for five boxes and a number written twice are each said and cannot be sent; three for five is allowed and says two will have none; the shop can name the five on the shelf |
+| L3 | Till | The phone asks for its number | the line says IMEI 0/1; the units on the shelf are offered and a picked one is not offered again; the bill carries the number, 12 months, a year from today; THAT unit is sold and off the shelf; the sale's sheet says which unit and until when |
+| L4 | Till | The unit just sold | not offered; typed by hand it is "not one of the units on the shelf"; the server refuses it in words and nothing is lost; the next customer straight after is not offered the phone that just left |
+| L5 | Till | Tender with no number | the till asks before the money; "Sell without a number" is said, remembered, and not asked again; then a number and 24 months — and the bill carries both |
+| L6 | Till | The IMEI on the box is scanned | that unit is on the bill, named; a second scanned joins the line (2/2); the same box again changes nothing; a number sold on Tuesday is said to be sold, and on which bill |
+| L7 | Warranty desk | A year on, the phone and nothing else | covered, a whole number of days, the bill, the buyer, 12 months, a status in words; a number the shop never sold can still be taken in |
+| L8 | Warranty desk | Taken in, held, closed | the buyer comes from the sale; no fault, no booking; not twice; on the holding list with days held; closed as Repaired with a note; the next lookup says it has been back once |
+| L9 | Sales → Desk → Till | Refunded | the only phone on the bill needs no naming; it is on the shelf by its number; the desk says it came back (not "Under warranty"); the sale's sheet quotes no warranty for it; it is sold again and the desk answers for the new buyer |
+| L10 | Sales | One of two comes back | the sheet asks WHICH and will not refund until told; a second tick cannot be made; that one is on the shelf, the other still covered |
+| L11 | Sales | Swapped for another of the same | the unit handed back is named; the one going out has its number written (the shelf's unit is offered); one in, one out, the count unmoved; the desk answers for the new one and says the old one came back |
+| L12 | Everywhere | The end of it all | five arrived, four out on standing bills, one on the shelf; the shelf count is the count of numbers; the till offers exactly that one; every unit out is covered at the desk |
+
+## Stage M — a workshop's own day (`24-auto-the-car-and-the-job.spec.ts`, `JOURNEY_TRADE=automotive`)
+
+Run after stages A and B for an automotive shop. No tax. Pads 4,500; labour
+1,000 an hour; a diagnostic check 1,500; a battery 28,000; a tyre 14,000.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| M1 | Products → Inventory | The shelf, and a tyre in two lots | labour is a service; the tyre's lots carry their DOT week; the 2019 lot is OLD and the 2026 lot is not |
+| M2 | Vehicles | A car on record, and whose it is | plate (stored without the dash), make, model, what it takes — and an owner, by phone, shown on the list |
+| M3 | Till → Vehicles | Tyres for that car | scanned, the till says how old the lot it will hand over is; the plate typed with a dash finds the car; the sale carries the car and 84,000 km; the OLD lot is the one sold from; the car's history has the bill and the reading |
+| M4 | Till | A dead battery in part-payment | a tender, not a discount: the bill is still 28,000, 3,000 traded in and 25,000 cash; the scrap is one more on the shelf |
+| M5 | Workshop | Booked into the bay | the plate finds the car and fills in its owner; nothing can be booked with nothing on the job; five o'clock is stored and shown as five o'clock; the card says whose, what is wrong and when it is due |
+| M5 | Workshop | A plate nobody has seen | registered as it is booked in, and it belongs to the customer who brought it |
+| M6 | Job card | Parts and labour go on | it says Job card, links back to the board, shows the car; pads, labour, a second hour, back to one and to two; a battery on by mistake and off; the job is 8,000 and so is its card on the board; nothing has left the shelf |
+| M7 | Workshop | Along the board, and back | bay → being worked on → ready → back on the ramp → ready |
+| M8 | Job card → Vehicles | Billed | a reading below the one it came in on is refused; billed 8,000 for all three lines, on the car, at 84,520, in the owner's name; the pads leave the shelf; the car is off the board; its history has both visits |
+| M9 | Job card | A car with no arrival reading | the handover reading is still asked for and kept; the board is empty |
+
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
 Run on the mart shop after stage G. The drawer is counted through the API

@@ -8378,3 +8378,68 @@ Backend 3,162 tests (3,142 passed, 20 skipped), exit 0. Panel 172 files /
 services, online, finance; and for food — a deal with a sized item at the
 table, per-size recipes, 86 mid-service, a tab handed over.
 
+
+## A phone shop's own day — the journey's stage L, 2026-10-07
+
+Decisions: `shopos-a-unit-is-sold-by-its-number`,
+`shopos-enter-waits-for-the-answer`. Findings 48–63 in
+`docs/qa/journey/RUNS.md`; cases L1–L12 in `CASES.md`.
+
+**Server.** `ProcessSaleReturnAction::unitsComingBack` — a return works out
+which numbered units came back and asks only when it cannot know
+(`RETURN_SERIAL_REQUIRED`); a returned unit is in stock under its number,
+including one only ever typed at the till. `SaleItemSerial::isOut / isCovered
+/ daysLeft / cameBackAs` — the warranty desk answers "came back" (`came_back`,
+`on_shelf`) instead of a verdict for somebody refunded. Cover is counted and
+judged on the shop's calendar, no month overflow. `/pos/lookup` finds a unit
+by its own serial (`serial` in the answer; `SERIAL_ALREADY_SOLD` names the
+bill; `SERIAL_AMBIGUOUS`). An exchange carries `serials` both ways.
+
+**Data repair — deploy note.** Migration
+`2026_10_07_000002_units_that_came_back` (data only, no schema) runs
+`UnitsBackOnTheShelf::repair()`: every phone refunded under the old desk was
+left `sold` and unsellable. It mends a line that came back in full and a
+registry row no standing sale holds; a line back in part with no number said
+is left for the shop. `php artisan shopos:units-back-on-the-shelf` runs it
+again safely.
+
+**Panel.** `pos/unitNumbers.ts` (Tender asks for a missing or doubled number;
+"Sell without a number"; what is sent is what is shown), `pos/enterKey.ts`
+(Enter waits for the answer to what is typed — every trade), `sales/unitsBack.ts`
++ `UnitsBack` / `GoingOutNumbers` (returns and exchange name units),
+`purchases/receive.ts` (goods-in numbers; no one-press receive for numbered
+units or medicines), `warranty/cover.ts` (days, dates).
+
+**Tests.** Backend `AUnitIsSoldByItsNumberTest` (31). Journey stage L 12/12.
+Re-runnable: `trade.sold-by-number.spec.ts` (trade-retail), `till-enter.spec.ts`
+(desktop).
+
+**Next for the journey:** auto, petroleum, services, online, finance.
+
+## A workshop's own day — the journey's stage M, 2026-10-07
+
+Decision: `shopos-a-job-grows-as-the-work-is-done`. Findings 65–72 in
+`docs/qa/journey/RUNS.md`; cases M1–M9 in `CASES.md`.
+
+**Server.** `ChangeJobCardAction` + routes `POST/PATCH/DELETE
+/sale-documents/{id}/items[/{item}]` (open job cards only; `NOT_A_JOB_CARD`,
+`JOB_NOT_OPEN`, `JOB_CARD_EMPTY`, `JOB_BELOW_ADVANCE`, `JOB_LINE_NOT_FOUND`).
+`DocumentPricing` extracted from `CreateSaleDocumentAction` — one pricer for a
+document line. `CustomerVehicle::adoptOwner` called when a job card or a sale
+names a customer for an ownerless car. No migration.
+
+**Panel.** `DocumentDetailPage` knows a job card (name, back link, the car's
+facts, editable lines, `AddToJob`, handover reading for any job with a car);
+`documentService.addItem / setItemQuantity / removeItem`; `BookInModal` sends
+`instantOf(promised)`; `PosPage` draws the vehicle box whenever an auto shop
+has a bill; `VehiclesPage` has owner phone and name (`linkOwner`).
+
+**Tests.** Backend `AJobGrowsAsTheWorkIsDoneTest` (26). Journey stage M 10/10.
+Re-runnable: `trade.job-grows.spec.ts` (trade-automotive).
+
+**Not changed, worth knowing.** A part put on a job stays on the shelf by
+count until the job is billed — a second counter could sell the "last" pads
+while they are already on a car. Stock has always moved at billing for a job
+card; reserving at add-time is a decision for the owner.
+
+**Next for the journey:** petroleum, services, online, finance.

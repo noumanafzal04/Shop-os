@@ -205,3 +205,82 @@ of it), the expired-stock fence, write-off and recall were right first time.
 Next: retail (serials, warranty), auto (vehicles, bay board, trade-in),
 petroleum (meters, dips, a tanker), services, online, finance.
 
+
+
+## Stage L — a phone shop's own day (2026-10-07)
+
+`JOURNEY_TRADE=retail … e2e/journey/23`, on the retail shop made by the
+breadth run (stages A and B, 2026-10-06).
+
+| Stage | Cases | Result |
+|---|---|---|
+| L — numbered goods in, at the till, at the warranty desk, refunded, one of two back, swapped | 12 | 12 passed (after the fixes below) |
+
+The warranty desk's booking and holding list, the "already sold" guard and
+the per-line warranty override were right first time. Everything about a unit
+**coming back** was not — the server could take a unit back by its number and
+no screen ever said one.
+
+| # | Found at | What a shop met | Fix |
+|---|---|---|---|
+| 48 | L2 | Goods-in: six numbers could be sent against five boxes (the red line said so, the button stayed lit); a number scanned twice was not said; "Receive all" shelved a box of phones with no number against any of them | the sheet refuses too many and twice, says what too few means; an order of numbered units or medicines is received on the sheet that asks |
+| 49 | L5 | The till took the money for a phone with no number, without a word | Tender asks first; "Sell without a number" is something the cashier says |
+| 50 | reading the till | It SENT numbers from slots the sheet no longer drew (two written, quantity back to one) — refused by the server with nothing on screen to delete | one list of numbers for what is shown and what is sent (`numbersOn`) |
+| 51 | reading the till | One number could be written on two units of a bill until the server refused it | said on the sheet, and Tender opens it |
+| 52 | L6 | **Scanning the IMEI on the box found nothing** — the one barcode a phone shop scans | `/pos/lookup` finds a unit by its own number; the line arrives with it written |
+| 53 | L4 | The phone just sold was offered, by its number, to the next customer for thirty seconds | the list of units is refreshed with the sale |
+| 54 | L9 | **A refunded phone stayed "sold" under its number** — on the shelf, refused at the till, and unreachable by any door once the sale was refunded; the desk read "Under warranty" with the old buyer's name | the return works out which unit came back, and asks only when it cannot know; the desk has a third answer, "this unit came back"; a data repair mends what the old desk left (`shopos:units-back-on-the-shelf`) |
+| 55 | L11 | An exchange could not say which unit came in or went out; the replacement left with no number on its bill | both are said on the exchange sheet and on the server |
+| 56 | L7 | "365.9999999999884 days left" | a count of days, on the shop's calendar; the last one is "Last day of cover" |
+| 57 | reading the sale | Cover counted from the server's UTC date and judged in UTC; six months from 31 August ran into March | the date on the receipt, the shop's calendar, no overflow |
+| 58 | L7 | The desk printed a sale status as the database holds it; a bare expiry date showed as the day before anywhere west of Greenwich | words; read as the day it names |
+| 59 | L6, finding out why the IMEI would not scan | **Enter in the till's search rang the first item on the shelf** for any code that was not five or more digits, when it was typed faster than the list could answer — every trade, silently | Enter waits for the answer to what is typed (`enterKey.ts`) |
+| 60 | reading the return | A number only ever typed at the till was forgotten the moment the unit came back — the till could not offer the phone just handed over | written down when it comes back |
+| 61 | screenshot | The serial box on the till's sheet was 180px: fifteen digits in a box that showed twelve | it takes the row |
+| 62 | harness | L3 asserted a figure only a first run records | asserted where it is measured |
+| 64 | harness (regression run) | The retail till-offers check pressed Pay on "any plain item" — which was now the numbered handset, and the till rightly asked for its number first | a numbered tile is marked (`data-pos-numbered`) and is not "plain", as a sized one already was |
+| 63 | harness (mutations) | A server mutation left a unit where no door reaches it, and fifteen later mutations were "caught" by that state instead of their own tests | the re-runnable spec's cases no longer run in series; the runner mends the shelf after each mutation; the fifteen were run again |
+
+Re-runnable: `e2e/trade.sold-by-number.spec.ts` (retail project; 4 cases)
+and `e2e/till-enter.spec.ts` (desktop; 6 cases).
+
+Mutations: backend 59 (58 caught, 1 equivalent — a shop filter implied by the
+product), panel unit 64 (all caught after two tests were sharpened and one
+dead guard removed), browser 38 (37 caught; the 38th — the server's
+fractional days — is floored by the panel before it reaches the screen and
+is caught by the backend test).
+
+Next: auto (vehicles, bay board, trade-in), petroleum (meters, dips, a
+tanker, sale by amount), services, online, finance.
+
+
+## Stage M — a workshop's own day (2026-10-07)
+
+`JOURNEY_TRADE=automotive … e2e/journey/24`, on the automotive shop made by
+the breadth run (stages A and B, 2026-10-06).
+
+| Stage | Cases | Result |
+|---|---|---|
+| M — a tyre's age, a car and its owner, a trade-in, the bay board, a job that grows, billing at the handover reading | 10 | 10 passed (after the fixes below) |
+
+DOT dating, oldest-lot-first, the trade-in as a tender (bill, drawer and scrap
+stock) and the board's moves were right. The middle of a workshop's day — the
+job itself — was not there.
+
+| # | Found at | What a shop met | Fix |
+|---|---|---|---|
+| 65 | M6, reading the job card before the case was written | **A job card could not take a part or an hour of labour after it was booked in.** No endpoint, no screen — it was billed for the one line it arrived with. Workshops and every services shop (the Jobs board) | a job card takes a line, changes a quantity, drops a line while it is open; priced by the code that prices the booking |
+| 66 | M6 | The job card's own page said "Quotation", led back to "Quotations & advances", and showed nothing about the car or what the customer said | it says Job card, leads back to the board, and shows the car, the complaint, the reading, the promise and the stage |
+| 67 | M5 | A car promised for five in the afternoon was stored as ten at night (a zone-less time, read as UTC) — due five hours after it was late | the moment is sent (`instantOf`) |
+| 68 | M3 | **The till could not put a sale on a car**: the vehicle box was drawn only for a loyalty member or a prescription | drawn whenever there is a bill |
+| 69 | M2 | A car could not be given an owner from any screen — the list had the column, the form had no field | the form has owner phone and name |
+| 70 | M5 | A plate registered at book-in or at the till stayed nobody's, though the job or sale named the customer; linking needs a permission a cashier does not have | an ownerless car takes the customer of the first job or sale that names one; an owner on record is never replaced |
+| 71 | M9 | A car booked in with no odometer reading could not be given one when it left | asked for any job that has a car |
+| 72 | harness | A service fixture was told whether it tracks stock, which a service may not be | said only for the part |
+
+Re-runnable: `e2e/trade.job-grows.spec.ts` (trade-automotive; 3 cases — one
+fixed car, booked in, grown, billed and gone each run).
+
+Next: petroleum (meters, dips, a tanker, sale by amount), services (the Jobs
+board for a laundry or tailor — the same job card, now able to grow), online,
+finance.
