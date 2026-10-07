@@ -284,3 +284,34 @@ fixed car, booked in, grown, billed and gone each run).
 Next: petroleum (meters, dips, a tanker, sale by amount), services (the Jobs
 board for a laundry or tailor — the same job card, now able to grow), online,
 finance.
+
+
+## Stage N — a petrol pump's own day (2026-10-07)
+
+`JOURNEY_TRADE=petroleum … e2e/journey/25`, on the petroleum shop made by the
+breadth run (stages A and B, 2026-10-06).
+
+| Stage | Cases | Result |
+|---|---|---|
+| N — fuels and plant, a tanker, a shift, sale by the money, the midnight rate, the close | 6 | 6 passed (after the fixes below) |
+
+The shift's own arithmetic — meters against the till, book against the dip,
+test litres, the plant frozen while it runs — was right first time, and the
+closed shift's screen reads the way a station needs.
+
+| # | Found at | What a station met | Fix |
+|---|---|---|---|
+| 73 | N2, the cost came out unblended | **A tank installed with fuel in it left the shelf at nought** until the first shift closed: diesel "out of stock" on the first morning with 6,000 litres in the ground | the shelf follows the ground wherever a dip is written (`FuelInTheGround`) |
+| 74 | N2, reading the delivery | **A tanker never moved what the fuel cost** — only a purchase order did, and a forecourt has none | blended on what arrived, as a purchase order's is |
+| 75 | N4, reading the till | **Selling fuel by the money could not be reached** on an ordinary till (keypad off, the default) | a By rupees chip on any line sold by weight or volume; the sheet takes a real keyboard |
+| 76 | N5, reading the form | A rate could only be entered for the moment it was saved; the Help told the owner to be there at midnight | Now, or At a time — the server already held it until its hour |
+| 77 | N2 | A delivery could not say who it came from (the column was there, always "—") | From, where the shop keeps suppliers |
+| 78 | N2 | One dip without the other was dropped in silence, and the load received on the invoice | said on the sheet; cannot be sent |
+| 79 | N1, reading the form | A tank's "Holds" listed the first fifteen items of the catalogue | every item |
+| 80 | harness | N1 and N2 asserted dips that only hold before the tanker and the shift | assert what stays true; the rest where it is measured |
+| 81 | harness | The journey's pump shop had been set up under fault 73 | healed through the shop's own doors: tanks re-dipped, the petrol's cost put where the fixed code leaves it |
+
+Re-runnable: `e2e/trade.forecourt-counter.spec.ts` (trade-petroleum; 3 cases;
+saves nothing).
+
+Next: services (the Jobs board for a laundry or tailor), online, finance.

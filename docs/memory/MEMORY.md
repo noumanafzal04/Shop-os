@@ -1,6 +1,7 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 11:55: ALL PUSHED; ShopDay, reopen, Primary sidebar, journey I+J+K; next = retail, auto, petroleum…
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 17:30: ALL PUSHED incl. stages L (retail) + M (auto); next = 4 workshop mutations, petroleum, services, online, finance
+- [Fuel Shelf Is The Dips](shopos-fuel-shelf-is-the-dips.md) — stage N petroleum 6/6; tank dip never reached stock; tanker never moved cost; by-rupees was keypad-only; rate had no "from when"
 - [A Job Grows](shopos-job-grows.md) — stage M auto 10/10; job card could not take lines after booking; till vehicle box unreachable; 5pm stored as 10pm
 - [Unit Sold By Its Number](shopos-unit-sold-by-number.md) — stage L retail 12/12; refunded phones stuck "sold" + data repair; Enter rang first tile for fast codes
 - [Sidebar Default Primary](shopos-sidebar-default-primary.md) — USER: sidebar default PRIMARY (shop/demo/admin); canvas order Primary·White·Tinted·Dark; one constant

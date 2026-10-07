@@ -259,6 +259,20 @@ Run after stages A and B for an automotive shop. No tax. Pads 4,500; labour
 | M8 | Job card → Vehicles | Billed | a reading below the one it came in on is refused; billed 8,000 for all three lines, on the car, at 84,520, in the owner's name; the pads leave the shelf; the car is off the board; its history has both visits |
 | M9 | Job card | A car with no arrival reading | the handover reading is still asked for and kept; the board is empty |
 
+## Stage N — a petrol pump's own day (`25-petroleum-the-forecourt.spec.ts`, `JOURNEY_TRADE=petroleum`)
+
+Run after stages A and B for a petroleum shop. No tax. Petrol 290 a litre
+(carded at a cost of 265), diesel 285 (262).
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| N1 | Products → Tanks & pumps | Fuels by the litre; tanks, a pump, two hoses | no capacity, no tank; no meter reading, no hose; the fuel in a tank as it is installed is ON THE SHELF |
+| N2 | Suppliers → Deliveries | A tanker | says who it came from; one dip is refused on the sheet; 10,000 invoiced, 9,900 by the dips, 100 short; cost 2,673,000 on what arrived; the petrol now costs (2,000×265 + 9,900×270) ÷ 11,900 = 269.16 and the diesel is untouched |
+| N3 | Forecourt → Tanks & pumps | A shift starts | nobody need be named; meters open at 125,000 and 48,000, tanks at 11,900 and 6,000; the plant is frozen while it runs |
+| N4 | Till | "Do hazaar ka daal do" | By rupees on an ordinary till, typed on its keyboard; ≈ 6.897 litres shown before it is set; the line says "for Rs 2,000"; charged 2,000 to the rupee; 20 litres of diesel as litres; 7,700 |
+| N5 | Deliveries & rates | The midnight rate, entered at eight | At a time, midnight offered; an hour that has gone is refused; recorded and waiting — "Not at the pumps yet"; tonight's petrol is still 290 |
+| N6 | Forecourt | Closed on every meter and every dip | not until every meter is read and every tank dipped; 26.897 L by meter, 5 tested, the same 26.897 at the till, nothing unbilled; 13.103 L short in the ground, said apart; the shelf is what the stick said; the plant is free and the meters stand where the shift left them |
+
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
 Run on the mart shop after stage G. The drawer is counted through the API

@@ -8443,3 +8443,24 @@ while they are already on a car. Stock has always moved at billing for a job
 card; reserving at add-time is a decision for the owner.
 
 **Next for the journey:** petroleum, services, online, finance.
+
+## A petrol pump's own day — the journey's stage N, 2026-10-07
+
+Decision: `shopos-fuel-on-the-shelf-is-what-the-dips-say`. Findings 73–81 in
+`docs/qa/journey/RUNS.md`; cases N1–N6 in `CASES.md`.
+
+**Server.** `FuelInTheGround::settle` (called from `FuelSetupController` when a
+tank is installed, updated or removed outside a shift) — a fuel's stock is the
+sum of its active tanks' dips. `RecordFuelDeliveryAction` blends
+`products.cost` with `MovingCost` on the litres received. No migration; a
+station already trading is put right by its next shift close, as it always was.
+
+**Panel.** `PosPage`: By rupees chip on any weighed line; `NumPad keyboard`.
+`FuelDeliveriesPage`: rate Now / At a time (`fuel/rateTiming.ts`, `instantOf`),
+"Not at the pumps yet"; delivery From + one-dip check. `FuelSetupPage`: every
+product in "Holds" (`usePickableProducts`).
+
+**Tests.** Backend `FuelManagementTest` 50. Journey stage N 6/6. Re-runnable:
+`trade.forecourt-counter.spec.ts` (trade-petroleum).
+
+**Next for the journey:** services, online, finance.
