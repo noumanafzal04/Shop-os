@@ -134,7 +134,8 @@ class SettingsConfigTest extends TestCase
         $this->actingAsUser($this->owner)->getJson('/api/v1/shop/settings')
             ->assertOk()
             ->assertJsonPath('data.theme_tint', 'subtle')
-            ->assertJsonPath('data.theme_sidebar', 'light');
+            // The menu is in the shop's own colour unless the shop says otherwise.
+            ->assertJsonPath('data.theme_sidebar', 'primary');
 
         $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', [
             'theme_tint' => 'strong',

@@ -49,6 +49,28 @@ class DemoShopTest extends TestCase
         $this->assertTrue($tenant->setup_completed, 'a visitor who came to see a till must not meet the setup wizard');
     }
 
+    /**
+     * A demo is the first thing a stranger sees of the product, and its menu
+     * is in the brand's own colour — the default every shop starts with. A
+     * demo that wrote settings of its own could quietly opt out of it.
+     */
+    public function test_its_menu_is_in_the_brand_colour(): void
+    {
+        foreach (['food', 'mart', 'pharmacy'] as $trade) {
+            $this->postJson('/api/v1/demo', ['business_type' => $trade])->assertCreated();
+        }
+
+        $demos = Tenant::query()->where('is_demo', true)->get();
+        $this->assertCount(3, $demos);
+        foreach ($demos as $demo) {
+            $this->assertSame('primary', $demo->setting('theme_sidebar'), "{$demo->business_type} demo");
+            // And nothing was stored to make it so — it is the default, so it
+            // follows the default if that ever changes.
+            $this->assertArrayNotHasKey('theme_sidebar', $demo->settings ?? []);
+            $this->assertNull($demo->setting('theme_primary'));
+        }
+    }
+
     public function test_the_shelf_is_stocked_where_the_till_actually_looks(): void
     {
         // `stock_quantity` is a rollup; the till sells from `branch_stock`. A

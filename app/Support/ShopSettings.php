@@ -43,7 +43,11 @@ class ShopSettings
             'theme_tint' => 'subtle',   // none | subtle | strong
             // The sidebar's surface. 'dark' keeps a dark rail even in light
             // mode — the look most POS/admin products ship with.
-            'theme_sidebar' => 'light', // light | tinted | primary | dark
+            // PRIMARY by default: the menu in the shop's own colour, edge to
+            // edge. A shop that has never opened Appearance gets this; one
+            // that chose White (or anything else) keeps what it chose — the
+            // choice is stored, and a stored choice is not a default.
+            'theme_sidebar' => 'primary', // primary | light | tinted | dark
 
             // Service businesses (salon/workshop): coverage area shown on the storefront
             'service_area' => null,
