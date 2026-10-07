@@ -217,8 +217,22 @@ export interface ShopSettings {
   scale_barcode_enabled: boolean;
   scale_barcode_prefix: string;
   scale_barcode_mode: "weight" | "price";
+  /** Paisa on a PRICE label: 0 = "00450" is Rs 450; 2 = "00450" is Rs 4.50. */
+  scale_price_decimals: 0 | 2;
+  /**
+   * The hour (0–8, on the shop's own clock) its day turns at — the moment
+   * "today" becomes tomorrow on every report, the dashboard, the till's
+   * trading day and the kitchen pass. null = where it has always turned,
+   * which in Pakistan is five in the morning.
+   */
+  day_turns_at: number | null;
   /** Effective branch ceiling (null = unlimited). Drives multi-branch UI. */
   max_branches: number | null;
+  /**
+   * The rule above as the server applies it, and the date it is there now.
+   * Read-only: the panel works "today" out from the first two.
+   */
+  shop_day?: { zone: string; turns_at_minutes: number; chosen_hour: number | null; today: string };
 }
 
 export interface ShopModule {

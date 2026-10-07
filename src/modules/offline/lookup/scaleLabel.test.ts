@@ -52,7 +52,10 @@ beforeEach(() => {
 
 describe("the fixtures themselves", () => {
   it("hold both kinds of answer — a file of only hits, or only misses, proves half", () => {
-    expect((fixtures as { version: number }).version).toBe(1);
+    expect((fixtures as { version: number }).version).toBe(2);
+    // Both ways a price can be printed: whole rupees (the default) and paisa.
+    expect(LABELS.some((l) => l.expected.mode === "price" && l.settings.scale_price_decimals === undefined)).toBe(true);
+    expect(LABELS.some((l) => l.settings.scale_price_decimals === 2)).toBe(true);
     expect(LABELS.filter((l) => l.expected.found).length).toBeGreaterThanOrEqual(6);
     expect(LABELS.filter((l) => !l.expected.found).length).toBeGreaterThanOrEqual(4);
     expect(LABELS.some((l) => l.expected.mode === "price")).toBe(true);

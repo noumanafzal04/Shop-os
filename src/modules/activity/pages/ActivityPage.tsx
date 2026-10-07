@@ -28,7 +28,7 @@ import { apiGet } from "../../../common/api/client";
 
 interface AuditLog {
   id: string;
-  event: "created" | "updated" | "deleted" | "imported" | "cleared";
+  event: "created" | "updated" | "deleted" | "imported" | "cleared" | "reopened";
   entity: string;
   entity_id: string;
   /**
@@ -54,8 +54,12 @@ interface AuditLog {
 // `cleared` is the same kind of row: a kitchen board cleared down, or the tabs
 // an earlier service left open closed in one go. Forty tickets, one decision,
 // one line — with how many, and for the tabs what the food on them was worth.
-const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning", cleared: "warning" } as const;
-const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported", cleared: "cleared" } as const;
+//
+// `reopened` is a trading day that was closed off and opened again the same
+// day. One line: who, why, and — as the "before" — what the day had been
+// signed off at, because the day itself no longer carries those figures.
+const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning", cleared: "warning", reopened: "warning" } as const;
+const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported", cleared: "cleared", reopened: "opened again" } as const;
 
 /** Model name → what a shopkeeper calls it. Anything unlisted keeps its own name. */
 const THING: Record<string, string> = {

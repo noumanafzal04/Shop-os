@@ -46,7 +46,31 @@ export interface BusinessDay {
   /** Every lane's card total is one card total to whoever reconciles it. */
   tender_mix: Record<string, number> | null;
   notes: string | null;
+  /**
+   * Set when a day closed off by mistake was opened again. They stay on the
+   * day after it is closed properly, so the history says it happened.
+   */
+  reopened_at?: string | null;
+  reopened_by?: Signer;
+  reopen_reason?: string | null;
   branch?: { id: string; name: string } | null;
+}
+
+/**
+ * Today's day, when it has been CLOSED OFF and nothing is trading.
+ *
+ * Sent beside an empty "current day" so the screen can say what happened
+ * instead of "no day open yet" — and offer the way back when there is one.
+ */
+export interface ClosedToday {
+  id: string;
+  trading_date: string;
+  closed_at: string | null;
+  closed_by: string | null;
+  branch: string | null;
+  sales_total: number;
+  /** Whether THIS person may open it again. The server refuses anyone else. */
+  can_reopen: boolean;
 }
 
 export interface DayShift {
@@ -159,6 +183,9 @@ export const dayService = {
   show: (id: string) => apiGet<DayDetail>(`/pos/days/${id}`),
 
   close: (id: string, notes?: string) => apiPost<BusinessDay>(`/pos/days/${id}/close`, { notes }),
+
+  /** Open today's day again — the way back from a close pressed by mistake. */
+  reopen: (id: string, reason: string) => apiPost<BusinessDay>(`/pos/days/${id}/reopen`, { reason }),
 
   deposits: (params: { from?: string; to?: string; page?: number } = {}) =>
     apiGet<BankDeposit[]>("/pos/deposits", { params }),

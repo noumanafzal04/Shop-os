@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   formatEntryDate,
@@ -11,6 +11,7 @@ import {
   resolveRange,
   toIsoDate,
 } from "./dateRanges";
+import { setShopDayRule } from "../../../common/shopDay";
 
 /**
  * Dates are where filters go wrong quietly, so these tests stand on the days
@@ -189,5 +190,64 @@ describe("formatEntryDate", () => {
 
   it("says nothing rather than NaN when there is no date", () => {
     expect(formatEntryDate("", { today: TODAY })).toBe("—");
+  });
+});
+
+/**
+ * WHOSE TODAY.
+ *
+ * Nothing above passes a clock in by accident — every case names its own
+ * "today". These are the cases that do NOT: a screen that calls
+ * `resolveRange("today")` and trusts the default. That default is the shop's
+ * business day, and it was the device's calendar date, which between midnight
+ * and five in the morning is a day the server says has not begun.
+ */
+describe("with no date handed in, today is the shop's own day", () => {
+  // Half past one in the morning on the 7th, in Karachi.
+  const halfPastOne = new Date("2026-10-07T01:30:00+05:00");
+
+  afterEach(() => {
+    vi.useRealTimers();
+    setShopDayRule(null);
+  });
+
+  const at = (moment: Date, rule: { zone: string; turnsAtMinutes: number } | null) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(moment);
+    setShopDayRule(rule);
+  };
+
+  it("is still the evening before, until the shop's day turns", () => {
+    at(halfPastOne, { zone: "Asia/Karachi", turnsAtMinutes: 300 });
+
+    expect(resolveRange("today")).toEqual({ from: "2026-10-06", to: "2026-10-06" });
+    expect(resolveRange("yesterday")).toEqual({ from: "2026-10-05", to: "2026-10-05" });
+    expect(resolveRange("last_7")).toEqual({ from: "2026-09-30", to: "2026-10-06" });
+    // A filter restored from a link is recognised as "Today" by the same day.
+    expect(matchPreset({ from: "2026-10-06", to: "2026-10-06" })).toBe("today");
+    expect(matchPreset({ from: "2026-10-07", to: "2026-10-07" })).toBeNull();
+    // And a row dated the 6th reads "Today" on a list.
+    expect(formatEntryDate("2026-10-06")).toBe("Today");
+    expect(formatEntryDate("2026-10-05")).toBe("Yesterday");
+  });
+
+  it("is the new day for a shop that chose midnight", () => {
+    at(halfPastOne, { zone: "Asia/Karachi", turnsAtMinutes: 0 });
+
+    expect(resolveRange("today")).toEqual({ from: "2026-10-07", to: "2026-10-07" });
+    expect(formatEntryDate("2026-10-07")).toBe("Today");
+  });
+
+  it("keeps the month the evening belongs to on the first of the next", () => {
+    at(new Date("2026-11-01T02:00:00+05:00"), { zone: "Asia/Karachi", turnsAtMinutes: 300 });
+
+    expect(resolveRange("this_month")).toEqual({ from: "2026-10-01", to: "2026-10-31" });
+    expect(formatRange({ from: "2026-10-01", to: "2026-10-31" })).toBe("1 – 31 Oct");
+  });
+
+  it("is the device's own date where there is no shop — the platform console", () => {
+    at(new Date(2026, 9, 7, 1, 30), null);
+
+    expect(resolveRange("today")).toEqual({ from: "2026-10-07", to: "2026-10-07" });
   });
 });

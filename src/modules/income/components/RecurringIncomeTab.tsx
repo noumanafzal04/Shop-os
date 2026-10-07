@@ -12,9 +12,9 @@ import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { useIncomeCategories, useRecurringIncomeMutations, useRecurringIncomes } from "../hooks/useIncome";
 import type { RecurringIncome } from "../services/incomeService";
-import { toIsoDate } from "../../../components/ui/filters";
+import { shopWallToday } from "../../../common/shopDay";
 
-const today = () => toIsoDate(new Date());
+const today = () => shopWallToday();
 
 const FREQUENCIES = [
   { value: "weekly", label: "Weekly" },

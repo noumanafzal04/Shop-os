@@ -26,7 +26,18 @@
  * of the month at midnight into the last day of the previous month, so every
  * range would silently start a day early for exactly the users this is built
  * for. Everything below is assembled from local Y/M/D parts.
+ *
+ * ── Whose "today" ──────────────────────────────────────────────────────
+ *
+ * The SHOP'S, not the device's. A shop's day turns at an hour of its own
+ * (five in the morning unless it says otherwise — see common/shopDay.ts), and
+ * the server answers every report by that day. "Today" pressed at one in the
+ * morning has to ask for the evening that is still going, or it asks for a
+ * day the server says has not begun and shows a restaurant mid-service an
+ * empty list. Every default below is that day; a caller with no shop open
+ * gets the device's date, as before.
  */
+import { shopTodayDate } from "../../../common/shopDay";
 
 /** A range as the API takes it: inclusive `yyyy-mm-dd` ends, null = open. */
 export interface DateRange {
@@ -104,7 +115,7 @@ const shift = (date: Date, days: number): Date =>
  * reference reads ("20 – 26 Aug" on the 26th) and what anybody means by it.
  * Counting seven days back would quietly show eight days of data.
  */
-export function resolveRange(key: RangeKey, today: Date = new Date()): DateRange {
+export function resolveRange(key: RangeKey, today: Date = shopTodayDate()): DateRange {
   const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const iso = toIsoDate;
 
@@ -157,7 +168,7 @@ export function resolveRange(key: RangeKey, today: Date = new Date()): DateRange
  * purpose: they are the same filter, and telling somebody they picked
  * something else is worse than agreeing with them.
  */
-export function matchPreset(range: DateRange, today: Date = new Date()): RangeKey | null {
+export function matchPreset(range: DateRange, today: Date = shopTodayDate()): RangeKey | null {
   if (range.from === null && range.to === null) return "all";
 
   return RANGE_KEYS.find((key) => {
@@ -196,7 +207,7 @@ export function formatDay(iso: string): string {
  */
 export function formatEntryDate(
   iso: string,
-  { today = new Date(), relative = true }: { today?: Date; relative?: boolean } = {},
+  { today = shopTodayDate(), relative = true }: { today?: Date; relative?: boolean } = {},
 ): string {
   if (!iso) return "—";
   const day = iso.slice(0, 10);
@@ -223,7 +234,7 @@ export function formatEntryDate(
  *   crossing a year    → "28 Dec 2025 – 3 Jan 2026"
  *   one end open       → "From 1 Aug" / "Until 26 Aug"
  */
-export function formatRange(range: DateRange, today: Date = new Date()): string {
+export function formatRange(range: DateRange, today: Date = shopTodayDate()): string {
   const { from, to } = range;
 
   if (from === null && to === null) return "All time";

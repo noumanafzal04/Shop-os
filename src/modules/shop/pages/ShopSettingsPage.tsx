@@ -30,6 +30,7 @@ import OfflineReadyPanel from "../../offline/OfflineReadyPanel";
 import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
 import PricingVariancesPanel from "../../offline/pricing/PricingVariancesPanel";
 import { PRODUCT } from "../../../common/brand";
+import { turnHourChoices } from "../../../common/shopDay";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -48,6 +49,7 @@ const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const UserGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" /><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
+const ClockGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" /><path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>);
 const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10.5 3 8.5 3 6 5 8 7h4Zm0 0s1.5-4 3.5-4 2.5 2 .5 4h-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>);
 
 /**
@@ -656,6 +658,30 @@ export default function ShopSettingsPage() {
                           ? "Inclusive: the price is the final price — the receipt shows the tax portion held within it."
                           : "Exclusive: tax is added on top of the price at checkout."}
                       />
+                    </SectionCard>
+
+                    {/* WHEN TODAY BECOMES TOMORROW.
+                        Reports, the dashboard, the till's day and the kitchen
+                        board all cut the day at one hour now, and this is it.
+                        Here rather than under Point of Sale because a shop
+                        that only sells online has a day too. */}
+                    <SectionCard icon={<ClockGlyph />} title="Your trading day" description="The hour your shop's day ends and the next one begins.">
+                      <Field
+                        label="A new day starts at"
+                        hint="Sales rung after midnight but before this hour count with the day before — on the dashboard, in reports, on the till's day and on the kitchen board. Receipts still print the real date and time."
+                      >
+                        <Select
+                          value={prefs.day_turns_at === null || prefs.day_turns_at === undefined ? "usual" : String(prefs.day_turns_at)}
+                          options={turnHourChoices(settings.data?.shop_day?.zone ?? "Asia/Karachi")}
+                          placeholder="The usual"
+                          onChange={(v) => setP("day_turns_at", v === "usual" ? null : Number(v))}
+                        />
+                      </Field>
+                      {touched.current.has("day_turns_at") && (
+                        <p data-testid="day-turn-consequence" className="rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-300">
+                          Changing this moves late-night sales from one day to the other on earlier reports as well. Days you have already closed off keep the figures they were signed with.
+                        </p>
+                      )}
                     </SectionCard>
 
                     <SectionCard icon={<TruckGlyph />} title="Order fulfillment" description="How customers get their orders. They only see the options you enable.">
@@ -1345,6 +1371,23 @@ export default function ShopSettingsPage() {
                         <Field label="Label encodes">
                           <Select value={String(prefs.scale_barcode_mode ?? "weight")} options={[{ value: "weight", label: "Weight" }, { value: "price", label: "Price" }]} placeholder="Weight" onChange={(v) => setP("scale_barcode_mode", v)} />
                         </Field>
+                        {/* Only a PRICE label has this question. Whole rupees
+                            is the answer for nearly every scale here, and it
+                            is the default: read as paisa, a label printed
+                            "00450" rang up Rs 4.50. */}
+                        {String(prefs.scale_barcode_mode ?? "weight") === "price" && (
+                          <Field label="Price on the label" hint="How your scale prints the five price digits.">
+                            <Select
+                              value={String(prefs.scale_price_decimals ?? 0)}
+                              options={[
+                                { value: "0", label: "Whole rupees — 00450 is Rs 450" },
+                                { value: "2", label: "With paisa — 00450 is Rs 4.50" },
+                              ]}
+                              placeholder="Whole rupees — 00450 is Rs 450"
+                              onChange={(v) => setP("scale_price_decimals", Number(v))}
+                            />
+                          </Field>
+                        )}
                       </div>
                     )}
                     <p className="text-theme-xs text-gray-400">Set each item's <span className="font-medium">Scale PLU code</span> on its product page.</p>

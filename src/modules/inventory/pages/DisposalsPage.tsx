@@ -13,7 +13,7 @@ import { useCreditDisposal, useDisposals } from "../hooks/useInventory";
 import type { StockDisposal } from "../services/inventoryService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { WriteOffModal } from "../components/WriteOffModal";
-import { toIsoDate } from "../../../components/ui/filters";
+import { shopToday } from "../../../common/shopDay";
 
 /**
  * What left the shelf without being sold, and what is owed back for it.
@@ -245,7 +245,7 @@ function CreditModal({ disposal, onClose }: { disposal: StockDisposal; onClose: 
   const credit = useCreditDisposal();
 
   const [amount, setAmount] = useState("");
-  const [on, setOn] = useState(() => toIsoDate(new Date()));
+  const [on, setOn] = useState(() => shopToday());
   const [reference, setReference] = useState("");
 
   return (

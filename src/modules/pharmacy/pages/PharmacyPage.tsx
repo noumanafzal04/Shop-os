@@ -9,6 +9,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { useDispensingRegister, useRecall } from "../hooks/usePharmacy";
 import type { DispensingRow } from "../services/pharmacyService";
 import { toIsoDate } from "../../../components/ui/filters";
+import { shopTodayDate } from "../../../common/shopDay";
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -52,8 +53,12 @@ export default function PharmacyPage() {
 }
 
 function RegisterTab() {
-  const [from, setFrom] = useState(() => iso(new Date(Date.now() - 29 * 864e5)));
-  const [to, setTo] = useState(() => iso(new Date()));
+  const [from, setFrom] = useState(() => {
+    const today = shopTodayDate();
+
+    return iso(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29));
+  });
+  const [to, setTo] = useState(() => iso(shopTodayDate()));
   const [search, setSearch] = useState("");
   const [controlledOnly, setControlledOnly] = useState(false);
 

@@ -58,7 +58,10 @@ export function parseScaleLabel(code: string, settings: Settings): ScaleLabel | 
     itemCode,
     mode,
     weight: mode === "weight" ? Math.round(raw) / 1000 : null,
-    price: mode === "price" ? Math.round(raw) / 100 : null,
+    // WHOLE RUPEES unless the shop says its scale prints paisa — the same
+    // rule as the server's ScaleBarcode, held to the same fixtures. It was
+    // hundredths always: "00450" rang as Rs 4.50.
+    price: mode === "price" ? Math.round(raw) / (Number(settings.scale_price_decimals) === 2 ? 100 : 1) : null,
   };
 }
 

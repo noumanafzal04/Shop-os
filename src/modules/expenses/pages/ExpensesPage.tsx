@@ -35,10 +35,15 @@ import { downloadCsv, downloadFile, openAuthedFile } from "../../../common/api/d
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
-import { formatEntryDate, toIsoDate } from "../../../components/ui/filters";
+import { formatEntryDate } from "../../../components/ui/filters";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { shopToday, shopWallToday } from "../../../common/shopDay";
 
-const today = () => toIsoDate(new Date());
+// The shop's business day for the date an entry opens on — tonight's gas
+// cylinder belongs on the same cashbook row as tonight's sales — and the date
+// on its wall for the latest one that may be typed. See common/shopDay.ts.
+const today = () => shopToday();
+const wallToday = () => shopWallToday();
 
 const TABS = [
   { key: "expenses", label: "Expenses" },
@@ -505,7 +510,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
               </div>
               <div>
                 <Label>Date <span className="text-error-500">*</span></Label>
-                <Input type="date" value={form.date} max={today()} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
+                <Input type="date" value={form.date} max={wallToday()} onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))} />
                 {errorFor("expense_date") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("expense_date")}</p>}
               </div>
             </div>
@@ -579,7 +584,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
 
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const [form, setForm] = useState({
-    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(), notes: "",
+    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: wallToday(), notes: "",
   });
   const [posting, setPosting] = useState<RecurringExpense | null>(null);
   const [postAmount, setPostAmount] = useState("");
@@ -607,7 +612,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
   }, [rows, search, status]);
 
   const blank = () => ({
-    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: today(), notes: "",
+    category: "", description: "", amount: "", method: "cash", frequency: "monthly", next_due_on: wallToday(), notes: "",
   });
 
   const openAdd = () => {

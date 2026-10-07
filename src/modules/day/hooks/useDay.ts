@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { dayService, type DepositInput } from "../services/dayService";
+import { dayService, type ClosedToday, type DepositInput } from "../services/dayService";
 import { useAuthStore } from "../../../stores/authStore";
 
 /** A trading day is drawers, so it belongs to shops that actually have a till. */
@@ -19,7 +19,27 @@ function useTillShop() {
 export function useCurrentDay() {
   return useQuery({
     queryKey: ["pos", "day"],
-    queryFn: async () => (await dayService.current()).data,
+    queryFn: () => dayService.current(),
+    select: (envelope) => envelope.data,
+    enabled: useTillShop(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Today's day when it has been closed off and nothing is trading — or null.
+ *
+ * The same request as `useCurrentDay` (one key, one fetch): the server sends
+ * it beside an empty current day, so the screen can tell "nobody has started
+ * yet" from "somebody closed off at two".
+ */
+export function useClosedToday() {
+  return useQuery({
+    queryKey: ["pos", "day"],
+    queryFn: () => dayService.current(),
+    select: (envelope): ClosedToday | null =>
+      envelope.data === null ? ((envelope.meta as { closed_today?: ClosedToday | null }).closed_today ?? null) : null,
     enabled: useTillShop(),
     refetchInterval: 60_000,
     staleTime: 30_000,
@@ -63,6 +83,10 @@ export function useDayMutations() {
   return {
     close: useMutation({
       mutationFn: ({ id, notes }: { id: string; notes?: string }) => dayService.close(id, notes),
+      onSuccess: invalidate,
+    }),
+    reopen: useMutation({
+      mutationFn: ({ id, reason }: { id: string; reason: string }) => dayService.reopen(id, reason),
       onSuccess: invalidate,
     }),
     deposit: useMutation({

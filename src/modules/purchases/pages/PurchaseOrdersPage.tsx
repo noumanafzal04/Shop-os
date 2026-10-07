@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
-import { FilterChips, toIsoDate } from "../../../components/ui/filters";
+import { FilterChips } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Badge from "../../../components/ui/badge/Badge";
@@ -23,6 +23,7 @@ import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { shopWallToday } from "../../../common/shopDay";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
@@ -112,7 +113,7 @@ export default function PurchaseOrdersPage() {
 
   // Create form
   const [supplierId, setSupplierId] = useState("");
-  const [orderDate, setOrderDate] = useState(toIsoDate(new Date()));
+  const [orderDate, setOrderDate] = useState(shopWallToday());
   const [lines, setLines] = useState<Line[]>([]);
   const [prodSearch, setProdSearch] = useState("");
   const products = useProducts({ search: prodSearch || undefined });
@@ -121,7 +122,7 @@ export default function PurchaseOrdersPage() {
   const total = useMemo(() => lines.reduce((s, l) => s + l.quantity * l.unit_cost, 0), [lines]);
 
   const openCreate = () => {
-    setSupplierId(""); setOrderDate(toIsoDate(new Date())); setLines([]); setProdSearch("");
+    setSupplierId(""); setOrderDate(shopWallToday()); setLines([]); setProdSearch("");
     createModal.openModal();
   };
 
@@ -144,7 +145,7 @@ export default function PurchaseOrdersPage() {
     if (!handoff?.length) return;
 
     setSupplierId("");
-    setOrderDate(toIsoDate(new Date()));
+    setOrderDate(shopWallToday());
     setProdSearch("");
     setLines(handoff.map((p) => ({
       key: `l${++lk}`,

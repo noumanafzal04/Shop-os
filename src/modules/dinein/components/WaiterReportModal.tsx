@@ -5,7 +5,7 @@ import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import { useMoney } from "../../shop/hooks/useShop";
 import { dineInService } from "../services/dineInService";
-import { toIsoDate } from "../../../components/ui/filters";
+import { shopToday } from "../../../common/shopDay";
 
 /**
  * How each section did.
@@ -22,7 +22,9 @@ import { toIsoDate } from "../../../components/ui/filters";
  */
 export default function WaiterReportModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const money = useMoney();
-  const today = toIsoDate(new Date());
+  // Tonight, until the shop's day turns — a waiter's two o'clock table is
+  // part of the service they worked.
+  const today = shopToday();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
 

@@ -14,6 +14,7 @@ import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
 import {
+  useClosedToday,
   useCurrentDay,
   useDayDetail,
   useDayHistory,
@@ -21,6 +22,8 @@ import {
   useDeposits,
 } from "../hooks/useDay";
 import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
+import ClosedTodayCard from "../components/ClosedTodayCard";
+import { turnsAtLabel } from "../../../common/shopDay";
 import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 import { useBranchStore } from "../../../stores/branchStore";
@@ -120,7 +123,14 @@ export default function DayPage() {
   // All-branches view, which is the case this screen used to get wrong.
   const activeBranchId = useBranchStore((st) => st.activeBranchId);
   const day = useCurrentDay();
-  const { close, deposit } = useDayMutations();
+  const closedToday = useClosedToday();
+  const { close, deposit, reopen } = useDayMutations();
+
+  const openAgain = (id: string, reason: string) =>
+    reopen.mutateAsync({ id, reason }).then(
+      () => toast.success("Day opened again — shifts can be opened"),
+      (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Couldn't open the day again."),
+    );
 
   /**
    * The end-of-shift slip. The server has built this since shifts shipped and
@@ -170,6 +180,7 @@ export default function DayPage() {
   // ── Closing the day off ──────────────────────────────────────────
   const shopSettings = useShopSettings();
   const requiresShift = shopSettings.data?.pos_require_shift === true;
+  const turnsAt = shopSettings.data?.shop_day?.turns_at_minutes ?? null;
   const [closeNotes, setCloseNotes] = useState("");
   const closeModal = useModal();
 
@@ -286,6 +297,16 @@ export default function DayPage() {
         <div className="space-y-5">
           {day.isLoading ? (
             <div className="h-40 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />
+          ) : !view && closedToday.data ? (
+            // Not "no day open yet": somebody CLOSED it. Said, with the way back.
+            <ClosedTodayCard
+              closed={closedToday.data}
+              date={dayDate(closedToday.data.trading_date)}
+              closedAt={clock(closedToday.data.closed_at)}
+              money={money}
+              busy={reopen.isPending}
+              onReopen={(reason) => openAgain(closedToday.data!.id, reason)}
+            />
           ) : !view ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-gray-800 dark:bg-white/[0.03]">
               <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -317,6 +338,26 @@ export default function DayPage() {
                       {view.day.branch?.name ?? "Main"} · opened {clock(view.day.opened_at)}
                       {signerName(view.day.opened_by) && ` by ${signerName(view.day.opened_by)}`}
                     </p>
+                    {/* WHEN THIS DAY ENDS. A shift opened at one in the
+                        morning lands in the day above, and the reason is an
+                        hour nobody was ever shown. */}
+                    {turnsAt !== null && (
+                      <p data-testid="day-ends-at" className="mt-1 text-theme-xs text-gray-400">
+                        Your shop's day runs until {turnsAtLabel(turnsAt)}
+                        {turnsAt > 0 ? " — a sale or a shift after midnight still belongs here." : "."}
+                        {canManage && " Change the hour under Settings → Tax & Delivery → Your trading day."}
+                      </p>
+                    )}
+                    {/* IT WAS CLOSED OFF ONCE TODAY. Said on the day itself,
+                        not only on the trail: whoever counts tonight should
+                        know the day has an earlier sign-off behind it. */}
+                    {view.day.reopened_at && (
+                      <p data-testid="day-reopened" className="mt-1 text-theme-xs text-warning-700 dark:text-warning-300">
+                        Closed off earlier and opened again at {clock(view.day.reopened_at)}
+                        {signerName(view.day.reopened_by ?? null) && ` by ${signerName(view.day.reopened_by ?? null)}`}
+                        {view.day.reopen_reason ? ` — “${view.day.reopen_reason}”` : ""}
+                      </p>
+                    )}
                     {/* ONE COUNTER'S FIGURES, WITH OTHERS STILL RUNNING.
                         On All branches this screen shows a single day, and
                         every number under it belongs to that one branch. An
@@ -864,11 +905,11 @@ export default function DayPage() {
             that day. Said here, before the button, where it can still be
             decided against. */}
         <div data-testid="close-day-consequence" className="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 text-theme-sm text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
-          <span className="font-medium text-gray-800 dark:text-white/90">No shift can be opened again today.</span>{" "}
+          <span className="font-medium text-gray-800 dark:text-white/90">No shift can be opened on a closed day.</span>{" "}
           {requiresShift
             ? "This shop requires an open shift to sell, so the till will not ring another sale until tomorrow."
             : "Anything sold later today will have no drawer to be counted in."}{" "}
-          Close off when the shop is shut for the day.
+          Close off when the shop is shut for the day. If you close it by mistake, a manager can open today again from this screen.
         </div>
 
         <div className="space-y-2">

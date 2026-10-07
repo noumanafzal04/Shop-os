@@ -16,11 +16,11 @@ import { useSuppliers, useSupplier, useSupplierMutations } from "../hooks/usePur
 import type { PurchaseOrder, Supplier } from "../types";
 import Select from "../../../components/form/Select";
 import Label from "../../../components/form/Label";
-import { toIsoDate } from "../../../components/ui/filters/dateRanges";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { payOutlook } from "../payMath";
+import { shopToday } from "../../../common/shopDay";
 
 
 export default function SuppliersPage() {
@@ -56,7 +56,7 @@ export default function SuppliersPage() {
   const [payMethod, setPayMethod] = useState("cash");
   const [payAgainst, setPayAgainst] = useState("");   // "" = whole account
   const [payRef, setPayRef] = useState("");
-  const [payDate, setPayDate] = useState(toIsoDate(new Date()));
+  const [payDate, setPayDate] = useState(shopToday());
 
   // The orders this payment could go against. Only loaded while the dialog is
   // open — the list page itself has no use for one supplier's order history.
@@ -112,7 +112,7 @@ export default function SuppliersPage() {
     setPayMethod("cash");
     setPayAgainst("");
     setPayRef("");
-    setPayDate(toIsoDate(new Date()));
+    setPayDate(shopToday());
     payModal.openModal();
   };
   const doPay = () => {

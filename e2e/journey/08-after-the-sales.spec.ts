@@ -212,7 +212,7 @@ test("C10 · Day & banking tells the day as it was, and the day is closed off", 
     rupees(await page.getByText(label, { exact: true }).locator("xpath=following-sibling::p[1]").innerText());
 
   // RESUMED when the day is already closed: Today is empty, and that is right.
-  const open = !(await page.getByText("No day open yet.").isVisible().catch(() => false));
+  const open = !(await page.getByText("No day open yet.").or(page.getByTestId("closed-today")).first().isVisible().catch(() => false));
   if (open) {
     // Ten sales were RUNG. Two bags coming back does not un-ring them.
     expect(await figure("Rung up")).toBe(43543.96);
@@ -225,12 +225,13 @@ test("C10 · Day & banking tells the day as it was, and the day is closed off", 
     // It said the figures freeze; it did not say no shift can be opened again
     // until tomorrow — and a shop that requires a shift to sell found that
     // out at the till.
-    await expect(page.getByTestId("close-day-consequence")).toContainText("No shift can be opened again today.");
+    await expect(page.getByTestId("close-day-consequence")).toContainText("No shift can be opened on a closed day.");
     const confirm = page.getByRole("dialog").getByRole("button", { name: /Close off|Close the day|Confirm/i }).last();
     if (await confirm.isVisible().catch(() => false)) await confirm.click();
 
-    // A closed day is no longer "today".
-    await expect(page.getByText("No day open yet.")).toBeVisible({ timeout: 20_000 });
+    // A closed day is no longer "today" — and the screen says it was closed,
+    // not that nobody has started (stage I is about what happens next).
+    await expect(page.getByTestId("closed-today")).toBeVisible({ timeout: 20_000 });
   }
 
   // It is in the past days, with the figure it closed on.

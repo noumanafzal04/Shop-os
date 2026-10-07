@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { CalendarGlyph, ChevronGlyph } from "./FilterIcons";
 import { FilterOption, FilterPopover } from "./FilterPopover";
+import { shopToday, shopTodayDate } from "../../../common/shopDay";
 import {
   EMPTY_RANGE,
   formatRange,
@@ -15,7 +16,6 @@ import {
   RANGE_KEYS,
   rangeName,
   resolveRange,
-  toIsoDate,
   type DateRange,
   type RangeKey,
 } from "./dateRanges";
@@ -76,7 +76,7 @@ export function DateRangeFilter({
   extra?: ReadonlyArray<{ key: string; label: string; range: DateRange }>;
 }) {
   const [custom, setCustom] = useState(false);
-  const today = new Date();
+  const today = shopTodayDate();
   const preset = matchPreset(value, today);
   const chosen = value.from !== null || value.to !== null;
   // A caller-supplied range is named by its own row, so it must not ALSO tick
@@ -211,7 +211,7 @@ function CustomRangeDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const today = toIsoDate(new Date());
+  const today = shopToday();
   const complete = draft.from !== null && draft.to !== null;
 
   /**
@@ -340,7 +340,7 @@ function CustomRangeDialog({
 
 /** Which month to open on: the range's own start, or this month. */
 function startingMonth(range: DateRange): Date {
-  const anchor = range.from !== null ? fromIsoDate(range.from) : new Date();
+  const anchor = range.from !== null ? fromIsoDate(range.from) : shopTodayDate();
 
   return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
 }

@@ -6,6 +6,7 @@ import { recallTenantTheme, rememberTenantTheme } from "../../../common/theme/re
 import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
 import { formatMoney } from "../../../common/format/money";
+import { setShopDayRule } from "../../../common/shopDay";
 
 /**
  * What this shop has. Read-only — modules are the admin's decision, and this is
@@ -25,12 +26,25 @@ export function useShopSettings() {
   // (it would 403). Other roles just get the default formatting.
   const role = useAuthStore((s) => s.user?.role);
   const isShop = role === "shop_owner" || role === "staff";
-  return useQuery({
+  const query = useQuery({
     queryKey: ["shop-settings"],
     queryFn: async () => (await shopService.settings()).data,
     staleTime: 5 * 60 * 1000,
     enabled: isShop,
   });
+
+  // WHICH DAY IT IS HERE. The shop's settings say when its day turns; every
+  // "Today" in the panel is worked out from that (common/shopDay.ts). Told
+  // from the one hook every shop screen already reads, so no screen has to
+  // remember to — and taken away again for anybody who is not in a shop.
+  const zone = query.data?.shop_day?.zone ?? null;
+  const turnsAt = query.data?.shop_day?.turns_at_minutes ?? null;
+  useEffect(() => {
+    if (!isShop) setShopDayRule(null);
+    else if (zone !== null && turnsAt !== null) setShopDayRule({ zone, turnsAtMinutes: turnsAt });
+  }, [isShop, zone, turnsAt]);
+
+  return query;
 }
 
 /**

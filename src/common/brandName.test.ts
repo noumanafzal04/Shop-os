@@ -81,6 +81,8 @@ describe("the name lives in one place", () => {
     "shopos-product-images",
     // The shop's colours as this device last saw them — rememberedTheme.ts.
     "shopos-theme",
+    // When this shop's day turns, so the first "Today" of a session is right — shopDay.ts.
+    "shopos-day",
     // A CSS class the map library is told to use.
     "shopos-map-pin",
     // Dismissal flags and a walkthrough marker — browser keys, same rule.

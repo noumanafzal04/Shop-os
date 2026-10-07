@@ -29,9 +29,10 @@ import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type M
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
-import { toIsoDate } from "../../../components/ui/filters";
+import { shopToday, shopWallToday } from "../../../common/shopDay";
 
-const today = () => toIsoDate(new Date());
+const today = () => shopToday();
+const wallToday = () => shopWallToday();
 
 const TABS = [
   { key: "entries", label: "Income" },
@@ -382,7 +383,7 @@ export default function IncomePage() {
             </div>
             <div>
               <Label>Date <span className="text-error-500">*</span></Label>
-              <Input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" value={date} max={wallToday()} onChange={(e) => setDate(e.target.value)} />
               {errorFor("income_date") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("income_date")}</p>}
             </div>
           </div>

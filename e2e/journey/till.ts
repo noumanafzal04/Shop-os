@@ -114,3 +114,22 @@ export async function complete(page: Page, request: APIRequestContext): Promise<
 export async function grandTotal(page: Page): Promise<number> {
   return rupees(await page.getByText("Grand Total", { exact: true }).locator("xpath=following-sibling::div[1]").innerText());
 }
+
+/**
+ * Open today's trading day again, at Day & banking, as a manager would.
+ *
+ * A journey run from the top in one sitting closes the day in stage C and
+ * then needs a drawer in the stages after it. That used to be the end of
+ * those cases until tomorrow; it is now what a shop does about a day closed
+ * at the wrong hour — see stage I, which is about this screen. Here it is a
+ * step on the way to something else.
+ */
+export async function reopenToday(page: Page, reason: string): Promise<void> {
+  await page.goto("/tenant/day");
+  await page.getByTestId("closed-today").getByRole("button", { name: "Open today again" }).click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByText("Why is it being opened again?") });
+  await sheet.getByRole("textbox").fill(reason);
+  await sheet.getByRole("button", { name: "Open it again" }).click();
+  await expect(sheet, "the day would not open again").toBeHidden({ timeout: 15_000 });
+  await expect(page.getByTestId("day-reopened")).toBeVisible({ timeout: 20_000 });
+}
