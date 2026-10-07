@@ -15,6 +15,7 @@ use App\Models\FuelPump;
 use App\Models\FuelTank;
 use App\Models\FuelTankDipPoint;
 use App\Support\ApiResponse;
+use App\Support\FuelInTheGround;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -165,7 +166,15 @@ class FuelSetupController extends Controller
         // is the same rule, through the door nobody guarded.
         $this->assertNoOpenShift($data['branch_id'] ?? null, 'tank', 'adding');
 
-        $tank = FuelTank::query()->create($data);
+        $tank = DB::transaction(function () use ($data): FuelTank {
+            $tank = FuelTank::query()->create($data);
+
+            // The fuel already in it is on the shelf from this moment — not
+            // from whenever the first shift happens to close. See FuelInTheGround.
+            FuelInTheGround::settle($tank->product_id, $tank->branch_id, "{$tank->name} installed", $tank->id);
+
+            return $tank;
+        });
 
         return ApiResponse::created($this->presentTank($tank->load(['product:id,name,price,unit', 'branch:id,name'])), 'Tank added');
     }
@@ -183,7 +192,20 @@ class FuelSetupController extends Controller
             unset($data['current_dip_litres']);
         }
 
-        $tank->update($data);
+        DB::transaction(function () use ($tank, $data): void {
+            $was = $tank->product_id;
+            $tank->update($data);
+
+            // A dip corrected by hand, a tank switched to another fuel, a tank
+            // retired: the shelf follows the ground each time. Never mid-shift
+            // — the close does it then, against what the meters say.
+            if (! $this->hasOpenShift($tank->branch_id)) {
+                FuelInTheGround::settle($tank->product_id, $tank->branch_id, "{$tank->name} re-dipped", $tank->id);
+                if ($was !== $tank->product_id) {
+                    FuelInTheGround::settle($was, $tank->branch_id, "{$tank->name} no longer holds this", $tank->id);
+                }
+            }
+        });
 
         return ApiResponse::ok($this->presentTank($tank->load(['product:id,name,price,unit', 'branch:id,name'])), 'Tank updated');
     }
@@ -195,7 +217,11 @@ class FuelSetupController extends Controller
 
         $this->assertNoOpenShift($tank->branch_id, 'tank');
 
-        $tank->delete();
+        DB::transaction(function () use ($tank): void {
+            $tank->delete();
+            // A tank that is gone holds nothing the shop can sell.
+            FuelInTheGround::settle($tank->product_id, $tank->branch_id, "{$tank->name} removed", $tank->id);
+        });
 
         return ApiResponse::noContent('Tank removed');
     }

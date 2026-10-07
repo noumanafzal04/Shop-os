@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
@@ -614,6 +615,184 @@ class FuelManagementTest extends TestCase
         $petrolDip = collect($closed['dips'])->firstWhere('tank_name', 'Tank 1 — Petrol');
         $this->assertEquals(5000, $petrolDip['delivered_litres']);
         $this->assertEquals(14600, $petrolDip['book_closing']);
+    }
+
+    // ── Fuel on the shelf is what the dips say ──────────────────────
+
+    /** A fuel carded the way a station cards it: nothing typed as opening stock. */
+    private function cardedFuel(string $name, float $stock = 0): Product
+    {
+        return Product::withoutTenancy()->create([
+            'tenant_id' => $this->station->id, 'type' => 'product', 'name' => $name,
+            'price' => 285, 'cost' => 262, 'unit' => 'Litre', 'sold_by' => 'weight',
+            'track_inventory' => true, 'stock_quantity' => $stock, 'is_active' => true,
+        ]);
+    }
+
+    private function installTank(Product $fuel, string $name, float $dip, array $over = []): TestResponse
+    {
+        return $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/tanks', array_merge([
+            'name' => $name, 'product_id' => $fuel->id,
+            'capacity_litres' => 20000, 'current_dip_litres' => $dip, 'dead_stock_litres' => 0,
+        ], $over));
+    }
+
+    /**
+     * Every fixture in this file gives its fuel a stock figure AND its tank the
+     * same dip — which is the one thing a station setting up never does, so
+     * nothing here could see that the two were never connected. A tank
+     * installed with 6,000 litres in it left the shelf at nought: the till
+     * called the station's own diesel out of stock until the first shift closed.
+     */
+    public function test_a_tank_installed_with_fuel_in_it_puts_that_fuel_on_the_shelf(): void
+    {
+        $diesel = $this->cardedFuel('Station Diesel');
+
+        $this->installTank($diesel, 'Tank 3', 6000)->assertCreated();
+        $this->assertEquals(6000, (float) $diesel->fresh()->stock_quantity);
+
+        // A second tank of the same fuel: the shelf is both.
+        $this->installTank($diesel, 'Tank 4', 4000)->assertCreated();
+        $this->assertEquals(10000, (float) $diesel->fresh()->stock_quantity);
+
+        // And it can be sold, from the first morning.
+        $this->ringUpFuel($diesel->fresh(), 20);
+        $this->assertEquals(9980, (float) $diesel->fresh()->stock_quantity);
+    }
+
+    public function test_a_figure_typed_on_the_item_as_well_is_not_counted_twice(): void
+    {
+        // The owner typed 6,000 as opening stock on the item, then dipped the tank at 6,000.
+        $diesel = $this->cardedFuel('Station Diesel', 6000);
+
+        $this->installTank($diesel, 'Tank 3', 6000)->assertCreated();
+
+        $this->assertEquals(6000, (float) $diesel->fresh()->stock_quantity);
+    }
+
+    public function test_a_dip_corrected_by_hand_moves_the_shelf_with_it(): void
+    {
+        $diesel = $this->cardedFuel('Station Diesel');
+        $tank = $this->installTank($diesel, 'Tank 3', 6000)->assertCreated()->json('data');
+
+        $this->actingAsUser($this->owner)->putJson("/api/v1/fuel/tanks/{$tank['id']}", [
+            'name' => 'Tank 3', 'product_id' => $diesel->id,
+            'capacity_litres' => 20000, 'current_dip_litres' => 5400, 'dead_stock_litres' => 0,
+        ])->assertOk();
+
+        $this->assertEquals(5400, (float) $diesel->fresh()->stock_quantity);
+    }
+
+    public function test_a_tank_that_is_removed_takes_its_fuel_off_the_shelf(): void
+    {
+        $diesel = $this->cardedFuel('Station Diesel');
+        $this->installTank($diesel, 'Tank 3', 6000)->assertCreated();
+        $second = $this->installTank($diesel, 'Tank 4', 4000)->assertCreated()->json('data');
+
+        $this->actingAsUser($this->owner)->deleteJson("/api/v1/fuel/tanks/{$second['id']}")->assertOk();
+
+        $this->assertEquals(6000, (float) $diesel->fresh()->stock_quantity);
+    }
+
+    public function test_a_tank_taken_out_of_use_takes_its_fuel_off_the_shelf(): void
+    {
+        $diesel = $this->cardedFuel('Station Diesel');
+        $this->installTank($diesel, 'Tank 3', 6000)->assertCreated();
+        $second = $this->installTank($diesel, 'Tank 4', 4000)->assertCreated()->json('data');
+
+        // Out of use: no hose draws from it, so the shop cannot sell what is in it.
+        $this->actingAsUser($this->owner)->putJson("/api/v1/fuel/tanks/{$second['id']}", [
+            'name' => 'Tank 4', 'product_id' => $diesel->id, 'capacity_litres' => 20000,
+            'current_dip_litres' => 4000, 'dead_stock_litres' => 0, 'is_active' => false,
+        ])->assertOk();
+
+        $this->assertEquals(6000, (float) $diesel->fresh()->stock_quantity);
+    }
+
+    public function test_one_fuels_tank_does_not_move_anothers_shelf(): void
+    {
+        $diesel = $this->cardedFuel('Station Diesel');
+
+        $this->installTank($diesel, 'Tank 3', 6000)->assertCreated();
+
+        $this->assertEquals(10000, (float) $this->petrol->fresh()->stock_quantity);
+        $this->assertEquals(5000, (float) $this->diesel->fresh()->stock_quantity);
+    }
+
+    public function test_a_fuel_the_station_does_not_count_is_left_alone(): void
+    {
+        $gas = $this->cardedFuel('LPG');
+        $gas->forceFill(['track_inventory' => false])->save();
+
+        $this->installTank($gas, 'Bullet', 3000)->assertCreated();
+
+        $this->assertEquals(0, (float) $gas->fresh()->stock_quantity);
+    }
+
+    public function test_a_tankers_cost_is_blended_with_the_fuel_the_tank_was_installed_holding(): void
+    {
+        // The journey's own morning: a tank installed at 2,000 litres, then 9,900 arrive at 270.
+        $petrol = $this->cardedFuel('Station Petrol');
+        $petrol->forceFill(['cost' => 265])->save();
+        $tank = $this->installTank($petrol, 'Tank 5', 2000, ['capacity_litres' => 30000])->assertCreated()->json('data');
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/deliveries', [
+            'fuel_tank_id' => $tank['id'], 'invoiced_litres' => 10000,
+            'dip_before' => 2000, 'dip_after' => 11900, 'unit_cost' => 270,
+        ])->assertCreated();
+
+        $this->assertEquals(11900, (float) $petrol->fresh()->stock_quantity);
+        // (2,000 × 265 + 9,900 × 270) ÷ 11,900 — not 270, as if the tank had been empty.
+        $this->assertEquals(269.16, (float) $petrol->fresh()->cost);
+    }
+
+    // ── What the fuel in the ground cost ────────────────────────────
+
+    /**
+     * A forecourt buys nothing on a purchase order — its whole goods-in is the
+     * tanker — and a tanker never moved `products.cost`. So a station's petrol
+     * stayed at the cost typed the day it was carded, through every fortnightly
+     * rate change, and every margin figure for it was a fiction.
+     */
+    public function test_a_tankers_rate_becomes_part_of_what_the_fuel_cost(): void
+    {
+        $this->petrol->forceFill(['cost' => 250.00])->save();
+
+        // 10,000 litres in the ground at 250; 9,850 arrive at 260.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/deliveries', [
+            'fuel_tank_id' => $this->petrolTank->id,
+            'invoiced_litres' => 10000, 'dip_before' => 10000, 'dip_after' => 19850,
+            'unit_cost' => 260,
+        ])->assertCreated();
+
+        // (10,000 × 250 + 9,850 × 260) ÷ 19,850 — blended on what ARRIVED.
+        $this->assertEquals(254.96, (float) $this->petrol->fresh()->cost);
+        // The other fuel is not touched by a load of petrol.
+        $this->assertEquals(round(276.00 * 0.93, 2), (float) $this->diesel->fresh()->cost);
+    }
+
+    public function test_a_load_into_an_empty_tank_is_the_cost(): void
+    {
+        $this->petrol->forceFill(['cost' => 250.00, 'stock_quantity' => 0])->save();
+        $this->petrolTank->forceFill(['current_dip_litres' => 0])->save();
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/deliveries', [
+            'fuel_tank_id' => $this->petrolTank->id, 'invoiced_litres' => 8000, 'unit_cost' => 262.40,
+        ])->assertCreated();
+
+        $this->assertEquals(262.40, (float) $this->petrol->fresh()->cost);
+    }
+
+    public function test_a_delivery_recorded_without_a_rate_leaves_the_cost_as_it_was(): void
+    {
+        $this->petrol->forceFill(['cost' => 250.00])->save();
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/fuel/deliveries', [
+            'fuel_tank_id' => $this->petrolTank->id, 'invoiced_litres' => 5000,
+        ])->assertCreated();
+
+        // Missing information, not free fuel.
+        $this->assertEquals(250.00, (float) $this->petrol->fresh()->cost);
     }
 
     // ── Rates ───────────────────────────────────────────────────────

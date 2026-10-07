@@ -8,6 +8,7 @@ use App\Models\FuelDelivery;
 use App\Models\FuelTank;
 use App\Models\User;
 use App\Services\InventoryService;
+use App\Support\MovingCost;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -116,6 +117,8 @@ class RecordFuelDeliveryAction
             $tank->update(['current_dip_litres' => $newDip]);
 
             $product = $tank->product;
+            // On hand BEFORE this load, for the cost blend below.
+            $onHand = $product !== null && $product->track_inventory ? (float) $product->stock_quantity : 0.0;
 
             if ($product !== null && $product->track_inventory) {
                 $this->inventory->adjust([
@@ -128,6 +131,30 @@ class RecordFuelDeliveryAction
                     'idempotency_key' => "fuel-delivery-{$delivery->id}",
                     'branch_id' => $tank->branch_id,
                 ]);
+            }
+
+            // ── WHAT THE FUEL IN THE GROUND COST ────────────────────────
+            //
+            // Every margin and profit figure is built from `products.cost`,
+            // and the only thing that ever moved it was a purchase order. A
+            // forecourt buys nothing on a purchase order: its whole goods-in
+            // is the tanker. So a station's petrol stayed at whatever cost
+            // was typed the day the product was carded, through every
+            // fortnightly rate change, and its margin report was a fiction.
+            //
+            // Blended with what was already in the tank, exactly as a
+            // delivery on a purchase order is — see App\Support\MovingCost.
+            if ($product !== null && $unitCost > 0) {
+                $blended = MovingCost::blend(
+                    $product->cost === null ? null : (float) $product->cost,
+                    $onHand,
+                    $unitCost,
+                    $received,
+                );
+
+                if ($blended !== null) {
+                    $product->forceFill(['cost' => $blended])->save();
+                }
             }
 
             return $delivery->fresh(['tank', 'supplier']);
