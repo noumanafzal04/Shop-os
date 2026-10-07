@@ -14,6 +14,7 @@ import { vehiclesService } from "../../vehicles/services/vehiclesService";
 import { documentService } from "../../documents/services/documentService";
 import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { instantOf } from "../../../common/time/localInput";
 
 /**
  * A car arriving, in the thirty seconds somebody has while holding its keys.
@@ -96,7 +97,9 @@ export function BookInModal({ onClose, onBooked }: Props) {
         vehicle_id: words.tracksVehicle ? (id ?? undefined) : undefined,
         odometer_in: words.tracksVehicle && odometer.trim() !== "" ? Number(odometer) : undefined,
         complaint: complaint.trim() || undefined,
-        promised_at: promised || undefined,
+        // The moment on this device's clock — see instantOf. Sent as typed, it
+        // was read as UTC and every car was promised five hours late.
+        promised_at: instantOf(promised),
         customer_name: customer.trim() || undefined,
         customer_phone: phone.trim() || undefined,
         items: [{ product_id: item!.id, quantity: 1 }],

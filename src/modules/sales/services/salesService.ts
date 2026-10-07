@@ -69,7 +69,8 @@ export const salesService = {
   processReturn: (
     id: string,
     payload: {
-      items: Array<{ sale_item_id: string; quantity: number }>;
+      /** `serials` — WHICH numbered units came back. See unitsBack.ts. */
+      items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>;
       reason?: string;
       refund_method?: string;
       /** Replay guard — a retried/double-clicked partial return must not
@@ -81,8 +82,8 @@ export const salesService = {
   exchange: (
     id: string,
     payload: {
-      return_items: Array<{ sale_item_id: string; quantity: number }>;
-      items: Array<{ product_id: string; quantity: number; variant_id?: string | null }>;
+      return_items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>;
+      items: Array<{ product_id: string; quantity: number; variant_id?: string | null; serials?: string[]; warranty_months?: number | null }>;
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
       reason?: string;

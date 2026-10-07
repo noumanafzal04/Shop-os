@@ -19,12 +19,20 @@ import {
   type WarrantyRecord,
 } from "../services/warrantyService";
 import { ApiError } from "../../../common/types/api";
+import { daysLeft, deskDate } from "../cover";
 
-const fmtDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+const fmtDate = deskDate;
 
 const daysHeld = (from: string) =>
   Math.max(0, Math.floor((Date.now() - new Date(from).getTime()) / 86_400_000));
+
+/** A sale's status in words — the desk printed `partially_refunded` to a customer's face. */
+const SALE_STATUS: Record<string, string> = {
+  completed: "Completed",
+  partially_refunded: "Partially refunded",
+  refunded: "Refunded",
+  cancelled: "Cancelled",
+};
 
 const RESOLUTION_LABEL: Record<string, string> = Object.fromEntries(
   RESOLUTIONS.map((r) => [r.value, r.label]),
@@ -181,30 +189,57 @@ function LookupTab() {
       {record && (
         <div className="mt-6 space-y-5">
           <div className="overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800">
-            {/* Warranty banner — the counter's at-a-glance answer. */}
-            <div
-              className={`flex items-center justify-between px-6 py-4 ${
-                record.under_warranty
-                  ? "bg-success-50 dark:bg-success-500/10"
-                  : "bg-error-50 dark:bg-error-500/10"
-              }`}
-            >
-              <div>
-                <div className={`text-lg font-semibold ${record.under_warranty ? "text-success-700 dark:text-success-400" : "text-error-700 dark:text-error-400"}`}>
-                  {record.under_warranty ? "Under warranty" : "Warranty expired"}
+            {/* Warranty banner — the counter's at-a-glance answer.
+
+                THREE answers, and it used to give two. A phone brought back
+                and refunded read "Under warranty — 365 days left" with the
+                name of a customer who no longer had it: the shop's own stock,
+                covered against the shop. A unit that came back is said to
+                have come back, in its own colour, before any dates. */}
+            {record.came_back ? (
+              <div data-testid="warranty-banner" data-state="came-back" className="flex items-center justify-between bg-warning-50 px-6 py-4 dark:bg-warning-500/10">
+                <div>
+                  <div className="text-lg font-semibold text-warning-700 dark:text-warning-400">
+                    {record.came_back.as === "cancelled" ? "That sale was cancelled" : "This unit came back"}
+                  </div>
+                  <div className="text-theme-sm text-gray-600 dark:text-gray-400">
+                    {record.came_back.as === "cancelled" ? "Cancelled" : "Returned and refunded"}
+                    {record.came_back.at ? ` ${fmtDate(record.came_back.at)}` : ""}
+                    {record.on_shelf ? " — it is on the shelf again." : " — it is not out with a customer."}
+                    {" "}There is no warranty to claim under.
+                  </div>
                 </div>
-                <div className="text-theme-sm text-gray-500 dark:text-gray-400">
-                  {record.under_warranty
-                    ? `${record.days_left} day${record.days_left === 1 ? "" : "s"} left`
-                    : record.warranty_expires_at
-                      ? `Expired ${fmtDate(record.warranty_expires_at)}`
-                      : "No warranty on this item"}
-                </div>
+                <span className="rounded-lg bg-white/70 px-2.5 py-1 font-mono text-theme-sm text-gray-700 dark:bg-black/20 dark:text-gray-200">
+                  {record.serial}
+                </span>
               </div>
-              <span className="rounded-lg bg-white/70 px-2.5 py-1 font-mono text-theme-sm text-gray-700 dark:bg-black/20 dark:text-gray-200">
-                {record.serial}
-              </span>
-            </div>
+            ) : (
+              <div
+                data-testid="warranty-banner"
+                data-state={record.under_warranty ? "covered" : "expired"}
+                className={`flex items-center justify-between px-6 py-4 ${
+                  record.under_warranty
+                    ? "bg-success-50 dark:bg-success-500/10"
+                    : "bg-error-50 dark:bg-error-500/10"
+                }`}
+              >
+                <div>
+                  <div className={`text-lg font-semibold ${record.under_warranty ? "text-success-700 dark:text-success-400" : "text-error-700 dark:text-error-400"}`}>
+                    {record.under_warranty ? "Under warranty" : "Warranty expired"}
+                  </div>
+                  <div className="text-theme-sm text-gray-500 dark:text-gray-400">
+                    {record.under_warranty
+                      ? daysLeft(record.days_left)
+                      : record.warranty_expires_at
+                        ? `Expired ${fmtDate(record.warranty_expires_at)}`
+                        : "No warranty on this item"}
+                  </div>
+                </div>
+                <span className="rounded-lg bg-white/70 px-2.5 py-1 font-mono text-theme-sm text-gray-700 dark:bg-black/20 dark:text-gray-200">
+                  {record.serial}
+                </span>
+              </div>
+            )}
 
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 p-6 sm:grid-cols-2">
               <Field label="Product" value={record.product_name} />
@@ -212,8 +247,9 @@ function LookupTab() {
               <Field label="Warranty" value={record.warranty_months != null ? `${record.warranty_months} months` : "—"} />
               <Field label="Expires" value={fmtDate(record.warranty_expires_at)} />
               <Field label="Invoice" value={record.sale?.invoice_number ?? "—"} />
-              <Field label="Sale status" value={record.sale?.status ?? "—"} />
-              <Field label="Customer" value={record.sale?.customer_name || record.sale?.customer_phone || "Walk-in"} />
+              <Field label="Sale status" value={record.sale?.status ? SALE_STATUS[record.sale.status] ?? record.sale.status : "—"} />
+              {/* Somebody who was given their money back is not this unit's customer. */}
+              <Field label={record.came_back ? "Was sold to" : "Customer"} value={record.sale?.customer_name || record.sale?.customer_phone || "Walk-in"} />
             </dl>
 
             <div className="border-t border-gray-100 px-6 py-4 dark:border-gray-800">

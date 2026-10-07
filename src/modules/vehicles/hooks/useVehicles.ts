@@ -41,5 +41,12 @@ export function useVehicleMutations() {
       onSuccess: invalidate,
     }),
     remove: useMutation({ mutationFn: (id: string) => vehiclesService.remove(id), onSuccess: invalidate }),
+    // Whose car it is. The list has always had an Owner column; nothing on any
+    // screen could fill it.
+    linkOwner: useMutation({
+      mutationFn: ({ id, phone, name }: { id: string; phone: string; name?: string }) =>
+        vehiclesService.linkCustomer(id, { phone, name }),
+      onSuccess: invalidate,
+    }),
   };
 }

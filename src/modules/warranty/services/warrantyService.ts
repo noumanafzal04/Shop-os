@@ -39,8 +39,18 @@ export interface WarrantyRecord {
   sold_at: string | null;
   warranty_months: number | null;
   warranty_expires_at: string | null;
+  /** Out with a customer AND inside its window. False for a unit that came back. */
   under_warranty: boolean;
+  /** Whole days. Zero on the last day of cover. */
   days_left: number;
+  /**
+   * Not with the customer any more — brought back and refunded, or the sale
+   * was cancelled. The desk says THIS instead of a warranty verdict: there is
+   * nobody to give one to.
+   */
+  came_back?: { as: "returned" | "cancelled"; at: string | null } | null;
+  /** Standing on the shop's own shelf right now. */
+  on_shelf?: boolean;
   sale: {
     id: string;
     invoice_number: string;

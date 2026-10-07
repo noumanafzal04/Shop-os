@@ -41,6 +41,9 @@ import { receiptService } from "../../receipts/services/receiptService";
 import { useReceiptTrail } from "../../receipts/hooks/useReceipts";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { MONEY_BACK_OFFLINE } from "../../offline/outbox/canSellOffline";
+import { numbersToSend, saidWhich, unitsOut, whichUnits } from "../unitsBack";
+import { UnitsBack } from "../components/UnitsBack";
+import { GoingOutNumbers } from "../components/GoingOutNumbers";
 
 const STATUSES = [
   { value: "completed", label: "Completed" },
@@ -202,15 +205,23 @@ export default function SalesPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [returning, setReturning] = useState(false);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  // WHICH numbered units are being handed back, per sale line. See unitsBack.ts.
+  const [unitsBack, setUnitsBack] = useState<Record<string, string[]>>({});
+  const toggleUnit = (saleItemId: string, serial: string) =>
+    setUnitsBack((m) => {
+      const now = m[saleItemId] ?? [];
+
+      return { ...m, [saleItemId]: now.includes(serial) ? now.filter((s) => s !== serial) : [...now, serial] };
+    });
   // Replay guard for refunds: one key per return ATTEMPT. A double-click or a
   // retry after a timeout resends the same key, so the server replays the
   // original refund instead of paying out (and restocking) twice. Changing the
   // selection — or moving to another sale — starts a genuinely new attempt.
   const returnIdemRef = useRef(uuid());
-  useEffect(() => { returnIdemRef.current = uuid(); }, [returnQty, detailId]);
+  useEffect(() => { returnIdemRef.current = uuid(); }, [returnQty, unitsBack, detailId]);
   // Exchange mode: hand items back (returnQty above) + buy replacements, settle the difference.
   const [exchanging, setExchanging] = useState(false);
-  const [exItems, setExItems] = useState<Array<{ product_id: string; name: string; price: number; quantity: number }>>([]);
+  const [exItems, setExItems] = useState<Array<{ product_id: string; name: string; price: number; quantity: number; tracks_serial: boolean; serials: string[] }>>([]);
   const [exSearch, setExSearch] = useState("");
   const [exMethod, setExMethod] = useState("cash");
   const [exAmount, setExAmount] = useState("");
@@ -224,6 +235,7 @@ export default function SalesPage() {
     setConfirmingCancel(false);
     setReturning(false);
     setReturnQty({});
+    setUnitsBack({});
     setExchanging(false);
     setExItems([]);
     setExSearch("");
@@ -249,38 +261,69 @@ export default function SalesPage() {
     return Number(soldQty) - returned;
   };
 
+  /** What a line being handed back has to say about WHICH of its units — and what is ticked. */
+  const backOf = (saleItemId: string, soldQty: number | string) => {
+    const out = unitsOut(detail.data?.serials, saleItemId);
+    const which = whichUnits(out.length, remainingToReturn(saleItemId, soldQty), returnQty[saleItemId] ?? 0);
+    // A tick for a unit that is no longer out (a return since) is not a tick.
+    const ticked = (unitsBack[saleItemId] ?? []).filter((s) => out.some((u) => u.serial === s));
+
+    return { out, which, ticked };
+  };
+
+  /** Every line being handed back has said which units, where it had to. */
+  const saidWhichUnits = (detail.data?.items ?? []).every((item) => {
+    const { which, ticked } = backOf(item.id, item.quantity);
+
+    return saidWhich(which, ticked.length);
+  });
+
+  /** The lines being handed back, each with the numbers it named. */
+  const linesBack = () =>
+    (detail.data?.items ?? [])
+      .filter((item) => (returnQty[item.id] ?? 0) > 0)
+      .map((item) => {
+        const { which, ticked } = backOf(item.id, item.quantity);
+        const serials = numbersToSend(which, ticked);
+
+        return { sale_item_id: item.id, quantity: returnQty[item.id], ...(serials !== undefined ? { serials } : {}) };
+      });
+
   const doReturn = () => {
     if (!detailId || processReturn.isPending) return;
-    const items = Object.entries(returnQty)
-      .filter(([, q]) => q > 0)
-      .map(([sale_item_id, quantity]) => ({ sale_item_id, quantity }));
+    const items = linesBack();
     if (items.length === 0) return;
     processReturn.mutate(
       // Refund the way the customer paid (server also defaults to this).
       { id: detailId, items, refund_method: detail.data?.payment_method, idempotency_key: returnIdemRef.current },
-      { onSuccess: () => { setReturning(false); setReturnQty({}); } },
+      { onSuccess: () => { setReturning(false); setReturnQty({}); setUnitsBack({}); } },
     );
   };
 
-  const addExItem = (p: { id: string; name: string; price: string | number; discount_price?: string | number | null }) => {
+  const addExItem = (p: { id: string; name: string; price: string | number; discount_price?: string | number | null; tracks_serial?: boolean }) => {
     const sale = Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price) ? Number(p.discount_price) : Number(p.price);
     setExItems((xs) => {
       const ex = xs.find((x) => x.product_id === p.id);
       if (ex) return xs.map((x) => (x.product_id === p.id ? { ...x, quantity: x.quantity + 1 } : x));
-      return [...xs, { product_id: p.id, name: p.name, price: sale, quantity: 1 }];
+      return [...xs, { product_id: p.id, name: p.name, price: sale, quantity: 1, tracks_serial: !!p.tracks_serial, serials: [] }];
     });
     setExSearch("");
   };
 
   const doExchange = () => {
     if (!detailId || exchange.isPending) return;
-    const return_items = Object.entries(returnQty).filter(([, q]) => q > 0).map(([sale_item_id, quantity]) => ({ sale_item_id, quantity }));
-    const items = exItems.filter((x) => x.quantity > 0).map((x) => ({ product_id: x.product_id, quantity: x.quantity }));
+    const return_items = linesBack();
+    const items = exItems.filter((x) => x.quantity > 0).map((x) => {
+      // The numbers of the units going out — for the units there are.
+      const serials = x.serials.slice(0, x.quantity).map((n) => n.trim()).filter(Boolean);
+
+      return { product_id: x.product_id, quantity: x.quantity, ...(x.tracks_serial && serials.length > 0 ? { serials } : {}) };
+    });
     if (return_items.length === 0 || items.length === 0) return;
     const amount = exAmount !== "" ? Number(exAmount) || 0 : Math.max(0, exDiff);
     exchange.mutate(
       { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: "walk_in" },
-      { onSuccess: () => { setExchanging(false); setExItems([]); setReturnQty({}); setExAmount(""); setExSearch(""); } },
+      { onSuccess: () => { setExchanging(false); setExItems([]); setReturnQty({}); setUnitsBack({}); setExAmount(""); setExSearch(""); } },
     );
   };
 
@@ -603,10 +646,13 @@ export default function SalesPage() {
                 <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">Serials / IMEI</p>
                 {(detail.data.serials ?? []).map((s) => (
                   <div key={s.id} className="flex justify-between text-theme-sm text-gray-600 dark:text-gray-300">
-                    <span className="font-mono">{s.serial}</span>
+                    <span className={`font-mono ${s.returned_at ? "text-gray-400 line-through" : ""}`}>{s.serial}</span>
                     <span className="text-gray-400">
                       {s.product_name}
-                      {s.warranty_expires_at ? ` · warranty to ${new Date(s.warranty_expires_at).toLocaleDateString()}` : ""}
+                      {/* A unit that came back has no warranty to quote: it is the shop's again. */}
+                      {s.returned_at
+                        ? ` · came back ${new Date(s.returned_at).toLocaleDateString()}`
+                        : s.warranty_expires_at ? ` · warranty to ${new Date(s.warranty_expires_at).toLocaleDateString()}` : ""}
                     </span>
                   </div>
                 ))}
@@ -664,18 +710,22 @@ export default function SalesPage() {
                 <div className="space-y-2">
                   {(detail.data.items ?? []).map((item) => {
                     const max = remainingToReturn(item.id, item.quantity);
+                    const back = backOf(item.id, item.quantity);
                     return (
-                      <div key={item.id} className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
-                          {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
-                          <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
-                        </span>
-                        <Input
-                          aria-label={`How many ${item.product_name} to return`}
-                          type="number" min="0" max={String(max)}
-                          value={String(returnQty[item.id] ?? 0)}
-                          onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))}
-                        />
+                      <div key={item.id}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                            {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
+                            <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
+                          </span>
+                          <Input
+                            aria-label={`How many ${item.product_name} to return`}
+                            type="number" min="0" max={String(max)}
+                            value={String(returnQty[item.id] ?? 0)}
+                            onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))}
+                          />
+                        </div>
+                        <UnitsBack name={item.product_name} out={back.out} which={back.which} ticked={back.ticked} onToggle={(serial) => toggleUnit(item.id, serial)} />
                       </div>
                     );
                   })}
@@ -692,7 +742,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setReturning(false)}>Back</Button>
-                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q)}>
+                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q) || !saidWhichUnits}>
                     {processReturn.isPending ? "Processing…" : "Refund & restock"}
                   </Button>
                 </div>
@@ -704,15 +754,20 @@ export default function SalesPage() {
                   <div className="mt-1 space-y-2">
                     {(detail.data.items ?? []).map((item) => {
                       const max = remainingToReturn(item.id, item.quantity);
+                      const back = backOf(item.id, item.quantity);
                       return (
-                        <div key={item.id} className="flex items-center justify-between gap-2">
-                          <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
-                            {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
-                            <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
-                          </span>
-                          <Input type="number" min="0" max={String(max)}
-                            value={String(returnQty[item.id] ?? 0)}
-                            onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))} />
+                        <div key={item.id}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+                              {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
+                              <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
+                            </span>
+                            <Input type="number" min="0" max={String(max)}
+                              aria-label={`How many ${item.product_name} to hand back`}
+                              value={String(returnQty[item.id] ?? 0)}
+                              onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))} />
+                          </div>
+                          <UnitsBack name={item.product_name} out={back.out} which={back.which} ticked={back.ticked} onToggle={(serial) => toggleUnit(item.id, serial)} />
                         </div>
                       );
                     })}
@@ -741,13 +796,24 @@ export default function SalesPage() {
                   {exItems.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {exItems.map((x) => (
-                        <div key={x.product_id} className="flex items-center justify-between gap-2 text-sm">
-                          <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{x.name} · {money(x.price)}</span>
-                          <div className="flex items-center gap-1">
-                            <button className="h-6 w-6 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity - 1 } : y)).filter((y) => y.quantity > 0))}>−</button>
-                            <span className="w-6 text-center tabular-nums text-gray-800 dark:text-white/90">{x.quantity}</span>
-                            <button className="h-6 w-6 rounded bg-brand-500 text-white" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity + 1 } : y)))}>+</button>
+                        <div key={x.product_id}>
+                          <div className="flex items-center justify-between gap-2 text-sm">
+                            <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{x.name} · {money(x.price)}</span>
+                            <div className="flex items-center gap-1">
+                              <button aria-label={`One fewer ${x.name}`} className="h-6 w-6 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity - 1 } : y)).filter((y) => y.quantity > 0))}>−</button>
+                              <span className="w-6 text-center tabular-nums text-gray-800 dark:text-white/90">{x.quantity}</span>
+                              <button aria-label={`One more ${x.name}`} className="h-6 w-6 rounded bg-brand-500 text-white" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity + 1 } : y)))}>+</button>
+                            </div>
                           </div>
+                          {x.tracks_serial && (
+                            <GoingOutNumbers
+                              productId={x.product_id}
+                              name={x.name}
+                              quantity={x.quantity}
+                              value={x.serials}
+                              onChange={(serials) => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, serials } : y)))}
+                            />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -785,7 +851,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0}>
+                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

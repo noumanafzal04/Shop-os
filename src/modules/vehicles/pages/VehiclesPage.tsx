@@ -17,6 +17,7 @@ import type { Vehicle } from "../services/vehiclesService";
 const blank = {
   registration: "", make: "", model: "", year: "", colour: "",
   tyre_size: "", engine_no: "", chassis_no: "", odometer: "", notes: "",
+  owner_phone: "", owner_name: "",
 };
 
 /**
@@ -46,7 +47,7 @@ export default function VehiclesPage() {
 
   const [page, setPage] = useState(1);
   const vehicles = useVehicles({ search: query || undefined, page });
-  const { create, update, remove } = useVehicleMutations();
+  const { create, update, remove, linkOwner } = useVehicleMutations();
 
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [form, setForm] = useState({ ...blank });
@@ -75,6 +76,7 @@ export default function VehiclesPage() {
       tyre_size: v.tyre_size ?? "", engine_no: v.engine_no ?? "",
       chassis_no: v.chassis_no ?? "", odometer: v.odometer ? String(v.odometer) : "",
       notes: v.notes ?? "",
+      owner_phone: v.customer?.phone ?? "", owner_name: v.customer?.name ?? "",
     });
     update.reset();
     editModal.openModal();
@@ -96,14 +98,36 @@ export default function VehiclesPage() {
       odometer: form.odometer ? Number(form.odometer) : null,
       notes: text(form.notes),
     };
-    const done = (verb: string) => {
-      toast.success(`${payload.registration} ${verb}`);
-      editModal.closeModal();
+    /**
+     * WHOSE CAR IT IS.
+     *
+     * The list has an Owner column and the server has always been able to
+     * link one — and no screen could: the form asked for everything about the
+     * car except whose it was. Linked by PHONE, as a customer is everywhere
+     * else in the shop, after the car itself is saved.
+     */
+    const ownerPhone = form.owner_phone.trim();
+    const ownerName = form.owner_name.trim();
+    const ownerChanged = ownerPhone !== "" && (ownerPhone !== (editing?.customer?.phone ?? "") || ownerName !== (editing?.customer?.name ?? ""));
+    const done = (verb: string, id: string) => {
+      if (!ownerChanged) {
+        toast.success(`${payload.registration} ${verb}`);
+        editModal.closeModal();
+        return;
+      }
+      linkOwner.mutate({ id, phone: ownerPhone, name: ownerName || undefined }, {
+        onSuccess: () => {
+          toast.success(`${payload.registration} ${verb}`);
+          editModal.closeModal();
+        },
+        // The car is saved; the owner is not. Said, so nobody thinks both are.
+        onError: (e) => toast.error(`${payload.registration} ${verb} — but the owner was not linked: ${e instanceof ApiError ? e.message : "try again"}`),
+      });
     };
     if (editing) {
-      update.mutate({ id: editing.id, ...payload }, { onSuccess: () => done("updated") });
+      update.mutate({ id: editing.id, ...payload }, { onSuccess: () => done("updated", editing.id) });
     } else {
-      create.mutate(payload, { onSuccess: () => done("added") });
+      create.mutate(payload, { onSuccess: ({ data }) => done("added", data.id) });
     }
   };
 
@@ -234,12 +258,25 @@ export default function VehiclesPage() {
             <div><Label>Chassis no.</Label><Input value={form.chassis_no} onChange={(e) => set("chassis_no", e.target.value)} /></div>
           </div>
           <div><Label>Notes</Label><Input value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="e.g. alignment due at 55,000" /></div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label>Owner&rsquo;s phone</Label>
+              <Input value={form.owner_phone} onChange={(e) => set("owner_phone", e.target.value)} placeholder="03xx-xxxxxxx" />
+            </div>
+            <div>
+              <Label>Owner&rsquo;s name</Label>
+              <Input value={form.owner_name} onChange={(e) => set("owner_name", e.target.value)} placeholder="Optional" />
+            </div>
+          </div>
+          <p className="-mt-2 text-theme-xs text-gray-400">
+            The plate finds the owner at the till and at book-in. A car brought in by a driver keeps its owner.
+          </p>
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={editModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={submit} disabled={mutation.isPending || !form.registration.trim()}>
-            {mutation.isPending ? "Saving…" : editing ? "Save changes" : "Add vehicle"}
+          <Button size="sm" onClick={submit} disabled={mutation.isPending || linkOwner.isPending || !form.registration.trim()}>
+            {mutation.isPending || linkOwner.isPending ? "Saving…" : editing ? "Save changes" : "Add vehicle"}
           </Button>
         </div>
       </Modal>

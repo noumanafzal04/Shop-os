@@ -16,6 +16,9 @@ import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import { uuid } from "../../../common/uuid";
 import { formatQuantity } from "../../../common/format/quantity";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { boardWords } from "../../workshop/words";
+import { AddToJob } from "../components/AddToJob";
 
 
 /**
@@ -33,6 +36,7 @@ export default function DocumentDetailPage() {
   const query = useDocument(id);
   const doc = query.data;
   const mut = useDocumentMutations(id);
+  const words = boardWords(usePrimaryBusinessType());
 
   const depositModal = useModal();
   const collectModal = useModal();
@@ -46,8 +50,22 @@ export default function DocumentDetailPage() {
   }
 
   const layaway = doc.kind === "layaway";
+  /**
+   * A JOB CARD IS NOT A QUOTATION.
+   *
+   * This page was written for the two kinds that came first, and a job card
+   * opened on it as "Quotation", under "← Quotations & advances", with nothing
+   * about the car — and its lines could not be added to, because nothing
+   * could add to them. A job is unfinished by design: it says what it is,
+   * which car, what the customer said, and takes parts and labour as the work
+   * is done.
+   */
+  const job = doc.kind === "job_card";
   const balance = doc.balance ?? Number(doc.total) - Number(doc.deposit_paid);
   const open = doc.status === "open";
+  const growing = job && open;
+  const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
+  const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "That could not be changed.");
 
   const print = () => {
     documentService.print(doc.id).catch(() => toast.error("Couldn't open the print dialog."));
@@ -55,18 +73,18 @@ export default function DocumentDetailPage() {
 
   return (
     <>
-      <PageMeta title={`${doc.number}`} description="Quotation / advance booking" />
+      <PageMeta title={`${doc.number}`} description={job ? "A job in the shop" : "Quotation / advance booking"} />
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/tenant/documents" className="text-theme-xs text-gray-500 hover:text-brand-500">
-            ← Quotations &amp; advances
+          <Link to={job ? "/tenant/workshop" : "/tenant/documents"} className="text-theme-xs text-gray-500 hover:text-brand-500">
+            ← {job ? words.board : "Quotations & advances"}
           </Link>
           <h2 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-800 dark:text-white/90">
             {doc.number}
-            <Badge size="sm" color={layaway ? "primary" : "light"}>
-              {layaway ? "On advance" : "Quotation"}
+            <Badge size="sm" color={layaway || job ? "primary" : "light"}>
+              {job ? "Job card" : layaway ? "On advance" : "Quotation"}
             </Badge>
             {doc.status === "converted" && <Badge size="sm" color="success">Collected</Badge>}
             {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
@@ -99,6 +117,40 @@ export default function DocumentDetailPage() {
           )}
         </div>
       </div>
+
+      {/* What the job IS: the car, what the customer said, when it is due, where it is. */}
+      {job && (
+        <div data-testid="job-details" className="mb-5 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-theme-sm shadow-theme-xs sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800 dark:bg-white/[0.03]">
+          {words.tracksVehicle && (
+            <JobFact label="Car">
+              {doc.vehicle ? (
+                <>
+                  <span className="font-semibold">{doc.vehicle.registration}</span>
+                  {[doc.vehicle.make, doc.vehicle.model].filter(Boolean).length > 0 && (
+                    <span className="text-gray-500"> · {[doc.vehicle.make, doc.vehicle.model].filter(Boolean).join(" ")}</span>
+                  )}
+                </>
+              ) : "—"}
+            </JobFact>
+          )}
+          <JobFact label="What the customer said">{doc.complaint || "—"}</JobFact>
+          {words.tracksVehicle && (
+            <JobFact label="Odometer coming in">
+              {doc.odometer_in != null ? `${doc.odometer_in.toLocaleString()} km` : "—"}
+            </JobFact>
+          )}
+          <JobFact label="Promised back">
+            {doc.promised_at
+              ? new Date(doc.promised_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+              : "—"}
+          </JobFact>
+          {open && doc.work_status && (
+            <JobFact label="Where it is">
+              {words.stages[["received", "in_progress", "ready"].indexOf(doc.work_status)] ?? doc.work_status}
+            </JobFact>
+          )}
+        </div>
+      )}
 
       {/* A quotation that ran out can't be billed at the old price — say so
           here rather than letting the cashier discover it mid-transaction. */}
@@ -149,6 +201,7 @@ export default function DocumentDetailPage() {
                   <th className="px-3 py-2.5 text-right font-medium">Qty</th>
                   <th className="px-3 py-2.5 text-right font-medium">Rate</th>
                   <th className="px-5 py-2.5 text-right font-medium">Amount</th>
+                  {growing && <th className="w-10 px-2 py-2.5"><span className="sr-only">Remove</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -163,7 +216,26 @@ export default function DocumentDetailPage() {
                       )}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
-                      {formatQuantity(item.quantity)}
+                      {growing ? (
+                        // While the work is being done, a quantity can change.
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            type="button"
+                            aria-label={`One fewer ${item.product_name}`}
+                            disabled={linesBusy || Number(item.quantity) <= 1}
+                            onClick={() => mut.setItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) - 1 }, { onError: lineFailed })}
+                            className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                          >−</button>
+                          <span className="min-w-8 text-center" data-testid="job-line-qty">{formatQuantity(item.quantity)}</span>
+                          <button
+                            type="button"
+                            aria-label={`One more ${item.product_name}`}
+                            disabled={linesBusy}
+                            onClick={() => mut.setItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) + 1 }, { onError: lineFailed })}
+                            className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                          >+</button>
+                        </span>
+                      ) : formatQuantity(item.quantity)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
                       {money(item.unit_price)}
@@ -171,11 +243,34 @@ export default function DocumentDetailPage() {
                     <td className="px-5 py-3 text-right tabular-nums text-gray-800 dark:text-white/90">
                       {money(item.line_total)}
                     </td>
+                    {growing && (
+                      <td className="px-2 py-3 text-right">
+                        <button
+                          type="button"
+                          aria-label={`Take ${item.product_name} off the job`}
+                          // The last line stays: a job with nothing on it is a job to cancel.
+                          title={(doc.items ?? []).length <= 1 ? "A job has to have something on it — cancel the job instead" : undefined}
+                          disabled={linesBusy || (doc.items ?? []).length <= 1}
+                          onClick={() => mut.removeItem.mutate(item.id, { onError: lineFailed })}
+                          className="rounded-md px-1.5 text-gray-400 hover:text-error-500 disabled:opacity-30"
+                        >✕</button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {growing && (
+            <AddToJob
+              disabled={linesBusy}
+              onAdd={(pick) => mut.addItem.mutate(
+                { product_id: pick.product_id, variant_id: pick.variant_id, quantity: 1 },
+                { onSuccess: () => toast.success(`${pick.name} added to the job`), onError: lineFailed },
+              )}
+            />
+          )}
 
           {(doc.terms || doc.notes) && (
             <div className="border-t border-gray-100 px-5 py-4 dark:border-gray-800">
@@ -256,6 +351,10 @@ export default function DocumentDetailPage() {
         layaway={layaway}
         pending={mut.convert.isPending}
         odometerIn={doc.odometer_in ?? null}
+        // Asked for any job that has a car — not only one whose reading was
+        // taken at arrival. Skipped with the keys in hand, it could never be
+        // written down for that visit at all.
+        asksOdometer={job && !!doc.vehicle_id}
         onSubmit={(payload) =>
           mut.convert.mutate(payload, {
             onSuccess: (res) => {
@@ -383,6 +482,7 @@ function CollectModal({
   layaway,
   pending,
   odometerIn,
+  asksOdometer,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -395,6 +495,7 @@ function CollectModal({
    * not a job card. Its presence is what makes the handover box appear.
    */
   odometerIn: number | null;
+  asksOdometer: boolean;
   onSubmit: (p: {
     payment_method?: string;
     amount_paid?: number;
@@ -459,7 +560,7 @@ function CollectModal({
               ? "This booking is paid in full — nothing to collect."
               : "Nothing has been paid yet, so take the full amount."}
         </p>
-        {odometerIn !== null && (
+        {(asksOdometer || odometerIn !== null) && (
           <div className="mb-4">
             <Label>Odometer on handover</Label>
             <Input
@@ -467,15 +568,19 @@ function CollectModal({
               min="0"
               value={odometer}
               onChange={(e) => setOdometer(e.target.value)}
-              placeholder={String(odometerIn)}
+              placeholder={odometerIn !== null ? String(odometerIn) : "km"}
             />
-            {odoBackwards ? (
+            {odoBackwards && odometerIn !== null ? (
               <p className="mt-1 text-theme-sm text-error-600 dark:text-error-400">
                 Below the {odometerIn.toLocaleString()} km taken when it came in — an odometer only counts up.
               </p>
-            ) : (
+            ) : odometerIn !== null ? (
               <p className="mt-1 text-theme-xs text-gray-400">
                 Came in at {odometerIn.toLocaleString()} km. Leave it blank to bill on that reading.
+              </p>
+            ) : (
+              <p className="mt-1 text-theme-xs text-gray-400">
+                No reading was taken when it came in. Write it now and the next service is counted from it.
               </p>
             )}
           </div>
@@ -662,3 +767,11 @@ const methodLabel = (m: string) => DEPOSIT_METHODS.find((x) => x.value === m)?.l
 
 /** 2.000 reads wrong next to a quantity; 2 does. Real fractions survive. */
 
+function JobFact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-theme-xs uppercase tracking-wide text-gray-400">{label}</div>
+      <div className="mt-0.5 text-gray-800 dark:text-white/90">{children}</div>
+    </div>
+  );
+}

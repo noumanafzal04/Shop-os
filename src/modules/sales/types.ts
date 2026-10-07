@@ -109,8 +109,12 @@ export interface Sale {
 /** One serialized unit sold — IMEI/serial + its warranty window. */
 export interface SaleSerial {
   id: string;
+  /** The line of the sale this unit went out on. */
+  sale_item_id?: string | null;
   product_name: string;
   serial: string;
+  /** Set when this unit came back: it is the shop's again, and nobody's warranty. */
+  returned_at?: string | null;
   warranty_months: number | null;
   warranty_expires_at: string | null;
 }

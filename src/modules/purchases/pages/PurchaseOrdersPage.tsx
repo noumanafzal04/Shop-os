@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
+import { checkNumbers, needsDetails, parseSerials } from "../receive";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -89,8 +90,12 @@ export default function PurchaseOrdersPage() {
     receiveModal.openModal();
   };
 
-  const parseSerials = (s: string) =>
-    s.split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+  // A line whose numbers do not add up is not sent: the sheet says which
+  // and why before the press, not the server after it.
+  const receiveBlocked = (detail.data?.items ?? []).some((it) => {
+    const row = rcv[it.id];
+    return !!row && !!it.product?.tracks_serial && !checkNumbers(row.serials, Number(row.quantity)).ok;
+  });
 
   const submitReceive = (id: string) => {
     const items = Object.entries(rcv)
@@ -374,10 +379,21 @@ export default function PurchaseOrdersPage() {
               )}
               {(d.status === "ordered" || d.status === "partially_received") && (
                 <>
-                  <Button size="sm" variant="outline" onClick={openReceive} disabled={receive.isPending}>Receive with details…</Button>
-                  <Button size="sm" onClick={() => doReceive(d.id)} disabled={receive.isPending}>
-                    {receive.isPending ? "Receiving…" : "Receive all → stock in"}
-                  </Button>
+                  {/* ONE PRESS, WHERE ONE PRESS IS ENOUGH. A medicine is refused
+                      without its expiry, and a phone received in one press
+                      goes on the shelf with no number against it — the thing
+                      it was carded for. An order holding either is received
+                      on the sheet that asks. */}
+                  {needsDetails(d.items ?? []) ? (
+                    <Button size="sm" onClick={openReceive} disabled={receive.isPending} data-testid="receive-with-details">Receive with details…</Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" onClick={openReceive} disabled={receive.isPending}>Receive with details…</Button>
+                      <Button size="sm" onClick={() => doReceive(d.id)} disabled={receive.isPending}>
+                        {receive.isPending ? "Receiving…" : "Receive all → stock in"}
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
               {(d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
@@ -404,7 +420,8 @@ export default function PurchaseOrdersPage() {
               if (!row) return null;
               const isSerial = !!it.product?.tracks_serial;
               const isMedicine = it.product?.item_type === "medicine";
-              const serialCount = parseSerials(row.serials).length;
+              const numbers = checkNumbers(row.serials, Number(row.quantity));
+              const serialCount = numbers.count;
               const outstanding = Number(it.quantity_ordered) - Number(it.quantity_received);
               return (
                 <div key={it.id} className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
@@ -433,8 +450,16 @@ export default function PurchaseOrdersPage() {
                         className="w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2 text-theme-sm text-gray-800 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:text-white/90"
                         placeholder={"IMEI-000001\nIMEI-000002"}
                       />
-                      {serialCount > Number(row.quantity || 0) && (
+                      {numbers.tooMany && (
                         <p className="mt-1 text-theme-xs text-error-500">More serials than units received.</p>
+                      )}
+                      {numbers.repeated !== null && (
+                        <p className="mt-1 text-theme-xs text-error-500">{numbers.repeated} is written twice.</p>
+                      )}
+                      {numbers.ok && numbers.unnumbered > 0 && (
+                        <p className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400" data-testid="receive-unnumbered">
+                          {numbers.unnumbered} of {Math.floor(Number(row.quantity))} will go on the shelf with no number — the till will have to be told it by hand.
+                        </p>
                       )}
                     </div>
                   )}
@@ -445,7 +470,7 @@ export default function PurchaseOrdersPage() {
 
         <div className="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
           <Button size="sm" variant="outline" onClick={receiveModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={() => detail.data && submitReceive(detail.data.id)} disabled={receive.isPending}>{receive.isPending ? "Receiving…" : "Receive → stock in"}</Button>
+          <Button size="sm" onClick={() => detail.data && submitReceive(detail.data.id)} disabled={receive.isPending || receiveBlocked}>{receive.isPending ? "Receiving…" : "Receive → stock in"}</Button>
         </div>
       </Modal>
     </>

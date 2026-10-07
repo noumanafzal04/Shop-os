@@ -30,6 +30,10 @@ export function useSaleMutations() {
     queryClient.invalidateQueries({ queryKey: ["products"] });
     queryClient.invalidateQueries({ queryKey: ["inventory"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    // A unit that is sold, voided or brought back is a unit whose NUMBER has
+    // moved: on or off the shelf, on or off somebody's warranty.
+    queryClient.invalidateQueries({ queryKey: ["product-serials"] });
+    queryClient.invalidateQueries({ queryKey: ["warranty"] });
   };
 
   const create = useMutation({
@@ -48,7 +52,7 @@ export function useSaleMutations() {
   });
 
   const processReturn = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number }>; reason?: string; refund_method?: string; idempotency_key?: string }) =>
+    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>; reason?: string; refund_method?: string; idempotency_key?: string }) =>
       salesService.processReturn(id, payload),
     onSuccess: invalidate,
   });
@@ -56,8 +60,8 @@ export function useSaleMutations() {
   const exchange = useMutation({
     mutationFn: ({ id, ...payload }: {
       id: string;
-      return_items: Array<{ sale_item_id: string; quantity: number }>;
-      items: Array<{ product_id: string; quantity: number }>;
+      return_items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>;
+      items: Array<{ product_id: string; quantity: number; serials?: string[] }>;
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
     }) => salesService.exchange(id, payload),

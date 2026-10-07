@@ -745,6 +745,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "With \u201cRequire open shift\u201d on and no drawer open, the till says so under the Pay button and will not take a payment. Without it, you can sell straight away and the sale simply belongs to no shift — which also means no shift report will account for it." },
       { type: "h", text: "The screen" },
       { type: "p", text: "The screen is three parts: the product browser on the left with search and category tabs, the cart on the right, and the total with the pay button running full width along the bottom. A barcode scanner types into the search box and adds the item on Enter." },
+      { type: "note", text: "Enter adds the item whose code was scanned, however fast the scanner is \u2014 your own labels with letters in them too. It used to add whatever was first on the screen when a code arrived faster than the list could answer it." },
       { type: "p", text: "Two buttons beside the search box switch the browser between picture tiles and compact rows. Tiles answer \"which one is it?\", rows answer \"is it in stock, and at what price?\" — a kitchen usually wants the first, a shop with thousands of lines the second. Your shop starts on whichever suits its trade, and the choice is remembered on this device only, so the touchscreen at the counter and the computer in the back office can each be set the way the person using it works." },
 
       { type: "h", text: "Selling by money instead of quantity" },
@@ -1033,13 +1034,26 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: "Capturing an IMEI or serial at the counter, and looking it up later.",
     group: "Selling",
     modules: ["pos"],
-    trades: ["retail", "automotive"],
+    // The same three trades the product form offers "capture a serial" to
+    // (SERIAL_TRADES) — a forecourt sells batteries by number too.
+    trades: ["retail", "automotive", "petroleum"],
     permission: "sales.manage",
     screen: "/tenant/warranty",
-    keywords: ["imei", "serial", "warranty", "guarantee", "claim"],
+    keywords: ["imei", "serial", "warranty", "guarantee", "claim", "return", "exchange", "refund", "scan"],
     body: [
       { type: "p", text: "For anything tracked by serial, the serial is captured as it is sold and the warranty period is recorded against the buyer." },
-      { type: "p", text: "The Warranty desk then answers the only question anyone asks with a broken phone on the counter: when was this bought, and is it still covered? The serial alone is enough to find it." },
+      {
+        type: "table",
+        head: ["When", "What happens to the number"],
+        rows: [
+          ["It arrives", "Receive the order with \u201cReceive with details\u2026\u201d and scan each box's number, one per line. Too many numbers, or the same one twice, is said on the sheet and cannot be sent. Fewer is allowed \u2014 the sheet tells you how many will go on the shelf with no number."],
+          ["It is sold", "Scan the number on the box straight into the till: that unit goes on the bill with its number written. Or ring the item and pick its number from the units on the shelf. Press Pay with a number missing and the till asks first \u2014 \u201cSell without a number\u201d is there when the label is torn, and the line says so afterwards."],
+          ["It comes back", "Return / Refund or Exchange on the sale. If it was the only one on the bill, its number goes back on the shelf by itself. If it was one of two, the sheet asks which \u2014 tick the number on the box in your hand. An exchange also asks the number of the unit going out."],
+          ["Somebody asks about it", "The Warranty desk, by number: when it was bought, by whom, and how many days of cover are left. A unit that was refunded or exchanged says it came back \u2014 there is no warranty to claim under for somebody who has had their money back."],
+        ],
+      },
+      { type: "p", text: "The Warranty desk answers the only question anyone asks with a broken phone on the counter: when was this bought, and is it still covered? The serial alone is enough to find it. Cover runs to the end of the day on your own calendar \u2014 the last day says \u201cLast day of cover\u201d." },
+      { type: "note", text: "Phones refunded before 7 October 2026 were left marked as sold under their numbers, so the till refused them. They have been put back on the shelf. Where one of two on a bill came back and nobody said which, both are left as they were \u2014 look the numbers up at the Warranty desk with the box in your hand." },
     ],
   },
   {
@@ -1653,6 +1667,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["vehicle", "car", "plate", "registration", "odometer", "service history"],
     body: [
       { type: "p", text: "A vehicle belongs to a customer, because the number plate is how a workshop actually finds a person." },
+      { type: "p", text: "Say whose it is on the vehicle's own form — owner's phone and name. A plate registered in a hurry at the till or at book-in takes the customer of the first job or sale that names one; after that the owner is only changed here, so a car brought in by a driver stays its owner's." },
+      { type: "p", text: "At the till, the vehicle box appears under the cart as soon as there is something on the bill: type the plate (dashes and spaces do not matter), pick the car, and write the odometer." },
       { type: "p", text: "Every job done on that vehicle stays with it, with the odometer reading at the time — so when it comes back you can see what was done and when." },
     ],
   },
@@ -1876,6 +1892,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "While the car is with you" },
       { type: "p", text: "Open the job from the board to add parts and labour as you fit them. Prices come from your catalog — you cannot type a price on a job, for the same reason you cannot type one at the till." },
       { type: "keys", items: [
+        ["Adding a part or labour", "The box under the job's lines: search by name or code and tap the item. A part with sizes is offered size by size. The same item again joins its line rather than making a second one."],
+        ["More, fewer, or off", "The − and + beside a line change how many; the ✕ takes the line off. The last line cannot come off — a job with nothing on it is a job to cancel. And a job cannot be brought below an advance already paid on it."],
         ["Moving it along", "One tap on the card. Cars go backwards too — a job you marked ready that fails its road test goes straight back to 'being worked on'. Nothing is one-way."],
         ["Taking money up front", "You can record an advance against a job, the same as goods held on advance. Useful when you are about to order a part. It shows in the 'money you are holding' figure on Documents — that cash is in your drawer and it is not yours yet."],
       ]},
@@ -1883,6 +1901,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
 
       { type: "h", text: "When they collect" },
       { type: "p", text: "'Bill it' turns the whole job into a real invoice — every part, every hour, the advance already paid deducted. Stock comes off then, not before." },
+      { type: "note", text: "The handover sheet asks for the odometer on the way out, whether or not a reading was taken when the car came in. That is the figure the next service is counted from; it cannot be lower than the arrival reading." },
+      { type: "note", text: "A part you have put on a job is still on the shelf by count until the job is billed. If you are down to the last one, the till can still sell it." },
       { type: "warn", text: "Bill it and the car leaves the board. That is deliberate: the board is what is IN the shop, and a car you have been paid for is not. The job is still there under Documents, and the work now shows in that car's history." },
       { type: "note", text: "That history is the whole reason this is worth doing. A year later somebody asks what you did to this plate last time, and the answer is on the car's own record instead of in somebody's memory." },
     ],

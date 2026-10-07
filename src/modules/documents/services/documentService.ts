@@ -1,4 +1,4 @@
-import { api, apiGet, apiPost } from "../../../common/api/client";
+import { api, apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
 import { printHtmlDocument } from "../../../common/print";
 import type { Sale } from "../../sales/types";
 
@@ -168,6 +168,17 @@ export const documentService = {
    */
   setWorkStatus: (id: string, work_status: WorkStatus) =>
     apiPost<SaleDocument>(`/sale-documents/${id}/work-status`, { work_status }),
+
+  /**
+   * A job card grows while the work is done — parts and labour go on, a
+   * quantity changes, a line comes off. Priced by the server; job cards only.
+   */
+  addItem: (id: string, payload: { product_id: string; variant_id?: string | null; product_unit_id?: string | null; quantity: number }) =>
+    apiPost<SaleDocument>(`/sale-documents/${id}/items`, payload),
+  setItemQuantity: (id: string, itemId: string, quantity: number) =>
+    apiPatch<SaleDocument>(`/sale-documents/${id}/items/${itemId}`, { quantity }),
+  removeItem: (id: string, itemId: string) =>
+    apiDelete<SaleDocument>(`/sale-documents/${id}/items/${itemId}`),
 
   summary: () => apiGet<DocumentSummary>("/sale-documents/summary"),
 

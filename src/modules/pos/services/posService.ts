@@ -276,6 +276,11 @@ export const posService = {
       product: Product;
       variant_id: string | null;
       product_unit_id?: string | null;
+      /**
+       * The unit's OWN number, when that is what was scanned: the IMEI on the
+       * box rather than the model's barcode. The line arrives with it written.
+       */
+      serial?: string | null;
       requires_prescription: boolean;
       near_expiry: { batch_number: string; expiry_date: string; days: number } | null;
       /**

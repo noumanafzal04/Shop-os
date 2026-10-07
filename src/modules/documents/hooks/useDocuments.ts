@@ -73,5 +73,19 @@ export function useDocumentMutations(id?: string) {
         documentService.cancel(id!, payload),
       onSuccess: refresh,
     }),
+    // A job card's lines, while the work is done. The board shows each job's
+    // total, so it is refreshed with the document.
+    addItem: useMutation({
+      mutationFn: (payload: Parameters<typeof documentService.addItem>[1]) => documentService.addItem(id!, payload),
+      onSuccess: () => { refresh(); void qc.invalidateQueries({ queryKey: ["workshop"] }); },
+    }),
+    setItemQuantity: useMutation({
+      mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) => documentService.setItemQuantity(id!, itemId, quantity),
+      onSuccess: () => { refresh(); void qc.invalidateQueries({ queryKey: ["workshop"] }); },
+    }),
+    removeItem: useMutation({
+      mutationFn: (itemId: string) => documentService.removeItem(id!, itemId),
+      onSuccess: () => { refresh(); void qc.invalidateQueries({ queryKey: ["workshop"] }); },
+    }),
   };
 }

@@ -69,6 +69,8 @@ import SubstitutePicker from "../../pharmacy/components/SubstitutePicker";
 import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal";
 import { parkCart, readParkedCart } from "../cartStorage";
 import { nextLineKey, rekeyed } from "../lineKeys";
+import { enterMeans } from "../enterKey";
+import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
 import { NumPad } from "../components/NumPad";
 import { useTerminalStore } from "../../../stores/terminalStore";
@@ -141,6 +143,8 @@ interface CartLine {
   tracks_serial?: boolean;
   warranty_months?: number | null;
   serials?: string[];
+  /** The cashier said this line goes out with a unit that has no number. See unitNumbers.ts. */
+  unnumbered_ok?: boolean;
   modifier_option_ids?: string[];
   modifiers_label?: string;
   // Per-line discount (needs discounts.apply). Value + mode; the server
@@ -1400,9 +1404,10 @@ export default function PosPage() {
             : {}),
           modifier_option_ids: l.modifier_option_ids?.length ? l.modifier_option_ids : undefined,
           // Serialized retail: captured serials + any per-sale warranty override.
-          ...(l.tracks_serial && l.serials?.some((s) => s.trim())
-            ? { serials: l.serials.map((s) => s.trim()).filter(Boolean) }
-            : {}),
+          // `numbersOn` — the numbers for the units the line HAS. It sent every
+          // slot ever typed in, including ones the quantity no longer covered
+          // and the sheet no longer drew.
+          ...(l.tracks_serial && numbersOn(l).length > 0 ? { serials: numbersOn(l) } : {}),
           ...(l.tracks_serial && l.warranty_months != null ? { warranty_months: l.warranty_months } : {}),
           // Pharmacy: how to take this one. Per line, because a prescription
           // says something different about each medicine on it.
@@ -1500,6 +1505,10 @@ export default function PosPage() {
         // projection's job, and it updates on the next sync.
         qc.invalidateQueries({ queryKey: ["products"] });
         qc.invalidateQueries({ queryKey: ["inventory"] });
+        // Which UNITS are on the shelf changed too. This list was left to go
+        // stale on its own — thirty seconds — so the phone just sold was
+        // offered, by its number, to the next customer in the queue.
+        qc.invalidateQueries({ queryKey: ["product-serials"] });
         qc.invalidateQueries({ queryKey: ["sales"] });
         qc.invalidateQueries({ queryKey: ["dashboard"] });
         qc.invalidateQueries({ queryKey: ["pos", "session"] });
@@ -1602,7 +1611,7 @@ export default function PosPage() {
     },
   });
 
-  const addLine = (p: CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] }, variantId: string | null = null, variantName?: string, variantPrice?: string | number, qtyOverride?: number, unitId?: string | null) => {
+  const addLine = (p: CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] }, variantId: string | null = null, variantName?: string, variantPrice?: string | number, qtyOverride?: number, unitId?: string | null, serial?: string | null) => {
     // Rx warning when an item is tapped from the grid/list (scan handles its own).
     if ("requires_prescription" in p && p.requires_prescription) {
       sayOfALine(`℞ ${p.name} requires a prescription`);
@@ -1616,8 +1625,12 @@ export default function PosPage() {
       const existing = qtyOverride == null
         ? c.find((l) => l.product_id === p.id && l.variant_id === variantId && (l.product_unit_id ?? null) === (selUnit?.id ?? null) && !l.modifier_option_ids?.length)
         : undefined;
+      // A unit scanned BY ITS NUMBER is that unit: it fills a place on the
+      // line that has no number yet before it adds another phone to the bill.
+      if (existing && serial) return c.map((l) => (l === existing ? withNumber(l, serial) : l));
       if (existing) return c.map((l) => (l === existing ? { ...l, quantity: l.quantity + 1 } : l));
       return [...c, {
+        ...(serial ? { serials: [serial] } : {}),
         key: nextLineKey(), product_id: p.id, variant_id: variantId,
         sku: "sku" in p ? (p.sku ?? null) : null,
         name: variantName ? `${p.name} / ${variantName}` : p.name,
@@ -1656,7 +1669,12 @@ export default function PosPage() {
   const setLineLevel = (key: string, level: "retail" | "wholesale") =>
     setCart((c) => c.map((l) => (l.key === key ? recalcLine(l, { price_level: level }) : l)));
 
-  const scan = async (code: string) => {
+  /**
+   * @param orElse  what the cashier meant if NOTHING carries this code. Given
+   *                when the term might be a code or might be the start of a
+   *                name — see `enterMeans`. A miss is then not an error.
+   */
+  const scan = async (code: string, orElse?: () => void) => {
     setScanError(null);
 
     // ── Scanning with no line ─────────────────────────────────────────
@@ -1673,6 +1691,7 @@ export default function PosPage() {
     if (!connected) {
       const hit = await findByCode(code.trim());
       if (hit === null) {
+        if (orElse) { orElse(); return; }
         posSound.error();
         setScanError(`Nothing here matches ${code.trim()}.`);
 
@@ -1734,13 +1753,15 @@ export default function PosPage() {
         // Carrying the scanned size, for the same reason as the offline branch.
         openConfig(data.product, scanned);
       } else {
-        // A scanned pack barcode preselects that pack on the line.
-        addLine(data.product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, data.product_unit_id ?? null);
+        // A scanned pack barcode preselects that pack on the line — and a
+        // scanned IMEI arrives as the unit it is, number already written.
+        addLine(data.product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, data.product_unit_id ?? null, data.serial ?? null);
       }
       // Cashier warnings (Rx / near-expiry / ageing / weighed) — informational,
       // the sale continues in every case.
       const notices: string[] = [];
       if (data.scale) notices.push(`${data.product.name}: ${data.scale.quantity} ${data.product.unit ?? "kg"} weighed`);
+      if (data.serial) notices.push(`${data.product.name}: unit ${data.serial} is on the bill`);
       if (data.requires_prescription) notices.push(`℞ ${data.product.name} requires a prescription`);
       if (data.near_expiry) notices.push(`${data.product.name}: batch ${data.near_expiry.batch_number} expires in ${data.near_expiry.days} day(s) (${data.near_expiry.expiry_date})`);
       // A warning, never a fence. Settings → Stock ageing promises "the counter
@@ -1752,6 +1773,7 @@ export default function PosPage() {
       setSearch("");
       posSound.success();
     } catch (e) {
+      if (orElse && e instanceof ApiError && e.errorCode === "POS_ITEM_NOT_FOUND") { orElse(); return; }
       setScanError(e instanceof ApiError ? e.message : "Lookup failed.");
       posSound.error();
     }
@@ -1874,15 +1896,50 @@ export default function PosPage() {
     setActiveIndex(0);
   };
 
-  // Enter in the search box: a long digit string is a barcode → scan it;
-  // otherwise add the highlighted result (↑/↓ move the highlight).
+  /**
+   * ENTER IN THE SEARCH BOX — answered from the list's answer to THIS term.
+   *
+   * It used to add `tiles[activeIndex]` there and then. `tiles` is whatever
+   * the last finished search returned, and a scanner types a code and Enter
+   * faster than any search finishes — so a scanned `QA-OIL-5L` rang the first
+   * item on the shelf, whatever it was. See `enterKey.ts`.
+   *
+   * So Enter is REMEMBERED, and acted on when the list has answered what is
+   * in the box. A long run of digits does not wait: it is a barcode whatever
+   * the list says.
+   */
+  const [enterFor, setEnterFor] = useState<string | null>(null);
   const onSearchEnter = () => {
     const term = search.trim();
     if (/^\d{5,}$/.test(term)) { scan(term); return; }
-    if (!tiles.length) return;
-    const p = tiles[Math.min(activeIndex, tiles.length - 1)];
-    if (p) commitProduct(p);
+    setEnterFor(term);
   };
+
+  // The list's answer to what is in the box — or null while it is still being
+  // asked. Offline the shelf is the till's own copy and answers at once.
+  const listAnswer: CatalogProduct[] | null = !connected
+    ? offlineRows
+    : products.isPlaceholderData || products.isFetching
+      ? null
+      // Past page one the cashier has been paging, and the highlight counts
+      // through everything loaded so far.
+      : page === 1 ? products.data?.data ?? [] : tiles;
+
+  const actOnEnter = useRef<(term: string, rows: CatalogProduct[]) => void>(() => {});
+  actOnEnter.current = (term, rows) => {
+    const means = enterMeans(term, rows, activeIndex);
+    if (means.do === "scan") scan(term);
+    else if (means.do === "tile") commitProduct(rows[means.index]);
+    else if (means.do === "code-then-tile") scan(term, () => commitProduct(rows[means.index]));
+  };
+  useEffect(() => {
+    if (enterFor === null) return;
+    // The box has moved on: that Enter was for something else.
+    if (enterFor !== search.trim()) { setEnterFor(null); return; }
+    if (listAnswer === null) return;
+    setEnterFor(null);
+    actOnEnter.current(enterFor, listAnswer);
+  }, [enterFor, listAnswer, search]);
 
   /**
    * Set a line's quantity. Deliberately CANNOT delete the line.
@@ -1963,8 +2020,67 @@ export default function PosPage() {
   const setLineWarranty = (key: string, months: number | null) =>
     setCart((c) => c.map((l) => (l.key === key ? { ...l, warranty_months: months } : l)));
 
-  // Count of serials actually keyed on a line (blanks don't count).
-  const serialCount = (l: CartLine): number => (l.serials ?? []).filter((s) => s.trim()).length;
+  // Count of serials actually keyed on a line, for the units it has.
+  const serialCount = (l: CartLine): number => numbersOn(l).length;
+
+  /**
+   * TENDER — after the numbers.
+   *
+   * One way in, for the button and for the key: they were two copies of the
+   * same three lines, and a rule added to one would have been a rule the
+   * other did not have.
+   *
+   * A phone carded "capture a serial for each unit sold" used to be paid for
+   * with none written — the chip read "IMEI 0/1" in amber and the money was
+   * taken anyway. The warranty desk finds a unit BY that number; a sale
+   * without it is a phone the shop can never look up. So the till asks first.
+   * It does not refuse: the label is torn, the scanner is dead, the customer
+   * is waiting — the cashier can say "sell without a number", and that is a
+   * thing they said, not a thing that happened.
+   */
+  const [serialAsked, setSerialAsked] = useState(false);
+  const openTender = (now: CartLine[] = cart) => {
+    const twice = writtenTwice(now);
+    if (twice) {
+      setPosNotice(`${twice.serial} is written on two units — one of them is wrong.`);
+      setSerialAsked(true);
+      setSerialKey(twice.line.key);
+      serialModal.openModal();
+
+      return;
+    }
+    const owing = firstOwing(now);
+    if (owing) {
+      setSerialAsked(true);
+      setSerialKey(owing.key);
+      serialModal.openModal();
+
+      return;
+    }
+    setSerialAsked(false);
+    setMethod(defaultTender);
+    setTendered((t) => t || String(payable));
+    tenderModal.openModal();
+  };
+
+  /** The numbers sheet is closed. If Tender opened it, Tender is where the cashier was going. */
+  const closeNumbers = (now: CartLine[] = cart) => {
+    serialModal.closeModal();
+    if (!serialAsked) return;
+    setSerialAsked(false);
+    // Only on to the money when nothing is still owed — "Done" with a number
+    // missing is the cashier going to look for the box, not a waiver.
+    if (firstOwing(now) === null && writtenTwice(now) === null) openTender(now);
+  };
+
+  /** "Sell without a number" — said for this line, then on to the next question or the money. */
+  const sellUnnumbered = (key: string) => {
+    const next = cart.map((l) => (l.key === key ? { ...l, unnumbered_ok: true } : l));
+    setCart(next);
+    serialModal.closeModal();
+    setSerialAsked(false);
+    openTender(next);
+  };
 
   /**
    * Park the ticket under a NAME. A drafts list of "Held sale · Held sale ·
@@ -2252,9 +2368,7 @@ export default function PosPage() {
     pay: () => {
       if (cart.length === 0) { setPosNotice("Nothing to pay for yet — add an item first."); return; }
       if (!canRing) { setPosNotice(whyCannotRing(session.data ?? null, requireShift) ?? "This till cannot take payment right now."); return; }
-      setMethod(defaultTender);
-      setTendered((t) => t || String(payable));
-      tenderModal.openModal();
+      openTender();
     },
     openHeld: () => { held.refetch(); heldModal.openModal(); },
     document: () => {
@@ -2916,6 +3030,9 @@ export default function PosPage() {
                          should start answering size sheets because a fixture
                          gained a sized product. */
                       data-pos-sized={sizes.length > 0 ? "1" : undefined}
+                      /* Sold by its number: the till asks for it before the
+                         money. Marked for the same reason as a size. */
+                      data-pos-numbered={p.tracks_serial ? "1" : undefined}
                       ref={i === activeIndex ? activeRef : null}
                       /* Out, but not dead, where the tap can offer the same
                          salt. It still cannot be rung — commitProduct refuses
@@ -3083,6 +3200,7 @@ export default function PosPage() {
                       data-pos-item="row"
                       // Same marker as the tile — see the note there.
                       data-pos-sized={sizesOf(p).length > 0 ? "1" : undefined}
+                      data-pos-numbered={p.tracks_serial ? "1" : undefined}
                       ref={active ? activeRef : null}
                       // Same rule as the tile: out, but the tap can ask for the same salt.
                       disabled={out && !asksForEquivalent(p)}
@@ -3387,9 +3505,10 @@ export default function PosPage() {
                               {(l.tracks_serial || hasWholesale) && (
                                 <div className="mt-1 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
                                   {l.tracks_serial && (
-                                    <button type="button" onClick={() => { setSerialKey(l.key); serialModal.openModal(); }}
-                                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${serialCount(l) >= l.quantity ? "bg-success-50 text-success-600 dark:bg-success-500/10" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}>
-                                      IMEI {serialCount(l)}/{Math.floor(l.quantity)}
+                                    <button type="button" onClick={() => { setSerialAsked(false); setSerialKey(l.key); serialModal.openModal(); }}
+                                      title={owed(l) > 0 && l.unnumbered_ok ? "Going out without a number — tap to write one" : undefined}
+                                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${owed(l) === 0 ? "bg-success-50 text-success-600 dark:bg-success-500/10" : l.unnumbered_ok ? "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400" : "bg-warning-50 text-warning-600 dark:bg-warning-500/10"}`}>
+                                      IMEI {serialCount(l)}/{unitsOn(l)}{owed(l) > 0 && l.unnumbered_ok ? " · without" : ""}
                                     </button>
                                   )}
                                   {hasWholesale && (
@@ -3483,7 +3602,15 @@ export default function PosPage() {
                 so nothing floats in the middle of an otherwise-empty panel.
                 The promotion is NOT here any more: it moved up beside the Cart
                 title, where it can't scroll away mid-sale. */}
-            {((loyaltyOn && customerPoints !== null) || cartHasRx) && (
+            {/* THE CAR HAD NO WAY IN.
+                This wrapper asked only about loyalty and prescriptions, and
+                the vehicle box was written inside it — so a workshop saw it
+                when a loyalty member was attached or a prescription medicine
+                was in the cart, which is to say never. A sale could not be
+                put on a car, nor its odometer taken, from the one screen a
+                tyre shop sells on. It is drawn whenever there is a bill to
+                put a car on. */}
+            {((loyaltyOn && customerPoints !== null) || cartHasRx || (isAutoTrade && (cart.length > 0 || vehicle !== null))) && (
             <div className="space-y-2.5 border-t border-gray-100 p-4 pt-3 dark:border-gray-800">
               {/* Loyalty — shown when enabled and a known customer is attached. */}
               {loyaltyOn && customerPoints !== null && (
@@ -3728,7 +3855,7 @@ export default function PosPage() {
                   here landed beside the total once the block went sideways. */}
               <div className="flex shrink-0 flex-col md:shrink">
               <button type="button" disabled={cart.length === 0 || !canRing}
-                onClick={() => { setMethod(defaultTender); setTendered((t) => t || String(payable)); tenderModal.openModal(); }}
+                onClick={() => openTender()}
                 title={keyTitle("pay")}
                 className="flex w-auto shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-base font-bold text-white transition hover:bg-brand-600 disabled:opacity-40 md:w-full md:px-0 xl:w-auto xl:px-7">
                 <CardGlyph /> Tender / Pay
@@ -5002,34 +5129,71 @@ export default function PosPage() {
       </Modal>
 
       {/* Serial / IMEI capture — one serial per unit + optional warranty override. */}
-      <Modal isOpen={serialModal.isOpen} onClose={serialModal.closeModal} showCloseButton={false} className="max-w-md p-6">
+      <Modal isOpen={serialModal.isOpen} onClose={() => { setSerialAsked(false); serialModal.closeModal(); }} showCloseButton={false} className="max-w-md p-6">
         {(() => {
           const l = serialKey ? cart.find((x) => x.key === serialKey) : null;
           if (!l) return null;
-          const units = Math.max(1, Math.floor(l.quantity));
+          const units = unitsOn(l);
+          const stillOwed = owed(l);
+          const onShelf = (inStockSerials.data ?? []).map((s) => s.serial);
+          const notOnShelf = new Set(strangers(numbersOn(l), onShelf));
+          // Written on another unit of this bill — this line or any other.
+          const elsewhere = (value: string, slot: number): boolean => {
+            const number = value.trim();
+            if (number === "") return false;
+
+            return cart.some((other) => other.tracks_serial && numbersOn(other).some((n, j) => n === number && !(other.key === l.key && j === slot)));
+          };
           return (
             <>
               <div className="mb-1 flex items-start justify-between">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Serial / IMEI</h3>
-                <button aria-label="Close" onClick={serialModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
+                <button aria-label="Close" onClick={() => { setSerialAsked(false); serialModal.closeModal(); }} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
               </div>
               <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">{l.name} — one serial per unit ({units}).</p>
+
+              {/* Why the sheet is open when the cashier pressed Tender. */}
+              {serialAsked && stillOwed > 0 && (
+                <div data-testid="numbers-asked" className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+                  <strong>Before the money:</strong> {stillOwed === 1 ? "this unit has" : `${stillOwed} units have`} no number.
+                  A warranty is looked up by it — a unit sold without one cannot be found again.
+                </div>
+              )}
+
               <div className="space-y-2">
-                {Array.from({ length: units }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-6 text-right text-theme-xs text-gray-400 tabular-nums">{i + 1}.</span>
-                    <Input
-                      value={l.serials?.[i] ?? ""}
-                      onChange={(e) => setLineSerial(l.key, i, e.target.value)}
-                      placeholder="Scan or type the serial / IMEI"
-                    />
-                  </div>
-                ))}
+                {Array.from({ length: units }).map((_, i) => {
+                  const value = l.serials?.[i] ?? "";
+                  return (
+                    <div key={i}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 text-right text-theme-xs text-gray-400 tabular-nums">{i + 1}.</span>
+                        {/* The box takes the row. Left to its own width it was
+                            180px — fifteen digits of IMEI in a box that showed
+                            twelve, and a placeholder cut off mid-word. */}
+                        <div className="min-w-0 flex-1">
+                          <Input
+                            aria-label={`Serial / IMEI of unit ${i + 1}`}
+                            value={value}
+                            onChange={(e) => setLineSerial(l.key, i, e.target.value)}
+                            placeholder="Scan or type the serial / IMEI"
+                          />
+                        </div>
+                      </div>
+                      {elsewhere(value, i) ? (
+                        <p className="ml-8 mt-1 text-theme-xs text-error-500">This number is written on another unit of this bill.</p>
+                      ) : notOnShelf.has(value.trim()) ? (
+                        <p className="ml-8 mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                          Not one of the units on the shelf — check it against the box.
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* In-stock serials picker — tap a received IMEI to fill the next slot. */}
               {(() => {
-                const chosen = new Set((l.serials ?? []).map((s) => s.trim()).filter(Boolean));
+                const chosen = new Set(numbersOn(l));
                 const available = (inStockSerials.data ?? []).filter((s) => !chosen.has(s.serial));
                 if (available.length === 0) return null;
                 const fillNext = (serial: string) => {
@@ -5062,9 +5226,16 @@ export default function PosPage() {
                   onChange={(e) => setLineWarranty(l.key, e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0))}
                 />
               </div>
-              <div className="mt-6 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
-                <span className="text-theme-sm text-gray-500 dark:text-gray-400">{serialCount(l)}/{units} captured</span>
-                <Button size="sm" onClick={serialModal.closeModal}>Done</Button>
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+                <span className="whitespace-nowrap text-theme-sm text-gray-500 dark:text-gray-400">{serialCount(l)}/{units} captured</span>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* Said, not assumed. Offered only where the till stopped
+                      the cashier to ask — and only while a number is owed. */}
+                  {serialAsked && stillOwed > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => sellUnnumbered(l.key)}>Sell without a number</Button>
+                  )}
+                  <Button size="sm" onClick={() => closeNumbers()}>Done</Button>
+                </div>
               </div>
             </>
           );

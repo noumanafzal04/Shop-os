@@ -21,7 +21,12 @@ import { expect, type Page } from "@playwright/test";
  * it is not a plain tile. `size-picker.spec` is the one place that wants those,
  * and it reaches them by name.
  */
-export const PLAIN_ITEM = "[data-pos-item]:not([disabled]):not([data-pos-sized])";
+//
+// `:not([data-pos-numbered])` for the same reason: an item sold by its serial
+// asks for the number before the money, and the retail project's shelf gained
+// one (`trade.sold-by-number.spec`) — the till-offers check pressed Pay on it
+// and waited for a tender sheet the till rightly did not open.
+export const PLAIN_ITEM = "[data-pos-item]:not([disabled]):not([data-pos-sized]):not([data-pos-numbered])";
 
 /**
  * The shelf fixture's own products, by the name `shelf.setup` gives them.
