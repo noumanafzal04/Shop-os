@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\SaleDocument\CancelSaleDocumentAction;
+use App\Actions\SaleDocument\ChangeJobCardAction;
 use App\Actions\SaleDocument\ConvertSaleDocumentAction;
 use App\Actions\SaleDocument\CreateSaleDocumentAction;
 use App\Actions\SaleDocument\RecordDepositAction;
@@ -263,6 +264,44 @@ class SaleDocumentController extends Controller
         $document->forceFill(['work_status' => $data['work_status']])->save();
 
         return ApiResponse::ok($this->present($document->fresh(['items', 'payments'])), 'Updated');
+    }
+
+    /** A part or a piece of labour goes on the job. */
+    public function addItem(Request $request, ChangeJobCardAction $action, string $id): JsonResponse
+    {
+        $data = $request->validate([
+            'product_id' => [
+                'required', 'uuid',
+                Rule::exists('products', 'id')->where('tenant_id', $request->user()->tenant_id)->whereNull('deleted_at'),
+            ],
+            'variant_id' => ['nullable', 'uuid'],
+            'product_unit_id' => ['nullable', 'uuid'],
+            'quantity' => ['required', 'numeric', 'min:0.001', 'max:100000'],
+        ]);
+
+        $job = $action->add(SaleDocument::query()->findOrFail($id), $data);
+
+        return ApiResponse::ok($this->present($job), 'Added to the job');
+    }
+
+    /** A different quantity on one line of the job. */
+    public function updateItem(Request $request, ChangeJobCardAction $action, string $id, string $item): JsonResponse
+    {
+        $data = $request->validate([
+            'quantity' => ['required', 'numeric', 'min:0.001', 'max:100000'],
+        ]);
+
+        $job = $action->quantity(SaleDocument::query()->findOrFail($id), $item, (float) $data['quantity']);
+
+        return ApiResponse::ok($this->present($job), 'Updated');
+    }
+
+    /** A line comes off the job. */
+    public function removeItem(ChangeJobCardAction $action, string $id, string $item): JsonResponse
+    {
+        $job = $action->remove(SaleDocument::query()->findOrFail($id), $item);
+
+        return ApiResponse::ok($this->present($job), 'Taken off the job');
     }
 
     public function cancel(CancelSaleDocumentRequest $request, CancelSaleDocumentAction $action, string $id): JsonResponse

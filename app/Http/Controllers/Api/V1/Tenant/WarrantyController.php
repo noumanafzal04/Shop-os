@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Models\ProductSerial;
 use App\Models\SaleItemSerial;
 use App\Models\WarrantyClaim;
 use App\Support\ApiResponse;
@@ -33,7 +34,7 @@ class WarrantyController extends Controller
         // once an earlier sale was cancelled/refunded and the unit resold).
         $record = SaleItemSerial::query()
             ->where('serial', $serial)
-            ->with(['sale:id,invoice_number,status,sold_at,customer_name,customer_phone,total'])
+            ->with(['sale:id,invoice_number,status,sold_at,cancelled_at,customer_name,customer_phone,total'])
             ->latest('sold_at')
             ->first();
 
@@ -46,7 +47,10 @@ class WarrantyController extends Controller
         }
 
         $expires = $record->warranty_expires_at;
-        $underWarranty = $record->isUnderWarranty();
+        // Out with the customer AND inside its window — see isOut(). A unit
+        // that came back is the shop's stock, whatever its dates say.
+        $covered = $record->isCovered();
+        $cameBack = $record->cameBackAs();
 
         return ApiResponse::ok([
             'serial' => $record->serial,
@@ -54,10 +58,24 @@ class WarrantyController extends Controller
             'sold_at' => $record->sold_at?->toIso8601String(),
             'warranty_months' => $record->warranty_months,
             'warranty_expires_at' => $expires?->toDateString(),
-            'under_warranty' => $underWarranty,
-            // Whole days left (0 when expired or no warranty) — the counter reads
-            // this to tell the customer at a glance.
-            'days_left' => $underWarranty ? now()->startOfDay()->diffInDays($expires->endOfDay()) : 0,
+            'under_warranty' => $covered,
+            // Whole days left (0 on the last day, when expired, or with no
+            // warranty) — a NUMBER OF DAYS. It was a difference of two
+            // instants, and the counter read "365.9999999999884 days left".
+            'days_left' => $covered ? $record->daysLeft() : 0,
+            // Not with the customer any more: `returned` or `cancelled`, and
+            // when. The desk says this INSTEAD of a warranty verdict — there
+            // is nobody to give one to.
+            'came_back' => $cameBack === null ? null : [
+                'as' => $cameBack,
+                'at' => ($record->returned_at ?? $record->sale?->cancelled_at)?->toIso8601String(),
+            ],
+            // Is the unit standing on the shop's own shelf right now?
+            'on_shelf' => ProductSerial::query()
+                ->where('serial', $record->serial)
+                ->where('product_id', $record->product_id)
+                ->where('status', 'in_stock')
+                ->exists(),
             'sale' => $record->sale === null ? null : [
                 'id' => $record->sale->id,
                 'invoice_number' => $record->sale->invoice_number,
@@ -137,6 +155,7 @@ class WarrantyController extends Controller
 
         $record = SaleItemSerial::query()
             ->where('serial', $serial)
+            ->with('sale:id,status,customer_name,customer_phone')
             ->latest('sold_at')
             ->first();
 
@@ -157,7 +176,7 @@ class WarrantyController extends Controller
             // name that is already on the sale.
             'customer_name' => $data['customer_name'] ?? $record?->sale?->customer_name,
             'customer_phone' => $data['customer_phone'] ?? $record?->sale?->customer_phone,
-            'was_under_warranty' => (bool) $record?->isUnderWarranty(),
+            'was_under_warranty' => (bool) $record?->isCovered(),
             'warranty_expires_at' => $record?->warranty_expires_at,
             'created_by' => $request->user()->id,
         ]);

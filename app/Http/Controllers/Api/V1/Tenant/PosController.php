@@ -15,9 +15,11 @@ use App\Models\CashSessionCover;
 use App\Models\HeldSale;
 use App\Models\Product;
 use App\Models\ProductBarcode;
+use App\Models\ProductSerial;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\Register;
+use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
@@ -112,6 +114,26 @@ class PosController extends Controller
             }
         }
 
+        // ── THE NUMBER ON THE BOX ───────────────────────────────────────
+        //
+        // A phone has two barcodes on its box: the model's, and its own IMEI.
+        // The till knew the first and answered "no item found" to the second —
+        // the one a phone shop actually scans, because it is the one that has
+        // to end up on the bill. Now it finds the unit, and the line arrives
+        // with its number already written.
+        $serial = null;
+        if ($product === null) {
+            $unit = $this->unitOnTheShelf($code);
+            if ($unit !== null) {
+                $product = Product::query()->with(['variants', 'images', 'modifierGroups.options', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
+                    ->where('is_active', true)->find($unit->product_id);
+                if ($product !== null) {
+                    $variantId = $unit->variant_id;
+                    $serial = $unit->serial;
+                }
+            }
+        }
+
         if ($product === null) {
             throw DomainException::unprocessable('No item found for that code.', 'POS_ITEM_NOT_FOUND');
         }
@@ -119,6 +141,8 @@ class PosController extends Controller
         return ApiResponse::ok([
             'product' => $product,
             'variant_id' => $variantId,
+            // The unit's own number, when THAT is what was scanned (else null).
+            'serial' => $serial,
             // Preselected pack when a pack barcode was scanned (else null = base unit).
             'product_unit_id' => $unitId,
             // POS cashier warnings: Rx items, stock nearing expiry (earliest
@@ -128,6 +152,42 @@ class PosController extends Controller
             'near_expiry' => $this->nearExpiry($product),
             'aged' => $this->agedLot($product),
         ]);
+    }
+
+    /**
+     * The one unit on the shelf that carries this number — or null if the
+     * code is nobody's number.
+     *
+     * A number the shop knows but does NOT have is said in so many words:
+     * "no item found" for a phone that was sold on Tuesday sends the cashier
+     * looking for a typing mistake that is not there.
+     */
+    private function unitOnTheShelf(string $code): ?ProductSerial
+    {
+        $known = ProductSerial::query()->where('serial', $code)->get();
+        if ($known->isEmpty()) {
+            return null;
+        }
+
+        $onShelf = $known->where('status', 'in_stock')->values();
+        if ($onShelf->count() === 1) {
+            return $onShelf->first();
+        }
+
+        // Unique per ITEM, not per shop: two product lines can share a number.
+        if ($onShelf->count() > 1) {
+            throw DomainException::unprocessable(
+                "More than one item carries the number {$code} — ring the item, then pick its number.",
+                'SERIAL_AMBIGUOUS',
+            );
+        }
+
+        $invoice = Sale::query()->whereKey($known->first()->sale_id)->value('invoice_number');
+
+        throw DomainException::unprocessable(
+            "{$code} is not on the shelf — it was sold".($invoice !== null ? " on {$invoice}" : '').'.',
+            'SERIAL_ALREADY_SOLD',
+        );
     }
 
     /**

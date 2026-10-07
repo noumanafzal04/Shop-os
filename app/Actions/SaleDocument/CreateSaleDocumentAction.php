@@ -4,11 +4,9 @@ namespace App\Actions\SaleDocument;
 
 use App\Enums\ItemType;
 use App\Exceptions\DomainException;
-use App\Models\BranchPrice;
 use App\Models\Customer;
+use App\Models\CustomerVehicle;
 use App\Models\Product;
-use App\Models\ProductUnit;
-use App\Models\ProductVariant;
 use App\Models\SaleDocument;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
@@ -121,96 +119,10 @@ class CreateSaleDocumentAction
         $discretionaryLineDiscount = 0.0;
 
         foreach ($data['items'] as $item) {
-            /** @var Product|null $product */
-            $product = Product::query()
-                ->whereKey($item['product_id'])
-                ->where('is_active', true)
-                ->first();
-
-            if ($product === null) {
-                throw DomainException::unprocessable(
-                    'An item on this document is no longer available.',
-                    'PRODUCT_UNAVAILABLE',
-                );
-            }
-
-            $variant = null;
-            if (! empty($item['variant_id'])) {
-                $variant = ProductVariant::query()
-                    ->whereKey($item['variant_id'])
-                    ->where('product_id', $product->id)
-                    ->where('is_active', true)
-                    ->first();
-
-                if ($variant === null) {
-                    throw DomainException::unprocessable(
-                        'A variant on this document is no longer available.',
-                        'VARIANT_UNAVAILABLE',
-                    );
-                }
-            }
-
-            $quantity = (float) $item['quantity'];
-
-            if ($product->sold_by !== 'weight' && fmod($quantity, 1.0) !== 0.0) {
-                throw DomainException::unprocessable(
-                    "\"{$product->name}\" is sold by unit — enter a whole quantity.",
-                    'FRACTIONAL_QTY_NOT_ALLOWED',
-                );
-            }
-
-            $unit = null;
-            if ($variant === null && ! empty($item['product_unit_id'])) {
-                $unit = ProductUnit::query()
-                    ->whereKey($item['product_unit_id'])
-                    ->where('product_id', $product->id)
-                    ->first();
-
-                if ($unit === null) {
-                    throw DomainException::unprocessable(
-                        'A pack unit on this document is no longer available.',
-                        'UNIT_UNAVAILABLE',
-                    );
-                }
-            }
-            $factor = $unit !== null ? (float) $unit->factor : 1.0;
-
-            $level = ($item['price_level'] ?? $groupPriceLevel) === 'wholesale' ? 'wholesale' : 'retail';
-            $levelUnit = $product->priceForLevel($level, $quantity);
-
-            $override = $this->branchPrice($branchId, $product->id, $variant?->id);
-            if ($override !== null && $level === 'retail' && $variant === null) {
-                $levelUnit = $override;
-            }
-
-            $unitPrice = round($unit !== null
-                ? $unit->priceUsing($levelUnit)
-                : ($variant !== null ? ($override ?? (float) $variant->price) : $levelUnit), 2);
-
-            $gross = round($unitPrice * $quantity, 2);
-
-            $lineDiscount = 0.0;
-            if (($pct = (float) ($item['line_discount_pct'] ?? 0)) > 0) {
-                $lineDiscount = round($gross * min($pct, 100) / 100, 2);
-            } elseif (($amt = (float) ($item['line_discount'] ?? 0)) > 0) {
-                $lineDiscount = min(round($amt, 2), $gross);
-            }
-            $discretionaryLineDiscount = round($discretionaryLineDiscount + $lineDiscount, 2);
-
-            $lineTotal = round($gross - $lineDiscount, 2);
-            $subtotal = round($subtotal + $lineTotal, 2);
-
-            $lines[] = [
-                'product' => $product,
-                'variant' => $variant,
-                'unit' => $unit,
-                'factor' => $factor,
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
-                'line_discount' => $lineDiscount,
-                'line_total' => $lineTotal,
-                'tax_rate' => $product->effectiveTaxRate($defaultTaxRate),
-            ];
+            $line = DocumentPricing::line($item, $branchId, $groupPriceLevel, $defaultTaxRate);
+            $discretionaryLineDiscount = round($discretionaryLineDiscount + $line['line_discount'], 2);
+            $subtotal = round($subtotal + $line['line_total'], 2);
+            $lines[] = $line;
         }
 
         // ── Totals ──────────────────────────────────────────────────
@@ -232,7 +144,7 @@ class CreateSaleDocumentAction
             }
         }
 
-        $tax = $this->computeTax($lines, $subtotal, $discount, $taxInclusive);
+        $tax = DocumentPricing::tax($lines, $subtotal, $discount, $taxInclusive);
         $total = $taxInclusive
             ? round($subtotal - $discount, 2)
             : round($subtotal - $discount + $tax, 2);
@@ -362,6 +274,11 @@ class CreateSaleDocumentAction
             'idempotency_key' => $data['idempotency_key'] ?? null,
         ]);
 
+        // The car booked in for this customer is theirs, if nobody had said whose it was.
+        if ($isJobCard && $customer !== null && ! empty($data['vehicle_id'])) {
+            CustomerVehicle::query()->whereKey($data['vehicle_id'])->first()?->adoptOwner($customer->id);
+        }
+
         foreach ($lines as $line) {
             $document->items()->create([
                 'tenant_id' => $tenantId,
@@ -430,54 +347,6 @@ class CreateSaleDocumentAction
         }
 
         return $document->load(['items', 'payments']);
-    }
-
-    /**
-     * Server-authoritative tax, per line, on each line's discounted share —
-     * the same arithmetic CreateSaleAction uses, so the quoted tax and the
-     * charged tax cannot disagree.
-     */
-    private function computeTax(array $lines, float $subtotal, float $discount, bool $inclusive): float
-    {
-        $taxableBase = $subtotal - $discount;
-        $tax = 0.0;
-
-        foreach ($lines as $line) {
-            $rate = (float) $line['tax_rate'];
-            if ($rate <= 0 || $subtotal <= 0) {
-                continue;
-            }
-
-            $lineShare = (float) $line['line_total'] * ($taxableBase / $subtotal);
-
-            if ($inclusive) {
-                $net = $lineShare / (1 + $rate / 100);
-                $tax = round($tax + ($lineShare - $net), 2);
-            } else {
-                $tax = round($tax + $lineShare * $rate / 100, 2);
-            }
-        }
-
-        return $tax;
-    }
-
-    private function branchPrice(?string $branchId, string $productId, ?string $variantId): ?float
-    {
-        if ($branchId === null) {
-            return null;
-        }
-
-        $query = BranchPrice::query()
-            ->where('branch_id', $branchId)
-            ->where('product_id', $productId);
-
-        $variantId === null
-            ? $query->whereNull('variant_id')
-            : $query->where('variant_id', $variantId);
-
-        $price = $query->value('price');
-
-        return $price !== null ? (float) $price : null;
     }
 
     private function assertWithinDiscountCeiling(float $discount, float $subtotal): void

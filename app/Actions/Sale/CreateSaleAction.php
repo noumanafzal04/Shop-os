@@ -33,6 +33,7 @@ use App\Support\ModifierResolver;
 use App\Support\RecipeCost;
 use App\Support\RecipeFor;
 use App\Support\RegisterContext;
+use App\Support\ShopDay;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
@@ -1353,6 +1354,11 @@ class CreateSaleAction
                             'customer_id' => $customer->id,
                             'customer_name' => filled($sale->customer_name) ? $sale->customer_name : $known,
                         ])->save();
+
+                        // A car nobody had named an owner for is this customer's.
+                        if (! empty($data['vehicle_id'])) {
+                            CustomerVehicle::query()->whereKey($data['vehicle_id'])->first()?->adoptOwner($customer->id);
+                        }
                     }
                 }
 
@@ -1741,8 +1747,17 @@ class CreateSaleAction
         $product = $line['product'];
         $months = $line['warranty_months']
             ?? ($product->warranty_months !== null ? (int) $product->warranty_months : null);
+        // THE LAST DAY OF COVER IS A DATE ON A CARD.
+        //
+        // Counted from the date on the customer's receipt — the shop's own
+        // calendar — and not from the server's. A phone sold at half past
+        // midnight in Lahore was sold "yesterday" in UTC, and its year of
+        // cover ended a day before the card in the box said it did.
+        //
+        // And never past the end of a month: six months from 31 August is the
+        // last day of February, not the third of March.
         $expires = $months !== null && $months > 0
-            ? $sale->sold_at->copy()->addMonths($months)
+            ? $sale->sold_at->copy()->setTimezone(ShopDay::zone())->startOfDay()->addMonthsNoOverflow($months)->toDateString()
             : null;
 
         foreach ($serials as $serial) {

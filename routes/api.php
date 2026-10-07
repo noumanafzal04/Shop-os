@@ -707,6 +707,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // marking a car READY must not be able to change its price by
                 // sending the whole document back.
                 Route::post('/{document}/work-status', [SaleDocumentController::class, 'workStatus']);
+                // A job card grows while the work is done: parts and labour
+                // go on, a quantity changes, a line comes off. Job cards only.
+                Route::post('/{document}/items', [SaleDocumentController::class, 'addItem']);
+                Route::patch('/{document}/items/{item}', [SaleDocumentController::class, 'updateItem']);
+                Route::delete('/{document}/items/{item}', [SaleDocumentController::class, 'removeItem']);
                 // Cancelling a layaway that holds money needs sales.refund —
                 // enforced in the controller, since a quotation cancel moves
                 // nothing and must stay available to a plain cashier.

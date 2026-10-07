@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\ProductVariant;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\SaleItemSerial;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
@@ -152,33 +153,25 @@ class ProcessSaleReturnAction
                         : round($lineTotal * $lineRate / 100, 2);
                     $refundTax = round($refundTax + $lineTax, 2);
 
-                    // Serialized returns: resolve the specific serials coming back.
-                    // Each must be an active (not-yet-returned) serial on THIS line,
-                    // and there must be exactly one per returned unit.
-                    $serialIds = [];
-                    $serials = $row['serials'] ?? [];
-                    if (! empty($serials)) {
-                        if (count($serials) !== (int) round($qty)) {
-                            throw DomainException::unprocessable(
-                                'Enter one serial per returned unit.',
-                                'RETURN_SERIAL_COUNT_MISMATCH',
-                            );
-                        }
-                        foreach ($serials as $serial) {
-                            $sis = SaleItemSerial::query()
-                                ->where('sale_item_id', $saleItem->id)
-                                ->where('serial', trim((string) $serial))
-                                ->whereNull('returned_at')
-                                ->first();
-                            if ($sis === null) {
-                                throw DomainException::unprocessable(
-                                    "Serial \"{$serial}\" isn't an active serial on this item.",
-                                    'RETURN_SERIAL_INVALID',
-                                );
-                            }
-                            $serialIds[] = $sis->id;
-                        }
-                    }
+                    // ── WHICH UNIT CAME BACK ────────────────────────────
+                    //
+                    // A phone is sold by its number, so a phone that comes back
+                    // comes back by its number: that is what puts THAT unit on
+                    // the shelf again and takes the warranty off the customer
+                    // who no longer has it.
+                    //
+                    // The number was optional and the returns desk never sent
+                    // one, so the rule ran for nobody: a refunded phone stayed
+                    // "sold" in the registry — refused at the till as already
+                    // sold while standing on the shelf — and the warranty desk
+                    // went on saying it was with the customer.
+                    //
+                    // So it is no longer left to the caller. When every unit
+                    // left on the line is coming back there is nothing to
+                    // choose between, and their numbers are freed without being
+                    // asked for. When only some are, the caller says which —
+                    // and is refused if it does not.
+                    $serialIds = $this->unitsComingBack($saleItem, $row['serials'] ?? [], $qty, $remaining);
 
                     $lines[] = [
                         'tenant_id' => $tenantId,
@@ -264,10 +257,7 @@ class ProcessSaleReturnAction
                             continue;
                         }
                         $sis->forceFill(['returned_at' => now()])->save();
-                        if ($sis->product_serial_id !== null) {
-                            ProductSerial::query()->whereKey($sis->product_serial_id)
-                                ->update(['status' => 'in_stock', 'sale_id' => null]);
-                        }
+                        $this->backOnTheShelf($sis, $return);
                     }
 
                     // Restock only physical, still-tracked products.
@@ -474,5 +464,121 @@ class ProcessSaleReturnAction
             }
             throw $e;
         }
+    }
+
+    /**
+     * The sold-serial rows a returned quantity stands for.
+     *
+     * @param  array<int, mixed>  $named  the numbers the caller said came back
+     * @return array<int, string> sale_item_serial ids to mark returned
+     */
+    private function unitsComingBack(SaleItem $saleItem, array $named, float $qty, float $remaining): array
+    {
+        $named = array_values(array_unique(array_filter(
+            array_map(fn ($s) => trim((string) $s), $named),
+            fn ($s) => $s !== '',
+        )));
+
+        // The numbered units of this line that are still out with the customer.
+        $out = SaleItemSerial::query()
+            ->where('sale_item_id', $saleItem->id)
+            ->whereNull('returned_at')
+            ->get(['id', 'serial']);
+
+        $units = (int) round($qty);
+        if (count($named) > $units) {
+            throw DomainException::unprocessable(
+                'Enter one serial per returned unit.',
+                'RETURN_SERIAL_COUNT_MISMATCH',
+            );
+        }
+
+        $ids = [];
+        foreach ($named as $serial) {
+            $unit = $out->firstWhere('serial', $serial);
+            if ($unit === null) {
+                throw DomainException::unprocessable(
+                    "Serial \"{$serial}\" isn't an active serial on this item.",
+                    'RETURN_SERIAL_INVALID',
+                );
+            }
+            $ids[] = $unit->id;
+        }
+
+        $notNamed = $units - count($named);
+        $numberedLeft = $out->count() - count($named);
+        if ($notNamed <= 0 || $numberedLeft <= 0) {
+            return $ids;
+        }
+
+        // Units of this line that left WITHOUT a number and are still out.
+        $unnumberedLeft = max(0, (int) round($remaining) - $out->count());
+
+        // Everything left on the line is coming back: nothing to choose between.
+        if ($notNamed >= $numberedLeft + $unnumberedLeft) {
+            return $out->pluck('id')->all();
+        }
+
+        // The rest could be the units that never had a number.
+        if ($notNamed <= $unnumberedLeft) {
+            return $ids;
+        }
+
+        throw $named === []
+            ? DomainException::unprocessable(
+                "Say which unit of \"{$saleItem->product_name}\" came back — pick its serial / IMEI.",
+                'RETURN_SERIAL_REQUIRED',
+            )
+            : DomainException::unprocessable(
+                'Enter one serial per returned unit.',
+                'RETURN_SERIAL_COUNT_MISMATCH',
+            );
+    }
+
+    /**
+     * The unit is on the shelf again, under its number.
+     *
+     * A number that was written down when the goods ARRIVED has a registry
+     * row, and it goes back to in-stock. A number that was only ever typed at
+     * the till has none — the shop sold it by its number and, the moment it
+     * came back, forgot it had one: the till's own list of "units on the
+     * shelf" did not include the phone the customer had just handed over. It
+     * is written down now.
+     */
+    private function backOnTheShelf(SaleItemSerial $unit, SaleReturn $return): void
+    {
+        if ($unit->product_serial_id !== null) {
+            ProductSerial::query()->whereKey($unit->product_serial_id)
+                ->update(['status' => 'in_stock', 'sale_id' => null]);
+
+            return;
+        }
+
+        $product = $unit->product_id !== null ? Product::query()->whereKey($unit->product_id)->first() : null;
+        if ($product === null || ! $product->tracksSerial() || ! $product->track_inventory) {
+            return;
+        }
+
+        // Unique per item — so a row may be there already: the same number
+        // arrived on an order while this unit was out with a customer. One
+        // row either way; a second would be refused by the database and take
+        // the whole refund down with it.
+        $held = ProductSerial::withTrashed()->firstOrNew([
+            'product_id' => $product->id,
+            'serial' => $unit->serial,
+        ]);
+        if (! $held->exists) {
+            $held->fill([
+                'tenant_id' => $unit->tenant_id,
+                'variant_id' => $unit->variant_id,
+                'branch_id' => $return->branch_id,
+                'source' => 'sale_return',
+                'source_id' => $return->id,
+                'received_at' => now(),
+            ]);
+        }
+        $held->forceFill(['status' => 'in_stock', 'sale_id' => null, 'deleted_at' => null])->save();
+
+        $unit->forceFill(['product_serial_id' => $held->id])->save();
     }
 }

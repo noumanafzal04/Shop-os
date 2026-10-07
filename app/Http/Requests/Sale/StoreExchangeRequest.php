@@ -33,6 +33,11 @@ class StoreExchangeRequest extends FormRequest
             // rows would refund twice but restock once.
             'return_items.*.sale_item_id' => ['required', 'uuid', 'distinct'],
             'return_items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+            // WHICH unit is handed back — see StoreSaleReturnRequest. An
+            // exchange is the commonest reason a phone comes back at all, and
+            // it was the one door that could not say which phone.
+            'return_items.*.serials' => ['nullable', 'array'],
+            'return_items.*.serials.*' => ['string', 'max:120', 'distinct'],
 
             // Replacement items being bought (server-priced like a sale).
             'items' => ['required', 'array', 'min:1', 'max:200'],
@@ -46,6 +51,12 @@ class StoreExchangeRequest extends FormRequest
             'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:100000'],
             'items.*.modifier_option_ids' => ['sometimes', 'array', 'max:50'],
             'items.*.modifier_option_ids.*' => ['uuid'],
+            // …and the number of the unit that goes out in its place, with the
+            // cover it carries. Without these the replacement left the shop as
+            // a phone with no number: nothing for the warranty desk to find.
+            'items.*.serials' => ['sometimes', 'array', 'max:1000'],
+            'items.*.serials.*' => ['string', 'max:120', 'distinct'],
+            'items.*.warranty_months' => ['nullable', 'integer', 'min:0', 'max:600'],
 
             // The customer covers a positive difference with these tenders.
             'payments' => ['nullable', 'array', 'max:10'],

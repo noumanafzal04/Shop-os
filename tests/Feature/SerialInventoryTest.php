@@ -175,10 +175,13 @@ class SerialInventoryTest extends TestCase
 
     public function test_returned_serial_count_must_match_quantity(): void
     {
-        $this->receive(2, ['IMEI-1', 'IMEI-2'])->assertOk();
-        $sale = $this->sell(['IMEI-1', 'IMEI-2'])->assertCreated()->json('data');
+        $this->receive(3, ['IMEI-1', 'IMEI-2', 'IMEI-3'])->assertOk();
+        $sale = $this->sell(['IMEI-1', 'IMEI-2', 'IMEI-3'])->assertCreated()->json('data');
 
-        // Returning qty 2 but only naming one serial.
+        // Two of the three come back and only one is named: WHICH is the other?
+        // (Two of TWO naming one is no longer refused — when every unit left on
+        // the line comes back there is nothing to choose between. See
+        // AUnitIsSoldByItsNumberTest.)
         $this->req()->postJson("/api/v1/sales/{$sale['id']}/returns", [
             'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 2, 'serials' => ['IMEI-1']]],
         ])->assertStatus(422)->assertJsonPath('meta.error_code', 'RETURN_SERIAL_COUNT_MISMATCH');
