@@ -33,7 +33,9 @@ class CloseBusinessDayAction
     public function open(User $user, ?string $branchId, ?string $date = null): BusinessDay
     {
         return DB::transaction(function () use ($user, $branchId, $date): BusinessDay {
-            $tradingDate = $date ?? $user->tenant?->localNow()->toDateString() ?? now()->toDateString();
+            // One answer to "which day is this", shared with the reports and
+            // with a sale arriving late from an offline till.
+            $tradingDate = $date ?? BusinessDay::tradingDateAt($branchId, now(), $user->tenant);
 
             $existing = BusinessDay::query()
                 ->where('branch_id', $branchId)
@@ -46,8 +48,11 @@ class CloseBusinessDayAction
                     return $existing;   // Re-opening today is a no-op, not an error.
                 }
 
+                // And the way out, because the commonest reason to meet this
+                // is a close pressed by mistake: it can be opened again.
                 throw DomainException::conflict(
-                    "Trading on {$tradingDate} has already been closed off.",
+                    "Trading on {$tradingDate} has already been closed off. "
+                    .'A manager can open it again from Day & banking.',
                     'BUSINESS_DAY_CLOSED',
                 );
             }

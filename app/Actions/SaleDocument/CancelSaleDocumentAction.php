@@ -9,6 +9,7 @@ use App\Models\Income;
 use App\Models\Product;
 use App\Models\SaleDocument;
 use App\Services\InventoryService;
+use App\Support\ShopDay;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -156,7 +157,9 @@ class CancelSaleDocumentAction
                     'tenant_id' => $doc->tenant_id,
                     'description' => "Forfeited advance · {$doc->number}",
                     'amount' => $forfeit,
-                    'income_date' => today(),
+                    // The shop's business day: money kept at one in the morning
+                    // belongs on the same cashbook row as that night's sales.
+                    'income_date' => ShopDay::today(),
                     'notes' => $data['reason'] ?? null,
                 ]);
             }

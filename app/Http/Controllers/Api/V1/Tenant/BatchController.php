@@ -14,6 +14,7 @@ use App\Services\InventoryService;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\DotCode;
+use App\Support\ShopDay;
 use App\Support\ShopSettings;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -75,7 +76,7 @@ class BatchController extends Controller
             'dot_code' => ['nullable', 'string', 'regex:'.DotCode::PATTERN],
             // Derived from the DOT code when one was given, or entered directly
             // for anything else that ages on a shelf rather than expiring.
-            'manufactured_on' => ['nullable', 'date', 'before_or_equal:today'],
+            'manufactured_on' => ['nullable', 'date', 'before_or_equal:'.ShopDay::calendarToday()],
             'quantity' => ['required', 'numeric', 'min:0.001'],
             'cost' => ['nullable', 'numeric', 'min:0'],
         ], [
@@ -163,7 +164,7 @@ class BatchController extends Controller
             'batch_number' => ['sometimes', 'string', 'max:64'],
             'expiry_date' => ['sometimes', $expiryNullable ? 'nullable' : 'required', 'date'],
             'dot_code' => ['sometimes', 'nullable', 'string', 'regex:'.DotCode::PATTERN],
-            'manufactured_on' => ['sometimes', 'nullable', 'date', 'before_or_equal:today'],
+            'manufactured_on' => ['sometimes', 'nullable', 'date', 'before_or_equal:'.ShopDay::calendarToday()],
         ], [
             'expiry_date.required' => 'A medicine batch must keep an expiry date.',
             'dot_code.regex' => 'A DOT code is four digits — week then year, e.g. 2224 for week 22 of 2024.',

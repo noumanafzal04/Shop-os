@@ -5,6 +5,7 @@ namespace App\Http\Requests\Expense;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -48,7 +49,10 @@ class StoreExpenseRequest extends FormRequest
             // RecordExpenseAction for why the others deliberately don't.
             'payment_method' => ['sometimes', Rule::in(Expense::PAYMENT_METHODS)],
             // Edge case: future-dated expenses blocked.
-            'expense_date' => ['required', 'date', 'before_or_equal:today'],
+            // The date on the SHOP'S wall. `today` is the server's, which at two
+            // in the morning in Karachi is still yesterday — and refused the
+            // very date printed on the bill in the owner's hand.
+            'expense_date' => ['required', 'date', 'before_or_equal:'.ShopDay::calendarToday()],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }

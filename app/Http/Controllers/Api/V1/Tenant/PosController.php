@@ -26,11 +26,12 @@ use App\Support\DrawerMath;
 use App\Support\Permissions;
 use App\Support\RegisterContext;
 use App\Support\ScaleBarcode;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PosController extends Controller
@@ -242,10 +243,13 @@ class PosController extends Controller
      */
     private function nearExpiry(Product $product): ?array
     {
+        // Counted from the date on the shop's wall, not the server's.
+        $today = CarbonImmutable::parse(ShopDay::calendarToday());
+
         $batch = $this->lotsOnThisShelf($product)
             ->whereNotNull('expiry_date')
-            ->whereDate('expiry_date', '>=', today())
-            ->whereDate('expiry_date', '<=', today()->addDays(90))
+            ->whereDate('expiry_date', '>=', $today)
+            ->whereDate('expiry_date', '<=', $today->addDays(90))
             ->orderBy('expiry_date')
             ->first();
 
@@ -256,7 +260,7 @@ class PosController extends Controller
         return [
             'batch_number' => $batch->batch_number,
             'expiry_date' => $batch->expiry_date->toDateString(),
-            'days' => (int) today()->diffInDays($batch->expiry_date),
+            'days' => (int) $today->diffInDays($batch->expiry_date->toDateString()),
         ];
     }
 
@@ -731,12 +735,13 @@ class PosController extends Controller
             'status' => ['nullable', 'in:open,closed'],
         ]);
 
-        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfDay();
-        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        // The shop's own days: a shift opened at one in the morning belongs
+        // to the evening it is part of. See ShopDay.
+        $window = ShopDay::window($data['from'] ?? null, $data['to'] ?? null);
 
         $sessions = CashSession::query()
             ->with(['user:id,name', 'register:id,name,code', 'branch:id,name'])
-            ->whereBetween('opened_at', [$from, $to])
+            ->whereBetween('opened_at', [$window['start'], $window['end']])
             ->when($this->branch->scopeId() !== null, fn ($q) => $q->where('branch_id', $this->branch->scopeId()))
             ->when(isset($data['register_id']), fn ($q) => $q->where('register_id', $data['register_id']))
             ->when(isset($data['status']), fn ($q) => $q->where('status', $data['status']))
@@ -762,8 +767,8 @@ class PosController extends Controller
                 'sales_total' => round((float) $real->sum('sales_total'), 2),
                 'sales_count' => (int) $real->sum('sales_count'),
             ],
-            'from' => $from->toDateTimeString(),
-            'to' => $to->toDateTimeString(),
+            'from' => $window['start']->toDateTimeString(),
+            'to' => $window['end']->toDateTimeString(),
         ]);
     }
 

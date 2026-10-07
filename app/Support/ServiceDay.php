@@ -28,8 +28,12 @@ use Illuminate\Support\Carbon;
  *
  * Two rules, and the EARLIER of them wins:
  *
- *   the day turns at five in the morning, by the shop's own clock — the hour
- *   that is after any night's last order and before any morning's first;
+ *   the day turns when the SHOP'S day turns (ShopDay) — five in the morning
+ *   unless the shop has said otherwise, the hour that is after any night's
+ *   last order and before any morning's first. It is the same turn the
+ *   reports and the till's trading day use: the pass had an hour of its own
+ *   once, and a board that called it tomorrow while the day's report still
+ *   called it today was two answers to one question;
  *
  *   and nothing fired in the last six hours is ever "an earlier service",
  *   whatever the clock says. A kitchen serving sehri at ten to five does not
@@ -40,9 +44,6 @@ use Illuminate\Support\Carbon;
  */
 final class ServiceDay
 {
-    /** By the shop's own clock. After the last order of any night, before the first of any morning. */
-    public const TURNS_AT_HOUR = 5;
-
     /** Younger than this is still tonight's work, whatever the clock says. */
     public const STILL_LIVE_HOURS = 6;
 
@@ -50,14 +51,11 @@ final class ServiceDay
     {
         $now = now();
 
-        $local = $now->copy()->setTimezone(ShopTime::zone($tenant));
-        $turned = $local->copy()->setTime(self::TURNS_AT_HOUR, 0);
-        if ($turned->greaterThan($local)) {
-            $turned->subDay();
-        }
+        // When the shop's day turned — the same hour its reports turn at.
+        $turned = ShopDay::startOf(ShopDay::today($tenant), $tenant);
 
         $recent = $now->copy()->subHours(self::STILL_LIVE_HOURS);
 
-        return ($turned->lessThan($recent) ? $turned : $recent)->utc();
+        return $turned->lessThan($recent) ? Carbon::instance($turned) : $recent->utc();
     }
 }

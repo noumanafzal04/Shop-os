@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ForecourtReading;
 use App\Models\ForecourtShift;
+use App\Support\ShopDay;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -54,8 +55,7 @@ class FuelReportService
         $shifts = ForecourtShift::query()
             ->where('status', ForecourtShift::STATUS_CLOSED)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereDate('opened_at', '>=', $from)
-            ->whereDate('opened_at', '<=', $to)
+            ->tap(fn ($q) => ShopDay::between($q, 'opened_at', $from, $to))
             ->with(['branch:id,name', 'closedBy:id,name'])
             ->orderByDesc('opened_at')
             ->get();
@@ -68,8 +68,7 @@ class FuelReportService
         $stillOpen = ForecourtShift::query()
             ->where('status', ForecourtShift::STATUS_OPEN)
             ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereDate('opened_at', '>=', $from)
-            ->whereDate('opened_at', '<=', $to)
+            ->tap(fn ($q) => ShopDay::between($q, 'opened_at', $from, $to))
             ->count();
 
         $readings = ForecourtReading::query()

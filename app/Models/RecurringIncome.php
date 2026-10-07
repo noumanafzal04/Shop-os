@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
@@ -43,7 +44,10 @@ class RecurringIncome extends BaseModel
 
     public function isDue(): bool
     {
-        return $this->is_active && $this->next_due_on !== null && ! $this->next_due_on->isFuture();
+        // By the date on the shop's wall — the same "today" the due list
+        // filters on, so a template is never on the list and not due.
+        return $this->is_active && $this->next_due_on !== null
+            && $this->next_due_on->toDateString() <= ShopDay::calendarToday();
     }
 
     /**

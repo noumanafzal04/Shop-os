@@ -7,6 +7,7 @@ use App\Exceptions\DomainException;
 use App\Models\Income;
 use App\Models\RecurringIncome;
 use App\Models\User;
+use App\Support\ShopDay;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -47,7 +48,10 @@ class PostRecurringIncomeAction
 
             // Posting ahead of the due date would advance the schedule past a
             // period that hasn't happened, quietly skipping it.
-            if ($dueOn->isFuture()) {
+            // Not yet due BY THE SHOP'S WALL. `isFuture()` asked the server,
+            // which called the 7th the future until five in the morning —
+            // a bill on the "due" list that refused to be posted.
+            if ($dueOn->toDateString() > ShopDay::calendarToday()) {
                 throw DomainException::unprocessable(
                     "{$locked->description} isn't due until {$dueOn->toFormattedDateString()}.",
                     'RECURRING_NOT_DUE',
@@ -67,7 +71,7 @@ class PostRecurringIncomeAction
             ]);
 
             $locked->update([
-                'last_posted_on' => now()->toDateString(),
+                'last_posted_on' => ShopDay::calendarToday(),
                 'next_due_on' => $locked->advance($dueOn)->toDateString(),
             ]);
 

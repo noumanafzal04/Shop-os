@@ -15,6 +15,7 @@ use App\Http\Requests\SaleDocument\StoreSaleDocumentRequest;
 use App\Models\SaleDocument;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,8 +56,7 @@ class SaleDocumentController extends Controller
             ->when($filters['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind))
             ->when($filters['work_status'] ?? null, fn ($q, $w) => $q->where('work_status', $w))
             ->when($filters['customer_id'] ?? null, fn ($q, $id) => $q->where('customer_id', $id))
-            ->when($filters['from'] ?? null, fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
-            ->when($filters['to'] ?? null, fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
+            ->tap(fn ($q) => ShopDay::between($q, 'created_at', $filters['from'] ?? null, $filters['to'] ?? null))
             ->when($filters['search'] ?? null, function ($q, $term): void {
                 $like = '%'.strtolower($term).'%';
                 $q->where(function ($sub) use ($like): void {
@@ -73,7 +73,7 @@ class SaleDocumentController extends Controller
             // list a shop should be phoning down.
             $query->where('status', SaleDocument::STATUS_OPEN)
                 ->whereNotNull('expires_at')
-                ->whereDate('expires_at', '<', today());
+                ->whereDate('expires_at', '<', ShopDay::calendarToday());
         } elseif ($status !== null) {
             $query->where('status', $status);
         }
@@ -134,7 +134,7 @@ class SaleDocumentController extends Controller
             'balance_outstanding' => round($committed - $layawayDeposits, 2),
             'overdue' => (int) (clone $open)
                 ->whereNotNull('expires_at')
-                ->whereDate('expires_at', '<', today())
+                ->whereDate('expires_at', '<', ShopDay::calendarToday())
                 ->count(),
         ]);
     }

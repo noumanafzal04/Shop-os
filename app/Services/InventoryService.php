@@ -11,6 +11,7 @@ use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -213,7 +214,11 @@ class InventoryService
                         ->where($scopeVariant)
                         ->where('quantity', '>', 0)
                         ->whereNotNull('expiry_date')
-                        ->whereDate('expiry_date', '<', today())
+                        // The date on the SHOP'S wall. `today()` is the server's,
+                        // which in Karachi runs five hours behind the calendar:
+                        // a strip that expired on the 6th was still being sold
+                        // at four in the morning on the 7th.
+                        ->whereDate('expiry_date', '<', ShopDay::calendarToday())
                         ->lockForUpdate()
                         ->sum('quantity');
 
@@ -266,7 +271,7 @@ class InventoryService
                         ->where('product_id', $product->id)
                         ->where($scopeVariant)
                         ->where('quantity', '>', 0)
-                        ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today()))
+                        ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', ShopDay::calendarToday()))
                         ->oldestFirst()
                         ->lockForUpdate()
                         ->get();
@@ -297,7 +302,7 @@ class InventoryService
                     $restoreTo = ProductBatch::withoutTenancy()
                         ->where('product_id', $product->id)
                         ->where($scopeVariant)
-                        ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', today()))
+                        ->where(fn ($q) => $q->whereNull('expiry_date')->orWhereDate('expiry_date', '>=', ShopDay::calendarToday()))
                         ->oldestFirst()
                         ->lockForUpdate()
                         ->first();

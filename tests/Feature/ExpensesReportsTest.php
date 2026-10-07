@@ -8,8 +8,10 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class ExpensesReportsTest extends TestCase
@@ -70,7 +72,27 @@ class ExpensesReportsTest extends TestCase
     public function test_future_dated_expense_rejected(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/expenses', $this->expensePayload([
-            'expense_date' => now()->addDay()->toDateString(),
+            // Tomorrow on the SHOP'S wall. The server's tomorrow is today in
+            // Karachi for five hours of every night, and this test failed
+            // through exactly those hours once the rule was the shop's.
+            'expense_date' => Carbon::parse(ShopDay::calendarToday($this->tenant))->addDay()->toDateString(),
+        ]))->assertStatus(422)->assertJsonStructure(['errors' => ['expense_date']]);
+    }
+
+    public function test_the_date_on_the_shops_wall_is_not_the_future(): void
+    {
+        // Two in the morning in Karachi: the bill in the owner's hand is
+        // dated the 7th, and the server — still on the 6th — refused it as a
+        // date that had not happened yet.
+        $this->tenant->update(['timezone' => 'Asia/Karachi']);
+        $this->travelTo(Carbon::parse('2026-10-07 02:00:00', 'Asia/Karachi'));
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/expenses', $this->expensePayload([
+            'expense_date' => '2026-10-07',
+        ]))->assertCreated();
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/expenses', $this->expensePayload([
+            'expense_date' => '2026-10-08',
         ]))->assertStatus(422)->assertJsonStructure(['errors' => ['expense_date']]);
     }
 

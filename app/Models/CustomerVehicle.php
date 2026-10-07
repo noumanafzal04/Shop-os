@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -75,6 +76,6 @@ class CustomerVehicle extends BaseModel
             return;
         }
 
-        $this->forceFill(['odometer' => $reading, 'odometer_at' => now()->toDateString()])->save();
+        $this->forceFill(['odometer' => $reading, 'odometer_at' => ShopDay::calendarToday()])->save();
     }
 }

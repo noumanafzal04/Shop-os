@@ -10,6 +10,7 @@ use App\Http\Requests\Fuel\CloseForecourtShiftRequest;
 use App\Http\Requests\Fuel\OpenForecourtShiftRequest;
 use App\Models\ForecourtShift;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -29,8 +30,7 @@ class ForecourtShiftController extends Controller
             ->with(['branch:id,name', 'openedBy:id,name', 'closedBy:id,name'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->string('status')))
             ->when($request->filled('branch_id'), fn ($q) => $q->where('branch_id', $request->string('branch_id')))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('opened_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('opened_at', '<=', $request->date('to')))
+            ->tap(fn ($q) => ShopDay::between($q, 'opened_at', $request->date('from'), $request->date('to')))
             ->orderByDesc('opened_at')
             ->stably()->paginate(20);
 

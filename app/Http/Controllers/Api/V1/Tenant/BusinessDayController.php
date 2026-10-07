@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Pos\CloseBusinessDayAction;
+use App\Actions\Pos\ReopenBusinessDayAction;
 use App\Http\Controllers\Controller;
 use App\Models\BankDeposit;
 use App\Models\BusinessDay;
@@ -12,6 +13,7 @@ use App\Support\BranchContext;
 use App\Support\DrawerMath;
 use App\Support\Permissions;
 use App\Support\Retention;
+use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,7 +61,25 @@ class BusinessDayController extends Controller
         $day = $open->first()?->load(['openedBy:id,name', 'branch:id,name']);
 
         if ($day === null) {
-            return ApiResponse::ok(null, 'No day open');
+            // Nothing open — and if that is because today's was closed off,
+            // say so, and say whether it can be opened again. "No day open"
+            // alone reads as "nobody has started yet", which at two in the
+            // afternoon after a mis-pressed close is the opposite of the truth.
+            $closed = $this->branch->scopesAll()
+                ? ReopenBusinessDayAction::candidateAnywhere($request->user())
+                : ReopenBusinessDayAction::candidate($this->branch->id(), $request->user());
+
+            return ApiResponse::ok(null, 'No day open', array_filter([
+                'closed_today' => $closed === null ? null : [
+                    'id' => $closed->id,
+                    'trading_date' => $closed->trading_date->toDateString(),
+                    'closed_at' => $closed->closed_at?->toIso8601String(),
+                    'closed_by' => $closed->closedBy?->name,
+                    'branch' => $closed->branch?->name,
+                    'sales_total' => (float) $closed->sales_total,
+                    'can_reopen' => $request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS),
+                ],
+            ]));
         }
 
         // Named, because "a day" means nothing across three shops. The row
@@ -195,6 +215,24 @@ class BusinessDayController extends Controller
         return ApiResponse::ok($closed, 'Day closed');
     }
 
+    /**
+     * Open today's day again — the way back from a close pressed by mistake.
+     *
+     * The same people who may close it. See ReopenBusinessDayAction for the
+     * three things it refuses, and why a reason is not optional.
+     */
+    public function reopen(Request $request, string $id, ReopenBusinessDayAction $action): JsonResponse
+    {
+        abort_unless($request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS), 403);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:255']]);
+
+        /** @var BusinessDay $day */
+        $day = BusinessDay::query()->findOrFail($id);
+
+        return ApiResponse::ok($action->execute($request->user(), $day, $data['reason']), 'Day opened again');
+    }
+
     // ── Banking ─────────────────────────────────────────────────────
 
     public function deposits(Request $request): JsonResponse
@@ -202,8 +240,7 @@ class BusinessDayController extends Controller
         $deposits = BankDeposit::query()
             ->with(['depositedBy:id,name', 'branch:id,name', 'businessDay:id,trading_date'])
             ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('deposited_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('deposited_at', '<=', $request->date('to')))
+            ->tap(fn ($q) => ShopDay::between($q, 'deposited_at', $request->date('from'), $request->date('to')))
             ->tap(fn (Builder $q) => Retention::fence($q, 'deposited_at'))
             ->orderByDesc('deposited_at')
             ->stably()->paginate(30);

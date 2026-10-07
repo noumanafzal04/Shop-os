@@ -7,10 +7,11 @@ use App\Models\BranchStock;
 use App\Models\CashSession;
 use App\Models\Sale;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 
 /**
  * What happened while the shop was offline.
@@ -65,11 +66,11 @@ class OfflineReportController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $from = $request->filled('from')
-            ? Carbon::parse($request->string('from')->toString())->startOfDay()
+        $from = ShopDay::startOf($request->filled('from')
+            ? $request->string('from')->toString()
             // A fortnight, because the question is asked the morning after and
             // sometimes the Monday after that.
-            : now()->subDays(14)->startOfDay();
+            : now()->subDays(14));
 
         $late = Sale::query()
             ->whereNotNull('synced_at')
@@ -220,7 +221,7 @@ class OfflineReportController extends Controller
      * files them into a day nobody has traded yet. Both are the same defect and
      * the shop needs to see which way round it is.
      */
-    private function clocks(Carbon $from): array
+    private function clocks(CarbonInterface $from): array
     {
         return Sale::query()
             ->whereNotNull('synced_at')

@@ -265,6 +265,17 @@ class ShopSettings
             'scale_barcode_enabled' => false,
             'scale_barcode_prefix' => '2',       // flag digits: "2" or "20"–"29"
             'scale_barcode_mode' => 'weight',    // weight | price (what the label embeds)
+            // Paisa on a PRICE label: 0 = "00450" is Rs 450 (how a scale is
+            // set up here); 2 = "00450" is Rs 4.50.
+            'scale_price_decimals' => 0,
+
+            // ── When the shop's day turns ───────────────────────────────
+            // The hour (0–8, on the shop's own clock) at which "today"
+            // becomes tomorrow on every report, the dashboard, the till's
+            // trading day and the kitchen pass. null = where it has always
+            // turned, which in Pakistan is five in the morning.
+            // See App\Support\ShopDay.
+            'day_turns_at' => null,
         ];
     }
 
@@ -337,6 +348,8 @@ class ShopSettings
             'scale_barcode_enabled' => ['sometimes', 'boolean'],
             'scale_barcode_prefix' => ['sometimes', 'string', 'regex:/^\d{1,2}$/'],
             'scale_barcode_mode' => ['sometimes', 'in:weight,price'],
+            'scale_price_decimals' => ['sometimes', 'integer', 'in:0,2'],
+            'day_turns_at' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:'.ShopDay::LATEST_TURN_HOUR],
         ];
     }
 

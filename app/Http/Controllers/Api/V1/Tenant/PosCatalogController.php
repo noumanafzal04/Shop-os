@@ -99,7 +99,7 @@ class PosCatalogController extends Controller
         'cash_rounding', 'max_discount_percent', 'max_discount_amount',
         'receipt_width', 'invoice_header', 'invoice_footer', 'invoice_show_logo',
         'receipt_show_cashier', 'invoice_ntn', 'invoice_strn',
-        'scale_barcode_enabled', 'scale_barcode_prefix', 'scale_barcode_mode',
+        'scale_barcode_enabled', 'scale_barcode_prefix', 'scale_barcode_mode', 'scale_price_decimals',
         'pos_require_shift', 'pos_default_payment', 'pos_ask_who_served',
         // How this shop counts its drawer out. They travel because the close
         // screen has to look the same with no server as with one: a shop that

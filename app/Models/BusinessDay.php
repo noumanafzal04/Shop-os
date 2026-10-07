@@ -4,11 +4,15 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\ShopDay;
+use App\Support\TenantContext;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A shop's trading day.
@@ -36,6 +40,7 @@ class BusinessDay extends Model
             'trading_date' => 'date',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'reopened_at' => 'datetime',
             'shifts_count' => 'integer',
             'opening_float' => 'decimal:2',
             'cash_sales' => 'decimal:2',
@@ -74,6 +79,11 @@ class BusinessDay extends Model
     public function closedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function reopenedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
     }
 
     /**
@@ -123,6 +133,47 @@ class BusinessDay extends Model
             ->whereNotNull('branch_id')
             ->latest('trading_date')
             ->get();
+    }
+
+    /**
+     * THE DATE A MOMENT TRADES UNDER, AT THIS COUNTER.
+     *
+     * The shop's business date (ShopDay) — a shift opened at one in the
+     * morning belongs to the evening it is part of, so the day the till
+     * closes off is the same day the reports call by that date.
+     *
+     * With one exception, and it is the difference between a restaurant and
+     * a petrol station. A day that has been CLOSED OFF is over: somebody
+     * counted it and signed it. Whatever is rung after that, once the
+     * calendar has moved on, is the next day's — or a forecourt that closes
+     * its day at midnight could sell nothing until five.
+     *
+     *     01:00, yesterday's day still open    → yesterday  (the evening goes on)
+     *     01:00, yesterday's day closed at 00:05 → today    (a new day has begun)
+     *     15:00, today's day closed at 14:00    → today, and it is closed —
+     *                                             which is a refusal, and a
+     *                                             reopen if it was a mistake
+     *
+     * Asked by the shift that is opening NOW and by a sale arriving late from
+     * an offline till, so the two cannot disagree about whose day a sale was.
+     */
+    public static function tradingDateAt(?string $branchId, DateTimeInterface $moment, ?Tenant $tenant = null): string
+    {
+        $tenant ??= app(TenantContext::class)->get();
+
+        $business = ShopDay::dateOf($moment, $tenant);
+        $wall = Carbon::instance($moment)->setTimezone(ShopDay::zone($tenant))->toDateString();
+        if ($wall === $business) {
+            return $business;
+        }
+
+        $closedAt = static::query()
+            ->where('branch_id', $branchId)
+            ->whereDate('trading_date', $business)
+            ->where('status', self::STATUS_CLOSED)
+            ->value('closed_at');
+
+        return $closedAt !== null && Carbon::parse($closedAt)->lessThanOrEqualTo($moment) ? $wall : $business;
     }
 
     public function isOpen(): bool

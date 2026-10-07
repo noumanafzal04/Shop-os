@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Enums\SaleStatus;
+use App\Models\Tenant;
+use App\Support\ShopDay;
 use App\Support\Takings;
 use Illuminate\Contracts\Database\Query\Builder as BuilderContract;
 use Illuminate\Database\Query\Builder;
@@ -366,14 +368,14 @@ class LedgerService
             ->whereIn('sales.status', $live)
             ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
             ->selectRaw(
-                "sales.id as id, 'sale' as type, DATE(sales.sold_at) as entry_date,"
+                "sales.id as id, 'sale' as type, DATE(".ShopDay::movedSql('sales.sold_at', ShopDay::shop($tenantId)).') as entry_date,'
                 .' sales.sold_at as sort_at, sales.invoice_number as reference,'
                 ."  COALESCE(sales.customer_name, 'Counter sale') as description, 'Sales' as category,"
                 .' NULL as category_id, sales.payment_method as method,'
                 .' sales.total as amount_in, 0 as amount_out',
             );
 
-        return $this->window($q, 'sales.sold_at', $from, $to, $strictlyBefore, true);
+        return $this->window($q, 'sales.sold_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));
     }
 
     private function refunds(string $tenantId, ?string $branchId, ?string $from, ?string $to, ?string $strictlyBefore = null): Builder
@@ -382,14 +384,14 @@ class LedgerService
             ->where('sale_returns.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('sale_returns.branch_id', $branchId))
             ->selectRaw(
-                "sale_returns.id as id, 'refund' as type, DATE(sale_returns.returned_at) as entry_date,"
+                "sale_returns.id as id, 'refund' as type, DATE(".ShopDay::movedSql('sale_returns.returned_at', ShopDay::shop($tenantId)).') as entry_date,'
                 .' sale_returns.returned_at as sort_at, sale_returns.return_number as reference,'
                 ."  COALESCE(sale_returns.reason, 'Refund') as description, 'Refunds' as category,"
                 .' NULL as category_id, sale_returns.refund_method as method,'
                 .' 0 as amount_in, sale_returns.refund_total as amount_out',
             );
 
-        return $this->window($q, 'sale_returns.returned_at', $from, $to, $strictlyBefore, true);
+        return $this->window($q, 'sale_returns.returned_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));
     }
 
     /**
@@ -409,37 +411,51 @@ class LedgerService
             ->when($branchId, fn ($q) => $q->where('supplier_payments.branch_id', $branchId))
             ->selectRaw(
                 "supplier_payments.id as id, 'supplier_payment' as type,"
-                .' DATE(supplier_payments.paid_at) as entry_date,'
+                .' DATE('.ShopDay::movedSql('supplier_payments.paid_at', ShopDay::shop($tenantId)).') as entry_date,'
                 .' supplier_payments.paid_at as sort_at, supplier_payments.reference as reference,'
                 ." COALESCE(CONCAT('Paid ', suppliers.name), 'Supplier payment') as description,"
                 ." 'Suppliers' as category, NULL as category_id, supplier_payments.method as method,"
                 .' 0 as amount_in, supplier_payments.amount as amount_out',
             );
 
-        return $this->window($q, 'supplier_payments.paid_at', $from, $to, $strictlyBefore, true);
+        return $this->window($q, 'supplier_payments.paid_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));
     }
 
     /**
      * Bound a source to the period — or, for an opening balance, to everything
      * strictly before it.
+     *
+     * Two kinds of column come through here and they are bounded differently.
+     * A DATE somebody typed (an expense's, an income's) is compared as a date.
+     * A MOMENT (a sale, a refund, a payment to a supplier) is bounded by the
+     * instants the shop's own days begin and end — pass the shop and that is
+     * what happens. See ShopDay: the row's `entry_date` above is cut the same
+     * way, so a row is never shown under one date and filtered by another.
+     *
+     * @param  Tenant|false|null  $momentOf  The shop whose day bounds a moment
+     *                                       column; false for a typed date.
      */
-    private function window(Builder $q, string $column, ?string $from, ?string $to, ?string $before, bool $isDateTime = false): Builder
+    private function window(Builder $q, string $column, ?string $from, ?string $to, ?string $before, Tenant|false|null $momentOf = false): Builder
     {
+        if ($momentOf === false) {
+            if ($before !== null) {
+                return $q->whereDate($column, '<', $before);
+            }
+            if ($from !== null) {
+                $q->whereDate($column, '>=', $from);
+            }
+            if ($to !== null) {
+                $q->whereDate($column, '<=', $to);
+            }
+
+            return $q;
+        }
+
         if ($before !== null) {
-            return $isDateTime
-                ? $q->where($column, '<', $before.' 00:00:00')
-                : $q->whereDate($column, '<', $before);
+            return $q->where($column, '<', ShopDay::startOf($before, $momentOf));
         }
 
-        if ($from !== null) {
-            $isDateTime ? $q->where($column, '>=', $from.' 00:00:00') : $q->whereDate($column, '>=', $from);
-        }
-
-        if ($to !== null) {
-            $isDateTime ? $q->where($column, '<=', $to.' 23:59:59') : $q->whereDate($column, '<=', $to);
-        }
-
-        return $q;
+        return ShopDay::between($q, $column, $from, $to, $momentOf);
     }
 
     /** @return list<string> */

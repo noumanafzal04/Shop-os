@@ -579,6 +579,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::get('/days', [BusinessDayController::class, 'index']);
                     Route::get('/days/{day}', [BusinessDayController::class, 'show']);
                     Route::post('/days/{day}/close', [BusinessDayController::class, 'close']);
+                    // The way back from a close pressed by mistake — today's day only.
+                    Route::post('/days/{day}/reopen', [BusinessDayController::class, 'reopen']);
                     Route::get('/deposits', [BusinessDayController::class, 'deposits']);
                     Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
 

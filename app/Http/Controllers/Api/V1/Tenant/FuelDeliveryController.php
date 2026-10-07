@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Fuel\StoreFuelDeliveryRequest;
 use App\Models\FuelDelivery;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,8 +19,7 @@ class FuelDeliveryController extends Controller
         $deliveries = FuelDelivery::query()
             ->with(['tank:id,name', 'supplier:id,name', 'shift:id,number', 'receivedBy:id,name'])
             ->when($request->filled('fuel_tank_id'), fn ($q) => $q->where('fuel_tank_id', $request->string('fuel_tank_id')))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('received_at', '>=', $request->date('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('received_at', '<=', $request->date('to')))
+            ->tap(fn ($q) => ShopDay::between($q, 'received_at', $request->date('from'), $request->date('to')))
             ->orderByDesc('received_at')
             ->stably()->paginate(20);
 

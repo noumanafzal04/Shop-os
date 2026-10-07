@@ -8,6 +8,7 @@ use App\Models\StockDisposal;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -48,8 +49,7 @@ class StockDisposalController extends Controller
             ->when(isset($data['reason']), fn ($q) => $q->where('reason', $data['reason']))
             ->when(isset($data['supplier_id']), fn ($q) => $q->where('supplier_id', $data['supplier_id']))
             ->when($request->boolean('awaiting_credit'), fn ($q) => $q->awaitingCredit())
-            ->when(isset($data['from']), fn ($q) => $q->whereDate('disposed_at', '>=', $data['from']))
-            ->when(isset($data['to']), fn ($q) => $q->whereDate('disposed_at', '<=', $data['to']))
+            ->tap(fn ($q) => ShopDay::between($q, 'disposed_at', $data['from'] ?? null, $data['to'] ?? null))
             ->orderByDesc('disposed_at')
             ->stably()->paginate(30);
 

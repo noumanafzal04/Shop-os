@@ -14,11 +14,11 @@ use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\RegisterContext;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -331,12 +331,11 @@ class ReceiptController extends Controller
             'to' => ['sometimes', 'nullable', 'date'],
         ]);
 
-        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfMonth();
-        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        $window = ShopDay::window($data['from'] ?? null, $data['to'] ?? null, 'month');
 
         $rows = ReceiptPrint::query()
             ->selectRaw('user_id, kind, count(*) as total')
-            ->whereBetween('printed_at', [$from, $to])
+            ->whereBetween('printed_at', [$window['start'], $window['end']])
             ->groupBy('user_id', 'kind')
             ->get();
 
@@ -356,8 +355,8 @@ class ReceiptController extends Controller
         }
 
         return ApiResponse::ok([
-            'from' => $from->toDateString(),
-            'to' => $to->toDateString(),
+            'from' => $window['from'],
+            'to' => $window['to'],
             'rows' => array_values($byUser),
         ]);
     }

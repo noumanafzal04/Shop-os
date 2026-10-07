@@ -18,6 +18,7 @@ use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
 use App\Support\Retention;
+use App\Support\ShopDay;
 use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
@@ -118,14 +119,18 @@ class SaleController extends Controller
             ->when($request->query('channel'), fn ($q, $channel) => $q->where('channel', $channel))
             ->when($request->query('payment_method'), fn ($q, $method) => $q->where('payment_method', $method))
             ->when($request->query('served_by'), fn ($q, $seller) => $q->where('served_by', $seller))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', $from))
+            // The shop's own days at both ends — see ShopDay. A bare date
+            // here meant midnight UTC, which in Pakistan is five in the
+            // morning: the sales list and the day's report cut the same
+            // night in two different places.
+            ->when($request->query('from'), fn ($q, $from) => $q->where('sold_at', '>=', ShopDay::startOf($from)))
             // The plan's window. Archived, never deleted: raise the plan and
             // the same rows come back, because nothing removed them.
             ->tap(fn (Builder $q) => Retention::fence($q, 'sold_at'))
             // The whole of the day it names. Midnight would drop everything
             // rung during it, and "today" is the range this screen is opened
             // with.
-            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', $to.' 23:59:59'));
+            ->when($request->query('to'), fn ($q, $to) => $q->where('sold_at', '<=', ShopDay::endOf($to)));
     }
 
     public function store(StoreSaleRequest $request, CreateSaleAction $action, TenantContext $tenant): JsonResponse

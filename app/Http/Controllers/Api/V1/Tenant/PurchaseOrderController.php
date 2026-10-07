@@ -14,6 +14,7 @@ use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
 use App\Models\PurchaseOrder;
 use App\Support\ApiResponse;
 use App\Support\Retention;
+use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,8 +29,7 @@ class PurchaseOrderController extends Controller
             ->when($request->query('search'), fn ($q, $s) => $q->where('po_number', 'like', "%{$s}%"))
             ->when($request->query('status'), fn ($q, $st) => $q->where('status', $st))
             ->when($request->query('supplier_id'), fn ($q, $id) => $q->where('supplier_id', $id))
-            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
-            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
+            ->tap(fn ($q) => ShopDay::between($q, 'created_at', $request->query('from'), $request->query('to')))
             // Older paperwork is archived with everything else. A received PO
             // has already moved the stock, and that stock level is NOT fenced
             // — see App\Support\Retention on why a balance never is.

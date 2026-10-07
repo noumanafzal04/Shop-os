@@ -29,9 +29,9 @@ use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
@@ -341,17 +341,20 @@ class RestaurantTicketController extends Controller
             'to' => ['sometimes', 'nullable', 'date'],
         ]);
 
-        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfDay();
-        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        // Tonight is tonight until the shop's day turns — a waiter's two
+        // o'clock table is part of the service they worked. See ShopDay.
+        $window = ShopDay::window($data['from'] ?? null, $data['to'] ?? null);
+        $from = $window['from'];
+        $to = $window['to'];
 
         $tickets = RestaurantTicket::query()
             ->with('items:id,ticket_id,sale_id')
             ->whereNotNull('waiter_id')
-            ->whereBetween('opened_at', [$from, $to])
+            ->whereBetween('opened_at', [$window['start'], $window['end']])
             ->get(['id', 'waiter_id', 'guest_count', 'status']);
 
         if ($tickets->isEmpty()) {
-            return ApiResponse::ok(['from' => $from->toDateString(), 'to' => $to->toDateString(), 'rows' => []]);
+            return ApiResponse::ok(['from' => $from, 'to' => $to, 'rows' => []]);
         }
 
         // One pass for every sale any of these tabs produced, then attribute
@@ -391,8 +394,8 @@ class RestaurantTicketController extends Controller
         })->values()->sortByDesc('sales_total')->values();
 
         return ApiResponse::ok([
-            'from' => $from->toDateString(),
-            'to' => $to->toDateString(),
+            'from' => $from,
+            'to' => $to,
             'rows' => $rows,
         ]);
     }

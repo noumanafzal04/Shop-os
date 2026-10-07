@@ -10,9 +10,9 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 
 /**
  * The three things a chemist does that no other shop does.
@@ -92,11 +92,12 @@ class PharmacyController extends Controller
             'controlled_only' => ['sometimes', 'boolean'],
         ]);
 
-        $from = isset($data['from']) ? Carbon::parse($data['from'])->startOfDay() : now()->startOfMonth();
-        $to = isset($data['to']) ? Carbon::parse($data['to'])->endOfDay() : now()->endOfDay();
+        $window = ShopDay::window($data['from'] ?? null, $data['to'] ?? null, 'month');
+        $from = $window['from'];
+        $to = $window['to'];
 
         $sales = Sale::query()
-            ->whereBetween('sold_at', [$from, $to])
+            ->whereBetween('sold_at', [$window['start'], $window['end']])
             ->where('status', '!=', SaleStatus::Cancelled)
             ->when(! empty($data['search']), function ($q) use ($data): void {
                 $term = '%'.$data['search'].'%';
@@ -111,7 +112,7 @@ class PharmacyController extends Controller
             ->get();
 
         if ($sales->isEmpty()) {
-            return ApiResponse::ok(['from' => $from->toDateString(), 'to' => $to->toDateString(), 'rows' => []]);
+            return ApiResponse::ok(['from' => $from, 'to' => $to, 'rows' => []]);
         }
 
         // A controlled drug is the narrower register a regulator asks for; the
@@ -171,8 +172,8 @@ class PharmacyController extends Controller
         })->values();
 
         return ApiResponse::ok([
-            'from' => $from->toDateString(),
-            'to' => $to->toDateString(),
+            'from' => $from,
+            'to' => $to,
             'rows' => $rows,
         ]);
     }

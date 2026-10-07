@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Support\ApiResponse;
 use App\Support\Retention;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -60,8 +61,9 @@ class AuditLogController extends Controller
             // shopkeeper actually arrives with was the one it could not answer.
             ->when($request->query('record'), fn ($q, $id) => $q->where('auditable_id', $id))
             ->when($request->query('user_id'), fn ($q, $id) => $q->where('user_id', $id))
-            ->when($request->query('from'), fn ($q, $d) => $q->whereDate('created_at', '>=', $d))
-            ->when($request->query('to'), fn ($q, $d) => $q->whereDate('created_at', '<=', $d))
+            // By the shop's own day (ShopDay) — "what happened last night"
+            // includes the half hour after midnight it was closed up in.
+            ->tap(fn ($q) => ShopDay::between($q, 'created_at', $request->query('from'), $request->query('to')))
             // The trail is history like any other and goes no further back
             // than the plan keeps. Nothing is erased — raise the plan and the
             // older entries are there again.

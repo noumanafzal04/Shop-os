@@ -10,12 +10,16 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\SupplierPayment;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Payable;
 use App\Support\Retention;
+use App\Support\ShopDay;
 use App\Support\Takings;
 use App\Support\TaxYear;
 use Carbon\CarbonImmutable;
+use Closure;
+use DateTimeInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -48,7 +52,10 @@ class ReportService
      */
     public function resolvePeriod(string $period, ?string $from, ?string $to): array
     {
-        $today = CarbonImmutable::today();
+        // "Today", "this week" and "this month" are the SHOP'S, by its own
+        // day — the same one the dashboard is on, so a tile and the report it
+        // opens cannot disagree about which day it is. See ShopDay.
+        $today = CarbonImmutable::parse(ShopDay::today());
 
         $resolved = $this->windowFor($period, $from, $to, $today);
         $asked = $resolved['from'];
@@ -64,6 +71,19 @@ class ReportService
         }
 
         return $resolved;
+    }
+
+    /**
+     * "Which bucket is this moment in?" — its business date, or that date's month.
+     *
+     * @return Closure(DateTimeInterface): string
+     */
+    private function bucketer(?Tenant $shop, string $granularity): Closure
+    {
+        $date = ShopDay::dater($shop);
+        $length = $granularity === 'month' ? 7 : 10;
+
+        return static fn (DateTimeInterface $moment): string => substr($date($moment), 0, $length);
     }
 
     /** @return array{from: string, to: string, granularity: string} */
@@ -88,8 +108,8 @@ class ReportService
 
     public function summary(string $tenantId, ?string $branchId, string $from, string $to, string $granularity = 'day'): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
 
         $completedSales = Sale::query()
             ->where('tenant_id', $tenantId)
@@ -194,7 +214,7 @@ class ReportService
                 'expenses' => round($expensesTotal, 2),
                 'net_profit' => round($kept - $tax + $otherIncome - $cogs - $expensesTotal, 2),
             ],
-            'series' => $this->series($tenantId, $branchId, $fromStart, $toEnd, $granularity),
+            'series' => $this->series($tenantId, $branchId, $from, $to, $granularity),
             'top_products' => $this->topProducts($tenantId, $branchId, $fromStart, $toEnd),
             'expenses_by_category' => $this->expensesByCategory($tenantId, $branchId, $from, $to),
         ];
@@ -203,22 +223,25 @@ class ReportService
     /**
      * Zero-filled buckets — charts never have holes.
      */
-    private function series(string $tenantId, ?string $branchId, CarbonImmutable $from, CarbonImmutable $to, string $granularity): array
+    private function series(string $tenantId, ?string $branchId, string $from, string $to, string $granularity): array
     {
         $format = $granularity === 'month' ? 'Y-m' : 'Y-m-d';
+        $shop = ShopDay::shop($tenantId);
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, $shop);
+        $bucket = $this->bucketer($shop, $granularity);
 
         $revenueByBucket = Sale::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('status', Takings::COUNTED)
-            ->whereBetween('sold_at', [$from, $to])
+            ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['sold_at', 'total'])
-            ->groupBy(fn (Sale $s) => $s->sold_at->format($format))
+            ->groupBy(fn (Sale $s) => $bucket($s->sold_at))
             ->map(fn (Collection $sales) => round((float) $sales->sum('total'), 2));
 
         $expensesByBucket = Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
-            ->whereBetween('expense_date', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])
+            ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['expense_date', 'amount'])
             ->groupBy(fn (Expense $e) => $e->expense_date->format($format))
@@ -229,16 +252,20 @@ class ReportService
         // simply absent from the picture.
         $incomeByBucket = Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
-            ->whereBetween('income_date', [$from->toDateString().' 00:00:00', $to->toDateString().' 23:59:59'])
+            ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['income_date', 'amount'])
             ->groupBy(fn (Income $i) => $i->income_date->format($format))
             ->map(fn (Collection $items) => round((float) $items->sum('amount'), 2));
 
         $buckets = [];
-        $cursor = $from;
+        // Walked as DATES. The instants above begin wherever this shop's day
+        // turns, and a cursor stepping from one of those would print the
+        // wrong date for any shop whose day does not turn at midnight UTC.
+        $cursor = CarbonImmutable::parse($from);
+        $last = CarbonImmutable::parse($to);
 
-        while ($cursor <= $to) {
+        while ($cursor <= $last) {
             $key = $cursor->format($format);
             $revenue = $revenueByBucket[$key] ?? 0.0;
             $expenses = $expensesByBucket[$key] ?? 0.0;
@@ -305,8 +332,8 @@ class ReportService
      */
     public function margins(string $tenantId, ?string $branchId, string $from, string $to, int $limit = 50): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
 
         // ── WHAT CAME BACK COMES OFF ────────────────────────────────
         //
@@ -504,8 +531,8 @@ class ReportService
      */
     public function staffPerformance(string $tenantId, ?string $branchId, string $from, string $to): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
 
         $base = fn () => Sale::query()
             ->where('sales.tenant_id', $tenantId)
@@ -570,8 +597,8 @@ class ReportService
      */
     public function tax(string $tenantId, ?string $branchId, string $from, string $to): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
 
         $sales = Sale::query()
             ->where('tenant_id', $tenantId)
@@ -615,9 +642,11 @@ class ReportService
      */
     public function cashbook(string $tenantId, ?string $branchId, string $from, string $to, string $granularity = 'day'): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        $shop = ShopDay::shop($tenantId);
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, $shop);
         $format = $granularity === 'month' ? 'Y-m' : 'Y-m-d';
+        $bucket = $this->bucketer($shop, $granularity);
 
         // A sale that was later refunded still brought its money in — only a
         // CANCELLED sale never happened. The rule, and the reason the P&L
@@ -630,7 +659,7 @@ class ReportService
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['sold_at', 'total'])
-            ->groupBy(fn (Sale $s) => $s->sold_at->format($format))
+            ->groupBy(fn (Sale $s) => $bucket($s->sold_at))
             ->map(fn (Collection $r) => round((float) $r->sum('total'), 2));
 
         $incomeByBucket = Income::withoutTenancy()
@@ -654,7 +683,7 @@ class ReportService
             ->whereBetween('returned_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['returned_at', 'refund_total'])
-            ->groupBy(fn (SaleReturn $r) => $r->returned_at->format($format))
+            ->groupBy(fn (SaleReturn $r) => $bucket($r->returned_at))
             ->map(fn (Collection $r) => round((float) $r->sum('refund_total'), 2));
 
         // Paying the wholesaler. Counted as its own source rather than as an
@@ -666,7 +695,7 @@ class ReportService
             ->whereBetween('paid_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->get(['paid_at', 'amount'])
-            ->groupBy(fn (SupplierPayment $p) => $p->paid_at->format($format))
+            ->groupBy(fn (SupplierPayment $p) => $bucket($p->paid_at))
             ->map(fn (Collection $r) => round((float) $r->sum('amount'), 2));
 
         // Opening balance = everything that moved BEFORE the period. The branch
@@ -690,11 +719,12 @@ class ReportService
         );
 
         $days = [];
-        $cursor = $fromStart;
+        $cursor = CarbonImmutable::parse($from);
+        $last = CarbonImmutable::parse($to);
         $running = $opening;
         $tSales = $tIncome = $tExpenses = $tRefunds = $tSupplier = 0.0;
 
-        while ($cursor <= $toEnd) {
+        while ($cursor <= $last) {
             $key = $cursor->format($format);
             $sales = $salesByBucket[$key] ?? 0.0;
             $income = $incomeByBucket[$key] ?? 0.0;
@@ -798,8 +828,8 @@ class ReportService
      */
     public function bankClaims(string $tenantId, ?string $branchId, string $from, string $to): array
     {
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // The shop's own days, as instants — see ShopDay.
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
 
         $sales = Sale::query()
             ->where('tenant_id', $tenantId)

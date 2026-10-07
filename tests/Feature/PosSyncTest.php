@@ -14,6 +14,7 @@ use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -696,7 +697,7 @@ class PosSyncTest extends TestCase
         return Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)->value('id');
     }
 
-    private function day(string $tradingDate, string $status, ?string $branchId = null): BusinessDay
+    private function day(string $tradingDate, string $status, ?string $branchId = null, ?Carbon $closedAt = null): BusinessDay
     {
         return BusinessDay::withoutTenancy()->create([
             'tenant_id' => $this->tenant->id,
@@ -711,7 +712,7 @@ class PosSyncTest extends TestCase
             'opened_at' => Carbon::parse($tradingDate)->setTime(9, 0),
             'closed_by' => $status === BusinessDay::STATUS_CLOSED ? $this->cashier->id : null,
             'closed_at' => $status === BusinessDay::STATUS_CLOSED
-                ? Carbon::parse($tradingDate)->setTime(22, 0)
+                ? ($closedAt ?? Carbon::parse($tradingDate)->setTime(22, 0))
                 : null,
             'sales_total' => 5000,
             'counted_cash' => 5000,
@@ -773,27 +774,80 @@ class PosSyncTest extends TestCase
         $this->assertFalse((bool) Sale::withoutTenancy()->find($result['sale_id'])->after_day_close);
     }
 
-    public function test_the_trading_date_is_read_in_the_shops_timezone(): void
+    /**
+     * 20:00 UTC is 01:00 the NEXT day on a Karachi wall — the one window where
+     * the calendar and the shop's day disagree, and the hours a power cut is
+     * most likely in.
+     *
+     * @return array{0: Carbon, 1: string, 2: string} the moment, the evening's date, the wall's date
+     */
+    private function oneInTheMorning(): array
     {
-        // The shop's day is opened and closed against the shop's own calendar
-        // — `trading_date` is written from the tenant's local date. A till that
-        // reports in UTC must land on the same date, or a Karachi shop's
-        // late-evening sales would be filed against yesterday and the flag
-        // would misfire on exactly the hours a power cut is most likely.
         $this->tenant->update(['timezone' => 'Asia/Karachi']);
 
-        // 20:00 UTC is 01:00 the NEXT day in Karachi — the one window where
-        // the two calendars disagree.
         $utc = now()->subDays(2)->setTime(20, 0)->setTimezone('UTC');
-        $shopDate = $utc->copy()->setTimezone('Asia/Karachi')->toDateString();
-        $this->assertNotSame($utc->toDateString(), $shopDate, 'The fixture must straddle midnight to prove anything.');
+        $evening = ShopDay::dateOf($utc, $this->tenant->fresh());
+        $wall = $utc->copy()->setTimezone('Asia/Karachi')->toDateString();
+        $this->assertNotSame($evening, $wall, 'The fixture must straddle midnight to prove anything.');
 
-        $this->day($shopDate, BusinessDay::STATUS_CLOSED);
+        return [$utc, $evening, $wall];
+    }
+
+    public function test_a_sale_past_midnight_trades_under_the_evening_it_was_rung_in(): void
+    {
+        // A restaurant's one o'clock table is part of the service that began
+        // at six. Its day is the EVENING'S — the date every report files the
+        // sale under (ShopDay) — and when that day was counted and closed at
+        // quarter past two without it, this is the sale the owner must hear
+        // about. Filed against the calendar date instead, the flag stayed
+        // silent on exactly these hours.
+        [$utc, $evening] = $this->oneInTheMorning();
+
+        $this->day($evening, BusinessDay::STATUS_CLOSED, closedAt: $utc->copy()->addMinutes(75));
 
         $result = $this->sync([$this->operation(['at' => $utc->toIso8601String()])])
             ->assertOk()->json('data.results.0');
 
         $this->assertTrue((bool) Sale::withoutTenancy()->find($result['sale_id'])->after_day_close);
+    }
+
+    public function test_a_closed_day_on_the_calendar_date_says_nothing_about_the_evenings_sale(): void
+    {
+        // The mirror of the test above, and the fixture the old rule was
+        // written for: a closed day dated by the WALL. The sale was not rung
+        // in it, so it is not named.
+        [$utc, , $wall] = $this->oneInTheMorning();
+
+        $this->day($wall, BusinessDay::STATUS_CLOSED);
+
+        $result = $this->sync([$this->operation(['at' => $utc->toIso8601String()])])
+            ->assertOk()->json('data.results.0');
+
+        $this->assertFalse((bool) Sale::withoutTenancy()->find($result['sale_id'])->after_day_close);
+    }
+
+    public function test_once_the_evening_is_closed_off_a_sale_past_midnight_is_the_new_days(): void
+    {
+        // A forecourt closes its day at half past eleven and keeps selling.
+        // What it rings at one is the NEW day's — the old one was counted and
+        // signed before this sale existed, and naming it "after close" would
+        // flag every sale a 24-hour shop makes before five.
+        [$utc, $evening, $wall] = $this->oneInTheMorning();
+
+        $this->day($evening, BusinessDay::STATUS_CLOSED, closedAt: $utc->copy()->subMinutes(90));
+        $newDay = $this->day($wall, BusinessDay::STATUS_OPEN);
+
+        $result = $this->sync([$this->operation(['at' => $utc->toIso8601String()])])
+            ->assertOk()->json('data.results.0');
+        $this->assertFalse((bool) Sale::withoutTenancy()->find($result['sale_id'])->after_day_close);
+
+        // …and when the new day has been closed too, it is that close the
+        // sale missed.
+        $newDay->update(['status' => BusinessDay::STATUS_CLOSED, 'closed_at' => now()->subDay()]);
+
+        $late = $this->sync([$this->operation(['at' => $utc->copy()->addMinutes(5)->toIso8601String()])])
+            ->assertOk()->json('data.results.0');
+        $this->assertTrue((bool) Sale::withoutTenancy()->find($late['sale_id'])->after_day_close);
     }
 
     // ── Practice, and the one way a sale could be hidden ────────────

@@ -34,7 +34,7 @@ class ScaleLabelFixturesTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const VERSION = 1;
+    private const VERSION = 2;
 
     private Tenant $tenant;
 
@@ -101,7 +101,10 @@ class ScaleLabelFixturesTest extends TestCase
     public function test_the_committed_labels_are_still_read_the_way_the_server_reads_them(): void
     {
         $weight = ['scale_barcode_enabled' => true, 'scale_barcode_prefix' => '2', 'scale_barcode_mode' => 'weight'];
+        // A price label in WHOLE RUPEES — the default, and how a scale is set
+        // up here. `paisa` is the shop that said its scale prints two decimals.
         $price = ['scale_barcode_enabled' => true, 'scale_barcode_prefix' => '2', 'scale_barcode_mode' => 'price'];
+        $paisa = [...$price, 'scale_price_decimals' => 2];
         $twoDigit = ['scale_barcode_enabled' => true, 'scale_barcode_prefix' => '21', 'scale_barcode_mode' => 'weight'];
         $off = ['scale_barcode_enabled' => false, 'scale_barcode_prefix' => '2', 'scale_barcode_mode' => 'weight'];
 
@@ -109,8 +112,14 @@ class ScaleLabelFixturesTest extends TestCase
             ['a kilo and a half of sugar', $weight, '2000021015000'],
             ['a weight that is not a round number', $weight, '2000021003470'],
             ['a PLU stored with its zeroes still finds its item', $weight, '2000305020009'],
-            ['the scale printed the PRICE, and the weight is worked back from it', $price, '2000021027000'],
-            ['a price label on an item that is on sale', $price, '2000077018004'],
+            // 00270 → Rs 270 of sugar at 180 a kilo = a kilo and a half.
+            ['the scale printed the PRICE in rupees, and the weight is worked back from it', $price, '2000021002700'],
+            // 00180 → Rs 180 of daal that is on sale at 360 = half a kilo.
+            ['a price label on an item that is on sale', $price, '2000077001804'],
+            // More than a label could say at all while it was read as paisa.
+            ['a price past a thousand rupees', $price, '2004410024001'],
+            // The same digits, in a shop whose scale prints paisa: Rs 27.00.
+            ['a shop that says its scale prints paisa', $paisa, '2000021027000'],
             ['a two-digit prefix leaves a shorter PLU', $twoDigit, '2104410002505'],
             ['a label for something this shop does not stock', $weight, '2009999010006'],
             ['a label with the switch off is just a number', $off, '2000021015000'],

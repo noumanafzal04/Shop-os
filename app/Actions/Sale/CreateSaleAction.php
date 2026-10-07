@@ -2129,10 +2129,10 @@ class CreateSaleAction
 
     private function dayAlreadyClosed(?string $branchId, Carbon $soldAt): bool
     {
-        $tenant = $this->context->get();
-        $tradingDate = $soldAt->copy()
-            ->setTimezone($tenant?->timezone ?: 'Asia/Karachi')
-            ->toDateString();
+        // The day it traded under — which past midnight is the evening it
+        // was rung in, not the calendar date. Asked the same way a shift
+        // opening is asked, so a sale and its shift name one day.
+        $tradingDate = BusinessDay::tradingDateAt($branchId, $soldAt, $this->context->get());
 
         return BusinessDay::query()
             ->where('branch_id', $branchId)

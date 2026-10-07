@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -166,7 +167,9 @@ class SaleDocument extends BaseModel
     {
         return $this->isOpen()
             && $this->expires_at !== null
-            && $this->expires_at->isPast()
-            && ! $this->expires_at->isToday();
+            // Past the date on the shop's wall — the same "today" the lapsed
+            // list filters on, so a document is never lapsed on the list and
+            // live on its own page.
+            && $this->expires_at->toDateString() < ShopDay::calendarToday();
     }
 }

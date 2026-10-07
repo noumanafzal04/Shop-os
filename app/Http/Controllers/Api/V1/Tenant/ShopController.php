@@ -14,6 +14,7 @@ use App\Http\Resources\TenantResource;
 use App\Support\ApiResponse;
 use App\Support\Modules;
 use App\Support\PlanLimits;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -61,6 +62,9 @@ class ShopController extends Controller
         // (single-branch tenants never do). null = unlimited.
         return ApiResponse::ok($tenant->allSettings() + [
             'max_branches' => PlanLimits::limit($tenant, 'branches'),
+            // Which day it is HERE, and when that changes — so a "Today"
+            // button in the panel asks for the day the server will answer.
+            'shop_day' => ShopDay::describe($tenant),
         ]);
     }
 
@@ -113,7 +117,10 @@ class ShopController extends Controller
 
         $tenant->forceFill(['settings' => $merged])->save();
 
-        return ApiResponse::ok($tenant->allSettings(), 'Settings saved');
+        return ApiResponse::ok($tenant->allSettings() + [
+            'max_branches' => PlanLimits::limit($tenant, 'branches'),
+            'shop_day' => ShopDay::describe($tenant),
+        ], 'Settings saved');
     }
 
     /**

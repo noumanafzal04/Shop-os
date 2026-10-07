@@ -32,6 +32,12 @@ class ScaleBarcode
     /** Digits reserved for the embedded weight/price value. */
     private const VALUE_LEN = 5;
 
+    /** How many of a PRICE label's five digits are paisa: 0, or 2. Anything else is 0. */
+    public static function decimals(array $settings): int
+    {
+        return (int) ($settings['scale_price_decimals'] ?? 0) === 2 ? 2 : 0;
+    }
+
     /**
      * Parse a scanned code against a shop's scale config, or return null when
      * it isn't a scale barcode (normal product/EAN → caller looks it up as-is).
@@ -66,8 +72,16 @@ class ScaleBarcode
             'mode' => $mode,
             // Weight in kg (label carries grams); null in price mode.
             'weight' => $mode === 'weight' ? round($rawValue / 1000, 3) : null,
-            // Price in major currency units (label carries minor units); null in weight mode.
-            'price' => $mode === 'price' ? round($rawValue / 100, 2) : null,
+            // What the item COSTS, in rupees; null in weight mode.
+            //
+            // WHOLE RUPEES, unless the shop says its scale prints paisa.
+            //
+            // This read the five digits as hundredths, always — so "00450"
+            // was Rs 4.50, and the most a label could say was Rs 999.99: less
+            // than a kilo of mutton. Nobody here prices in paisa; a scale set
+            // up for rupees printed 450 and the till charged four and a half.
+            // `scale_price_decimals` is 0 (the default) or 2.
+            'price' => $mode === 'price' ? round($rawValue / (10 ** self::decimals($settings)), 2) : null,
         ];
     }
 }

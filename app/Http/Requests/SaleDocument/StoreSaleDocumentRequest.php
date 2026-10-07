@@ -4,6 +4,7 @@ namespace App\Http\Requests\SaleDocument;
 
 use App\Models\SaleDocument;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -53,7 +54,7 @@ class StoreSaleDocumentRequest extends FormRequest
             'discount' => ['nullable', 'numeric', 'min:0'],
             // Null is meaningful: "no expiry", distinct from "use the shop's
             // default window", which is what omitting the key means.
-            'expires_at' => ['sometimes', 'nullable', 'date', 'after_or_equal:today'],
+            'expires_at' => ['sometimes', 'nullable', 'date', 'after_or_equal:'.ShopDay::calendarToday()],
             'terms' => ['nullable', 'string', 'max:1000'],
             'notes' => ['nullable', 'string', 'max:1000'],
             // Layaway only — the opening advance.

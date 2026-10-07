@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Support\BranchContext;
 use App\Support\LastBoughtFrom;
+use App\Support\ShopDay;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -113,7 +114,7 @@ class DraftOrdersFromReorderList
         $orders = DB::transaction(fn () => collect($bySupplier)
             ->map(fn (array $items, string $supplierId) => $this->create->execute([
                 'supplier_id' => $supplierId,
-                'order_date' => now()->toDateString(),
+                'order_date' => ShopDay::calendarToday(),
                 'status' => 'draft',
                 'notes' => 'Raised from the reorder list.',
                 'items' => $items,

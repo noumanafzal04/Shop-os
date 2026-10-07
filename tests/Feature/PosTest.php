@@ -116,12 +116,44 @@ class PosTest extends TestCase
         $this->loosePlu();
         $this->enableScale('price');
 
-        // value "27000" = Rs 270.00; at Rs 180/kg that's 1.5 kg.
-        $this->actingAsUser($this->owner)->getJson('/api/v1/pos/lookup?code=2000021270000')
+        // WHOLE RUPEES. value "00270" = Rs 270; at Rs 180/kg that's 1.5 kg.
+        //
+        // This used to send "27000" and expect Rs 270.00 — the five digits
+        // read as paisa, always. A scale here is set up in rupees, so its
+        // "00270" was charged as Rs 2.70, and no label could say more than
+        // Rs 999.99.
+        $this->actingAsUser($this->owner)->getJson('/api/v1/pos/lookup?code=2000021002700')
             ->assertOk()
             ->assertJsonPath('data.scale.mode', 'price')
             ->assertJsonPath('data.scale.embedded_price', 270)
             ->assertJsonPath('data.scale.quantity', 1.5);
+    }
+
+    public function test_a_shop_whose_scale_prints_paisa_can_say_so(): void
+    {
+        $this->loosePlu();
+        $this->enableScale('price');
+        $this->tenant->forceFill(['settings' => [...$this->tenant->settings, 'scale_price_decimals' => 2]])->save();
+
+        // The same shop, told its scale prints two decimals: "27000" is Rs 270.00.
+        $this->actingAsUser($this->owner)->getJson('/api/v1/pos/lookup?code=2000021270000')
+            ->assertOk()
+            ->assertJsonPath('data.scale.embedded_price', 270)
+            ->assertJsonPath('data.scale.quantity', 1.5);
+    }
+
+    public function test_the_price_setting_takes_whole_rupees_or_paisa_and_nothing_else(): void
+    {
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['scale_price_decimals' => 2])->assertOk();
+        $this->assertSame(2, $this->tenant->fresh()->setting('scale_price_decimals'));
+
+        // Three decimals is not a way anybody prints money.
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['scale_price_decimals' => 3])->assertStatus(422);
+        $this->assertSame(2, $this->tenant->fresh()->setting('scale_price_decimals'));
+
+        // A shop that never chose reads whole rupees.
+        $this->tenant->forceFill(['settings' => []])->save();
+        $this->assertSame(0, $this->tenant->fresh()->setting('scale_price_decimals'));
     }
 
     public function test_scale_barcode_ignored_when_setting_off(): void

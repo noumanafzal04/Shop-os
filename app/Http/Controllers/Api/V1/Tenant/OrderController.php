@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Rider;
 use App\Services\OrderService;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -79,10 +80,10 @@ class OrderController extends Controller
                         ->orWhere('customer_phone', 'like', "%{$search}%");
                 });
             })
-            ->when($request->query('from'), fn ($q, $from) => $q->where('placed_at', '>=', $from))
+            ->when($request->query('from'), fn ($q, $from) => $q->where('placed_at', '>=', ShopDay::startOf($from)))
             // The whole of the day it names — "today" is the range this screen
             // is opened with, and midnight would drop every order in it.
-            ->when($request->query('to'), fn ($q, $to) => $q->where('placed_at', '<=', $to.' 23:59:59'))
+            ->when($request->query('to'), fn ($q, $to) => $q->where('placed_at', '<=', ShopDay::endOf($to)))
             ->when($request->boolean('open_only'), fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']));
 
         $orders = $scoped()

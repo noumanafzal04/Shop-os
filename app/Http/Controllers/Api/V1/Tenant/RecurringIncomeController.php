@@ -9,6 +9,7 @@ use App\Models\RecurringIncome;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -37,7 +38,7 @@ class RecurringIncomeController extends Controller
         $rows = RecurringIncome::query()
             ->with('category:id,name')
             ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
-            ->when($request->boolean('due'), fn ($q) => $q->where('is_active', true)->whereDate('next_due_on', '<=', now()))
+            ->when($request->boolean('due'), fn ($q) => $q->where('is_active', true)->whereDate('next_due_on', '<=', ShopDay::calendarToday()))
             ->orderBy('next_due_on')
             ->get()
             ->map(fn (RecurringIncome $r) => $r->toArray() + ['is_due' => $r->isDue()]);
@@ -48,7 +49,7 @@ class RecurringIncomeController extends Controller
             'due_count' => RecurringIncome::query()
                 ->where('is_active', true)
                 ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
-                ->whereDate('next_due_on', '<=', now())
+                ->whereDate('next_due_on', '<=', ShopDay::calendarToday())
                 ->count(),
         ]);
     }
@@ -92,7 +93,7 @@ class RecurringIncomeController extends Controller
             // a tenant who pays short HAS paid short, and forcing the agreed
             // figure files a receipt for money nobody received.
             'amount' => ['nullable', 'numeric', 'min:0.01', 'max:99999999'],
-            'income_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'income_date' => ['nullable', 'date', 'before_or_equal:'.ShopDay::calendarToday()],
             'payment_method' => ['nullable', Rule::in(Income::PAYMENT_METHODS)],
             'reference' => ['nullable', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:1000'],

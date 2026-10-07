@@ -34,10 +34,12 @@ use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\Payable;
 use App\Support\ServiceDay;
+use App\Support\ShopDay;
 use App\Support\ShopSettings;
 use App\Support\Takings;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -58,11 +60,23 @@ class DashboardService
      */
     public function forTenant(Tenant $tenant, ?string $branchId = null): array
     {
-        $todayStart = now()->startOfDay();
-        $weekStart = $todayStart->copy()->subDays(6);        // 7 buckets, today last
-        $monthStart = $todayStart->copy()->startOfMonth();
-        $today = $todayStart->toDateString();
-        $yesterday = $todayStart->copy()->subDay()->toDateString();
+        // The shop's OWN day, not the server's. See ShopDay: at one in the
+        // morning a restaurant still serving is in the evening it opened in,
+        // on every figure here and on every report it drills into.
+        //
+        // Two kinds of thing are kept apart below. A DATE ("2026-10-06") is
+        // what a bucket is keyed by and what a typed date column is compared
+        // with. A START is the instant that date begins for this shop, and is
+        // what a timestamp is compared with. They are the same string only
+        // for a shop whose day turns at midnight UTC.
+        $today = ShopDay::today($tenant);
+        $day = CarbonImmutable::parse($today);
+        $yesterday = $day->subDay()->toDateString();
+        $weekFrom = $day->subDays(6)->toDateString();        // 7 buckets, today last
+        $monthFrom = $day->startOfMonth()->toDateString();
+        $todayStart = ShopDay::startOf($today, $tenant);
+        $weekStart = ShopDay::startOf($weekFrom, $tenant);
+        $monthStart = ShopDay::startOf($monthFrom, $tenant);
 
         // What this tenant can even HAVE. A books-only (finance) shop has no
         // catalog, no till and no orders; a services shop carries no stock.
@@ -86,8 +100,8 @@ class DashboardService
         $cogsByDay = $sells ? $this->dailyCogs($tenant, $branchId, $weekStart) : [];
         // Expenses are branch-scoped: a focused branch deducts only its own
         // costs; the all-branches view (branchId null) sums the whole tenant.
-        $expensesByDay = $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $weekStart) : [];
-        $incomeByDay = $keepsBooks ? $this->dailyIncome($tenant, $branchId, $weekStart) : [];
+        $expensesByDay = $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $weekFrom) : [];
+        $incomeByDay = $keepsBooks ? $this->dailyIncome($tenant, $branchId, $weekFrom) : [];
         // What went back out over the counter. Rolled up the same way as the
         // other three so the tile, the delta and the chart cannot disagree —
         // and rolled up at all because until now they agreed on a profit that
@@ -184,9 +198,9 @@ class DashboardService
                 : 0,
             // Last 7 days, oldest first, zero-filled — the line chart never has
             // a hole for a day the shop was shut.
-            'sales_series' => $this->salesSeries($weekStart, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay, $taxByDay),
+            'sales_series' => $this->salesSeries($weekFrom, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay, $taxByDay),
             // This month's spend per category — the donut beside the chart.
-            'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthStart) : [],
+            'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthFrom) : [],
             'inventory' => [
                 'low_stock' => $lowStock,
                 'out_of_stock' => $tracksStock ? $this->outOfStockCount($tenant, $branchId) : 0,
@@ -198,7 +212,7 @@ class DashboardService
             // screen: what belongs here is the state nothing else surfaces —
             // whether the day was ever closed off, and whether a day from
             // earlier in the week is still hanging open with no roll-up.
-            'till' => $tenant->featureEnabled('pos') ? $this->tillToday($tenant, $branchId, $todayStart) : null,
+            'till' => $tenant->featureEnabled('pos') ? $this->tillToday($tenant, $branchId, $today, $todayStart) : null,
             // Who owes whom. An owner asks this straight after "what did I
             // take", and until now the dashboard could not answer it at all.
             'money_owed' => [
@@ -255,9 +269,9 @@ class DashboardService
      *
      * @return array<string, array{sales_count: int, revenue: float, customers_count: int}>
      */
-    private function dailySales(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailySales(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
     {
-        $day = $this->dayExpression('sold_at');
+        $day = ShopDay::dateSql('sold_at', $tenant);
 
         return Sale::query()
             ->where('tenant_id', $tenant->id)
@@ -289,9 +303,9 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyCogs(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailyCogs(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
     {
-        $day = $this->dayExpression('sales.sold_at');
+        $day = ShopDay::dateSql('sales.sold_at', $tenant);
 
         return SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -319,9 +333,9 @@ class DashboardService
      * counted, closed and banked. The cashbook has always dated refunds this
      * way — this is the same rule, for the tiles and the chart.
      */
-    private function dailyRefunds(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailyRefunds(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
     {
-        $day = $this->dayExpression('returned_at');
+        $day = ShopDay::dateSql('returned_at', $tenant);
 
         return SaleReturn::withoutTenancy()
             ->where('tenant_id', $tenant->id)
@@ -341,9 +355,9 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyTax(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailyTax(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
     {
-        $sold = $this->dayExpression('sold_at');
+        $sold = ShopDay::dateSql('sold_at', $tenant);
         $charged = Sale::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', Takings::COUNTED)
@@ -354,7 +368,7 @@ class DashboardService
             ->toBase()
             ->get();
 
-        $back = $this->dayExpression('returned_at');
+        $back = ShopDay::dateSql('returned_at', $tenant);
         $returned = SaleReturn::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
@@ -375,14 +389,14 @@ class DashboardService
         return $byDay;
     }
 
-    private function dailyExpenses(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailyExpenses(Tenant $tenant, ?string $branchId, string $from): array
     {
         $day = $this->dayExpression('expense_date');
 
         return Expense::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('expense_date', '>=', $from->toDateString())
+            ->where('expense_date', '>=', $from)
             ->selectRaw("{$day} as day, COALESCE(SUM(amount), 0) as total")
             ->groupByRaw($day)
             ->toBase()
@@ -403,14 +417,14 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyIncome(Tenant $tenant, ?string $branchId, Carbon $from): array
+    private function dailyIncome(Tenant $tenant, ?string $branchId, string $from): array
     {
         $day = $this->dayExpression('income_date');
 
         return Income::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('income_date', '>=', $from->toDateString())
+            ->where('income_date', '>=', $from)
             ->selectRaw("{$day} as day, COALESCE(SUM(amount), 0) as total")
             ->groupByRaw($day)
             ->toBase()
@@ -430,7 +444,7 @@ class DashboardService
      * @return array<int, array{day: string, date: string, revenue: float, other_income: float, expenses: float, profit: float}>
      */
     private function salesSeries(
-        Carbon $from,
+        string $from,
         array $salesByDay,
         array $cogsByDay,
         array $expensesByDay,
@@ -439,7 +453,7 @@ class DashboardService
         array $taxByDay = [],
     ): array {
         $series = [];
-        $cursor = $from->copy();
+        $cursor = CarbonImmutable::parse($from);
 
         for ($i = 0; $i < 7; $i++) {
             $key = $cursor->toDateString();
@@ -485,12 +499,12 @@ class DashboardService
      *
      * @return array<int, array{category: string, total: float}>
      */
-    private function expenseBreakdown(Tenant $tenant, ?string $branchId, Carbon $monthStart): array
+    private function expenseBreakdown(Tenant $tenant, ?string $branchId, string $monthFrom): array
     {
         return Expense::withoutTenancy()
             ->where('expenses.tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('expenses.branch_id', $b))
-            ->where('expenses.expense_date', '>=', $monthStart->toDateString())
+            ->where('expenses.expense_date', '>=', $monthFrom)
             ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->selectRaw('COALESCE(expense_categories.name, \'Uncategorized\') as category, SUM(expenses.amount) as total')
             ->groupBy(DB::raw('COALESCE(expense_categories.name, \'Uncategorized\')'))
@@ -620,9 +634,8 @@ class DashboardService
      * @return array{day_open: bool, day_id: string|null, open_shifts: int,
      *               banked_today: float, unclosed_day: string|null, unclosed_days: int}
      */
-    private function tillToday(Tenant $tenant, ?string $branchId, Carbon $todayStart): array
+    private function tillToday(Tenant $tenant, ?string $branchId, string $today, CarbonInterface $todayStart): array
     {
-        $today = $todayStart->toDateString();
 
         $openDays = BusinessDay::withoutTenancy()
             ->where('tenant_id', $tenant->id)
@@ -635,7 +648,11 @@ class DashboardService
         // SEVERAL of today's days at once. Counting one branch's shifts and
         // calling it the chain's would tell an owner every till was counted out
         // while two sites were still selling.
-        $todayDays = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() === $today);
+        // "Today or later": a day opened in the small hours after the last
+        // one was closed off is dated by the calendar (BusinessDay::
+        // tradingDateAt), a date the shop's business day has not reached yet.
+        // It is the day being traded, not an absent one.
+        $todayDays = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() >= $today);
         $unclosed = $openDays->filter(fn (BusinessDay $d): bool => $d->trading_date->toDateString() < $today);
 
         return [
@@ -774,7 +791,7 @@ class DashboardService
     /**
      * @return array{name: string, units: float, revenue: float}|null
      */
-    private function topProduct(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
+    private function topProduct(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
     {
         $row = $this->monthlyLineItems($tenant, $branchId, $monthStart)
             ->selectRaw('sale_items.product_name as name, SUM(sale_items.quantity) as units, SUM(sale_items.line_total) as revenue')
@@ -794,7 +811,7 @@ class DashboardService
     /**
      * @return array{name: string, revenue: float}|null
      */
-    private function topCategory(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
+    private function topCategory(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
     {
         // Left joins throughout: a line whose product (or whose product's
         // category) has since been deleted still sold, and belongs somewhere.
@@ -819,7 +836,7 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topCustomer(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
+    private function topCustomer(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
     {
         $row = $this->monthlySales($tenant, $branchId, $monthStart)
             ->join('customers', 'customers.id', '=', 'sales.customer_id')
@@ -840,7 +857,7 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topStaff(Tenant $tenant, ?string $branchId, Carbon $monthStart): ?array
+    private function topStaff(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
     {
         $row = $this->monthlySales($tenant, $branchId, $monthStart)
             ->whereNotNull('sales.created_by')
@@ -863,7 +880,7 @@ class DashboardService
      * This month's completed sales, fully qualified so the highlight queries can
      * join tables that carry their own `status` / `name` columns.
      */
-    private function monthlySales(Tenant $tenant, ?string $branchId, Carbon $monthStart): Builder
+    private function monthlySales(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): Builder
     {
         return Sale::query()
             ->where('sales.tenant_id', $tenant->id)
@@ -873,7 +890,7 @@ class DashboardService
     }
 
     /** This month's sold lines (see dailyCogs() on the hand-written soft-delete filter). */
-    private function monthlyLineItems(Tenant $tenant, ?string $branchId, Carbon $monthStart): Builder
+    private function monthlyLineItems(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): Builder
     {
         return SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
@@ -971,7 +988,7 @@ class DashboardService
      *
      * @return array{rx_sales: int, rx_revenue: float, prescribers: int}
      */
-    private function dispensingToday(Tenant $tenant, ?string $branchId, Carbon $todayStart): array
+    private function dispensingToday(Tenant $tenant, ?string $branchId, CarbonInterface $todayStart): array
     {
         $rx = Sale::query()
             ->where('tenant_id', $tenant->id)
@@ -1074,6 +1091,13 @@ class DashboardService
      * "2026-01-31" from a date or timestamp column. MySQL runs production,
      * SQLite runs the tests, and neither spells this the same way.
      */
+    /**
+     * A typed DATE column as `Y-m-d` — an expense's date, an income's.
+     *
+     * Deliberately not ShopDay: somebody typed these as a date on a calendar,
+     * and a rent bill dated the 6th is the 6th's whatever hour the shop's day
+     * turns. Only a MOMENT is moved by that hour.
+     */
     private function dayExpression(string $column): string
     {
         return match (DB::connection()->getDriverName()) {
@@ -1093,7 +1117,7 @@ class DashboardService
      *                       rather than rendering a row of zeros per site.
      * @return array<int, array{branch_id: string, branch: string, sales_count: int, revenue: float}>
      */
-    private function branchBreakdown(Tenant $tenant, Carbon $todayStart, bool $sells = true): array
+    private function branchBreakdown(Tenant $tenant, CarbonInterface $todayStart, bool $sells = true): array
     {
         if (! $sells) {
             return [];
