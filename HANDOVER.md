@@ -8489,3 +8489,24 @@ cancel sheet knows a job. `BookInModal`: How many; the board's words.
 
 **Next for the journey:** online, finance. Then the product import per trade
 and per module (the user's request of 2026-10-08, kept for the end).
+
+## An online shop's own day — the journey's stage P, 2026-10-08
+
+Decision: `shopos-the-price-before-the-order`. Findings 90–97 in
+`docs/qa/journey/RUNS.md`; cases P1–P6 in `CASES.md`.
+
+**Server.** `BusinessTypes::categoryLabel()`; the marketplace shop payload
+carries `business_category_label`; `OrderService`'s minimum refusal names the
+rupees and the shortfall. No migration.
+
+**Panel.** `marketplace/orderTerms.ts` (`orderFigures`); `CheckoutPage` reads
+each shop's terms — ways offered, Items/Delivery/Free, the minimum, the free
+threshold, Total with delivery; `MarketShopPage` shows the category's name,
+Minimum order and Free delivery above; `MyOrdersPage` Delivery/Coupon lines and
+`orderFlow.customerSays()`.
+
+**Tests.** Backend `FulfillmentConfigTest` +3. Panel `orderTerms.test.ts`,
+`orderFlow.test.ts`. Journey stage P 7/7 (P2, P3, P3b re-runnable).
+
+**Next for the journey:** finance. Then the product import per trade and per
+module (the user's request of 2026-10-08, kept for the end).

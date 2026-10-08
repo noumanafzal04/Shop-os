@@ -290,6 +290,24 @@ Run after stages A and B for a services shop. No tax. Shirt wash and press
 | O8 | Job | Collected | "Take Rs 1,500"; no odometer asked; billed 2,000 for both lines, in her name; paid as 500 deposit + 1,500 cash; off the board |
 | O9 | Job | Never collected | an advance of 300; "Cancel this job", nothing about a shelf, no fee assumed; 100 kept, Rs 200 shown as returned; cancelled with 200 refunded and 100 kept; the board is empty |
 
+## Stage P — an online shop's own day (`27-online-the-order-from-the-street.spec.ts`, `JOURNEY_TRADE=online`)
+
+Run after stages A and B for an online shop. No tax. Cake 2,400; brownies
+900; cupcakes 600. Delivery Rs 200, nothing under Rs 1,000 delivered, free from
+Rs 5,000. Stage A gives the shop every module, inventory with them, so its
+bakes are counted onto the shelf at Inventory first. The customer is a second
+browser that nobody has signed in to.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| P1 | Settings → Inventory | The shop's terms, and its shelf | delivery fee on the profile; delivery on, minimum and free-delivery threshold saved; three bakes, priced and counted |
+| P2 | Marketplace → the shop (signed out) | A stranger finds it | found by searching what it sells; every bake at its price; the page says Delivery Rs 200, Minimum order Rs 1,000, Free delivery above Rs 5,000; its kind by name, never a key |
+| P3 | Checkout (every run, places nothing) | The whole price, before ordering | 900 for delivery: "add Rs 100 more, or collect it", Place waits; collected: Rs 900 and Place is offered; 1,500: Delivery Rs 200, "Add Rs 3,500 more and delivery is free", Total Rs 1,700 |
+| P3b | Checkout → My orders | Placed | the shop has it at 1,700 with 200 delivery; My orders shows the lines, a Delivery line and the total, and where it is in words |
+| P4 | Riders → Orders → My orders | Through its stages | a rider added; New → Confirm → Start preparing → rider → Out for delivery; the customer reads "On the way"; Complete; the sale is the goods (1,500) and the 200 left on the order is the delivery |
+| P5 | Riders | The cash comes back | the rider holds Rs 1,700; the settlement lists the order and says Rs 200 of it is what the rider earned; nothing held after |
+| P6 | My orders → Orders | Changed their mind | a cake to collect, placed and cancelled by the customer while new; Cancelled on the shop's list with nothing to move it on to |
+
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
 Run on the mart shop after stage G. The drawer is counted through the API

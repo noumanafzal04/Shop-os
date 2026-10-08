@@ -352,3 +352,42 @@ Not built, said honestly on its screen: staff commission (a salon's
 per-stylist pay).
 
 Next: online, finance.
+
+## Stage P — an online shop's own day (2026-10-08)
+
+`JOURNEY_TRADE=online … e2e/journey/27`, on the online shop made by the
+breadth run (stages A and B, 2026-10-06), with a customer account made through
+the storefront's own sign-up.
+
+| Stage | Cases | Result |
+|---|---|---|
+| P — the shop's terms, a stranger finds it, the whole price, placed, through its stages, the rider's cash, changed their mind | 7 | 7 passed (after the fixes below) |
+
+The first real-browser walk of an order from a stranger to the shop and back.
+The order's stages, the rider, the sale on completion, the settlement and a
+customer cancelling were right first time.
+
+| # | Found at | What a customer met | Fix |
+|---|---|---|---|
+| 90 | P2 | **The shop's minimum order and free-delivery threshold were on the wire and on no screen** | on the shop's page and at checkout |
+| 91 | P3 | **The checkout never said what delivery costs**; its total was the items | Items, Delivery (or Free), and a Total with delivery in it, per shop, before Place |
+| 92 | P3 | An order below the minimum was sent to be refused: "add a bit more", no currency, no figure | the card says by how much and Place waits; the server's refusal names the rupees |
+| 93 | reading the checkout | Delivery and collection offered whatever the shop does | only what the shop offers |
+| 94 | P2 | The shop's kind printed as its key, `online_boutique` | its name, sent by the server |
+| 95 | P3b | My orders: lines that did not add up to the total, and the status as a code ("pending") | Delivery and Coupon lines; where it is, in words |
+| 96 | harness | **A new browser context takes the spec's storage state** — the "stranger" and the new customer were the shop owner | an explicit empty session |
+| 97 | harness | The order number read with the next span's text glued on (`ORD-000001QA`) | `/ORD-\d+/` |
+
+Looked like a fault and is the design: a completed order's sale is the goods;
+the delivery charge stays on the order and is the rider's — P4 and P5 assert
+it. And a bake nobody counted is out of stock, correctly: stage A gives this
+shop the inventory module.
+
+Browser mutations on P2/P3/P3b: 7 run, 7 caught (checkout total, delivery
+shown as free, an order below the minimum placeable, no minimum message, no
+free-delivery hint, the shop page hiding its minimum and its free threshold).
+Six were left unrun when the work was stopped: the category key, My orders'
+delivery line and status words, collection charged delivery, the minimum never
+short, and the server's category name — runner `mut/e2e7.py`, start at 7.
+
+Next: finance (when the owner asks for it).
