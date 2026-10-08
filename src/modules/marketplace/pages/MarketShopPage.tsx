@@ -132,7 +132,8 @@ export default function MarketShopPage() {
                   )}
                 </h1>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-                  <span>{shop.data.business_category ?? tradeLabel(shop.data.business_type)}</span>
+                  {/* Its NAME — the key (`online_boutique`) was printed here, to strangers. */}
+                  <span>{shop.data.business_category_label ?? tradeLabel(shop.data.business_type)}</span>
                   {shop.data.city && (
                     <span className="flex items-center gap-1">
                       <PinIcon className="size-3.5" />
@@ -151,6 +152,15 @@ export default function MarketShopPage() {
                       <TruckIcon className="size-3.5" />
                       Delivery {money(shop.data.delivery_fee)}
                     </span>
+                  )}
+                  {/* The least it delivers and when delivery is free were on
+                      the wire and on no screen: a stranger met the first as a
+                      refusal at checkout, and never heard of the second. */}
+                  {(shop.data.min_order_amount ?? 0) > 0 && (
+                    <span>Minimum order {money(shop.data.min_order_amount ?? 0)}</span>
+                  )}
+                  {(shop.data.delivery_fee ?? 0) > 0 && (shop.data.free_delivery_threshold ?? 0) > 0 && (
+                    <span>Free delivery above {money(shop.data.free_delivery_threshold ?? 0)}</span>
                   )}
                 </p>
               </div>

@@ -6,6 +6,8 @@ export interface PublicShop {
   business_name: string;
   business_type: string | null;
   business_category: string | null;
+  /** What `business_category` is called. A key is for filters, never for a reader. */
+  business_category_label?: string | null;
   city: { id: string; name: string } | null;
   /**
    * A PATH THE BROWSER CANNOT LOAD, and the URLs it can.
@@ -45,6 +47,8 @@ export interface PublicShop {
   prep_time_minutes?: number | null;
   free_delivery_threshold?: number | null;
   min_order_amount?: number | null;
+  /** The ways this shop hands an order over. Detail payload only. */
+  fulfillment?: { pickup: boolean; delivery: boolean };
   accepts_orders?: boolean;
   service_area?: string | null;
   gallery?: string[];

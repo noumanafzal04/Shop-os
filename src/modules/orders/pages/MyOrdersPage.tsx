@@ -9,6 +9,7 @@ import { MarketHeader } from "../../marketplace/components/MarketHeader";
 import { MyReservations } from "../../marketplace/components/MyReservations";
 import Pager from "../../../components/ui/pager";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
+import { customerSays } from "../orderFlow";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
@@ -64,7 +65,7 @@ export default function MyOrdersPage() {
                     <span className="font-semibold text-gray-800 dark:text-white/90">{o.order_number}</span>
                     <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{o.shop?.business_name}</span>
                   </div>
-                  <Badge color={STATUS_COLOR[o.status]}>{o.status.replace(/_/g, " ")}</Badge>
+                  <Badge color={STATUS_COLOR[o.status]}>{customerSays(o.status, o.fulfillment_type)}</Badge>
                 </div>
 
                 {/* Progress tracker (hidden if cancelled) */}
@@ -84,6 +85,21 @@ export default function MyOrdersPage() {
                       <span>{money(it.line_total)}</span>
                     </div>
                   ))}
+                  {/* The lines and the total did not add up, and nothing said
+                      why: the delivery charge (and any coupon) were in the
+                      total and on no line. */}
+                  {Number(o.discount ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Coupon</span>
+                      <span>− {money(o.discount ?? 0)}</span>
+                    </div>
+                  )}
+                  {Number(o.delivery_fee) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Delivery</span>
+                      <span>{money(o.delivery_fee)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">

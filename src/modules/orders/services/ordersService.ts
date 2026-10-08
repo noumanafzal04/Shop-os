@@ -28,6 +28,8 @@ export interface CustomerOrder {
    */
   branch?: { name: string; address: string | null; phone: string | null } | null;
   subtotal: string;
+  /** A coupon's rupees off. The total is subtotal − discount + delivery. */
+  discount?: string;
   delivery_fee: string;
   total: string;
   items?: OrderItem[];

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { useQueries } from "@tanstack/react-query";
 
 import PageMeta from "../../../components/common/PageMeta";
 import Input from "../../../components/form/input/InputField";
@@ -11,8 +12,8 @@ import { usePlaceOrder } from "../../orders/hooks/useOrders";
 import { DeliveryAddressField } from "../components/DeliveryAddressField";
 import { money } from "../components/format";
 import { BagIcon, CheckIcon, StoreIcon, TruckIcon } from "../components/MarketIcons";
-
-type Fulfillment = "delivery" | "pickup";
+import { marketplaceService } from "../services/marketplaceService";
+import { orderFigures, type Fulfillment } from "../orderTerms";
 
 interface ShopChoices {
   fulfillment: Fulfillment;
@@ -76,9 +77,43 @@ export default function CheckoutPage() {
   const setFor = (slug: string, patch: Partial<ShopChoices>) =>
     setChoices((was) => ({ ...was, [slug]: { ...choicesFor(slug), ...patch } }));
 
+  /**
+   * EACH SHOP'S OWN TERMS — what it charges to deliver, the least it delivers,
+   * when delivery is free, and whether it delivers or hands over at all. The
+   * same query the shop's page makes, so a basket filled there costs nothing
+   * to price here.
+   */
+  const terms = useQueries({
+    queries: groups.map((g) => ({
+      queryKey: ["market", "shop", g.shop_slug],
+      queryFn: async () => (await marketplaceService.shop(g.shop_slug)).data,
+      staleTime: 60_000,
+    })),
+  });
+  const termsFor = (slug: string) => terms[groups.findIndex((g) => g.shop_slug === slug)]?.data;
+
+  /** Only the ways this shop hands an order over — both, until it has said. */
+  const waysFor = (slug: string): Fulfillment[] => {
+    const offered = termsFor(slug)?.fulfillment;
+    const ways = (["delivery", "pickup"] as const).filter((w) => offered?.[w] !== false);
+
+    return ways.length > 0 ? ways : ["delivery", "pickup"];
+  };
+  const howFor = (slug: string): Fulfillment => {
+    const ways = waysFor(slug);
+    const chosen = choicesFor(slug).fulfillment;
+
+    return ways.includes(chosen) ? chosen : ways[0];
+  };
+  const figuresFor = (g: (typeof groups)[number]) => orderFigures(g.subtotal, howFor(g.shop_slug), termsFor(g.shop_slug) ?? {});
+
   const needsAddress = groups.some(
-    (g) => choicesFor(g.shop_slug).fulfillment === "delivery" && choicesFor(g.shop_slug).address.trim() === "",
+    (g) => howFor(g.shop_slug) === "delivery" && choicesFor(g.shop_slug).address.trim() === "",
   );
+  // Below a shop's minimum for delivery: the server would refuse it, so it is
+  // not sent — the card says by how much, and that collecting it has none.
+  const belowMinimum = groups.some((g) => figuresFor(g).short > 0);
+  const grandTotal = groups.reduce((sum, g) => sum + figuresFor(g).total, 0);
 
   const place = async () => {
     setPlacing(true);
@@ -91,15 +126,16 @@ export default function CheckoutPage() {
       const mine = choicesFor(group.shop_slug);
 
       try {
+        const how = howFor(group.shop_slug);
         await placeOrder.mutateAsync({
           shop_slug: group.shop_slug,
-          fulfillment_type: mine.fulfillment,
-          delivery_address: mine.fulfillment === "delivery" ? mine.address.trim() : undefined,
+          fulfillment_type: how,
+          delivery_address: how === "delivery" ? mine.address.trim() : undefined,
           // The pin that goes with the address, when there is one. Only on a
           // DELIVERY — a pickup has no destination, and sending one would put
           // the customer's home on an order they are collecting themselves.
-          latitude: mine.fulfillment === "delivery" ? (mine.lat ?? undefined) : undefined,
-          longitude: mine.fulfillment === "delivery" ? (mine.lng ?? undefined) : undefined,
+          latitude: how === "delivery" ? (mine.lat ?? undefined) : undefined,
+          longitude: how === "delivery" ? (mine.lng ?? undefined) : undefined,
           coupon_code: mine.coupon.trim() || undefined,
           notes: mine.notes.trim() || undefined,
           items: group.lines.map((l) => ({
@@ -191,6 +227,9 @@ export default function CheckoutPage() {
           <div className="space-y-5">
             {groups.map((group) => {
               const mine = choicesFor(group.shop_slug);
+              const how = howFor(group.shop_slug);
+              const figures = figuresFor(group);
+              const minimum = termsFor(group.shop_slug)?.min_order_amount ?? null;
               const problem = failed[group.shop_slug];
 
               return (
@@ -240,25 +279,52 @@ export default function CheckoutPage() {
                     </ul>
 
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {(["delivery", "pickup"] as const).map((how) => (
+                      {waysFor(group.shop_slug).map((way) => (
                         <button
-                          key={how}
+                          key={way}
                           type="button"
-                          onClick={() => setFor(group.shop_slug, { fulfillment: how })}
-                          aria-pressed={mine.fulfillment === how}
+                          onClick={() => setFor(group.shop_slug, { fulfillment: way })}
+                          aria-pressed={how === way}
                           className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-medium transition ${
-                            mine.fulfillment === how
+                            how === way
                               ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
                               : "border-gray-200 text-gray-700 hover:border-brand-300 dark:border-white/10 dark:text-gray-200"
                           }`}
                         >
-                          {how === "delivery" ? <TruckIcon className="size-4" /> : <StoreIcon className="size-4" />}
-                          {how === "delivery" ? "Deliver to me" : "I'll collect it"}
+                          {way === "delivery" ? <TruckIcon className="size-4" /> : <StoreIcon className="size-4" />}
+                          {way === "delivery" ? "Deliver to me" : "I'll collect it"}
                         </button>
                       ))}
                     </div>
 
-                    {mine.fulfillment === "delivery" && (
+                    {/* What it comes to, delivery and all — before it is placed. */}
+                    <div className="space-y-1 rounded-2xl bg-gray-50 px-4 py-3 text-sm dark:bg-white/5">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-gray-500 dark:text-gray-400">Items</span>{" "}
+                        <span className="tabular-nums text-gray-900 dark:text-white">{money(group.subtotal)}</span>
+                      </div>
+                      {how === "delivery" && (
+                        <div className="flex justify-between gap-3">
+                          <span className="text-gray-500 dark:text-gray-400">Delivery</span>{" "}
+                          <span className="tabular-nums text-gray-900 dark:text-white">
+                            {figures.delivery > 0 ? money(figures.delivery) : "Free"}
+                          </span>
+                        </div>
+                      )}
+                      {figures.toFreeDelivery !== null && figures.short === 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Add {money(figures.toFreeDelivery)} more and delivery is free.
+                        </p>
+                      )}
+                    </div>
+
+                    {figures.short > 0 && minimum !== null && (
+                      <p role="alert" className="rounded-2xl bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
+                        Minimum order for delivery is {money(minimum)} — add {money(figures.short)} more, or collect it.
+                      </p>
+                    )}
+
+                    {how === "delivery" && (
                       <DeliveryAddressField
                         value={mine.address}
                         onChange={(address, lat, lng) => setFor(group.shop_slug, { address, lat, lng })}
@@ -304,27 +370,27 @@ export default function CheckoutPage() {
                 {groups.map((group) => (
                   <div key={group.shop_slug} className="flex items-center justify-between gap-3">
                     <dt className="min-w-0 truncate text-gray-600 dark:text-gray-300">{group.shop_name}</dt>
-                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(group.subtotal)}</dd>
+                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(figuresFor(group).total)}</dd>
                   </div>
                 ))}
               </dl>
 
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/5">
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">Items total</span>
-                <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
-                  {money(cart.subtotal())}
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
+                <span data-testid="checkout-total" className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
+                  {money(grandTotal)}
                 </span>
               </div>
 
               <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-brand-500" />
-                Each shop adds its own delivery charge and applies any coupon. You pay on delivery.
+                Delivery is included. A coupon comes off this when the shop accepts it. You pay on delivery.
               </p>
 
               <button
                 type="button"
                 onClick={place}
-                disabled={placing || needsAddress}
+                disabled={placing || needsAddress || belowMinimum}
                 className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-500 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/10 dark:disabled:text-gray-500"
               >
                 {placing

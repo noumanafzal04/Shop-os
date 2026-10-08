@@ -118,8 +118,11 @@ describe("a web order carries a destination", () => {
 
   it("sends them from the checkout, and only for a delivery", () => {
     const code = codeOnly(checkout);
-    expect(code).toMatch(/latitude: mine\.fulfillment === "delivery"/);
-    expect(code).toMatch(/longitude: mine\.fulfillment === "delivery"/);
+    // `how` is the way this shop actually hands it over — the choice, held to
+    // what the shop offers (a shop that does not deliver is never sent a pin).
+    expect(code).toMatch(/latitude: how === "delivery"/);
+    expect(code).toMatch(/longitude: how === "delivery"/);
+    expect(code).toMatch(/const how = howFor\(group\.shop_slug\)/);
   });
 
   it("gets them from the address, which now has a pin", () => {

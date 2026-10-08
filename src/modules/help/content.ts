@@ -1541,6 +1541,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "A customer can also search your CATEGORY names inside the filter panel once you have more than ten, so what you call an aisle is what gets it found.",
         ],
       },
+      { type: "h", text: "What a customer is told before they order" },
+      { type: "p", text: "Your shop\u2019s page shows your delivery fee, your minimum order for delivery and the point at which delivery is free \u2014 all three come from Settings (the fee under Business, the other two under Tax & Delivery). At checkout each shop\u2019s card then says what the basket comes to: the items, the delivery (or Free), and a total with delivery in it, before they press Place order." },
+      {
+        type: "list",
+        items: [
+          "Below your minimum, the card says by how much (\u201cadd Rs 100 more, or collect it\u201d) and the order is not sent. Collecting it has no minimum.",
+          "Above your free-delivery figure the delivery shows as Free; below it, the card says how much more would make it free.",
+          "Only the ways you hand orders over are offered. Switch off delivery or pickup in Settings and that button is not shown.",
+          "A coupon is still checked when the order reaches you, so the checkout says it comes off the total shown.",
+        ],
+      },
+      { type: "note", text: "Your customer\u2019s My orders page shows the delivery and any coupon as their own lines, so the lines add up to the total, and says where the order is in plain words \u2014 Waiting for the shop, Accepted, Being prepared, On the way, Delivered." },
       { type: "h", text: "How your sale price is shown" },
       { type: "p", text: "Set a sale price on a product and the phone app draws the pair everywhere it appears: the price you are charging in bold, your normal price struck through beside it, and an amber tag on the picture saying how much is off. Nothing needs switching on \u2014 it follows the product." },
       {

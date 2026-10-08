@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { nextStep } from "./orderFlow";
+import { customerSays, nextStep } from "./orderFlow";
 import type { OrderStatus, OwnerOrder } from "./services/ordersService";
 
 const order = (status: OrderStatus, fulfillment: "delivery" | "pickup" = "delivery") =>
@@ -53,5 +53,27 @@ describe("the next step", () => {
     for (const stage of ["pending", "confirmed", "preparing", "ready", "out_for_delivery"] as OrderStatus[]) {
       expect(nextStep(order(stage))?.label, stage).toBeTruthy();
     }
+  });
+});
+
+describe("where an order is, in the customer's words", () => {
+  it("never shows the customer a status code", () => {
+    for (const stage of ["pending", "confirmed", "preparing", "ready", "out_for_delivery", "completed", "cancelled"] as OrderStatus[]) {
+      for (const how of ["delivery", "pickup"] as const) {
+        const said = customerSays(stage, how);
+        expect(said, `${stage}/${how}`).not.toMatch(/_|^[a-z]/);
+      }
+    }
+  });
+
+  it("a delivery is on the way and then delivered; a pickup is ready and then collected", () => {
+    expect(customerSays("out_for_delivery", "delivery")).toBe("On the way");
+    expect(customerSays("completed", "delivery")).toBe("Delivered");
+    expect(customerSays("ready", "pickup")).toBe("Ready to collect");
+    expect(customerSays("completed", "pickup")).toBe("Collected");
+  });
+
+  it("a new order is waiting for the shop, not 'pending'", () => {
+    expect(customerSays("pending", "delivery")).toBe("Waiting for the shop");
   });
 });

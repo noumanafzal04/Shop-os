@@ -34,3 +34,33 @@ export function nextStep(order: OwnerOrder): { label: string; status: OrderStatu
       return null;
   }
 }
+
+/**
+ * WHERE IT IS, IN THE CUSTOMER'S WORDS.
+ *
+ * The customer's list printed the status code itself — "pending", "out for
+ * delivery" — while the shop's screen says New and On the way. The same order
+ * should not be described in a database's words to the one person who is
+ * waiting for it. Pickup and delivery end differently: nobody "delivers" a
+ * cake somebody walked in to collect.
+ */
+export function customerSays(status: OrderStatus, fulfillment: "delivery" | "pickup"): string {
+  switch (status) {
+    case "pending":
+      return "Waiting for the shop";
+    case "confirmed":
+      return "Accepted";
+    case "preparing":
+      return "Being prepared";
+    case "ready":
+      return fulfillment === "pickup" ? "Ready to collect" : "Ready";
+    case "out_for_delivery":
+      return "On the way";
+    case "completed":
+      return fulfillment === "pickup" ? "Collected" : "Delivered";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return status;
+  }
+}
