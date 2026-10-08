@@ -308,9 +308,12 @@ class SaleDocumentController extends Controller
     {
         $document = SaleDocument::query()->findOrFail($id);
 
-        // Cancelling a layaway hands money back and returns stock — refund
-        // authority, not sales authority. A quotation cancel moves nothing.
-        if ($document->isLayaway() && (float) $document->deposit_paid > 0
+        // Cancelling hands money back — refund authority, not sales authority.
+        // Asked of the MONEY, not the kind: a job card takes an advance too, and
+        // this read `isLayaway()` so a cashier could cancel a job and pay its
+        // advance out of the drawer. A quotation never holds any, so it moves
+        // nothing and stays a sales-authority cancel.
+        if ((float) $document->deposit_paid > 0
             && ! $request->user()->hasPermission(Permissions::SALES_REFUND)) {
             throw DomainException::forbidden(
                 'Returning an advance needs refund permission — ask a manager.',
@@ -340,7 +343,7 @@ class SaleDocumentController extends Controller
         ]);
 
         $document = SaleDocument::query()
-            ->with(['items', 'payments' => fn ($q) => $q->orderBy('paid_at'), 'branch:id,name'])
+            ->with(['items', 'payments' => fn ($q) => $q->orderBy('paid_at'), 'branch:id,name', 'vehicle'])
             ->findOrFail($id);
 
         $tenant = $context->get();

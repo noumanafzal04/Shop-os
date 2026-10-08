@@ -52,11 +52,17 @@ class RecordDepositAction
                 );
             }
 
+            // Said to whoever is holding the money, so it names what they are
+            // looking at: a tailor's counter was told about "this layaway".
+            $what = $locked->isJobCard() ? 'job' : 'layaway';
+
             if (! $locked->isOpen()) {
                 throw DomainException::conflict(
-                    $locked->status === SaleDocument::STATUS_CONVERTED
-                        ? 'These goods have already been collected.'
-                        : 'This layaway was cancelled.',
+                    match (true) {
+                        $locked->status !== SaleDocument::STATUS_CONVERTED => "This {$what} was cancelled.",
+                        $locked->isJobCard() => 'This job has already been billed.',
+                        default => 'These goods have already been collected.',
+                    },
                     'DOCUMENT_NOT_OPEN',
                 );
             }
@@ -81,7 +87,7 @@ class RecordDepositAction
             if ($amount > $balance + 0.001) {
                 $sym = $locked->tenant?->currencySymbol() ?? 'Rs';
                 throw DomainException::unprocessable(
-                    'Only '.$sym.' '.number_format($balance, 2).' is still owed on this layaway.',
+                    'Only '.$sym.' '.number_format($balance, 2)." is still owed on this {$what}.",
                     'DEPOSIT_EXCEEDS_BALANCE',
                 );
             }

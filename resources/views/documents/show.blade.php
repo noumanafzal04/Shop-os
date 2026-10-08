@@ -15,6 +15,14 @@
     Both carry the shop's terms and a signature line: this is a document that
     gets argued about weeks later, and an unsigned estimate is worth what the
     customer says it's worth.
+
+      JOB CARD  — the third kind, and for a long time this sheet did not know
+                  it: a car booked into a workshop, or eight shirts left at a
+                  laundry, printed as "QUOTATION", with nothing about the car,
+                  what the customer said was wrong, or when it was promised —
+                  and an advance paid on the job was not on it at all. This is
+                  the slip the customer comes back holding. It says what was
+                  taken in, when it will be ready, and what has been paid.
 --}}
 @php
     $width   = $paper ?? ($settings['receipt_width'] ?? 'standard');
@@ -23,6 +31,8 @@
 
     $cur     = $settings['currency_symbol'] ?? 'Rs';
     $layaway = $document->isLayaway();
+    $job     = $document->isJobCard();
+    $vehicle = $job ? $document->vehicle : null;
     $lapsed  = $document->hasLapsed();
     $balance = $document->balance();
 
@@ -34,8 +44,10 @@
         'wallet' => 'Mobile wallet', 'other' => 'Other',
     ];
 
-    $docTitle = $layaway ? 'Advance Booking' : 'Quotation';
-    $dateLabel = $layaway ? 'Collect by' : 'Valid until';
+    $docTitle = $job ? 'Job Card' : ($layaway ? 'Advance Booking' : 'Quotation');
+    $dateLabel = $layaway || $job ? 'Collect by' : 'Valid until';
+    // Money has been taken on it: a layaway always, a job when an advance was paid.
+    $holdsMoney = $layaway || ($job && (float) $document->deposit_paid > 0);
 
     $ntn  = $settings['invoice_ntn'] ?? null;
     $strn = $settings['invoice_strn'] ?? null;
@@ -185,12 +197,34 @@
         @if($document->branch)
             <tr><td class="k">Branch</td><td>{{ $document->branch->name }}</td></tr>
         @endif
+        {{-- What was taken in. The reason the customer keeps this slip. --}}
+        @if($job && $vehicle)
+            <tr>
+                <td class="k">Vehicle</td>
+                <td>
+                    <span class="b">{{ $vehicle->registration }}</span>
+                    @if($vehicle->make || $vehicle->model)
+                        <span class="soft">· {{ trim($vehicle->make.' '.$vehicle->model) }}</span>
+                    @endif
+                </td>
+            </tr>
+        @endif
+        @if($job && $document->odometer_in !== null)
+            <tr><td class="k">Odometer in</td><td>{{ number_format((int) $document->odometer_in) }} km</td></tr>
+        @endif
+        @if($job && $document->complaint)
+            <tr><td class="k">{{ $vehicle ? 'Customer said' : 'Instructions' }}</td><td>{{ $document->complaint }}</td></tr>
+        @endif
+        @if($job && $document->promised_at)
+            {{-- On the shop's clock: the hour the customer was told, not the server's. --}}
+            <tr><td class="k">Promised</td><td class="b">{{ \App\Support\ShopTime::show($document->promised_at, 'd M Y, g:i A', $tenant) }}</td></tr>
+        @endif
     </table>
 
     @if($document->expires_at)
         <div style="margin-top:{{ $roll ? '8px' : '16px' }}" class="{{ $roll ? 'c' : '' }}">
             <span class="validity {{ $lapsed ? 'lapsed' : '' }}">
-                {{ $lapsed ? ($layaway ? 'Overdue since' : 'Expired on') : $dateLabel }}
+                {{ $lapsed ? ($layaway || $job ? 'Overdue since' : 'Expired on') : $dateLabel }}
                 {{ $document->expires_at->format('d M Y') }}
             </span>
         </div>
@@ -256,13 +290,14 @@
             </tr>
         @endif
         <tr class="grand">
-            <td>Total</td>
+            {{-- An open job is unfinished by design: the figure is the work so far. --}}
+            <td>{{ $job && $document->status === \App\Models\SaleDocument::STATUS_OPEN ? 'Total so far' : 'Total' }}</td>
             <td class="r num">{{ $cur }} {{ $money($document->total) }}</td>
         </tr>
 
         {{-- The money panel — layaway only. A quotation has no money on it,
              and printing "Paid: 0.00" on an estimate invites the question. --}}
-        @if($layaway)
+        @if($holdsMoney)
             <tr>
                 <td class="soft">Advance paid</td>
                 <td class="r num">− {{ $cur }} {{ $money($document->deposit_paid) }}</td>
@@ -275,7 +310,7 @@
     </table>
 
     {{-- ── Every instalment, listed ──────────────────────────────── --}}
-    @if($layaway && $payments->isNotEmpty())
+    @if($holdsMoney && $payments->isNotEmpty())
         <hr class="hair">
         <div class="soft b" style="font-size:{{ $roll ? '10px' : '11px' }}; text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px">
             Payments received
@@ -316,6 +351,12 @@
         <hr class="hair">
         <div class="terms">
             These goods are set aside in your name and will be handed over once the balance is paid in full.
+        </div>
+    @endif
+    @if($job && $document->status === \App\Models\SaleDocument::STATUS_OPEN)
+        <hr class="hair">
+        <div class="terms">
+            Parts and labour are added as the work is done — this is the job so far, not the final bill. Please bring this slip when you collect.
         </div>
     @endif
 

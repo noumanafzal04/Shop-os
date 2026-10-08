@@ -77,9 +77,9 @@ class AJobGrowsAsTheWorkIsDoneTest extends TestCase
         ], $over));
     }
 
-    private function as(): static
+    private function as(?User $who = null): static
     {
-        $token = $this->cashier->createToken('t', ['access'])->plainTextToken;
+        $token = ($who ?? $this->cashier)->createToken('t', ['access'])->plainTextToken;
         $this->app['auth']->forgetGuards();
 
         return $this->withToken($token);
@@ -377,7 +377,181 @@ class AJobGrowsAsTheWorkIsDoneTest extends TestCase
         $this->assertEqualsWithDelta(4000.0, (float) $this->line($doc, $this->pads)['unit_price'], 0.001);
     }
 
+    // ── the slip the customer comes back holding ─────────────────────
+
+    private function slip(string $jobId): string
+    {
+        return $this->as()->get("/api/v1/sale-documents/{$jobId}/print")->assertOk()->getContent();
+    }
+
+    /**
+     * A job card printed as "QUOTATION", with "Valid until" and the shop's
+     * quotation terms, and nothing about the car, what was wrong with it, or
+     * when it was promised. That sheet is the claim ticket.
+     */
+    public function test_a_job_card_prints_as_a_job_card_with_what_was_taken_in(): void
+    {
+        $this->tenant->forceFill([
+            'timezone' => 'Asia/Karachi',
+            'settings' => array_merge($this->tenant->settings ?? [], ['quotation_terms' => 'Prices are held for 15 days.']),
+        ])->save();
+        $job = $this->book([
+            'odometer_in' => 84500,
+            // Five in the afternoon in Lahore.
+            'promised_at' => '2026-10-08T12:00:00Z',
+            'customer_name' => 'Ali Raza', 'customer_phone' => '03005556667',
+        ]);
+
+        $html = $this->slip($job['id']);
+
+        $this->assertStringContainsString('Job Card', $html);
+        $this->assertStringContainsString($job['number'], $html);
+        // (This fixture's car was created directly, so its plate is as typed.)
+        $this->assertStringContainsString('LEA-4291', $html);
+        $this->assertStringContainsString('Toyota Corolla', $html);
+        $this->assertStringContainsString('84,500 km', $html);
+        $this->assertStringContainsString('Noise from front left when braking', $html);
+        // On the shop's clock — not noon, which is what the server's says.
+        $this->assertStringContainsString('08 Oct 2026, 5:00 PM', $html);
+        $this->assertStringContainsString('Total so far', $html);
+        $this->assertStringContainsString('not the final bill', $html);
+
+        // None of the quotation's furniture.
+        $this->assertStringNotContainsString('Quotation', $html);
+        $this->assertStringNotContainsString('Valid until', $html);
+        $this->assertStringNotContainsString('Prices are held for 15 days.', $html);
+        // No money taken, so no money panel.
+        $this->assertStringNotContainsString('Advance paid', $html);
+    }
+
+    public function test_an_advance_paid_on_a_job_is_on_its_slip(): void
+    {
+        $job = $this->book();
+        $this->add($job['id'], $this->pads)->assertOk();
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/deposits", ['amount' => 2000, 'method' => 'cash'])->assertCreated();
+
+        $html = $this->slip($job['id']);
+
+        $this->assertStringContainsString('Advance paid', $html);
+        $this->assertStringContainsString('2,000.00', $html);
+        $this->assertStringContainsString('Balance due', $html);
+        $this->assertStringContainsString('4,000.00', $html);
+        $this->assertStringContainsString('Payments received', $html);
+    }
+
+    public function test_a_job_with_no_car_prints_what_the_customer_asked_for(): void
+    {
+        // A tailor's job: no plate, no reading.
+        $job = $this->book(['vehicle_id' => null, 'complaint' => '8 shirts, starch on collars', 'customer_name' => 'Sana']);
+
+        $html = $this->slip($job['id']);
+
+        $this->assertStringContainsString('Job Card', $html);
+        $this->assertStringContainsString('Instructions', $html);
+        $this->assertStringContainsString('8 shirts, starch on collars', $html);
+        $this->assertStringNotContainsString('Vehicle', $html);
+        $this->assertStringNotContainsString('Odometer', $html);
+    }
+
+    public function test_a_quotation_still_carries_the_shops_quotation_terms(): void
+    {
+        $this->tenant->forceFill(['settings' => array_merge($this->tenant->settings ?? [], ['quotation_terms' => 'Prices are held for 15 days.'])])->save();
+        $quote = $this->as()->postJson('/api/v1/sale-documents', [
+            'kind' => 'quotation', 'items' => [['product_id' => $this->pads->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $html = $this->slip($quote['id']);
+
+        $this->assertStringContainsString('Quotation', $html);
+        $this->assertStringContainsString('Prices are held for 15 days.', $html);
+        $this->assertStringNotContainsString('Job Card', $html);
+        $this->assertStringNotContainsString('Total so far', $html);
+        // A quoted price IS the bill, if they come back for it.
+        $this->assertStringNotContainsString('not the final bill', $html);
+    }
+
+    public function test_a_billed_job_is_not_so_far_any_more(): void
+    {
+        $job = $this->book();
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/convert", ['payment_method' => 'cash', 'amount_paid' => 1500])->assertCreated();
+
+        $html = $this->slip($job['id']);
+
+        $this->assertStringNotContainsString('Total so far', $html);
+        $this->assertStringNotContainsString('not the final bill', $html);
+    }
+
     // ── the car learns whose it is ───────────────────────────────────
+
+    // ── an advance on a job ──────────────────────────────────────────
+
+    private function advance(string $jobId, float $amount): void
+    {
+        $this->as()->postJson("/api/v1/sale-documents/{$jobId}/deposits", ['amount' => $amount, 'method' => 'card'])->assertCreated();
+    }
+
+    public function test_an_advance_is_never_more_than_the_job_comes_to_so_far(): void
+    {
+        $job = $this->book(); // Rs 1,500 so far
+
+        // The pads go on the card first, then the money for them is taken.
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/deposits", ['amount' => 2000, 'method' => 'card'])
+            ->assertStatus(422)
+            ->assertJsonPath('meta.error_code', 'DEPOSIT_EXCEEDS_BALANCE')
+            ->assertJsonPath('message', 'Only Rs 1,500.00 is still owed on this job.');
+    }
+
+    public function test_a_billed_job_takes_no_more_advance_and_says_billed(): void
+    {
+        $job = $this->book();
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/convert", ['payment_method' => 'cash', 'amount_paid' => 1500])->assertCreated();
+
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/deposits", ['amount' => 100, 'method' => 'card'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This job has already been billed.');
+    }
+
+    public function test_a_cashier_cannot_hand_back_a_jobs_advance_by_cancelling_it(): void
+    {
+        $job = $this->book();
+        $this->add($job['id'], $this->pads)->assertOk();
+        $this->advance($job['id'], 2000);
+
+        // The cashier took the advance; giving it back is a manager's call,
+        // exactly as it is on goods held on advance.
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/cancel", [])
+            ->assertStatus(403)
+            ->assertJsonPath('meta.error_code', 'REFUND_PERMISSION_REQUIRED');
+
+        $this->assertSame(SaleDocument::STATUS_OPEN, SaleDocument::withoutTenancy()->findOrFail($job['id'])->status);
+    }
+
+    public function test_a_job_nobody_has_paid_for_is_cancelled_by_the_counter(): void
+    {
+        $job = $this->book();
+
+        $this->as()->postJson("/api/v1/sale-documents/{$job['id']}/cancel", ['reason' => 'Took it elsewhere'])
+            ->assertOk()
+            ->assertJsonPath('data.status', SaleDocument::STATUS_CANCELLED);
+    }
+
+    public function test_a_cancelled_jobs_advance_is_split_between_given_back_and_kept(): void
+    {
+        $manager = User::factory()->tenantStaff($this->tenant, ['sales.manage', 'sales.refund'])->create();
+        $job = $this->book();
+        $this->add($job['id'], $this->pads)->assertOk();
+        $this->advance($job['id'], 2000);
+
+        $cancelled = $this->as($manager)
+            ->postJson("/api/v1/sale-documents/{$job['id']}/cancel", [
+                'reason' => 'Parts ordered, customer withdrew', 'forfeit_amount' => 500, 'refund_method' => 'card',
+            ])
+            ->assertOk()
+            ->json('data');
+
+        $this->assertEquals(1500, $cancelled['refunded_amount']);
+        $this->assertEquals(500, $cancelled['forfeited_amount']);
+    }
 
     public function test_a_car_booked_in_for_a_customer_is_that_customers_car(): void
     {

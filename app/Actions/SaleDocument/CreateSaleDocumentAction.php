@@ -269,7 +269,9 @@ class CreateSaleDocumentAction
                 : null,
             // A quotation reserves nothing; a layaway owns its goods.
             'stock_reserved' => $isLayaway,
-            'terms' => $data['terms'] ?? $tenant?->setting('quotation_terms'),
+            // The shop's QUOTATION terms ("prices held for 15 days…") are about
+            // a quoted price. A job card has none, and printed them anyway.
+            'terms' => $data['terms'] ?? ($isJobCard ? null : $tenant?->setting('quotation_terms')),
             'notes' => $data['notes'] ?? null,
             'idempotency_key' => $data['idempotency_key'] ?? null,
         ]);
