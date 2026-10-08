@@ -343,7 +343,7 @@ test("M6 · parts and labour go on the job as the work is done — and the job c
     await page.getByRole("button", { name: `+ ${LABOUR.name}`, exact: true }).click();
     await expect.poll(() => jobTotal(page)).toBe(7000);
     await page.getByRole("button", { name: `One more ${LABOUR.name}` }).click();
-    await expect(jobLine(page, LABOUR.name).getByTestId("job-line-qty")).toHaveText("2", { timeout: 15_000 });
+    await expect(jobLine(page, LABOUR.name).getByTestId("job-line-qty")).toHaveValue("2", { timeout: 15_000 });
     await expect.poll(() => jobTotal(page)).toBe(8000);
     // Back to one, and to two again: the figure follows both ways.
     await page.getByRole("button", { name: `One fewer ${LABOUR.name}` }).click();

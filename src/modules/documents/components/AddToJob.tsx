@@ -14,9 +14,12 @@ import { catalogService } from "../../catalog/services/catalogService";
  * the server's: this only says WHICH item and how many.
  */
 export function AddToJob({
+  label,
   disabled,
   onAdd,
 }: {
+  /** The trade's own words — a laundry is not asked for "a part or labour". */
+  label: string;
   disabled: boolean;
   onAdd: (pick: { product_id: string; variant_id: string | null; name: string }) => void;
 }) {
@@ -41,10 +44,10 @@ export function AddToJob({
   return (
     <div className="border-t border-gray-100 px-5 py-4 dark:border-gray-800">
       <Input
-        aria-label="Add a part or labour to this job"
+        aria-label={`${label} to this job`}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Add a part or labour — search by name or code"
+        placeholder={`${label} — search by name or code`}
       />
       {term.trim().length >= 2 && !found.isFetching && picks.length === 0 && (
         <p className="mt-1.5 text-theme-xs text-gray-400">Nothing on the shelf matches “{term.trim()}”.</p>

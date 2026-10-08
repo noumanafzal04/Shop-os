@@ -54,6 +54,23 @@ describe("the words change, the board does not", () => {
     expect(w.tracksVehicle).toBe(false);
   });
 
+  it("nothing on a services job is a part, labour or something wrong with it", () => {
+    const w = boardWords("services");
+    const said = [w.asks, w.said, w.goesOn, w.findItem, w.addLine].join(" ").toLowerCase();
+
+    // Eight shirts are not broken, and pressing them is not "labour".
+    for (const carWord of ["part", "labour", "wrong", "car"]) {
+      expect(said, `a laundry was spoken to in a workshop's word: ${carWord}`).not.toMatch(new RegExp(`\\b${carWord}\\b`));
+    }
+  });
+
+  it("a workshop keeps its own words for the same boxes", () => {
+    const w = boardWords("automotive");
+
+    expect(w.addLine).toBe("Add a part or labour");
+    expect(w.said).toBe("What the customer said");
+  });
+
   it("both boards have the same three stages, in the same order", () => {
     // Vocabulary, not behaviour. Two trades doing the same thing must not
     // drift into two half-maintained flows.

@@ -64,6 +64,17 @@ export default function DocumentDetailPage() {
   const balance = doc.balance ?? Number(doc.total) - Number(doc.deposit_paid);
   const open = doc.status === "open";
   const growing = job && open;
+  /**
+   * AN ADVANCE ON A JOB.
+   *
+   * The server has always taken one — parts are ordered before the work
+   * starts, and a tailor takes money with the cloth — and the Help says so.
+   * This page offered "Take instalment" for a layaway only, and drew the
+   * advance and the balance for a layaway only: on a job there was no button,
+   * and an advance taken any other way was invisible on the job it was for.
+   */
+  const takesAdvance = layaway || job;
+  const holdsMoney = layaway || (job && Number(doc.deposit_paid) > 0);
   const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
   const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "That could not be changed.");
 
@@ -88,7 +99,7 @@ export default function DocumentDetailPage() {
             </Badge>
             {doc.status === "converted" && <Badge size="sm" color="success">Collected</Badge>}
             {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
-            {doc.has_lapsed && <Badge size="sm" color="warning">{layaway ? "Overdue" : "Expired"}</Badge>}
+            {doc.has_lapsed && <Badge size="sm" color="warning">{layaway || job ? "Overdue" : "Expired"}</Badge>}
           </h2>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
             {doc.customer_name ?? "Walk-in"}
@@ -101,15 +112,15 @@ export default function DocumentDetailPage() {
               </>
             )}
             {doc.expires_at && (
-              <> · {layaway ? "Collect by" : "Valid until"} {new Date(doc.expires_at).toLocaleDateString()}</>
+              <> · {layaway || job ? "Collect by" : "Valid until"} {new Date(doc.expires_at).toLocaleDateString()}</>
             )}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={print}>Print</Button>
-          {open && layaway && (
-            <Button size="sm" variant="outline" onClick={depositModal.openModal}>Take instalment</Button>
+          {open && takesAdvance && (
+            <Button size="sm" variant="outline" onClick={depositModal.openModal}>{job ? "Take an advance" : "Take instalment"}</Button>
           )}
           {open && <Button size="sm" onClick={collectModal.openModal}>Bill &amp; hand over</Button>}
           {open && (
@@ -133,7 +144,7 @@ export default function DocumentDetailPage() {
               ) : "—"}
             </JobFact>
           )}
-          <JobFact label="What the customer said">{doc.complaint || "—"}</JobFact>
+          <JobFact label={words.said}>{doc.complaint || "—"}</JobFact>
           {words.tracksVehicle && (
             <JobFact label="Odometer coming in">
               {doc.odometer_in != null ? `${doc.odometer_in.toLocaleString()} km` : "—"}
@@ -154,7 +165,7 @@ export default function DocumentDetailPage() {
 
       {/* A quotation that ran out can't be billed at the old price — say so
           here rather than letting the cashier discover it mid-transaction. */}
-      {doc.has_lapsed && !layaway && open && (
+      {doc.has_lapsed && !layaway && !job && open && (
         <div className="mb-5">
           <Alert
             variant="warning"
@@ -226,7 +237,15 @@ export default function DocumentDetailPage() {
                             onClick={() => mut.setItemQuantity.mutate({ itemId: item.id, quantity: Number(item.quantity) - 1 }, { onError: lineFailed })}
                             className="h-7 w-7 rounded-md border border-gray-300 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
                           >−</button>
-                          <span className="min-w-8 text-center" data-testid="job-line-qty">{formatQuantity(item.quantity)}</span>
+                          <LineQuantity
+                            name={item.product_name}
+                            quantity={Number(item.quantity)}
+                            disabled={linesBusy}
+                            onChange={(quantity, undo) => mut.setItemQuantity.mutate(
+                              { itemId: item.id, quantity },
+                              { onError: (e) => { undo(); lineFailed(e); } },
+                            )}
+                          />
                           <button
                             type="button"
                             aria-label={`One more ${item.product_name}`}
@@ -264,6 +283,7 @@ export default function DocumentDetailPage() {
 
           {growing && (
             <AddToJob
+              label={words.addLine}
               disabled={linesBusy}
               onAdd={(pick) => mut.addItem.mutate(
                 { product_id: pick.product_id, variant_id: pick.variant_id, quantity: 1 },
@@ -298,7 +318,7 @@ export default function DocumentDetailPage() {
             <div className="my-3 border-t border-gray-200 dark:border-gray-700" />
             <Row label="Total" value={money(doc.total)} strong />
 
-            {layaway && (
+            {holdsMoney && (
               <>
                 <Row label="Advance paid" value={`− ${money(doc.deposit_paid)}`} />
                 <div className="my-3 border-t border-gray-200 dark:border-gray-700" />
@@ -307,7 +327,7 @@ export default function DocumentDetailPage() {
             )}
           </div>
 
-          {layaway && (doc.payments?.length ?? 0) > 0 && (
+          {holdsMoney && (doc.payments?.length ?? 0) > 0 && (
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
               <div className="mb-3 text-theme-xs uppercase tracking-wide text-gray-400">Payments received</div>
               <ul className="space-y-2">
@@ -328,6 +348,7 @@ export default function DocumentDetailPage() {
 
       {/* ── Take an instalment ───────────────────────────────────── */}
       <DepositModal
+        title={job ? "Take an advance" : "Take an instalment"}
         isOpen={depositModal.isOpen}
         onClose={depositModal.closeModal}
         balance={balance}
@@ -348,7 +369,8 @@ export default function DocumentDetailPage() {
         isOpen={collectModal.isOpen}
         onClose={collectModal.closeModal}
         balance={balance}
-        layaway={layaway}
+        // "Paid in full" is true of a job settled by its advance, too.
+        layaway={layaway || job}
         pending={mut.convert.isPending}
         odometerIn={doc.odometer_in ?? null}
         // Asked for any job that has a car — not only one whose reading was
@@ -375,9 +397,11 @@ export default function DocumentDetailPage() {
         onClose={cancelModal.closeModal}
         paid={Number(doc.deposit_paid)}
         money={money}
+        job={job}
         // The shop's usual fee, as a starting figure only. It is never applied
-        // for you — see the note in CancelModal.
-        feePercent={Number(settings.data?.layaway_cancellation_fee_percent ?? 0)}
+        // for you — see the note in CancelModal. It is the fee for goods HELD;
+        // a job took nothing off the shelf, so it is not offered there.
+        feePercent={job ? 0 : Number(settings.data?.layaway_cancellation_fee_percent ?? 0)}
         pending={mut.cancel.isPending}
         onSubmit={(payload) =>
           mut.cancel.mutate(payload, {
@@ -397,12 +421,14 @@ export default function DocumentDetailPage() {
 // ── Modals ──────────────────────────────────────────────────────────
 
 function DepositModal({
+  title,
   isOpen,
   onClose,
   balance,
   pending,
   onSubmit,
 }: {
+  title: string;
   isOpen: boolean;
   onClose: () => void;
   balance: number;
@@ -417,7 +443,7 @@ function DepositModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
       <ModalForm
-        title="Take an instalment"
+        title={title}
         footer={
           <>
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
@@ -627,6 +653,7 @@ function CancelModal({
   onClose,
   paid,
   money,
+  job,
   feePercent,
   pending,
   onSubmit,
@@ -635,6 +662,8 @@ function CancelModal({
   onClose: () => void;
   paid: number;
   money: (n: string | number) => string;
+  /** A job holds no goods, so nothing "goes back on the shelf". */
+  job: boolean;
   /** The shop's usual cancellation fee. A suggestion, never an application. */
   feePercent: number;
   pending: boolean;
@@ -665,7 +694,7 @@ function CancelModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
       <ModalForm
-        title="Cancel this document"
+        title={job ? "Cancel this job" : "Cancel this document"}
         footer={
           <>
             <Button size="sm" variant="outline" onClick={onClose}>Keep it open</Button>
@@ -680,14 +709,16 @@ function CancelModal({
                 })
               }
             >
-              Cancel document
+              {job ? "Cancel job" : "Cancel document"}
             </Button>
           </>
         }
       >
         <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
           {paid > 0
-            ? "The goods go back on the shelf, and the advance is accounted for below."
+            ? job
+              ? "The advance is accounted for below. A part already ordered for this job is yours to keep as a fee."
+              : "The goods go back on the shelf, and the advance is accounted for below."
             : "Nothing was paid and nothing is being held — this just closes it."}
         </p>
         <div className="space-y-4">
@@ -731,6 +762,62 @@ function CancelModal({
 }
 
 // ── Small pieces ────────────────────────────────────────────────────
+
+/**
+ * HOW MANY, TYPED.
+ *
+ * A laundry takes in twenty-five shirts, and a workshop puts 3.5 litres of oil
+ * in an engine. With only − and + the first was twenty-four presses, each a
+ * trip to the server, and the second could not be said at all. The buttons
+ * stay for "one more"; the box is for a number. The server still judges it —
+ * a part sold by the piece is refused half of one — and a refusal puts the
+ * figure that is really on the job back in the box.
+ */
+function LineQuantity({
+  name,
+  quantity,
+  disabled,
+  onChange,
+}: {
+  name: string;
+  quantity: number;
+  disabled: boolean;
+  onChange: (quantity: number, undo: () => void) => void;
+}) {
+  const [typed, setTyped] = useState(formatQuantity(quantity));
+  useEffect(() => setTyped(formatQuantity(quantity)), [quantity]);
+
+  const commit = () => {
+    const q = Number(typed);
+    if (typed.trim() === "" || !Number.isFinite(q) || q <= 0) {
+      setTyped(formatQuantity(quantity));
+      return;
+    }
+    if (q !== quantity) onChange(q, () => setTyped(formatQuantity(quantity)));
+  };
+
+  return (
+    <input
+      type="number"
+      min="0"
+      step="any"
+      inputMode="decimal"
+      aria-label={`How many ${name}`}
+      data-testid="job-line-qty"
+      value={typed}
+      disabled={disabled}
+      onChange={(e) => setTyped(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        }
+      }}
+      className="h-7 w-14 rounded-md border border-gray-300 bg-transparent text-center tabular-nums text-gray-700 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200"
+    />
+  );
+}
 
 function Row({
   label,

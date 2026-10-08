@@ -65,6 +65,10 @@ export function BookInModal({ onClose, onBooked }: Props) {
   // shop already knows it will charge for, or the part it is about to order.
   const [itemSearch, setItemSearch] = useState("");
   const [item, setItem] = useState<{ id: string; name: string } | null>(null);
+  // How many of it. A laundry takes in eight shirts, not one shirt and seven
+  // presses of "+" afterwards.
+  const [howMany, setHowMany] = useState("1");
+  const count = Number(howMany);
 
   const debouncedPlate = useDebouncedValue(plate, 250);
   const debouncedItem = useDebouncedValue(itemSearch, 250);
@@ -102,7 +106,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
         promised_at: instantOf(promised),
         customer_name: customer.trim() || undefined,
         customer_phone: phone.trim() || undefined,
-        items: [{ product_id: item!.id, quantity: 1 }],
+        items: [{ product_id: item!.id, quantity: count }],
       });
     },
     onSuccess: ({ data }) => onBooked(data.number),
@@ -110,19 +114,19 @@ export function BookInModal({ onClose, onBooked }: Props) {
       toast.error(
         e instanceof ApiError
           ? (e.firstFieldError() ?? e.message)
-          : "That car could not be booked in.",
+          : `That ${words.unit} could not be taken in.`,
       ),
   });
 
   // A plate is required where the plate IS the job. Elsewhere the customer's
   // name and the instructions are what identify the work.
-  const ready = (!words.tracksVehicle || plate.trim() !== "") && item !== null;
+  const ready = (!words.tracksVehicle || plate.trim() !== "") && item !== null && howMany.trim() !== "" && count > 0;
 
   return (
     <Modal isOpen onClose={onClose} className="max-w-lg p-6">
       <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{words.takeIn}</h3>
       <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
-        Parts and labour go on as you work. Nothing here is a price.
+        {words.goesOn} go on as you work. Nothing here is a price.
       </p>
 
       <div className="max-h-[65dvh] space-y-4 overflow-y-auto pr-1">
@@ -180,7 +184,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
         )}
 
         <div>
-          <Label>What is wrong, in the customer&rsquo;s words</Label>
+          <Label>{words.asks}</Label>
           <TextArea
             rows={2}
             value={complaint}
@@ -188,8 +192,9 @@ export function BookInModal({ onClose, onBooked }: Props) {
             placeholder={words.tracksVehicle ? "Noise from front left when braking" : "8 shirts, starch on collars"}
           />
           <p className="mt-1 text-theme-xs text-gray-400">
-            The first thing whoever does the work reads. Write what they said, not what you think it
-            is.
+            {words.tracksVehicle
+              ? "The first thing whoever does the work reads. Write what they said, not what you think it is."
+              : "The first thing whoever does the work reads — and what the customer's slip will say."}
           </p>
         </div>
 
@@ -224,7 +229,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
               <Input
                 value={itemSearch}
                 onChange={(e) => setItemSearch(e.target.value)}
-                placeholder="Search a part or a labour item"
+                placeholder={words.findItem}
               />
               {(items.data ?? []).length > 0 && (
                 <div className="mt-1 space-y-1">
@@ -242,20 +247,29 @@ export function BookInModal({ onClose, onBooked }: Props) {
               )}
             </>
           ) : (
-            <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-theme-sm dark:border-gray-700">
-              <span className="text-gray-700 dark:text-gray-200">{item.name}</span>
-              <button
-                type="button"
-                onClick={() => setItem(null)}
-                className="text-theme-xs text-gray-400 hover:text-error-500"
-              >
-                Change
-              </button>
+            <div className="flex items-center gap-2">
+              <div className="flex flex-1 items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-theme-sm dark:border-gray-700">
+                <span className="text-gray-700 dark:text-gray-200">{item.name}</span>
+                <button
+                  type="button"
+                  onClick={() => setItem(null)}
+                  className="text-theme-xs text-gray-400 hover:text-error-500"
+                >
+                  Change
+                </button>
+              </div>
+              <Input
+                type="number"
+                min="0"
+                aria-label="How many"
+                value={howMany}
+                onChange={(e) => setHowMany(e.target.value)}
+                className="w-20 text-center"
+              />
             </div>
           )}
           <p className="mt-1 text-theme-xs text-gray-400">
-            Something to open the job with — the diagnostic hour, or the part you already know it
-            needs. Everything else goes on as you work.
+            Something to open the job with — {words.opensWith}. Everything else goes on as you work.
           </p>
         </div>
       </div>
@@ -263,7 +277,7 @@ export function BookInModal({ onClose, onBooked }: Props) {
       <div className="mt-6 flex justify-end gap-2">
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
         <Button size="sm" disabled={!ready || book.isPending} onClick={() => book.mutate()}>
-          {book.isPending ? "Booking in…" : "Book in"}
+          {book.isPending ? "Saving…" : words.confirm}
         </Button>
       </div>
     </Modal>

@@ -19,6 +19,7 @@ import { API, tradeAuth } from "./api";
  *     only for a loyalty member or a prescription
  *   a car could not be given an owner from any screen
  *   a car booked in with no reading could not be given one when it left
+ *   a quantity could only be pressed out one at a time, never typed
  *
  * A workshop's spec. In every other trade's project it stands aside.
  */
@@ -141,6 +142,22 @@ test("a car is booked in, the job grows as it is worked on, and it is billed for
   await expect.poll(() => total(page), { message: "a second hour did not go on" }).toBe(8000);
   await page.getByRole("button", { name: `One fewer ${LABOUR.name}` }).click();
   await expect.poll(() => total(page)).toBe(7000);
+
+  // A number is typed, not pressed out one at a time: three hours, then back to one.
+  const hours = page.getByLabel(`How many ${LABOUR.name}`, { exact: true });
+  await hours.fill("3");
+  await hours.press("Enter");
+  await expect.poll(() => total(page), { message: "a typed quantity did not reach the job" }).toBe(9000);
+  await hours.fill("1");
+  await hours.press("Enter");
+  await expect.poll(() => total(page)).toBe(7000);
+
+  // Half a part is refused by the server — and the box says what is really on the job.
+  const parts = page.getByLabel(`How many ${PART.name}`, { exact: true });
+  await parts.fill("0.5");
+  await parts.press("Enter");
+  await expect(parts, "a refused quantity stayed in the box as if it had been taken").toHaveValue("1", { timeout: 15_000 });
+  expect(await total(page)).toBe(7000);
 
   // The check comes off: it was not charged after all.
   await page.getByRole("button", { name: `Take ${CHECK.name} off the job` }).click();

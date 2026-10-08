@@ -11,7 +11,9 @@ import {
   type SaleDocument,
   type WorkStatus,
 } from "../../documents/services/documentService";
+import Input from "../../../components/form/input/InputField";
 import { BookInModal } from "../components/BookInModal";
+import { findOnBoard } from "../find";
 import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 
@@ -129,9 +131,11 @@ export default function WorkshopPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "That could not be moved."),
   });
 
+  const [find, setFind] = useState("");
   const rows = jobs.data?.rows ?? [];
   const missing = jobs.data?.missing ?? 0;
-  const at = (stage: WorkStatus) => rows.filter((j) => j.work_status === stage);
+  const shown = findOnBoard(rows, find);
+  const at = (stage: WorkStatus) => shown.filter((j) => j.work_status === stage);
 
   return (
     <div>
@@ -159,6 +163,17 @@ export default function WorkshopPage() {
         />
       )}
 
+      {rows.length > 0 && (
+        <div className="mb-4 max-w-md">
+          <Input aria-label={words.find} placeholder={words.find} value={find} onChange={(e) => setFind(e.target.value)} />
+          {find.trim() !== "" && shown.length === 0 && (
+            <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              No {words.unit} in the shop matches “{find.trim()}”.
+            </p>
+          )}
+        </div>
+      )}
+
       {jobs.isLoading ? (
         <div className="grid gap-4 md:grid-cols-3">
           {STAGES.map((s) => (
@@ -169,8 +184,8 @@ export default function WorkshopPage() {
         <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
           <p className="text-gray-500 dark:text-gray-400">No {words.units} in the shop.</p>
           <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
-            Take one in when it arrives — the parts and labour go on as you work, and the whole
-            job becomes an invoice when the customer collects.
+            Take one in when it arrives — {words.goesOn.toLowerCase()} go on as you work, and the
+            whole job becomes an invoice when the customer collects.
           </p>
           <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>{words.takeIn}</Button>
         </div>
