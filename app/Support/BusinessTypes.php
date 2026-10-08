@@ -546,6 +546,35 @@ class BusinessTypes
     }
 
     /**
+     * What a sub-trade is CALLED. `online_boutique` is a key; "Clothing &
+     * Boutique" is what the shop chose from the list. The storefront printed
+     * the key under the shop's name, to strangers.
+     *
+     * Looked up under the shop's own trade first (a legacy code resolves to
+     * the trade it became), then anywhere — Auto Workshop is offered under two
+     * trades. Null for a key nobody offers, rather than the key itself.
+     */
+    public static function categoryLabel(?string $type, ?string $category): ?string
+    {
+        if ($category === null || $category === '') {
+            return null;
+        }
+
+        $own = $type !== null ? self::categoriesFor(self::primary($type)) : [];
+        $everywhere = collect(self::all())->flatMap(fn ($t) => $t['categories'] ?? [])->all();
+
+        foreach ([$own, $everywhere] as $offered) {
+            foreach ($offered as $c) {
+                if (($c['value'] ?? null) === $category) {
+                    return $c['label'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * The current type a code stands for. A primary code is its own primary;
      * a legacy one resolves to what it was absorbed into; an unknown code is
      * returned untouched so nothing is invented for it.

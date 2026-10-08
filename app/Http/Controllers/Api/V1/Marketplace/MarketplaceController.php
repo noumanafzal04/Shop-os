@@ -1367,6 +1367,8 @@ class MarketplaceController extends Controller
             'business_name' => $tenant->business_name,
             'business_type' => $tenant->business_type,
             'business_category' => $tenant->business_category,
+            // What the key is called — the key is for filters, never for a reader.
+            'business_category_label' => BusinessTypes::categoryLabel($tenant->business_type, $tenant->business_category),
             'city' => $tenant->city?->only(['id', 'name']),
             /**
              * A PATH THE APP CANNOT LOAD, and the URL it can.

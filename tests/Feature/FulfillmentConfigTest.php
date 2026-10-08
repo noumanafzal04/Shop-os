@@ -98,6 +98,36 @@ class FulfillmentConfigTest extends TestCase
 
     // ── Delivery economics ──────────────────────────────────────────
 
+    public function test_a_basket_short_of_the_minimum_is_told_by_how_much_in_rupees(): void
+    {
+        $shop = $this->makeShop(['min_order_amount' => 1000]);
+        $p = $this->makeProduct($shop, 900);
+
+        // It said "Minimum order for delivery is 1,000 — add a bit more": no
+        // currency, and no figure for the bit.
+        $this->order($shop, $p, 'delivery')
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Minimum order for delivery is Rs 1,000 — add Rs 100 more, or collect it.');
+    }
+
+    public function test_a_shop_says_what_its_kind_of_business_is_called_not_its_key(): void
+    {
+        $shop = $this->makeShop([], ['business_type' => 'online', 'business_category' => 'online_boutique']);
+
+        $this->getJson("/api/v1/marketplace/shops/{$shop->slug}")
+            ->assertOk()
+            ->assertJsonPath('data.business_category', 'online_boutique')
+            ->assertJsonPath('data.business_category_label', 'Clothing & Boutique');
+    }
+
+    public function test_a_key_nobody_offers_has_no_label_rather_than_itself(): void
+    {
+        $this->assertNull(BusinessTypes::categoryLabel('online', 'not_a_category'));
+        $this->assertNull(BusinessTypes::categoryLabel('online', null));
+        // Offered under another trade only: still found.
+        $this->assertSame('Auto Workshop (labour only)', BusinessTypes::categoryLabel('online', 'auto_workshop'));
+    }
+
     public function test_minimum_order_amount_enforced_for_delivery(): void
     {
         $shop = $this->makeShop(['min_order_amount' => 500]);

@@ -371,7 +371,8 @@ class OrderService
                     $minOrder = $counter ? null : $lockedShop->setting('min_order_amount');
                     if ($minOrder !== null && $subtotal < (float) $minOrder) {
                         throw DomainException::unprocessable(
-                            'Minimum order for delivery is '.number_format((float) $minOrder).' — add a bit more to your cart.',
+                            'Minimum order for delivery is '.$lockedShop->currencySymbol().' '.number_format((float) $minOrder)
+                                .' — add '.$lockedShop->currencySymbol().' '.number_format((float) $minOrder - $subtotal).' more, or collect it.',
                             'MIN_ORDER_AMOUNT',
                         );
                     }
