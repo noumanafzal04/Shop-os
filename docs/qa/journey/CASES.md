@@ -273,6 +273,23 @@ Run after stages A and B for a petroleum shop. No tax. Petrol 290 a litre
 | N5 | Deliveries & rates | The midnight rate, entered at eight | At a time, midnight offered; an hour that has gone is refused; recorded and waiting — "Not at the pumps yet"; tonight's petrol is still 290 |
 | N6 | Forecourt | Closed on every meter and every dip | not until every meter is read and every tank dipped; 26.897 L by meter, 5 tested, the same 26.897 at the till, nothing unbilled; 13.103 L short in the ground, said apart; the shelf is what the stick said; the plant is free and the meters stand where the shift left them |
 
+## Stage O — a laundry's own day (`26-services-the-work-taken-in.spec.ts`, `JOURNEY_TRADE=services`)
+
+Run after stages A and B for a services shop. No tax. Shirt wash and press
+150; collar starch 50; suit dry clean 900; express press 100.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| O1 | Products | What a laundry sells is work | each is a service; nothing tracks stock |
+| O2 | Till | Three shirts pressed while they wait | 300, one line of 3 |
+| O3 | Jobs | Eight shirts taken in | no registration, no odometer, no "parts", "labour" or "wrong"; nothing can be taken in with nothing on it; "What they want done", whose, their phone, back tomorrow at six; EIGHT typed, 1,200; six o'clock stored as six; on the board under Taken in with the name, the instructions and "Due … 06:00" |
+| O4 | Jobs → job | Found by the number the customer says, and an advance | the phone said with spaces finds that one card and no other; a stranger is "No job in the shop matches"; the page says Job card, ← Jobs, Instructions, no car; Take an advance 500 cash; Advance paid on the job, with the payment |
+| O5 | Job | The work grows | collars starched on, shirts typed up to 10 and collars to 10: 2,000; Balance due 1,500; the board card says Rs 2,000 |
+| O6 | Job → Print | The slip | "Job Card", not Quotation or "Valid until"; Instructions and what they asked for; the customer; no car; Advance paid; "Total so far"; "not the final bill" |
+| O7 | Jobs | Along the board, and back | taken in → being worked on → ready → back → ready |
+| O8 | Job | Collected | "Take Rs 1,500"; no odometer asked; billed 2,000 for both lines, in her name; paid as 500 deposit + 1,500 cash; off the board |
+| O9 | Job | Never collected | an advance of 300; "Cancel this job", nothing about a shelf, no fee assumed; 100 kept, Rs 200 shown as returned; cancelled with 200 refunded and 100 kept; the board is empty |
+
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
 Run on the mart shop after stage G. The drawer is counted through the API

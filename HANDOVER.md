@@ -8464,3 +8464,28 @@ product in "Holds" (`usePickableProducts`).
 `trade.forecourt-counter.spec.ts` (trade-petroleum).
 
 **Next for the journey:** services, online, finance.
+
+## A laundry's own day — the journey's stage O, 2026-10-08
+
+Decision: `shopos-work-taken-in-is-a-job`. Findings 82–89 in
+`docs/qa/journey/RUNS.md`; cases O1–O9 in `CASES.md`.
+
+**Server.** `SaleDocumentController::cancel` asks refund permission of any
+document holding an advance (was: layaway only). `RecordDepositAction` says
+"job" to a job. `show.blade.php` prints a job card as a Job Card (vehicle and
+reading or Instructions, promised, Total so far, the advance, "not the final
+bill"); `print` loads the vehicle; `CreateSaleDocumentAction` writes no
+quotation terms on a job card. No migration.
+
+**Panel.** `DocumentDetailPage`: Take an advance on a job; advance, balance and
+payments drawn when a job holds money; `LineQuantity` (typed, − and + kept);
+cancel sheet knows a job. `BookInModal`: How many; the board's words.
+`workshop/words.ts` (+8 words), `workshop/find.ts` + the board's find box.
+`AddToJob` takes its label.
+
+**Tests.** Backend `AJobGrowsAsTheWorkIsDoneTest` 36. Panel `words.test.ts`,
+`find.test.ts`. Journey stage O 9/9. Re-runnable: `trade.work-taken-in.spec.ts`
+(trade-services); `trade.job-grows.spec.ts` types a quantity now.
+
+**Next for the journey:** online, finance. Then the product import per trade
+and per module (the user's request of 2026-10-08, kept for the end).

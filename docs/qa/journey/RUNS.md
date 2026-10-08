@@ -315,3 +315,36 @@ Re-runnable: `e2e/trade.forecourt-counter.spec.ts` (trade-petroleum; 3 cases;
 saves nothing).
 
 Next: services (the Jobs board for a laundry or tailor), online, finance.
+
+## Stage O — a laundry's own day (2026-10-08)
+
+`JOURNEY_TRADE=services … e2e/journey/26`, on the services shop made by the
+breadth run (stages A and B, 2026-10-06).
+
+| Stage | Cases | Result |
+|---|---|---|
+| O — services on the shelf, a walk-in, eight shirts taken in, an advance, the work grows, the slip, the board, collected, never collected | 9 | 9 passed |
+
+The faults below were found by reading each screen as a laundry while the
+stage was written, and were fixed before it ran; it then passed first time.
+The board's movement, billing and the advance as a tender (not a discount)
+were right already.
+
+| # | Found at | What a laundry met | Fix |
+|---|---|---|---|
+| 82 | O4, reading the job | **A job could not take an advance from its own page** — "Take instalment" was a layaway's — and an advance taken any other way was drawn nowhere on the job | "Take an advance"; advance, balance and payments drawn whenever a job holds money |
+| 83 | O6, reading the slip | **The slip printed as a quotation**: "Valid until", quotation terms, nothing the customer asked for | a Job Card: Instructions / Customer said, the car if any, promised, Total so far, the advance, "not the final bill"; no quotation terms on a job |
+| 84 | reading the cancel door | **A cashier could cancel a job and hand its advance out of the drawer** — refund permission was asked of a layaway only | asked of the money, not the kind |
+| 85 | O9 | The cancel sheet spoke of goods going back on a shelf and offered the layaway's fee | worded for a job; no layaway fee |
+| 86 | O3 | The board asked what is "wrong" with shirts, said "parts and labour", searched "a part or a labour item"; "That car could not be booked in" | the board's own words |
+| 87 | O3, O5 | **Eight shirts could only be taken in as one**, then pressed up seven times; 3.5 litres could not be said | How many when taken in; a typed quantity on every job line |
+| 88 | O4 | A full board had no way to find one customer's work | find by slip number, name, phone or plate |
+| 89 | reading the deposit door | A job's refusals said "still owed on this layaway", "This layaway was cancelled" | they say job |
+
+Re-runnable: `e2e/trade.work-taken-in.spec.ts` (trade-services; 2 cases;
+clears its own customer's open work first).
+
+Not built, said honestly on its screen: staff commission (a salon's
+per-stylist pay).
+
+Next: online, finance.
