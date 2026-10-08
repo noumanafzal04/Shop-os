@@ -342,7 +342,11 @@ were right already.
 | 89 | reading the deposit door | A job's refusals said "still owed on this layaway", "This layaway was cancelled" | they say job |
 
 Re-runnable: `e2e/trade.work-taken-in.spec.ts` (trade-services; 2 cases;
-clears its own customer's open work first).
+clears its own customer's open work first). Browser mutations on it: 15/15.
+One survived at first — "the find box finds nothing" — because the check
+("only this card is left") ran on a board holding ONE job, where it is true
+whatever the box does. The spec now keeps another customer's job on the board
+and asserts there is more than one before it finds.
 
 Not built, said honestly on its screen: staff commission (a salon's
 per-stylist pay).
