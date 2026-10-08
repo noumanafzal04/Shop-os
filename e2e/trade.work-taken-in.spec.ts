@@ -25,6 +25,8 @@ import { API, tradeAuth } from "./api";
 const WASH = { name: "E2E Laundry Wash", price: 150 };
 const STARCH = { name: "E2E Laundry Starch", price: 50 };
 const WHO = { name: "E2E Laundry Customer", phone: "03007780001", spoken: "0300 778 0001" } as const;
+/** Somebody else's work, left on the board on purpose, so finding one job has something to leave out. */
+const OTHER = { name: "E2E Laundry Neighbour", phone: "03007780002" } as const;
 const ASKED = "4 shirts, no bleach";
 
 type Row = Record<string, unknown>;
@@ -58,6 +60,17 @@ async function shelf(request: APIRequestContext): Promise<void> {
 
 const theirJobs = async (request: APIRequestContext): Promise<Job[]> =>
   (await get<Job[]>(request, "/sale-documents?kind=job_card&status=open&per_page=100")).filter((j) => j.customer_phone === WHO.phone);
+
+/** Another customer's job on the board — opened once and left there, run after run. */
+async function someoneElsesWork(request: APIRequestContext): Promise<void> {
+  const open = await get<Job[]>(request, "/sale-documents?kind=job_card&status=open&per_page=100");
+  if (open.some((j) => j.customer_phone === OTHER.phone)) return;
+  const [wash] = (await get<Row[]>(request, `/products?search=${encodeURIComponent(WASH.name)}`)).filter((p) => p.name === WASH.name);
+  await post(request, "/sale-documents", {
+    kind: "job_card", customer_name: OTHER.name, customer_phone: OTHER.phone, complaint: "2 shirts",
+    items: [{ product_id: wash.id, quantity: 2 }],
+  });
+}
 
 /** Whatever an earlier run left on the board for this customer, cancelled — every rupee handed back. */
 async function counterClear(request: APIRequestContext): Promise<void> {
@@ -105,12 +118,15 @@ async function takeIn(page: Page, request: APIRequestContext, howMany: number): 
 /** Find it on the board the way the customer says it, and open it. */
 async function findAndOpen(page: Page, number: string): Promise<void> {
   await page.goto("/tenant/workshop");
+  const jobsOnBoard = page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: /^JOB-/ }) });
+  // The denominator: there is more than one job here to begin with.
+  await expect.poll(() => jobsOnBoard.count(), { timeout: 15_000 }).toBeGreaterThan(1);
   const find = page.getByLabel("Find a job — slip number, name or phone", { exact: true });
   await expect(find, "a full board has no way to find one customer's work").toBeVisible({ timeout: 15_000 });
   await find.fill(WHO.spoken);
   await expect(card(page, number), "the customer's phone, said with spaces, did not find their work").toBeVisible({ timeout: 15_000 });
   // Found means the rest of the board stood aside — not that this card was somewhere on it.
-  await expect(page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: /^JOB-/ }) })).toHaveCount(1);
+  await expect(jobsOnBoard).toHaveCount(1);
   await card(page, number).getByRole("link", { name: number, exact: true }).click();
   await expect(page.getByTestId("job-details")).toBeVisible({ timeout: 15_000 });
 }
@@ -128,6 +144,7 @@ async function takeAnAdvance(page: Page, amount: number): Promise<void> {
 test("work is taken in by the piece, money is left with it, it grows, prints as a job and is billed with the advance off", async ({ page, request }, info) => {
   test.skip(info.project.name !== "trade-services", "a services counter — the other trades take no work in like this");
   await shelf(request);
+  await someoneElsesWork(request);
   await counterClear(request);
 
   // ── taken in: four shirts, typed ───────────────────────────────────
@@ -188,6 +205,7 @@ test("work is taken in by the piece, money is left with it, it grows, prints as 
 test("a job nobody comes back for is cancelled as a job — nothing goes back on a shelf, and no layaway fee is assumed", async ({ page, request }, info) => {
   test.skip(info.project.name !== "trade-services", "a services counter — the other trades take no work in like this");
   await shelf(request);
+  await someoneElsesWork(request);
   await counterClear(request);
   // The shop keeps 10% when goods HELD on advance are given up. A laundry's job
   // held nothing, so that figure must not be put in front of the counter here.
