@@ -1164,6 +1164,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/customers', [AdminCustomerController::class, 'store'])
                 ->middleware('role:super_admin');
 
+            // …and everything that comes after making one. There was only the
+            // line above: an account could be made and then never found again.
+            Route::middleware('role:super_admin')->group(function (): void {
+                Route::get('/customers', [AdminCustomerController::class, 'index']);
+                Route::get('/customers/summary', [AdminCustomerController::class, 'summary']);
+                Route::get('/customers/{id}', [AdminCustomerController::class, 'show']);
+                Route::patch('/customers/{id}', [AdminCustomerController::class, 'update']);
+                Route::delete('/customers/{id}', [AdminCustomerController::class, 'destroy']);
+                Route::post('/customers/{id}/suspend', [AdminCustomerController::class, 'suspend']);
+                Route::post('/customers/{id}/activate', [AdminCustomerController::class, 'activate']);
+                Route::post('/customers/{id}/password', [AdminCustomerController::class, 'resetPassword']);
+            });
+
             // Rider applications. A stranger who will hold a customer's cash
             // and stand at their door is approved by a person, never by a
             // form completing itself.

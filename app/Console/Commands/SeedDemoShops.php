@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Tenant\AssignPlanAction;
 use App\Console\Commands\DemoShops\CafeMenu;
 use App\Console\Commands\DemoShops\MartShelves;
 use App\Console\Commands\DemoShops\TradeLists;
@@ -9,6 +10,7 @@ use App\Enums\TenantStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\City;
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -106,7 +108,7 @@ class SeedDemoShops extends SeedLoadTestShops
         'clothing' => [
             'n' => 4, 'name' => 'Zari Clothing', 'type' => 'retail', 'category' => 'garments', 'owner' => 'Ayesha Sheikh',
             'colour' => '#9D174D', 'address' => 'Shop 18, Emporium Mall, Johar Town, Lahore', 'at' => [31.4675, 74.2660],
-            'plan' => 'premium', 'branches' => ['Main — Emporium Mall', 'Packages Mall'],
+            'plan' => 'pro', 'branches' => ['Main — Emporium Mall', 'Packages Mall'],
             'sizes' => 4, 'batches' => false, 'dining' => false, 'online' => true,
         ],
         'services' => [
@@ -124,7 +126,7 @@ class SeedDemoShops extends SeedLoadTestShops
         'fuels' => [
             'n' => 7, 'name' => 'Canal Road Fuels', 'type' => 'petroleum', 'category' => 'filling_station', 'owner' => 'Imran Khokhar',
             'colour' => '#A16207', 'address' => 'Canal Bank Road, near Doctors Hospital, Johar Town, Lahore', 'at' => [31.4780, 74.2832],
-            'plan' => 'premium', 'branches' => ['Main — Canal Road', 'Raiwind Road'],
+            'plan' => 'pro', 'branches' => ['Main — Canal Road', 'Raiwind Road'],
             'sizes' => 0, 'batches' => false, 'dining' => false,
         ],
         'gadgets' => [
@@ -138,6 +140,42 @@ class SeedDemoShops extends SeedLoadTestShops
             'colour' => '#0F766E', 'address' => 'Office 12, Siddiq Trade Centre, Gulberg, Lahore', 'at' => [31.5360, 74.3440],
             'plan' => 'basic', 'extra_staff' => 7, 'hrm' => true, 'branches' => ['Main — Office'],
             'sizes' => 0, 'batches' => false, 'dining' => false,
+        ],
+    ];
+
+    /**
+     * Terms agreed with one shop — a plan of its own, on no price list.
+     *
+     * Three of the nine are on one, because that is what a platform's books
+     * look like: most shops on the ladder, and a few big enough to have talked
+     * a deal. A petrol pump that pays once a year is the third kind of row.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    private const AGREED = [
+        'cafe' => [
+            'name' => 'Johar Café & Grill — custom',
+            'description' => 'Agreed with Johar Café & Grill: two branches with dine-in, fourteen staff, six tills and no ceiling on the menu.',
+            'price' => 6500, 'billing_period_months' => 1, 'grace_period_days' => 21,
+            'max_branches' => 2, 'max_staff' => 14, 'max_registers' => 6,
+            'max_products' => null, 'max_storage_mb' => 10240, 'max_orders_month' => 30000, 'grace_orders_month' => 3000,
+            'retention_months' => 60, 'max_offline_selling' => 1, 'max_offline_days' => 3,
+        ],
+        'mart' => [
+            'name' => 'Johar Fresh Mart — custom',
+            'description' => 'Agreed with Johar Fresh Mart: a three-branch chain, thirty staff and ten checkout lanes, with a month of grace.',
+            'price' => 11500, 'billing_period_months' => 1, 'grace_period_days' => 30,
+            'max_branches' => 3, 'max_staff' => 30, 'max_registers' => 10,
+            'max_products' => null, 'max_storage_mb' => 20480, 'max_orders_month' => null, 'grace_orders_month' => null,
+            'retention_months' => 120, 'max_offline_selling' => 1, 'max_offline_days' => 7,
+        ],
+        'fuels' => [
+            'name' => 'Canal Road Fuels — yearly',
+            'description' => 'Agreed with Canal Road Fuels: two forecourts, paid once a year in advance.',
+            'price' => 72000, 'billing_period_months' => 12, 'grace_period_days' => 30,
+            'max_branches' => 2, 'max_staff' => 20, 'max_registers' => 6,
+            'max_products' => 5000, 'max_storage_mb' => 5120, 'max_orders_month' => 60000, 'grace_orders_month' => 5000,
+            'retention_months' => 120, 'max_offline_selling' => 1, 'max_offline_days' => 7,
         ],
     ];
 
@@ -459,6 +497,70 @@ class SeedDemoShops extends SeedLoadTestShops
         if (! $this->option('listed') && $tenant->online_shop_enabled) {
             $tenant->forceFill(['online_shop_enabled' => false])->save();
         }
+
+        $this->subscribe($tenant, $shop);
+    }
+
+    /**
+     * On its plan, and paid up — month by month, through the action an
+     * admin's "Record payment" runs.
+     *
+     * The builder puts a shop on a plan by writing the column, which is
+     * enough for a load test and leaves the platform's own side of the demo
+     * empty: a shop that has traded for three months and never once paid.
+     * Billing & Payments is a screen too, and it is the one the people who run
+     * the platform open first.
+     */
+    private function subscribe(Tenant $tenant, array $shop): void
+    {
+        $plan = isset(self::AGREED[$this->key])
+            ? Plan::query()->updateOrCreate(
+                ['code' => self::SLUGS.$this->key.'-custom'],
+                self::AGREED[$this->key] + ['is_active' => true, 'is_custom' => true],
+            )
+            : (Plan::query()->where('code', $shop['plan'])->where('is_active', true)->first()
+                ?? Plan::query()->where('is_active', true)->where('is_custom', false)->orderBy('price')->first());
+
+        if ($plan === null) {
+            $this->warn('  plan       none to put it on — run PlanSeeder, then demo:shops --fresh');
+
+            return;
+        }
+
+        // Nobody is signed in: these were recorded by the platform, not by
+        // the shop's own owner, who is who the build left as the acting user.
+        auth()->forgetGuards();
+
+        $assign = app(AssignPlanAction::class);
+        $every = max(1, (int) $plan->billing_period_months);
+        // Each joined a different number of months ago, so the list is not
+        // nine shops that all signed up on one afternoon. A shop that pays by
+        // the year has paid once.
+        $periods = max(1, intdiv(2 + ($shop['n'] % 4), $every));
+        $joined = now()->subMonthsNoOverflow($periods * $every - 1)->startOfDay()->subDays($shop['n']);
+        $methods = ['bank_transfer', 'cash', 'bank_transfer', 'card'];
+        $paid = 0;
+
+        for ($i = 0; $i < $periods; $i++) {
+            $from = $joined->copy()->addMonthsNoOverflow($i * $every);
+            $method = $methods[($i + $shop['n']) % count($methods)];
+
+            $assign->execute($tenant, $plan, [
+                'amount' => (float) $plan->price,
+                'method' => $method,
+                'reference' => $method === 'bank_transfer' ? 'TRX-'.$from->format('ym').str_pad((string) ($shop['n'] * 137 + $i), 5, '0', STR_PAD_LEFT) : null,
+                'paid_at' => $from->copy()->addHours(11)->toDateTimeString(),
+            ], [
+                'starts_at' => $from->toDateTimeString(),
+                'ends_at' => $from->copy()->addMonthsNoOverflow($every)->toDateTimeString(),
+            ]);
+            $paid++;
+        }
+
+        // A customer since the first of them, not since the latest.
+        $tenant->forceFill(['subscription_starts_at' => $joined])->save();
+
+        $this->line(sprintf('  plan       %s · %d payments · paid to %s', $plan->name, $paid, $tenant->fresh()->subscription_ends_at?->toDateString()));
     }
 
     /**
@@ -495,6 +597,9 @@ class SeedDemoShops extends SeedLoadTestShops
             // are the platform's customers, and nothing else removes them.
             User::withTrashed()->where('email', 'like', $shoppers)->get()->each->forceDelete();
             User::withTrashed()->where('email', 'like', 'shop'.self::SHOPS[$key]['n'].'%@'.self::LOGINS)->get()->each->forceDelete();
+
+            // The terms that were agreed with it go with it.
+            Plan::query()->where('code', self::SLUGS.$key.'-custom')->whereDoesntHave('tenants')->delete();
         }
     }
 }

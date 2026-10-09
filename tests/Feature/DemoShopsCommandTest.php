@@ -130,6 +130,21 @@ class DemoShopsCommandTest extends TestCase
 
         // An office keeps books: that is what it was given.
         $this->assertGreaterThan(0, DB::table('expenses')->where('tenant_id', $tenant->id)->count());
+
+        // On a plan, paid month by month, and paid up — the platform's side
+        // of the demo is a screen too.
+        $this->assertSame('basic', $tenant->plan?->code);
+        $this->assertTrue($tenant->subscription_ends_at->isFuture(), 'the demo shop has lapsed');
+        $payments = DB::table('subscription_payments')->where('tenant_id', $tenant->id)->orderBy('period_start')->get();
+        $this->assertGreaterThanOrEqual(2, $payments->count());
+        foreach ($payments as $payment) {
+            $this->assertEquals((float) $tenant->plan->price, (float) $payment->amount);
+            $this->assertLessThanOrEqual(now()->toDateTimeString(), $payment->paid_at, 'a payment is dated in the future');
+        }
+        // Each period starts where the last one ended: no gap, no overlap.
+        foreach ($payments->skip(1)->values() as $i => $payment) {
+            $this->assertSame($payments[$i]->period_end, $payment->period_start);
+        }
     }
 
     /**
@@ -176,6 +191,12 @@ class DemoShopsCommandTest extends TestCase
         $this->assertGreaterThan(0, $mine('kitchen_tickets')->count(), 'nothing was ever fired to the kitchen');
         $this->assertGreaterThan(0, $mine('sales')->count());
         $this->assertGreaterThan(0, $mine('orders')->count(), 'nobody ever ordered online');
+
+        // On terms of its own — a plan on no price list — and paid at them.
+        $this->assertTrue((bool) $tenant->plan?->is_custom);
+        $this->assertSame('Johar Café & Grill — custom', $tenant->plan->name);
+        $this->assertTrue($tenant->subscription_ends_at->isFuture());
+        $this->assertSame([6500.0], $mine('subscription_payments')->distinct()->pluck('amount')->map(fn ($a) => (float) $a)->all());
 
         // …with that order book, and still not somewhere a stranger can order from.
         $this->assertFalse((bool) $tenant->online_shop_enabled);
@@ -233,6 +254,18 @@ class DemoShopsCommandTest extends TestCase
             'a shop with no till has sales that came from one',
         );
 
+        // Three on the ladder's first three rungs, three on terms of their own.
+        $plans = $shops->map(fn (Tenant $t) => $t->plan);
+        $this->assertEqualsCanonicalizing(['basic', 'premium', 'pro'], $plans->where('is_custom', false)->pluck('code')->unique()->values()->all());
+        $this->assertSame(3, $plans->where('is_custom', true)->count());
+        // The one that pays by the year has paid once, and is not in arrears.
+        $yearly = $shops['petroleum'];
+        $this->assertSame(12, $yearly->plan->billing_period_months);
+        $this->assertSame(1, DB::table('subscription_payments')->where('tenant_id', $yearly->id)->count());
+        foreach ($shops as $shop) {
+            $this->assertTrue($shop->subscription_ends_at->isFuture(), "{$shop->business_name} has lapsed");
+        }
+
         // What each is allowed matches what it was given.
         foreach ($shops as $shop) {
             $this->assertGreaterThanOrEqual(
@@ -262,6 +295,11 @@ class DemoShopsCommandTest extends TestCase
         $this->assertNotSame($first->id, $again->id);
         $this->assertSame('Malik & Co. Accounts', $again->business_name);
         $this->assertSame(1, Tenant::withTrashed()->where('slug', 'jtdemo-accounts')->count());
+        // Paid for once over, not twice: the rebuilt shop's history is its own.
+        $this->assertSame(
+            DB::table('subscription_payments')->where('tenant_id', $again->id)->count(),
+            DB::table('subscription_payments')->count(),
+        );
         $this->assertSame(1, User::withTrashed()->where('email', 'shop9@johartown.demo')->count());
     }
 
