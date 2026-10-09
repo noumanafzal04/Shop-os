@@ -111,11 +111,42 @@ export function useModuleCatalog() {
   });
 }
 
+/**
+ * What a trade is offered on a plan. Asked again whenever either changes, so
+ * the three bands on screen are the server's answer and not a second copy of
+ * the rule.
+ */
+export function useModuleOffer(businessType: string | undefined, planId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin", "module-offer", businessType, planId ?? null],
+    queryFn: async () => (await adminService.moduleOffer(businessType!, planId)).data,
+    enabled: Boolean(businessType),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useModulePrices() {
+  return useQuery({
+    queryKey: ["admin", "module-prices"],
+    queryFn: async () => (await adminService.modulePrices()).data,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSaveModulePrices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (prices: Record<string, number>) => adminService.saveModulePrices(prices),
+    // A price is read by the offer, by every shop's bill and by the list.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin"] }),
+  });
+}
+
 export function useUpdateModules() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, modules }: { id: string; modules: Record<string, boolean> }) =>
-      adminService.updateModules(id, modules),
+    mutationFn: ({ id, modules, addonPrices }: { id: string; modules: Record<string, boolean>; addonPrices?: Record<string, number> }) =>
+      adminService.updateModules(id, modules, addonPrices),
     onSuccess: (_res, { id }) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "tenant", id] });
       queryClient.invalidateQueries({ queryKey: ["admin", "tenants"] });

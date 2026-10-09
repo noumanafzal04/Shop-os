@@ -102,6 +102,43 @@ export interface Plan {
    * admin screen can print "1 (platform default)" rather than look broken.
    */
   defaults?: { branches: number; staff: number; registers: number };
+  /**
+   * The modules the plan includes, whatever the trade. A starting point and a
+   * label — what a shop is switched on with, and the line between "in the
+   * plan" and "an add-on". It is never what decides what a shop may use.
+   */
+  modules?: string[];
+  /** Its own list, rather than what its rung of the ladder includes. */
+  modules_own?: boolean;
+}
+
+/** What a shop of one trade is offered on one plan. */
+export interface ModuleOffer {
+  included: string[];
+  addons: string[];
+  other: string[];
+  essential: string[];
+  modules: Record<string, boolean>;
+  /** The platform's monthly price for an add-on. A module not here is free to add. */
+  prices: Record<string, number>;
+  plan: { id: string; name: string; price: number; months: number } | null;
+}
+
+/** How one shop's own modules sit against its plan, and what that comes to. */
+export interface TenantPackage {
+  included: string[];
+  addons: string[];
+  /** In the plan, and switched off for this shop. */
+  missing: string[];
+  offer: { included: string[]; addons: string[]; other: string[] };
+  bill: {
+    plan: { name: string | null; price: number; months: number };
+    addons: Array<{ key: string; label: string; monthly: number; listed: number | null; own_price: boolean }>;
+    addons_monthly: number;
+    addons_total: number;
+    total: number;
+  };
+  own_prices: Record<string, number>;
 }
 
 export interface PlanInput {
@@ -126,6 +163,8 @@ export interface PlanInput {
   retention_months?: number | null;
   is_active?: boolean;
   is_custom?: boolean;
+  /** null puts the plan back on what its rung of the ladder includes. */
+  modules?: string[] | null;
 }
 
 /**
@@ -393,8 +432,12 @@ export const adminService = {
   deleteAnnouncement: (id: string) => apiDelete<null>(`/admin/announcements/${id}`),
 
   moduleCatalog: () => apiGet<ModuleInfo[]>("/admin/modules"),
-  updateModules: (id: string, modules: Record<string, boolean>) =>
-    apiPut<Tenant>(`/admin/tenants/${id}/modules`, { modules }),
+  updateModules: (id: string, modules: Record<string, boolean>, addonPrices?: Record<string, number>) =>
+    apiPut<Tenant>(`/admin/tenants/${id}/modules`, { modules, ...(addonPrices ? { addon_prices: addonPrices } : {}) }),
+  moduleOffer: (businessType: string, planId?: string) =>
+    apiGet<ModuleOffer>("/admin/modules/offer", { params: { business_type: businessType, plan_id: planId || undefined } }),
+  modulePrices: () => apiGet<Record<string, number>>("/admin/modules/prices"),
+  saveModulePrices: (prices: Record<string, number>) => apiPut<Record<string, number>>("/admin/modules/prices", { prices }),
 
   /**
    * Set (or clear, via null) one shop's ceilings — branches and staff it was

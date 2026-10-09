@@ -7,7 +7,7 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useModuleCatalog, usePlans, useTenantMutations } from "../hooks/useAdmin";
+import { useAdminCities, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { ModulePicker } from "../components/ModulePicker";
 import { settle } from "../components/moduleRules";
@@ -113,10 +113,16 @@ export default function AdminTenantCreatePage() {
   const moduleList = useMemo(() => catalog.data ?? [], [catalog.data]);
 
   // The type proposes; the admin disposes.
+  // What the chosen plan gives a shop of the chosen trade, and what can be
+  // added on top — the server's answer, asked again whenever either changes.
+  const offer = useModuleOffer(form.business_type || undefined, form.plan_id || undefined);
+
+  // The proposal follows the trade and the plan until somebody presses a
+  // switch; after that the choice is theirs and a changed plan does not undo it.
   useEffect(() => {
-    if (!selectedType || touchedModules || moduleList.length === 0) return;
-    setModules(settle(moduleList, selectedType.default_modules ?? {}));
-  }, [selectedType, touchedModules, moduleList]);
+    if (touchedModules || moduleList.length === 0 || !offer.data) return;
+    setModules(settle(moduleList, offer.data.modules));
+  }, [offer.data, touchedModules, moduleList]);
 
   // Once an admin has touched a switch, changing the business type must not
   // re-propose over the top of it — the type is a suggestion and this is a
@@ -127,6 +133,13 @@ export default function AdminTenantCreatePage() {
   };
 
   const selectedPlan = (plans.data ?? []).find((p) => p.id === form.plan_id);
+
+  // What one period comes to: the plan, and whatever was switched on past it.
+  const addOns = (offer.data ? moduleList.filter((m) => modules[m.key] && !offer.data.included.includes(m.key)) : [])
+    .map((m) => ({ key: m.key, label: m.label, monthly: offer.data?.prices[m.key] ?? 0 }));
+  const months = selectedPlan?.billing_period_months ?? 1;
+  const addOnsTotal = addOns.reduce((sum, a) => sum + a.monthly, 0) * months;
+  const due = selectedPlan ? Number(selectedPlan.price) + addOnsTotal : 0;
 
   const apiError = create.error instanceof ApiError ? create.error : null;
   const errorFor = (k: string) => apiError?.errors[k]?.[0];
@@ -279,7 +292,7 @@ export default function AdminTenantCreatePage() {
           </div>
         </FormCard>
 
-        <FormCard title="Plan" description="What this business pays, and how much it may have. It grants no modules.">
+        <FormCard title="Plan" description="What this business pays, how much it may have, and the modules it starts with. Anything past the plan is an add-on for this one shop.">
           <div className="space-y-4">
             <div>
               <Label>Plan <span className="text-error-500">*</span></Label>
@@ -363,8 +376,15 @@ export default function AdminTenantCreatePage() {
                     min="0"
                     value={form.payment_amount}
                     onChange={(e) => set("payment_amount", e.target.value)}
-                    placeholder={selectedPlan ? String(selectedPlan.price) : "0"}
+                    placeholder={selectedPlan ? String(due) : "0"}
                   />
+                  {/* The plan AND what was switched on past it — the figure a
+                      person would otherwise have to add up from another card. */}
+                  {selectedPlan && addOnsTotal > 0 && (
+                    <p className="mt-1 text-theme-xs text-gray-400" data-testid="create-due">
+                      {money(selectedPlan.price)} plan + {money(addOnsTotal)} add-ons = <span className="font-medium text-gray-600 dark:text-gray-300">{money(due)}</span>
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Method</Label>
@@ -527,8 +547,10 @@ export default function AdminTenantCreatePage() {
         <FormCard
           title="Modules"
           description={form.business_type
-            ? `Proposed for a ${selectedType?.label.toLowerCase()} — adjust anything. Nothing on a plan can change these later.`
-            : "Pick a business type and its usual modules appear here."}
+            ? selectedPlan
+              ? `What ${selectedPlan.name} gives a ${selectedType?.label.toLowerCase()} shop, and what can be added for this one. Only what this trade can use is shown.`
+              : `Only what a ${selectedType?.label.toLowerCase()} shop can use. Choose a plan to see what it includes.`
+            : "Pick a business type and a plan — what the plan includes appears here."}
         >
           {!form.business_type ? (
             <p className="py-6 text-center text-theme-sm text-gray-400">Choose a business type first.</p>
@@ -537,7 +559,10 @@ export default function AdminTenantCreatePage() {
               catalog={moduleList}
               value={modules}
               onChange={chooseModules}
-              defaults={selectedType?.default_modules}
+              offer={offer.data}
+              prices={offer.data?.prices}
+              planName={selectedPlan?.name ?? null}
+              tradeLabel={selectedType?.label.toLowerCase() ?? null}
               emptyHint="Choose a business type first."
             />
           )}

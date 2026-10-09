@@ -93,6 +93,11 @@ export interface Tenant {
   limits?: Record<string, number>;
   /** What its business type would have proposed, for comparison. */
   default_modules?: Record<string, boolean>;
+  /**
+   * How this shop's modules sit against its plan, and what one period costs
+   * with its add-ons. Present where the plan was loaded — the admin's pages.
+   */
+  package?: import("../admin/services/adminService").TenantPackage;
   /** Live usage vs effective limit — present on the tenant detail view only. */
   limits_usage?: LimitUsage[];
   /**

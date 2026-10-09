@@ -52,8 +52,15 @@ test("A2 · a business is created with every module switched on", async ({ page 
   await page.getByLabel("Owner email *", { exact: true }).fill(r.ownerEmail);
   await page.getByLabel("Temp password *", { exact: true }).fill(r.ownerPassword);
 
-  // EVERY module. One switch can bring others with it, so this goes round
-  // until none is left off rather than clicking each exactly once.
+  // EVERY module — including what is "not usual" for this trade, which the
+  // form folds away so a grocer is not asked about a fuel tank. The journey
+  // wants all of it, so it opens that band first; a module switched on from
+  // there moves up among the add-ons, where it stays in sight.
+  const folded = page.getByRole("button", { name: /^Not usual for/ });
+  if ((await folded.count()) > 0 && (await folded.getAttribute("aria-expanded")) !== "true") await folded.click();
+
+  // One switch can bring others with it, so this goes round until none is
+  // left off rather than clicking each exactly once.
   const off = page.getByRole("switch", { checked: false });
   for (let guard = 0; guard < 40 && (await off.count()) > 0; guard++) {
     await off.first().click();

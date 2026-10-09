@@ -173,8 +173,13 @@ test("Basic HR can be handed to a shop, and is not there by default", async ({ p
 
   // Its own group, so HR is not filed under "Trade-specific" beside a kitchen
   // docket — it belongs to no trade and to all of them.
-  const body = (await page.locator("body").innerText()).toLowerCase();
-  expect(body, "Basic HR has no group of its own in the picker").toContain("people");
+  // The picker is sorted by where a module comes from now — the plan, an
+  // add-on, or not this trade's — rather than into six groups, so there is no
+  // "People" heading to look for. What matters is unchanged and is said more
+  // exactly: HR is something EVERY trade can be given, so it is in sight —
+  // in the plan or among the add-ons — and never folded away as "not usual".
+  const inSight = page.getByTestId("modules-included").or(page.getByTestId("modules-addons"));
+  await expect(inSight.getByRole("switch", { name: "Basic HR" }), "Basic HR is folded away as not this trade's").toBeVisible();
 });
 
 /**

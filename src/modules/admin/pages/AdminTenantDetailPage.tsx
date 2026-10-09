@@ -13,8 +13,8 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, usePayments, usePlans, usePlanChangePreview, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
-import type { Entitlement, Plan, PlanChangePreview } from "../services/adminService";
+import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import type { Entitlement, Plan, PlanChangePreview, TenantPackage } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
 import type { LimitUsage, Tenant } from "../../auth/types";
@@ -1043,20 +1043,37 @@ function BusinessTypeCard({ tenantId, current, currentCategory }: { tenantId: st
  * nothing can undo what is set here except an admin setting it again — a
  * renewal used to, silently.
  */
-function ModulesCard({ tenantId, features, defaults }: {
+function ModulesCard({ tenantId, features, pkg, planName, tradeLabel }: {
   tenantId: string;
   features: Record<string, boolean>;
-  defaults?: Record<string, boolean>;
+  pkg?: TenantPackage;
+  planName?: string | null;
+  tradeLabel?: string | null;
 }) {
   const toast = useToast();
   const catalog = useModuleCatalog();
+  const prices = useModulePrices();
   const save = useUpdateModules();
   const [state, setState] = useState<Record<string, boolean>>(features);
+  // This shop's own prices, as typed. A blank box is the platform's price.
+  const asTyped = (own: Record<string, number> | undefined) =>
+    Object.fromEntries(Object.entries(own ?? {}).map(([k, v]) => [k, String(v)]));
+  const [own, setOwn] = useState<Record<string, string>>(asTyped(pkg?.own_prices));
 
   useEffect(() => { setState(features); }, [features]);
+  useEffect(() => { setOwn(asTyped(pkg?.own_prices)); }, [pkg?.own_prices]);
 
   const list = catalog.data ?? [];
-  const dirty = list.some((m) => (state[m.key] ?? false) !== (features[m.key] ?? false));
+  const numbers = (typed: Record<string, string>) =>
+    Object.fromEntries(
+      Object.entries(typed)
+        .filter(([k, v]) => v.trim() !== "" && !Number.isNaN(Number(v)) && (state[k] ?? false))
+        .map(([k, v]) => [k, Math.max(0, Number(v))]),
+    );
+  const sameMap = (a: Record<string, number>, b: Record<string, number>) =>
+    Object.keys({ ...a, ...b }).every((k) => a[k] === b[k]);
+  const pricesChanged = !sameMap(numbers(own), numbers(asTyped(pkg?.own_prices)));
+  const dirty = pricesChanged || list.some((m) => (state[m.key] ?? false) !== (features[m.key] ?? false));
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -1065,19 +1082,25 @@ function ModulesCard({ tenantId, features, defaults }: {
         {save.isSuccess && !dirty && <span className="text-theme-xs text-success-600">Saved ✓</span>}
       </div>
       <p className="mb-4 text-theme-xs text-gray-400">
-        What this business can do. Plans don't touch these.
+        What this business can do. Its plan says what it starts with; anything switched on past the plan is an
+        add-on for this shop and is added to its bill. Changing the plan never switches a module off.
       </p>
 
       <ModulePicker
         catalog={list}
         value={state}
         onChange={setState}
-        defaults={defaults}
+        offer={pkg?.offer}
+        prices={prices.data}
+        ownPrices={own}
+        onOwnPrices={setOwn}
+        planName={planName}
+        tradeLabel={tradeLabel}
         emptyHint="Modules are still loading."
       />
 
       <Button size="sm" className="mt-5" disabled={!dirty || save.isPending} onClick={() => save.mutate(
-        { id: tenantId, modules: state },
+        { id: tenantId, modules: state, addonPrices: numbers(own) },
         // Modules decide which screens a whole shop can open. A save that did
         // not land leaves the toggles showing what was asked for rather than
         // what is true.
@@ -1085,6 +1108,54 @@ function ModulesCard({ tenantId, features, defaults }: {
       )}>
         {save.isPending ? "Saving…" : "Save modules"}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * What this shop owes for one period — its plan, and its add-ons.
+ *
+ * "If a shop on Basic takes an add-on, how will anybody know next time to
+ * charge for it?" This card is the answer: an add-on is any module the shop
+ * has past its plan, read off the shop as it stands, so it is on the bill the
+ * moment it is switched on and nobody has to remember it.
+ */
+function BillCard({ pkg }: { pkg: TenantPackage }) {
+  const bill = pkg.bill;
+  const every = bill.plan.months === 1 ? "a month" : `every ${bill.plan.months} months`;
+
+  return (
+    <div data-testid="shop-bill" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      <h3 className="font-semibold text-gray-800 dark:text-white/90">What it pays</h3>
+      <p className="mb-4 text-theme-xs text-gray-400">Its plan, and what was added for this shop. Worked out from the shop as it is now.</p>
+
+      <dl className="space-y-2 text-theme-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-gray-700 dark:text-gray-300">{bill.plan.name ?? "No plan"}</dt>
+          <dd className="tabular-nums text-gray-800 dark:text-white/90">Rs {Math.round(bill.plan.price).toLocaleString()}</dd>
+        </div>
+        {bill.addons.map((a) => (
+          <div key={a.key} className="flex items-baseline justify-between gap-3">
+            <dt className="min-w-0 text-gray-700 dark:text-gray-300">
+              <span className="mr-1.5 rounded-full bg-brand-50 px-1.5 py-px text-[11px] font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">Add-on</span>
+              {a.label}
+              {a.own_price && a.listed !== null && a.listed !== a.monthly && (
+                <span className="ml-1.5 text-theme-xs text-gray-400">usually Rs {Math.round(a.listed).toLocaleString()}</span>
+              )}
+            </dt>
+            <dd className="whitespace-nowrap tabular-nums text-gray-800 dark:text-white/90">
+              {a.monthly > 0 ? `Rs ${Math.round(a.monthly * bill.plan.months).toLocaleString()}` : <span className="text-gray-400">Free</span>}
+            </dd>
+          </div>
+        ))}
+        <div className="flex items-baseline justify-between gap-3 border-t border-gray-200 pt-2 dark:border-gray-800">
+          <dt className="font-medium text-gray-800 dark:text-white/90">Due {every}</dt>
+          <dd className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">Rs {Math.round(bill.total).toLocaleString()}</dd>
+        </div>
+      </dl>
+      {bill.addons.length === 0 && (
+        <p className="mt-3 text-theme-xs text-gray-400">No add-ons: this shop has exactly what its plan includes, or less.</p>
+      )}
     </div>
   );
 }
@@ -1251,7 +1322,13 @@ export default function AdminTenantDetailPage() {
           <BusinessTypeCard tenantId={t.id} current={t.business_type ?? null} currentCategory={t.business_category ?? null} />
 
           {/* Module management */}
-          <ModulesCard tenantId={t.id} features={t.features ?? {}} defaults={t.default_modules} />
+          <ModulesCard
+            tenantId={t.id}
+            features={t.features ?? {}}
+            pkg={t.package}
+            planName={t.plan?.name ?? null}
+            tradeLabel={(businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label.toLowerCase() ?? null}
+          />
 
           {/* Plan usage & per-tenant limit extension */}
           <UsageLimitsCard tenant={t} plan={currentPlan} />
@@ -1310,7 +1387,11 @@ export default function AdminTenantDetailPage() {
           </div>
         </div>
 
-        {/* Actions sidebar */}
+        {/* The side column: what can be done, and — beside it, in sight without
+            scrolling — what the shop pays. The bill was half-way down a page
+            four screens long. */}
+        <div className="h-fit space-y-6">
+        {t.package && <BillCard pkg={t.package} />}
         <div className="h-fit space-y-3 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
           <h3 className="mb-2 font-semibold text-gray-800 dark:text-white/90">Actions</h3>
           {/* Editing a tenant had no UI at all: the API and the mutation both
@@ -1366,6 +1447,7 @@ export default function AdminTenantDetailPage() {
               </button>
             </>
           )}
+        </div>
         </div>
       </div>
 

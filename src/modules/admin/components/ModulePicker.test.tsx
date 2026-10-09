@@ -1,174 +1,193 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { ModulePicker } from "./ModulePicker";
+import { ModulePicker, type ModuleBands } from "./ModulePicker";
 import type { ModuleInfo } from "../services/adminService";
 
 /**
- * The one screen an admin decides a shop's whole shape on.
- *
- * A flat list of nineteen switches is its own kind of unusable, and a switch
- * that silently moves four others is the thing an admin cannot undo from
- * memory. Both are what this file holds.
+ * The picker sorts a shop's modules by where each comes from — the plan, an
+ * add-on, or not this trade's at all. What is held here is that a person
+ * setting up a small shop sees a small list, that an add-on says what it
+ * costs, and that nothing which is ON is ever folded out of sight.
  */
-
 const CATALOG: ModuleInfo[] = [
   { key: "products", label: "Products", description: "A catalog.", group: "Selling", depends: [] },
   { key: "pos", label: "Point of Sale", description: "The till.", group: "Selling", depends: [] },
   { key: "inventory", label: "Inventory", description: "Stock tracking.", group: "Stock", depends: ["products"] },
   { key: "purchasing", label: "Suppliers & Purchases", description: "Orders and payables.", group: "Stock", depends: ["inventory"] },
-  { key: "disposals", label: "Disposals", description: "Stock that left unsold.", group: "Stock", depends: ["inventory"] },
+  { key: "kitchen", label: "Kitchen Tickets", description: "A pass for the kitchen.", group: "Trade-specific", depends: ["products"] },
 ];
+
+const BASIC_FOR_A_MART: ModuleBands = {
+  included: ["products", "pos"],
+  addons: ["inventory", "purchasing"],
+  other: ["kitchen"],
+  essential: ["products"],
+};
 
 function show(value: Record<string, boolean>, extra: Partial<Parameters<typeof ModulePicker>[0]> = {}) {
   const onChange = vi.fn();
-  render(<ModulePicker catalog={CATALOG} value={value} onChange={onChange} {...extra} />);
+  render(
+    <ModulePicker
+      catalog={CATALOG}
+      value={value}
+      onChange={onChange}
+      offer={BASIC_FOR_A_MART}
+      prices={{ inventory: 400 }}
+      planName="Basic"
+      tradeLabel="mart"
+      {...extra}
+    />,
+  );
 
   return onChange;
 }
 
-describe("the sections", () => {
-  it("groups the switches the way the registry does", () => {
-    show({});
+const band = (id: string) => within(screen.getByTestId(id));
 
-    expect(screen.getByText("Selling")).toBeInTheDocument();
-    expect(screen.getByText("Stock")).toBeInTheDocument();
+describe("three bands, by where a module comes from", () => {
+  it("puts what the plan gives in one, and what can be added in another", () => {
+    show({ products: true, pos: true });
+
+    expect(band("modules-included").getByRole("switch", { name: "Products" })).toBeChecked();
+    expect(band("modules-included").getByRole("switch", { name: "Point of Sale" })).toBeChecked();
+    expect(band("modules-addons").getByRole("switch", { name: "Inventory" })).not.toBeChecked();
+    expect(band("modules-addons").getByRole("switch", { name: "Suppliers & Purchases" })).not.toBeChecked();
+    expect(screen.getByText("In Basic")).toBeInTheDocument();
+    expect(screen.getByText("2 of 2 on")).toBeInTheDocument();
   });
 
-  it("says how much of each section is on, so the shape reads at a glance", () => {
+  it("does not ask a mart about a kitchen until somebody goes looking", async () => {
+    show({ products: true, pos: true });
+
+    expect(screen.queryByRole("switch", { name: "Kitchen Tickets" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Not usual for a mart shop/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Not usual for a mart shop/ }));
+    expect(band("modules-other").getByRole("switch", { name: "Kitchen Tickets" })).toBeInTheDocument();
+  });
+
+  it("never folds away a module the shop already has", () => {
+    // Granted once, deliberately: it is an add-on this shop has, and it is on the bill.
+    show({ products: true, pos: true, kitchen: true });
+
+    expect(band("modules-addons").getByRole("switch", { name: "Kitchen Tickets" })).toBeChecked();
+    expect(screen.queryByTestId("modules-other")).not.toBeInTheDocument();
+  });
+
+  it("says which of the plan's modules the trade cannot do without, and which were switched off here", () => {
+    show({ products: true, pos: false });
+
+    expect(band("modules-included").getByText("needed")).toHaveAttribute("title", "A mart shop cannot open without it");
+    expect(band("modules-included").getByText("off for this shop")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 on")).toBeInTheDocument();
+  });
+});
+
+describe("an add-on says what it costs", () => {
+  it("prices the ones the platform has priced, and says the rest are free", () => {
+    show({ products: true, pos: true });
+
+    expect(within(document.querySelector('[data-module="inventory"]') as HTMLElement).getByText("Rs 400 / mo")).toBeInTheDocument();
+    expect(within(document.querySelector('[data-module="purchasing"]') as HTMLElement).getByText("Free to add")).toBeInTheDocument();
+    // What the plan includes carries no price at all.
+    expect(within(document.querySelector('[data-module="products"]') as HTMLElement).queryByText(/Rs|Free to add/)).not.toBeInTheDocument();
+  });
+
+  it("adds up what was switched on past the plan", () => {
+    show({ products: true, pos: true, inventory: true, purchasing: true });
+
+    expect(screen.getByTestId("modules-addons-total")).toHaveTextContent("2 add-ons · Rs 400 a month on top of the plan");
+  });
+
+  it("says so when the add-ons cost nothing", () => {
+    show({ products: true, pos: true, inventory: true, purchasing: true }, { prices: {} });
+
+    expect(screen.getByTestId("modules-addons-total")).toHaveTextContent("nothing extra to pay");
+  });
+
+  it("lets one shop be given its own price — only where that can be saved, and only for an add-on it has", async () => {
+    const onOwnPrices = vi.fn();
+    show({ products: true, pos: true, inventory: true }, { ownPrices: {}, onOwnPrices });
+
+    const box = screen.getByRole("spinbutton", { name: "Inventory: this shop's own price a month" });
+    expect(screen.queryByRole("spinbutton", { name: /Suppliers & Purchases/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton", { name: /Products/ })).not.toBeInTheDocument();
+
+    await userEvent.type(box, "3");
+    expect(onOwnPrices).toHaveBeenLastCalledWith({ inventory: "3" });
+  });
+
+  it("counts the shop's own price, not the platform's, once it has one", () => {
+    show({ products: true, pos: true, inventory: true }, { ownPrices: { inventory: "250" }, onOwnPrices: vi.fn() });
+
+    expect(screen.getByTestId("modules-addons-total")).toHaveTextContent("1 add-on · Rs 250 a month on top of the plan");
+  });
+
+  it("offers no price box on a screen that cannot save one", () => {
     show({ products: true, pos: true, inventory: true });
 
-    // Selling: 2 of 2. Stock: 1 of 3.
-    expect(screen.getByText("2 of 2")).toBeInTheDocument();
-    expect(screen.getByText("1 of 3")).toBeInTheDocument();
-  });
-
-  it("names every switch, because the label sits outside the control", () => {
-    // Nineteen identical buttons announced as "button" is nineteen ways to
-    // switch off the wrong module.
-    show({});
-
-    for (const m of CATALOG) {
-      expect(screen.getByRole("switch", { name: m.label })).toBeInTheDocument();
-    }
-  });
-
-  it("says which switch is on", () => {
-    show({ products: true });
-
-    expect(screen.getByRole("switch", { name: "Products" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("switch", { name: "Point of Sale" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 });
 
 describe("a press that moves other switches", () => {
-  it("pulls the whole chain up rather than refusing", () => {
-    // The old screens greyed the row out until its dependency was on and left
-    // the admin to work out which of nineteen switches to find first.
-    const onChange = show({});
+  it("pulls the whole chain up rather than refusing", async () => {
+    const onChange = show({ products: true, pos: true });
 
-    return userEvent.click(screen.getByRole("switch", { name: "Suppliers & Purchases" })).then(() => {
-      expect(onChange).toHaveBeenCalledTimes(1);
-      const next = onChange.mock.calls[0][0];
-      expect(next.purchasing).toBe(true);
-      expect(next.inventory).toBe(true);
-      expect(next.products).toBe(true);
-    });
+    await userEvent.click(screen.getByRole("switch", { name: "Suppliers & Purchases" }));
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ inventory: true, purchasing: true }));
   });
 
-  it("says before the press what else it will switch on — the whole chain", () => {
-    show({});
+  it("says before the press what else it will switch on", () => {
+    show({ products: true, pos: true });
 
-    // Suppliers & Purchases needs Inventory, which needs Products. A hint
-    // naming only the direct dependency would understate the press, and the
-    // note AFTER it would then say something the note before it did not.
-    // Purchasing and Disposals both stand on that chain, so both rows say it.
-    expect(
-      screen.getAllByText("Switching this on also switches on Products and Inventory."),
-    ).toHaveLength(2);
-
-    // And Inventory itself names only what IT stands on.
-    expect(
-      screen.getByText("Switching this on also switches on Products."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Also switches on Inventory.")).toBeInTheDocument();
   });
 
   it("says after the press what else moved", async () => {
-    // Rendered from the picker's own state, so this is asserted on a press
-    // whose result the parent has not applied — which is exactly the moment an
-    // admin needs to be told.
-    render(
-      <ModulePicker
-        catalog={CATALOG}
-        value={{ products: true, inventory: true, purchasing: true, disposals: true }}
-        onChange={() => {}}
-      />,
-    );
+    show({ products: true, pos: true });
 
-    await userEvent.click(screen.getByRole("switch", { name: "Inventory" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Suppliers & Purchases" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      /Also switched off: Suppliers & Purchases, Disposals/,
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("Also switched on: Inventory.");
   });
 
-  it("stays quiet when nothing else moved", async () => {
-    render(<ModulePicker catalog={CATALOG} value={{ products: true }} onChange={() => {}} />);
+  it("warns that switching the catalog off takes what stands on it", () => {
+    show({ products: true, pos: true, inventory: true });
 
-    await userEvent.click(screen.getByRole("switch", { name: "Point of Sale" }));
-
-    // A screen that announced a ripple every time would train an admin to stop
-    // reading it.
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Inventory needs this — off here is off there too.")).toBeInTheDocument();
   });
 });
 
-describe("against what the trade usually gets", () => {
-  it("marks the switches that are a decision for this shop", () => {
-    show(
-      { products: true, pos: true, disposals: true, inventory: true },
-      { defaults: { products: true, pos: true, inventory: true } },
-    );
+describe("back to just the plan", () => {
+  it("is offered once the shop is not exactly what the plan gives, and puts it back", async () => {
+    const onChange = show({ products: true, pos: true, inventory: true });
 
-    expect(screen.getByText("granted")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Back to just the plan" }));
+
+    expect(onChange).toHaveBeenCalledWith({ products: true, pos: true, inventory: false, purchasing: false, kitchen: false });
   });
 
-  it("marks one that was taken away", () => {
-    show({ products: true }, { defaults: { products: true, pos: true } });
+  it("says nothing when the shop has exactly the plan", () => {
+    show({ products: true, pos: true });
 
-    expect(screen.getByText("removed")).toBeInTheDocument();
-  });
-
-  it("offers a way back, and settles the map on the way", async () => {
-    const onChange = vi.fn();
-    render(
-      <ModulePicker
-        catalog={CATALOG}
-        value={{ products: true }}
-        onChange={onChange}
-        // A proposal that is not self-consistent: purchasing with no inventory.
-        defaults={{ products: true, purchasing: true }}
-      />,
-    );
-
-    await userEvent.click(screen.getByRole("button", { name: /Back to the usual set/ }));
-
-    const next = onChange.mock.calls[0][0];
-    expect(next.purchasing).toBe(false);
-    expect(next.products).toBe(true);
-  });
-
-  it("says nothing about defaults when the shop matches them", () => {
-    show({ products: true }, { defaults: { products: true } });
-
-    expect(screen.queryByText(/Back to the usual set/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back to just the plan" })).not.toBeInTheDocument();
   });
 });
 
-describe("nothing to show", () => {
+describe("with nothing to sort by", () => {
+  it("lists every module as on offer when no plan and trade have said otherwise", () => {
+    show({ products: true }, { offer: undefined });
+
+    expect(screen.queryByTestId("modules-included")).not.toBeInTheDocument();
+    expect(band("modules-addons").getAllByRole("switch")).toHaveLength(CATALOG.length);
+  });
+
   it("says so rather than rendering an empty box", () => {
-    render(<ModulePicker catalog={[]} value={{}} onChange={() => {}} emptyHint="Choose a business type first." />);
+    render(<ModulePicker catalog={[]} value={{}} onChange={vi.fn()} emptyHint="Choose a business type first." />);
 
     expect(screen.getByText("Choose a business type first.")).toBeInTheDocument();
   });

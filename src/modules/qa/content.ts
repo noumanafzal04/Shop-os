@@ -110,14 +110,18 @@ export const QA_SECTIONS: QaSection[] = [
         screen: "/admin/tenants",
         required: "always",
         what: [
-          "Sign in as the platform admin, open a tenant, and there is a Modules card grouped into sections — Selling, Stock, Customers & offers, Money, Online, Trade-specific.",
+          "Sign in as the platform admin, open a tenant, and there is a Modules card in three bands: IN ITS PLAN (what the plan gives a shop of that trade), ADD-ONS (the rest of what the trade can use, each with its price), and a folded 'Not usual for this trade'.",
+          "An add-on is switched on for ONE shop. The shop stays on its plan — nobody makes a custom plan for one extra module — and the add-on's monthly price is added to that shop's bill for as long as it is on. The 'What it pays' card beside Actions shows the sum.",
           "Switching one ON pulls up everything it stands on and says what else it moved. Switching one OFF drops everything built on it, and says that too.",
-          "The same picker appears when a business is created, with its trade's usual set already proposed.",
+          "The same picker appears when a business is created: choose the trade and the plan, and what that plan gives that trade is switched on. A mart is not shown a kitchen pass; a restaurant on Basic still gets one.",
+          "What each plan includes is ticked on Plans (Edit → Modules), and what each add-on costs is set at the foot of that page.",
         ],
         checks: [
           { do: "Switch Suppliers & Purchases ON for a shop that has nothing.", expect: "Inventory and Products come on with it, and the row says 'Also switched on: Products, Inventory'." },
           { do: "Switch Inventory OFF again.", expect: "Suppliers & Purchases, Stocktake and Disposals go with it, and the row names them." },
           { do: "Save, then look at the shop side.", expect: "The sidebar matches immediately. No screen survives whose module you just removed." },
+          { do: "Price Customers & Khata at Rs 500 on Plans, then switch it on for a shop on Basic.", expect: "The shop is still on Basic. Its 'What it pays' card gains an Add-on line and reads Rs 2,999. Switch it off and it reads Rs 2,499 again." },
+          { do: "Edit Basic on Plans and tick another module.", expect: "Shops already on Basic do not change — only what a NEW shop starts with, and which of a shop's modules are called add-ons." },
         ],
         wrong: [
           "A save that appears to work and changes nothing. Every save in this product must either succeed visibly or say why it did not — a silent failure is a bug in itself.",
@@ -696,7 +700,7 @@ export const QA_SECTIONS: QaSection[] = [
         required: "always",
         what: [
           "Creating a business asks four things in the order the decisions actually happen: who it is (name, type, city), what it can DO (modules), how big it is (branches, staff, lanes) and what it PAYS (plan).",
-          "A plan decides price and ceilings only. It grants no modules — so a renewal can never take away something an admin granted.",
+          "A plan decides price, ceilings and which modules a shop STARTS with. It is never the gate: what a shop may use is the shop's own list, so a renewal or a plan change can never take away something an admin granted.",
           "There is no payment gateway anywhere in this product. Billing is recorded, not collected.",
         ],
         checks: [

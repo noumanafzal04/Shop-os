@@ -1,20 +1,25 @@
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
-import { useModuleCatalog } from "../hooks/useAdmin";
+import { Link } from "react-router";
+import { useModuleCatalog, useModulePrices } from "../hooks/useAdmin";
+import { BoltIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 
 /**
  * Platform Configuration — a read-only overview of the two curated registries
- * that shape every tenant: the sellable/capability MODULES and the BUSINESS
- * TYPE ENGINE (each type's units, variant attributes, item types and default
- * features). These are product decisions defined in code, not per-tenant
- * settings, so this screen explains them rather than editing them — it's the
- * reference the platform team uses when building plans.
+ * that shape every tenant: the MODULES and the BUSINESS TYPE ENGINE (each
+ * type's units, variant attributes, item types and default features). These
+ * are product decisions defined in code, not per-tenant settings, so this
+ * screen explains them rather than editing them.
+ *
+ * It used to say a plan "grants one or more modules" and that POS "includes
+ * Expense & Income" — neither true since plans stopped carrying a module map,
+ * and marked three modules "sellable" on a rule nothing implemented. It says
+ * now what is the case: a plan includes some modules to START a shop with;
+ * any other its trade can use is an add-on for that one shop, at the price
+ * set on the Plans page.
  */
-
-// The three modules a plan actually SELLS (everything else is a capability
-// flag those unlock or that the business type toggles).
-const SELLABLE = new Set(["pos", "expenses", "marketplace"]);
 
 const FEATURE_LABEL: Record<string, string> = {
   products: "Products", services: "Services", inventory: "Inventory",
@@ -24,30 +29,33 @@ const FEATURE_LABEL: Record<string, string> = {
 
 export default function AdminConfigPage() {
   const modules = useModuleCatalog();
+  const prices = useModulePrices();
   const types = useBusinessTypes();
 
   return (
     <>
       <PageMeta title="Platform Configuration" description="Modules & business types" />
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Platform Configuration</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          The modules you sell in plans, and what each business type gives a merchant. Defined in the
-          product — shown here so plans are built with the full picture.
-        </p>
-      </div>
+      <PageHeader
+        icon={<BoltIcon />}
+        tone="orange"
+        title="Platform Configuration"
+        subtitle="Every module there is, and what each business type gives a merchant. Defined in the product — shown here so plans and add-ons are decided with the full picture."
+      />
 
       {/* ── Modules ─────────────────────────────────────────────── */}
       <section className="mb-8">
         <div className="mb-3 flex items-center gap-2">
           <h3 className="font-semibold text-gray-800 dark:text-white/90">Modules</h3>
-          <Badge size="sm" color="info">sold in plans</Badge>
+          <Badge size="sm" color="info">{(modules.data ?? []).length} in all</Badge>
         </div>
-        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
-          A plan grants one or more modules. <span className="font-medium">POS automatically includes
-          Expense &amp; Income.</span> Online Commerce and the Expense &amp; Income manager can each be sold
-          on their own. The rest are capability flags these unlock or the business type sets.
+        <p className="mb-4 max-w-3xl text-theme-sm text-gray-500 dark:text-gray-400">
+          A plan <span className="font-medium text-gray-700 dark:text-gray-300">includes</span> some of these — what a shop
+          is switched on with when it is given the plan. Any other module its trade can use is an{" "}
+          <span className="font-medium text-gray-700 dark:text-gray-300">add-on</span>: switched on for that one shop,
+          which stays on its plan, with the add-on&rsquo;s price added to its bill. What each plan includes, and what
+          each add-on costs, are both set on{" "}
+          <Link to="/admin/plans" className="font-medium text-brand-600 hover:underline dark:text-brand-400">Plans</Link>.
         </p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -60,9 +68,18 @@ export default function AdminConfigPage() {
               <div key={m.key} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <h4 className="font-medium text-gray-800 dark:text-white/90">{m.label}</h4>
-                  {SELLABLE.has(m.key) && <Badge size="sm" color="success">sellable</Badge>}
+                  {prices.data?.[m.key] ? (
+                    <Badge size="sm" color="warning">Rs {Math.round(prices.data[m.key]).toLocaleString()} / mo</Badge>
+                  ) : (
+                    <Badge size="sm" color="light">free to add</Badge>
+                  )}
                 </div>
                 <p className="text-theme-sm text-gray-500 dark:text-gray-400">{m.description}</p>
+                {m.depends.length > 0 && (
+                  <p className="mt-2 text-theme-xs text-gray-400">
+                    Needs {m.depends.map((d) => (modules.data ?? []).find((x) => x.key === d)?.label ?? d).join(" and ")}.
+                  </p>
+                )}
               </div>
             ))
           )}
