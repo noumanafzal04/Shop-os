@@ -8725,3 +8725,23 @@ Decision: `docs/decisions/shopos-who-owes-the-platform.md`.
 - `check-circle.svg` carries its own green — it is a blank square on a green
   chip. Use `CheckLineIcon` inside a filled `StatTile`.
 - No migration.
+
+## The console has an Appearance — 2026-10-10
+
+Decision: `docs/decisions/shopos-the-console-has-an-appearance.md`.
+
+- `GET /admin/appearance` (every platform role) · `PUT /admin/appearance`
+  (`role:super_admin`). Kept in `PlatformSettings`: `console_theme_primary`
+  (null = the house colour), `console_theme_tint`, `console_theme_sidebar`
+  (default `primary`). Reset REMOVES the colour's row (`PlatformSettings::forget`).
+- The three keys are NOT in `PlatformSettings::rules()` (what the commission
+  screen may save); they have `appearanceRules()`.
+- Panel: `components/theme/ThemeCustomizer.tsx` now exports `AppearanceCanvas`
+  (takes an `AppearanceSource`) and the shop's `ThemeCustomizer` wrapper;
+  `modules/admin/components/ConsoleAppearance.tsx` is the platform's wrapper.
+  `useConsoleTheme()` paints the console and is called in `AdminShell`.
+- `rememberedTheme.ts`: `PLATFORM_LOOK`; platform roles are recognised at boot,
+  so a console in its own colour does not open blue for the length of a request.
+- A shared mutation hook carries `onSuccess` only; the CALL SITE spells
+  `{ onSuccess, onError }` (or `failed(toast, …)`) — two guards read the text.
+- No migration.
