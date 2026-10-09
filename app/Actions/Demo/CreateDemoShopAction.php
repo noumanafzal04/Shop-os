@@ -7,7 +7,6 @@ use App\Actions\Tenant\CreateTenantAction;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\DiningTable;
-use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -120,9 +119,27 @@ class CreateDemoShopAction
                     // because nobody is ever told one.
                     'password' => Hash::make(Str::random(40)),
                 ],
-                // The plan that shows what the product actually does. Demoing
-                // the cheapest tier would demonstrate the least of it.
-                'plan_id' => Plan::query()->where('name', 'Premium')->value('id'),
+                // NO PLAN, and that is now said rather than happened upon.
+                //
+                // This used to read `Plan::where('name', 'Premium')` — "the plan
+                // that shows what the product actually does". Then that plan was
+                // renamed Standard, the lookup found nothing, and every demo
+                // since has been made with no plan at all. Nothing noticed,
+                // because nothing it was for depends on it any more:
+                //
+                //   what a shop can DO is its own module list, proposed by its
+                //   trade (see CreateTenantAction ①) — a plan stopped deciding
+                //   that when plans became a price and a set of ceilings;
+                //
+                //   a plan's ceilings could only take something AWAY from
+                //   somebody who came to try it;
+                //
+                //   and a plan is a thing somebody has paid for. A demo has
+                //   paid nothing, so a demo that was KEPT arrived on the list
+                //   already "subscribed" for a month nobody had recorded.
+                //
+                // So a demo is on no plan. Kept, it gets one from the admin who
+                // keeps it — and that is the first payment on its ledger.
             ]);
 
             $tenant->forceFill([

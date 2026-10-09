@@ -222,6 +222,13 @@ class TenantController extends Controller
     {
         $tenant = Tenant::withTrashed()->with(['city', 'plan', 'users'])->findOrFail($id);
 
+        // A demo's page says whether its owner has already asked to keep it.
+        // Asked only for a demo: a real shop has no such question. WHICH of
+        // its requests is still waiting is the resource's to say, in one place.
+        if ($tenant->is_demo) {
+            $tenant->load('shopRequests');
+        }
+
         return ApiResponse::ok(new TenantResource($tenant));
     }
 

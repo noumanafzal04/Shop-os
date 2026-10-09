@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\CommissionController;
 use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\DemoShopController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
@@ -1141,6 +1142,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/shop-requests', [ShopRequestController::class, 'index']);
                 Route::post('/shop-requests/{id}/approve', [ShopRequestController::class, 'approve']);
                 Route::post('/shop-requests/{id}/decline', [ShopRequestController::class, 'decline']);
+                // The demos themselves — the ones nobody has asked about yet —
+                // and the admin's own way to keep one for its owner on the
+                // spot. Same gate: keeping a demo IS opening a shop.
+                Route::get('/demo-shops', [DemoShopController::class, 'index']);
+                Route::post('/demo-shops/{tenant}/keep', [DemoShopController::class, 'keep']);
             });
 
             // Landing-page enquiries. Same gate as shop requests: whoever may

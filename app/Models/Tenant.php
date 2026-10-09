@@ -74,6 +74,40 @@ class Tenant extends BaseModel
     }
 
     /**
+     * A DEMO BECOMES A BUSINESS — the one place that says what changes.
+     *
+     * CONVERTED, never recreated: everything the visitor built — their
+     * products, their prices, the sales they rang while trying it — lives in
+     * this tenant already.
+     *
+     *   `is_demo` / `demo_expires_at`  it stops being temporary, so the prune
+     *                                  leaves it and the marketplace may list it.
+     *   `converted_at`                 which door it came in through, kept on
+     *                                  the shop so the admin list can find the
+     *                                  newest owners without a join. See origin().
+     *   `setup_completed` → false      the demo skipped the setup wizard on
+     *                                  purpose and was handed a generated name.
+     *                                  Back through setup, the owner names their
+     *                                  own business, picks their city and drops
+     *                                  their own pin, in the one place the app
+     *                                  already asks.
+     *
+     * There are two ways in — an admin saying yes to the owner's own "Keep this
+     * shop" (ApproveShopRequestAction), and an admin keeping it for them
+     * (KeepDemoShopAction) — and both come here, so a shop kept one way is not
+     * a slightly different kind of shop from one kept the other.
+     */
+    public function becomeABusiness(): void
+    {
+        $this->forceFill([
+            'is_demo' => false,
+            'demo_expires_at' => null,
+            'setup_completed' => false,
+            'converted_at' => now(),
+        ])->save();
+    }
+
+    /**
      * WHICH DOOR THIS SHOP CAME IN THROUGH.
      *
      *   demo      — somebody is trying it right now.

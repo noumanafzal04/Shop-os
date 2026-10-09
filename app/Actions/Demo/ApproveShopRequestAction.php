@@ -44,18 +44,9 @@ class ApproveShopRequestAction
         return DB::transaction(function () use ($admin, $request): ShopRequest {
             $tenant = $request->tenant()->firstOrFail();
 
-            $tenant->forceFill([
-                'is_demo' => false,
-                'demo_expires_at' => null,
-                // Their own business, named by them. See the note above.
-                'setup_completed' => false,
-                // WHICH DOOR THEY CAME IN THROUGH, kept on the shop itself.
-                // This row is now the newest owner on the platform and the one
-                // most worth a phone call; without this it would be
-                // indistinguishable in the tenant list from a shop opened by
-                // hand a year ago. See Tenant::origin().
-                'converted_at' => now(),
-            ])->save();
+            // What changes on the shop is written once, on the shop — the
+            // admin keeping a demo directly does exactly the same to it.
+            $tenant->becomeABusiness();
 
             $request->forceFill([
                 'status' => ShopRequest::APPROVED,

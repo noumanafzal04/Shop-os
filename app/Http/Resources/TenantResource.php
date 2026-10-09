@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ShopRequest;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
 use App\Support\ModulePackages;
@@ -100,6 +101,21 @@ class TenantResource extends JsonResource
             // looks like a real shop is one somebody types real products into.
             'is_demo' => (bool) $this->is_demo,
             'demo_expires_at' => $this->demo_expires_at?->toIso8601String(),
+            // Whoever pressed "Keep this shop" on this demo and is waiting for
+            // an answer — on the shop's own page, so an admin looking at a demo
+            // is told somebody has already asked (and has already chosen their
+            // own password) before offering to keep it for them. Only when the
+            // caller loaded it: a list of shops must not ask once per row.
+            'keep_request' => $this->whenLoaded('shopRequests', function (): ?array {
+                $asked = $this->shopRequests->firstWhere('status', ShopRequest::PENDING);
+
+                return $asked === null ? null : [
+                    'id' => $asked->id,
+                    'contact_name' => $asked->contact_name,
+                    'contact_email' => $asked->contact_email,
+                    'requested_at' => $asked->requested_at?->toIso8601String(),
+                ];
+            }),
             // Which door this shop came in through: demo / converted / direct.
             // "converted" is the newest owner on the platform — somebody who
             // tried a demo, pressed "Keep this shop" and was approved — and
