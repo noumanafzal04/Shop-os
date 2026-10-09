@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\DashboardService;
 use App\Support\ApiResponse;
+use App\Support\DashboardPeriod;
 use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,8 +25,13 @@ class DashboardController extends Controller
      */
     public function index(Request $request, DashboardService $service): JsonResponse
     {
+        // `from` and `to` name the period asked about — see DashboardPeriod.
+        $asked = $request->validate(DashboardPeriod::rules());
+
         return ApiResponse::ok($service->forPlatform(
             withRevenue: $request->user()->hasPermission(Permissions::BILLING_VIEW),
+            from: $asked['from'] ?? null,
+            to: $asked['to'] ?? null,
         ));
     }
 }

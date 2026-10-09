@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\OrderStatus;
 use App\Enums\ReservationStatus;
 use App\Enums\RestaurantTicketStatus;
 use App\Enums\TenantStatus;
+use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\BankDeposit;
 use App\Models\Branch;
@@ -29,7 +31,9 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\DashboardPeriod;
 use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\Payable;
@@ -40,6 +44,7 @@ use App\Support\Takings;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -57,8 +62,14 @@ class DashboardService
      * @param  string|null  $branchId  Scope the sales/stock figures to one
      *                                 branch, or null for the whole tenant
      *                                 (an owner's All-Branches HQ view).
+     * @param  string|null  $from  The period asked about, both ends inclusive —
+     * @param  string|null  $to  see DashboardPeriod. With neither, the payload
+     *                           is the standing view it has always been:
+     *                           today, the week behind it, the month's
+     *                           spending and leaders. With either, every flow
+     *                           on it is cut to exactly that period.
      */
-    public function forTenant(Tenant $tenant, ?string $branchId = null): array
+    public function forTenant(Tenant $tenant, ?string $branchId = null, ?string $from = null, ?string $to = null): array
     {
         // The shop's OWN day, not the server's. See ShopDay: at one in the
         // morning a restaurant still serving is in the evening it opened in,
@@ -72,11 +83,15 @@ class DashboardService
         $today = ShopDay::today($tenant);
         $day = CarbonImmutable::parse($today);
         $yesterday = $day->subDay()->toDateString();
-        $weekFrom = $day->subDays(6)->toDateString();        // 7 buckets, today last
         $monthFrom = $day->startOfMonth()->toDateString();
         $todayStart = ShopDay::startOf($today, $tenant);
-        $weekStart = ShopDay::startOf($weekFrom, $tenant);
         $monthStart = ShopDay::startOf($monthFrom, $tenant);
+
+        // THE PERIOD. Nobody asking is today — set against yesterday, drawn
+        // as the last of seven days — which is what this method always read.
+        $period = DashboardPeriod::of($from, $to, $today);
+        $periodStart = ShopDay::startOf($period->from, $tenant);
+        $periodEnd = ShopDay::endOf($period->to, $tenant);
 
         // What this tenant can even HAVE. A books-only (finance) shop has no
         // catalog, no till and no orders; a services shop carries no stock.
@@ -93,40 +108,46 @@ class DashboardService
         $takesOrders = $tenant->featureEnabled('delivery') || $tenant->featureEnabled('marketplace');
         $keepsBooks = $tenant->featureEnabled('expenses');
 
-        // Three grouped rollups cover the whole 7-day window. Today's tiles,
-        // yesterday's deltas and the chart series all read from these arrays,
-        // so those panels can never contradict one another.
-        $salesByDay = $sells ? $this->dailySales($tenant, $branchId, $weekStart) : [];
-        $cogsByDay = $sells ? $this->dailyCogs($tenant, $branchId, $weekStart) : [];
-        // Expenses are branch-scoped: a focused branch deducts only its own
-        // costs; the all-branches view (branchId null) sums the whole tenant.
-        $expensesByDay = $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $weekFrom) : [];
-        $incomeByDay = $keepsBooks ? $this->dailyIncome($tenant, $branchId, $weekFrom) : [];
-        // What went back out over the counter. Rolled up the same way as the
-        // other three so the tile, the delta and the chart cannot disagree —
-        // and rolled up at all because until now they agreed on a profit that
-        // took no account of anything handed back.
-        $refundsByDay = $sells ? $this->dailyRefunds($tenant, $branchId, $weekStart) : [];
-        // The sales tax held for the government, day by day: what was charged
-        // less what was handed back. Revenue includes it and profit must not —
-        // see ReportService::summary, which had the same fault and the same fix.
-        $taxByDay = $sells ? $this->dailyTax($tenant, $branchId, $weekStart) : [];
+        // Six grouped rollups, a day to a row, cover everything the period
+        // needs: its own days, the days it is compared with, and the days the
+        // chart draws. The tiles, the pills and the chart all read from these
+        // arrays, so those panels can never contradict one another.
+        $readsFrom = $period->readsFrom();
+        $byDay = $this->rollups($tenant, $branchId, $readsFrom, $period->to, $sells, $keepsBooks);
 
-        $revenue = $salesByDay[$today]['revenue'] ?? 0.0;
-        $expensesToday = $expensesByDay[$today] ?? 0.0;
-        $incomeToday = $incomeByDay[$today] ?? 0.0;
-        $refundsToday = $refundsByDay[$today] ?? 0.0;
-        // Net profit: everything that came in (sales AND non-sale income)
-        // − cost of goods (line snapshots) − expenses. Leaving income out made
-        // this the Cashbook's answer minus the whole of what the business
-        // earned — for a books-only tenant, a permanent loss.
-        $profit = $revenue - $refundsToday - ($taxByDay[$today] ?? 0.0) + $incomeToday - ($cogsByDay[$today] ?? 0.0) - $expensesToday;
+        // TODAY IS ALWAYS ANSWERED, whatever period was asked. The line at the
+        // head of the screen ("14 sales so far today") is about now, and a
+        // shopkeeper reading last month must not be told the shop is idle.
+        // The same arrays when they already reach today — which, with nobody
+        // asking, they always do.
+        $nearby = $readsFrom <= $yesterday && $period->to >= $today
+            ? $byDay
+            : $this->rollups($tenant, $branchId, $yesterday, $today, $sells, $keepsBooks);
+        $salesByDay = $nearby['sales'];
 
-        $prevRevenue = $salesByDay[$yesterday]['revenue'] ?? 0.0;
-        $prevExpenses = $expensesByDay[$yesterday] ?? 0.0;
-        $prevIncome = $incomeByDay[$yesterday] ?? 0.0;
-        $prevProfit = $prevRevenue - ($refundsByDay[$yesterday] ?? 0.0) - ($taxByDay[$yesterday] ?? 0.0)
-            + $prevIncome - ($cogsByDay[$yesterday] ?? 0.0) - $prevExpenses;
+        $now = $this->summed($nearby, $today, $today);
+        $before = $this->summed($nearby, $yesterday, $yesterday);
+        $revenue = $now['revenue'];
+        $expensesToday = $now['expenses'];
+        $incomeToday = $now['other_income'];
+        $refundsToday = $now['refunds'];
+        $profit = $now['profit'];
+
+        $prevRevenue = $before['revenue'];
+        $prevExpenses = $before['expenses'];
+        $prevProfit = $before['profit'];
+
+        // The period itself, and what it is set against.
+        $inPeriod = $this->summed($byDay, $period->from, $period->to);
+        $compared = $this->summed($byDay, $period->comparedFrom, $period->comparedTo);
+
+        // What the panels that are neither tile nor chart are cut to: the
+        // period when one was asked for — both ends — and otherwise what each
+        // has always read (the month for the leaders, today for the rest).
+        $leadersFrom = $period->asked ? $periodStart : $monthStart;
+        $leadersUntil = $period->asked ? $periodEnd : null;
+        $flowFrom = $period->asked ? $periodStart : $todayStart;
+        $flowUntil = $period->asked ? $periodEnd : null;
 
         // Computed once, published twice: as the legacy top-level counts and
         // inside the inventory alert block the new dashboard reads.
@@ -169,6 +190,33 @@ class DashboardService
                     'profit' => $this->percentDelta($profit, $prevProfit),
                 ],
             ],
+            // THE PERIOD ASKED ABOUT — the same figures as `today`, for the
+            // dates in it. The two are one and the same when nobody asked.
+            //
+            // Published beside `today` rather than in place of it: a key
+            // called "today" carrying last month would be a lie in its own
+            // name, and the screen needs both — today for the line at its
+            // head, the period for everything under it.
+            'period' => [
+                ...$period->toArray(),
+                'sales_count' => $inPeriod['sales_count'],
+                'revenue' => round($inPeriod['revenue'], 2),
+                'other_income' => round($inPeriod['other_income'], 2),
+                'refunds' => round($inPeriod['refunds'], 2),
+                'expenses' => round($inPeriod['expenses'], 2),
+                'profit' => round($inPeriod['profit'], 2),
+                // Buyers, not visits: somebody who came on Monday and again on
+                // Thursday is ONE customer of the week. Adding the days up
+                // would count them twice, so a run of days is asked on its own.
+                'customers_count' => ! $sells ? 0 : ($period->isOneDay()
+                    ? ($byDay['sales'][$period->from]['customers_count'] ?? 0)
+                    : $this->customersServed($tenant, $branchId, $periodStart, $periodEnd)),
+                'deltas' => [
+                    'revenue' => $this->percentDelta($inPeriod['revenue'], $compared['revenue']),
+                    'expenses' => $this->percentDelta($inPeriod['expenses'], $compared['expenses']),
+                    'profit' => $this->percentDelta($inPeriod['profit'], $compared['profit']),
+                ],
+            ],
             // Orders live tenant-wide (an online order has no branch), so this
             // count is NOT branch-scoped — same as it has always been.
             'pending_orders' => $takesOrders
@@ -196,11 +244,15 @@ class DashboardService
                     ->where('is_active', true)
                     ->count()
                 : 0,
-            // Last 7 days, oldest first, zero-filled — the line chart never has
-            // a hole for a day the shop was shut.
-            'sales_series' => $this->salesSeries($weekFrom, $salesByDay, $cogsByDay, $expensesByDay, $incomeByDay, $refundsByDay, $taxByDay),
-            // This month's spend per category — the donut beside the chart.
-            'expense_breakdown' => $keepsBooks ? $this->expenseBreakdown($tenant, $branchId, $monthFrom) : [],
+            // The period, a point at a time, oldest first and zero-filled — the
+            // chart never has a hole for a day the shop was shut. Seven days
+            // ending on it when the period is a single day.
+            'sales_series' => $this->salesSeries($period, $byDay),
+            // Spend per category — the donut beside the chart. The period's
+            // when one was asked for; this month's, as ever, when none was.
+            'expense_breakdown' => ! $keepsBooks ? [] : ($period->asked
+                ? $this->expenseBreakdown($tenant, $branchId, $period->from, $period->to)
+                : $this->expenseBreakdown($tenant, $branchId, $monthFrom)),
             'inventory' => [
                 'low_stock' => $lowStock,
                 'out_of_stock' => $tracksStock ? $this->outOfStockCount($tenant, $branchId) : 0,
@@ -221,13 +273,14 @@ class DashboardService
             ],
             'recent_sales' => $sells ? $this->recentSales($tenant, $branchId) : [],
             'recent_expenses' => $keepsBooks ? $this->recentExpenses($tenant, $branchId) : [],
-            // This month's leaders by revenue. Each is nullable: a shop that
-            // sold nothing, or only to walk-ins, genuinely has no top customer.
+            // The leaders by revenue — of the period asked about, or of this
+            // month when none was. Each is nullable: a shop that sold nothing,
+            // or only to walk-ins, genuinely has no top customer.
             'highlights' => [
-                'top_product' => $sells ? $this->topProduct($tenant, $branchId, $monthStart) : null,
-                'top_category' => $sells ? $this->topCategory($tenant, $branchId, $monthStart) : null,
-                'top_customer' => $sells ? $this->topCustomer($tenant, $branchId, $monthStart) : null,
-                'top_staff' => $sells ? $this->topStaff($tenant, $branchId, $monthStart) : null,
+                'top_product' => $sells ? $this->topProduct($tenant, $branchId, $leadersFrom, $leadersUntil) : null,
+                'top_category' => $sells ? $this->topCategory($tenant, $branchId, $leadersFrom, $leadersUntil) : null,
+                'top_customer' => $sells ? $this->topCustomer($tenant, $branchId, $leadersFrom, $leadersUntil) : null,
+                'top_staff' => $sells ? $this->topStaff($tenant, $branchId, $leadersFrom, $leadersUntil) : null,
             ],
             // What THIS trade needs and nobody else does. Null when the shop
             // is not that trade, so the panel is absent rather than empty —
@@ -238,7 +291,7 @@ class DashboardService
             // rather than by widening a signature every caller relies on.
             'dispensing' => $tenant->business_type !== null
                 && BusinessTypes::primary($tenant->business_type) === 'pharmacy'
-                ? $this->dispensingToday($tenant, $branchId, $todayStart)
+                ? $this->dispensingToday($tenant, $branchId, $flowFrom, $flowUntil)
                 : null,
             // The morning question of a shop that takes work IN: what is on the
             // board, and what has been finished and not yet charged for.
@@ -257,10 +310,99 @@ class DashboardService
                 ? $this->workshopBay($tenant, $branchId)
                 : null,
             'activity' => $this->tenantActivity($tenant),
-            // HQ comparison: today's sales per branch. Only for multi-branch
+            // HQ comparison: the period's sales per branch. Only for multi-branch
             // tenants (a single-shop owner gets an empty array, no HQ panel).
-            'branches' => $this->branchBreakdown($tenant, $todayStart, $sells),
+            'branches' => $this->branchBreakdown($tenant, $flowFrom, $sells, $flowUntil),
         ];
+    }
+
+    /**
+     * Everything that is bucketed by day, for a run of dates: one grouped
+     * query each, keyed `Y-m-d`.
+     *
+     * Bounded at BOTH ends. The lower bound alone was enough while the window
+     * always ended today; a period can now end last March, and a shop with
+     * three years of sales must not have them all grouped to draw one month.
+     *
+     * @return array{sales: array<string, array{sales_count: int, revenue: float, customers_count: int}>,
+     *               cogs: array<string, float>, expenses: array<string, float>, income: array<string, float>,
+     *               refunds: array<string, float>, tax: array<string, float>}
+     */
+    private function rollups(Tenant $tenant, ?string $branchId, string $from, string $to, bool $sells, bool $keepsBooks): array
+    {
+        $start = ShopDay::startOf($from, $tenant);
+        $end = ShopDay::endOf($to, $tenant);
+
+        return [
+            'sales' => $sells ? $this->dailySales($tenant, $branchId, $start, $end) : [],
+            'cogs' => $sells ? $this->dailyCogs($tenant, $branchId, $start, $end) : [],
+            // Expenses are branch-scoped: a focused branch deducts only its own
+            // costs; the all-branches view (branchId null) sums the whole tenant.
+            'expenses' => $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $from, $to) : [],
+            'income' => $keepsBooks ? $this->dailyIncome($tenant, $branchId, $from, $to) : [],
+            // What went back out over the counter. Rolled up the same way as the
+            // others so the tile, the delta and the chart cannot disagree —
+            // and rolled up at all because they once agreed on a profit that
+            // took no account of anything handed back.
+            'refunds' => $sells ? $this->dailyRefunds($tenant, $branchId, $start, $end) : [],
+            // The sales tax held for the government, day by day: what was charged
+            // less what was handed back. Revenue includes it and profit must not —
+            // see ReportService::summary, which had the same fault and the same fix.
+            'tax' => $sells ? $this->dailyTax($tenant, $branchId, $start, $end) : [],
+        ];
+    }
+
+    /**
+     * The rollups added up over a run of dates — a day, a week of the chart,
+     * the whole period. ONE definition of every figure, so the tile, the
+     * point on the chart and the pill beside them are the same arithmetic.
+     *
+     * Net profit: everything that came in (sales AND non-sale income)
+     * − refunds − the tax held − cost of goods (line snapshots) − expenses.
+     * Leaving income out made this the Cashbook's answer minus the whole of
+     * what the business earned — for a books-only tenant, a permanent loss.
+     *
+     * @param  array{sales: array<string, array{sales_count: int, revenue: float, customers_count: int}>,
+     *               cogs: array<string, float>, expenses: array<string, float>, income: array<string, float>,
+     *               refunds: array<string, float>, tax: array<string, float>}  $byDay
+     * @return array{sales_count: int, revenue: float, other_income: float, refunds: float, expenses: float, profit: float}
+     */
+    private function summed(array $byDay, string $from, string $to): array
+    {
+        // `Y-m-d` sorts as text exactly as it sorts as a date.
+        $within = static fn (string $date): bool => $date >= $from && $date <= $to;
+        $sum = static fn (array $days): float => (float) array_sum(array_filter($days, $within, ARRAY_FILTER_USE_KEY));
+
+        $sales = array_filter($byDay['sales'], $within, ARRAY_FILTER_USE_KEY);
+        $revenue = (float) array_sum(array_column($sales, 'revenue'));
+        $income = $sum($byDay['income']);
+        $refunds = $sum($byDay['refunds']);
+        $expenses = $sum($byDay['expenses']);
+
+        return [
+            'sales_count' => (int) array_sum(array_column($sales, 'sales_count')),
+            'revenue' => $revenue,
+            'other_income' => $income,
+            'refunds' => $refunds,
+            'expenses' => $expenses,
+            'profit' => $revenue - $refunds - $sum($byDay['tax']) + $income - $sum($byDay['cogs']) - $expenses,
+        ];
+    }
+
+    /**
+     * Buyers served over a run of days: an identified customer once, however
+     * many days they came on, and each anonymous walk-in ticket as one.
+     */
+    private function customersServed(Tenant $tenant, ?string $branchId, CarbonInterface $from, CarbonInterface $until): int
+    {
+        return (int) Sale::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('status', Takings::COUNTED)
+            ->whereBetween('sold_at', [$from, $until])
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->selectRaw('COUNT(DISTINCT COALESCE(customer_id, id)) as customers')
+            ->toBase()
+            ->value('customers');
     }
 
     /**
@@ -269,14 +411,14 @@ class DashboardService
      *
      * @return array<string, array{sales_count: int, revenue: float, customers_count: int}>
      */
-    private function dailySales(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
+    private function dailySales(Tenant $tenant, ?string $branchId, CarbonInterface $from, CarbonInterface $until): array
     {
         $day = ShopDay::dateSql('sold_at', $tenant);
 
         return Sale::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', Takings::COUNTED)
-            ->where('sold_at', '>=', $from)
+            ->whereBetween('sold_at', [$from, $until])
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->selectRaw(
                 "{$day} as day, COUNT(*) as sales_count, COALESCE(SUM(total), 0) as revenue,"
@@ -303,7 +445,7 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyCogs(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
+    private function dailyCogs(Tenant $tenant, ?string $branchId, CarbonInterface $from, CarbonInterface $until): array
     {
         $day = ShopDay::dateSql('sales.sold_at', $tenant);
 
@@ -312,7 +454,7 @@ class DashboardService
             ->where('sale_items.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
             ->whereIn('sales.status', Takings::COUNTED)
-            ->where('sales.sold_at', '>=', $from)
+            ->whereBetween('sales.sold_at', [$from, $until])
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b))
             ->selectRaw("{$day} as day, COALESCE(SUM(sale_items.unit_cost * sale_items.quantity), 0) as cogs")
             ->groupByRaw($day)
@@ -333,14 +475,14 @@ class DashboardService
      * counted, closed and banked. The cashbook has always dated refunds this
      * way — this is the same rule, for the tiles and the chart.
      */
-    private function dailyRefunds(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
+    private function dailyRefunds(Tenant $tenant, ?string $branchId, CarbonInterface $from, CarbonInterface $until): array
     {
         $day = ShopDay::dateSql('returned_at', $tenant);
 
         return SaleReturn::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('returned_at', '>=', $from)
+            ->whereBetween('returned_at', [$from, $until])
             ->selectRaw("{$day} as day, COALESCE(SUM(refund_total), 0) as total")
             ->groupByRaw($day)
             ->toBase()
@@ -355,13 +497,13 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyTax(Tenant $tenant, ?string $branchId, CarbonInterface $from): array
+    private function dailyTax(Tenant $tenant, ?string $branchId, CarbonInterface $from, CarbonInterface $until): array
     {
         $sold = ShopDay::dateSql('sold_at', $tenant);
         $charged = Sale::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', Takings::COUNTED)
-            ->where('sold_at', '>=', $from)
+            ->whereBetween('sold_at', [$from, $until])
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->selectRaw("{$sold} as day, COALESCE(SUM(tax), 0) as total")
             ->groupByRaw($sold)
@@ -372,7 +514,7 @@ class DashboardService
         $returned = SaleReturn::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('returned_at', '>=', $from)
+            ->whereBetween('returned_at', [$from, $until])
             ->selectRaw("{$back} as day, COALESCE(SUM(refund_tax), 0) as total")
             ->groupByRaw($back)
             ->toBase()
@@ -389,14 +531,17 @@ class DashboardService
         return $byDay;
     }
 
-    private function dailyExpenses(Tenant $tenant, ?string $branchId, string $from): array
+    private function dailyExpenses(Tenant $tenant, ?string $branchId, string $from, string $to): array
     {
         $day = $this->dayExpression('expense_date');
 
         return Expense::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('expense_date', '>=', $from)
+            // Both ends spelled to the second, as the reports spell them: SQLite
+            // keeps "2026-10-09 00:00:00" in this column, which as text is
+            // AFTER a bare "2026-10-09" — and the last day would be left out.
+            ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
             ->selectRaw("{$day} as day, COALESCE(SUM(amount), 0) as total")
             ->groupByRaw($day)
             ->toBase()
@@ -417,14 +562,14 @@ class DashboardService
      *
      * @return array<string, float>
      */
-    private function dailyIncome(Tenant $tenant, ?string $branchId, string $from): array
+    private function dailyIncome(Tenant $tenant, ?string $branchId, string $from, string $to): array
     {
         $day = $this->dayExpression('income_date');
 
         return Income::withoutTenancy()
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-            ->where('income_date', '>=', $from)
+            ->whereBetween('income_date', [$from.' 00:00:00', $to.' 23:59:59'])
             ->selectRaw("{$day} as day, COALESCE(SUM(amount), 0) as total")
             ->groupByRaw($day)
             ->toBase()
@@ -434,50 +579,37 @@ class DashboardService
     }
 
     /**
-     * The 7-day chart, built in PHP from the rollups so a day with no trade
-     * still gets a point.
+     * The chart, built in PHP from the rollups so a day with no trade still
+     * gets a point.
      *
-     * @param  array<string, array{sales_count: int, revenue: float, customers_count: int}>  $salesByDay
-     * @param  array<string, float>  $cogsByDay
-     * @param  array<string, float>  $expensesByDay
-     * @param  array<string, float>  $incomeByDay
-     * @return array<int, array{day: string, date: string, revenue: float, other_income: float, expenses: float, profit: float}>
+     * Each point is `summed()` over the dates it covers — the same sum the
+     * tiles are, so the points of a period add up to its tile and the last
+     * point of "today" always equals the number in the tile.
+     *
+     * `day` is what the axis calls the point ("Mon", "9 Oct", "Oct") and
+     * `date` the first date it covers; both names are older than the period
+     * and are kept, because the phone app reads them. `to` is the last date —
+     * the same as `date` until a point is a week or a month wide.
+     *
+     * @return array<int, array{day: string, date: string, to: string, revenue: float,
+     *                          other_income: float, refunds: float, expenses: float, profit: float}>
      */
-    private function salesSeries(
-        string $from,
-        array $salesByDay,
-        array $cogsByDay,
-        array $expensesByDay,
-        array $incomeByDay,
-        array $refundsByDay,
-        array $taxByDay = [],
-    ): array {
-        $series = [];
-        $cursor = CarbonImmutable::parse($from);
+    private function salesSeries(DashboardPeriod $period, array $byDay): array
+    {
+        return array_map(function (array $bucket) use ($byDay): array {
+            $sum = $this->summed($byDay, $bucket['from'], $bucket['to']);
 
-        for ($i = 0; $i < 7; $i++) {
-            $key = $cursor->toDateString();
-            $revenue = $salesByDay[$key]['revenue'] ?? 0.0;
-            $expenses = $expensesByDay[$key] ?? 0.0;
-            $otherIncome = $incomeByDay[$key] ?? 0.0;
-            $refunds = $refundsByDay[$key] ?? 0.0;
-
-            $series[] = [
-                'day' => $cursor->format('D'),
-                'date' => $key,
-                'revenue' => round($revenue, 2),
-                'other_income' => round($otherIncome, 2),
-                'refunds' => round($refunds, 2),
-                'expenses' => round($expenses, 2),
-                // Same definition as today's profit tile, so the last point of
-                // the chart always equals the number in the tile.
-                'profit' => round($revenue - $refunds - ($taxByDay[$key] ?? 0.0) + $otherIncome - ($cogsByDay[$key] ?? 0.0) - $expenses, 2),
+            return [
+                'day' => $bucket['label'],
+                'date' => $bucket['from'],
+                'to' => $bucket['to'],
+                'revenue' => round($sum['revenue'], 2),
+                'other_income' => round($sum['other_income'], 2),
+                'refunds' => round($sum['refunds'], 2),
+                'expenses' => round($sum['expenses'], 2),
+                'profit' => round($sum['profit'], 2),
             ];
-
-            $cursor = $cursor->addDay();
-        }
-
-        return $series;
+        }, $period->buckets());
     }
 
     /**
@@ -495,16 +627,18 @@ class DashboardService
     }
 
     /**
-     * This month's expenses per category, biggest first.
+     * Expenses per category, biggest first — from a date, and up to one when
+     * a period was asked for.
      *
      * @return array<int, array{category: string, total: float}>
      */
-    private function expenseBreakdown(Tenant $tenant, ?string $branchId, string $monthFrom): array
+    private function expenseBreakdown(Tenant $tenant, ?string $branchId, string $from, ?string $to = null): array
     {
         return Expense::withoutTenancy()
             ->where('expenses.tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('expenses.branch_id', $b))
-            ->where('expenses.expense_date', '>=', $monthFrom)
+            ->where('expenses.expense_date', '>=', $from)
+            ->when($to, fn ($q, $until) => $q->where('expenses.expense_date', '<=', $until.' 23:59:59'))
             ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
             ->selectRaw('COALESCE(expense_categories.name, \'Uncategorized\') as category, SUM(expenses.amount) as total')
             ->groupBy(DB::raw('COALESCE(expense_categories.name, \'Uncategorized\')'))
@@ -791,9 +925,9 @@ class DashboardService
     /**
      * @return array{name: string, units: float, revenue: float}|null
      */
-    private function topProduct(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
+    private function topProduct(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): ?array
     {
-        $row = $this->monthlyLineItems($tenant, $branchId, $monthStart)
+        $row = $this->soldLines($tenant, $branchId, $from, $until)
             ->selectRaw('sale_items.product_name as name, SUM(sale_items.quantity) as units, SUM(sale_items.line_total) as revenue')
             ->groupBy('sale_items.product_name')
             ->orderByDesc('revenue')
@@ -811,11 +945,11 @@ class DashboardService
     /**
      * @return array{name: string, revenue: float}|null
      */
-    private function topCategory(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
+    private function topCategory(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): ?array
     {
         // Left joins throughout: a line whose product (or whose product's
         // category) has since been deleted still sold, and belongs somewhere.
-        $row = $this->monthlyLineItems($tenant, $branchId, $monthStart)
+        $row = $this->soldLines($tenant, $branchId, $from, $until)
             ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->selectRaw('COALESCE(categories.name, \'Uncategorized\') as name, SUM(sale_items.line_total) as revenue')
@@ -836,9 +970,9 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topCustomer(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
+    private function topCustomer(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): ?array
     {
-        $row = $this->monthlySales($tenant, $branchId, $monthStart)
+        $row = $this->soldSales($tenant, $branchId, $from, $until)
             ->join('customers', 'customers.id', '=', 'sales.customer_id')
             ->selectRaw('customers.id as id, customers.name as name, COUNT(*) as sales_count, SUM(sales.total) as revenue')
             ->groupBy('customers.id', 'customers.name')
@@ -857,9 +991,9 @@ class DashboardService
     /**
      * @return array{id: string, name: string, sales_count: int, revenue: float}|null
      */
-    private function topStaff(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): ?array
+    private function topStaff(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): ?array
     {
-        $row = $this->monthlySales($tenant, $branchId, $monthStart)
+        $row = $this->soldSales($tenant, $branchId, $from, $until)
             ->whereNotNull('sales.created_by')
             ->join('users', 'users.id', '=', 'sales.created_by')
             ->selectRaw('users.id as id, users.name as name, COUNT(*) as sales_count, SUM(sales.total) as revenue')
@@ -877,27 +1011,30 @@ class DashboardService
     }
 
     /**
-     * This month's completed sales, fully qualified so the highlight queries can
-     * join tables that carry their own `status` / `name` columns.
+     * Completed sales from an instant — and up to one, when a period was asked
+     * for — fully qualified so the highlight queries can join tables that
+     * carry their own `status` / `name` columns.
      */
-    private function monthlySales(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): Builder
+    private function soldSales(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): Builder
     {
         return Sale::query()
             ->where('sales.tenant_id', $tenant->id)
             ->whereIn('sales.status', Takings::COUNTED)
-            ->where('sales.sold_at', '>=', $monthStart)
+            ->where('sales.sold_at', '>=', $from)
+            ->when($until, fn ($q, $end) => $q->where('sales.sold_at', '<=', $end))
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b));
     }
 
-    /** This month's sold lines (see dailyCogs() on the hand-written soft-delete filter). */
-    private function monthlyLineItems(Tenant $tenant, ?string $branchId, CarbonInterface $monthStart): Builder
+    /** The lines of those sales (see dailyCogs() on the hand-written soft-delete filter). */
+    private function soldLines(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): Builder
     {
         return SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sale_items.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
             ->whereIn('sales.status', Takings::COUNTED)
-            ->where('sales.sold_at', '>=', $monthStart)
+            ->where('sales.sold_at', '>=', $from)
+            ->when($until, fn ($q, $end) => $q->where('sales.sold_at', '<=', $end))
             ->when($branchId, fn ($q, $b) => $q->where('sales.branch_id', $b));
     }
 
@@ -988,14 +1125,15 @@ class DashboardService
      *
      * @return array{rx_sales: int, rx_revenue: float, prescribers: int}
      */
-    private function dispensingToday(Tenant $tenant, ?string $branchId, CarbonInterface $todayStart): array
+    private function dispensingToday(Tenant $tenant, ?string $branchId, CarbonInterface $from, ?CarbonInterface $until = null): array
     {
         $rx = Sale::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', Takings::COUNTED)
             ->whereNotNull('prescription_number')
             ->where('prescription_number', '!=', '')
-            ->where('sold_at', '>=', $todayStart)
+            ->where('sold_at', '>=', $from)
+            ->when($until, fn (Builder $q, $end) => $q->where('sold_at', '<=', $end))
             ->when($branchId, fn (Builder $q) => $q->where('branch_id', $branchId));
 
         return [
@@ -1117,7 +1255,7 @@ class DashboardService
      *                       rather than rendering a row of zeros per site.
      * @return array<int, array{branch_id: string, branch: string, sales_count: int, revenue: float}>
      */
-    private function branchBreakdown(Tenant $tenant, CarbonInterface $todayStart, bool $sells = true): array
+    private function branchBreakdown(Tenant $tenant, CarbonInterface $from, bool $sells = true, ?CarbonInterface $until = null): array
     {
         if (! $sells) {
             return [];
@@ -1139,7 +1277,8 @@ class DashboardService
         $totals = Sale::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', Takings::COUNTED)
-            ->where('sold_at', '>=', $todayStart)
+            ->where('sold_at', '>=', $from)
+            ->when($until, fn ($q, $end) => $q->where('sold_at', '<=', $end))
             ->whereIn('branch_id', $branches->pluck('id'))
             ->selectRaw('branch_id, COUNT(*) as sales_count, COALESCE(SUM(total), 0) as revenue')
             ->groupBy('branch_id')
@@ -1164,10 +1303,28 @@ class DashboardService
      */
     /**
      * @param  bool  $withRevenue  false strips the money — see DashboardController
+     * @param  string|null  $from  The period asked about, both ends inclusive —
+     * @param  string|null  $to  see DashboardPeriod. With neither it is the
+     *                           seven days ending today: a single day of a
+     *                           platform paid by the month is mostly noughts.
      */
-    public function forPlatform(bool $withRevenue = true): array
+    public function forPlatform(bool $withRevenue = true, ?string $from = null, ?string $to = null): array
     {
         $now = now();
+
+        // THE PERIOD, on the platform's own calendar — the server's, as every
+        // platform figure and the billing ledger's date filter already are.
+        // Not a shop's day: the platform is not standing in any shop.
+        $period = DashboardPeriod::of($from, $to, $now->toDateString(), 'week');
+        $periodStart = Carbon::parse($period->from)->startOfDay();
+        $periodEnd = Carbon::parse($period->to)->endOfDay();
+        $comparedStart = Carbon::parse($period->comparedFrom)->startOfDay();
+        // A period still running is set against the same PART of the one
+        // before — up to this hour of its last day. Against the whole of it,
+        // every morning would read as a decline.
+        $comparedEnd = $period->to === $period->today
+            ? Carbon::parse($period->comparedTo)->setTimeFrom($now)
+            : Carbon::parse($period->comparedTo)->endOfDay();
         $monthStart = $now->copy()->startOfMonth();
         $prevMonthStart = $monthStart->copy()->subMonth();
         // The same instant one month/one day back — comparing a part-finished
@@ -1204,6 +1361,12 @@ class DashboardService
                 // the shop already existed then" — an approximation, but an
                 // explainable one.
                 'SUM(CASE WHEN subscription_ends_at > ? AND created_at <= ? THEN 1 ELSE 0 END) as live_subs_prev',
+                // The period asked about: who joined in it, who joined in the
+                // one it is set against, and who was KEPT in it — a shop that
+                // began as a demo and was turned into a business.
+                'SUM(CASE WHEN created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as joined',
+                'SUM(CASE WHEN created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as joined_before',
+                'SUM(CASE WHEN converted_at >= ? AND converted_at <= ? THEN 1 ELSE 0 END) as kept',
             ]), [
                 TenantStatus::Active->value,
                 TenantStatus::Suspended->value,
@@ -1212,6 +1375,9 @@ class DashboardService
                 $monthStart,
                 $now,
                 $monthAgo, $monthAgo,
+                $periodStart, $periodEnd,
+                $comparedStart, $comparedEnd,
+                $periodStart, $periodEnd,
             ])
             ->toBase()
             ->first();
@@ -1219,17 +1385,47 @@ class DashboardService
         $revenue = SubscriptionPayment::query()
             ->selectRaw(
                 'SUM(CASE WHEN paid_at >= ? THEN amount ELSE 0 END) as this_month,'
-                .' SUM(CASE WHEN paid_at >= ? AND paid_at < ? THEN amount ELSE 0 END) as prev_month',
-                [$monthStart, $prevMonthStart, $monthStart],
+                .' SUM(CASE WHEN paid_at >= ? AND paid_at < ? THEN amount ELSE 0 END) as prev_month,'
+                .' SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END) as in_period,'
+                .' SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN 1 ELSE 0 END) as payments,'
+                .' SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END) as before_period',
+                [
+                    $monthStart, $prevMonthStart, $monthStart,
+                    $periodStart, $periodEnd,
+                    $periodStart, $periodEnd,
+                    $comparedStart, $comparedEnd,
+                ],
             )
             ->toBase()
             ->first();
 
+        $cancelled = OrderStatus::Cancelled->value;
         $orders = Order::withoutTenancy()
             ->selectRaw(
                 'SUM(CASE WHEN placed_at >= ? THEN 1 ELSE 0 END) as today,'
-                .' SUM(CASE WHEN placed_at >= ? AND placed_at < ? THEN 1 ELSE 0 END) as yesterday',
-                [$todayStart, $yesterdayStart, $dayAgo],
+                .' SUM(CASE WHEN placed_at >= ? AND placed_at < ? THEN 1 ELSE 0 END) as yesterday,'
+                .' SUM(CASE WHEN placed_at >= ? AND placed_at <= ? THEN 1 ELSE 0 END) as in_period,'
+                .' SUM(CASE WHEN placed_at >= ? AND placed_at <= ? THEN 1 ELSE 0 END) as before_period,'
+                // What those orders came to — the shops' money, not the
+                // platform's. An order that was called off came to nothing.
+                .' SUM(CASE WHEN placed_at >= ? AND placed_at <= ? AND status <> ? THEN total ELSE 0 END) as value',
+                [
+                    $todayStart, $yesterdayStart, $dayAgo,
+                    $periodStart, $periodEnd,
+                    $comparedStart, $comparedEnd,
+                    $periodStart, $periodEnd, $cancelled,
+                ],
+            )
+            ->toBase()
+            ->first();
+
+        // People who signed up to BUY — the other side of the marketplace.
+        $customers = User::query()
+            ->where('role', UserRole::Customer)
+            ->selectRaw(
+                'SUM(CASE WHEN created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as joined,'
+                .' SUM(CASE WHEN created_at >= ? AND created_at <= ? THEN 1 ELSE 0 END) as joined_before',
+                [$periodStart, $periodEnd, $comparedStart, $comparedEnd],
             )
             ->toBase()
             ->first();
@@ -1254,6 +1450,29 @@ class DashboardService
         ] : [];
 
         return [
+            // The period every figure under `in_period` is cut to, and what it
+            // was set against — so the screen says both rather than guessing.
+            'period' => $period->toArray(),
+            // WHAT HAPPENED IN IT. Flows only: each is a count or a sum of
+            // things that took place between the two dates, beside the same
+            // for the period it is compared with. What the platform IS —
+            // shops, subscriptions, riders — is `kpis`, and is always now.
+            'in_period' => [
+                // The money is withheld exactly as it is everywhere else on
+                // this payload: the keys are absent, not zero.
+                ...($withRevenue ? [
+                    'revenue' => $this->kpi(
+                        round((float) ($revenue->in_period ?? 0), 2),
+                        round((float) ($revenue->before_period ?? 0), 2),
+                    ),
+                    'payments' => (int) ($revenue->payments ?? 0),
+                ] : []),
+                'new_tenants' => $this->kpi((int) ($t->joined ?? 0), (int) ($t->joined_before ?? 0)),
+                'kept_from_demo' => (int) ($t->kept ?? 0),
+                'online_orders' => $this->kpi((int) ($orders->in_period ?? 0), (int) ($orders->before_period ?? 0)),
+                'orders_value' => round((float) ($orders->value ?? 0), 2),
+                'new_customers' => $this->kpi((int) ($customers->joined ?? 0), (int) ($customers->joined_before ?? 0)),
+            ],
             'tenants' => [
                 // Published, not dropped: "how many people are trying it" is a
                 // real question, and the answer belongs beside the businesses
