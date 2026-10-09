@@ -168,33 +168,38 @@ function SidebarPreview({ variant }: { variant: SidebarStyle }) {
   );
 }
 
-export default function ThemeCustomizer() {
+/** The three choices that are SAVED — for a shop, or for the platform console. */
+export interface ThemeLook {
+  primary: string | null;
+  tint: TintLevel;
+  sidebar: SidebarStyle;
+}
+
+/**
+ * WHERE A LOOK IS KEPT, AND WHO MAY CHANGE IT.
+ *
+ * This canvas was the shop's and only the shop's: it read `/shop/settings`,
+ * saved to it, and asked for `settings.manage`. The platform console wears
+ * the same four things and had no way to choose them — so the canvas takes
+ * its look from whoever mounts it, and there are two: `ThemeCustomizer` below
+ * (a shop) and `ConsoleAppearance` (the platform).
+ */
+export interface AppearanceSource {
+  /** What is stored now — and so what is worn while the canvas is shut. */
+  stored: ThemeLook;
+  /** May this person change it? Without it nothing is drawn at all. */
+  canConfigure: boolean;
+  /** A screen with no margin to stand the launcher in — the till. */
+  hideLauncher?: boolean;
+  saving: boolean;
+  save: (look: ThemeLook, on: { onSuccess: () => void; onError: (e: unknown) => void }) => void;
+  /** Whose look it is, for the sentence that says so: "your shop". */
+  savedFor: string;
+}
+
+export function AppearanceCanvas({ source }: { source: AppearanceSource }) {
   const { theme, toggleTheme } = useTheme();
-  const settings = useShopSettings();
-  const update = useUpdateShopSettings();
-
-  // Two different things live in this canvas and only one of them is yours.
-  // Light/dark is a personal preference on this device. The brand colour,
-  // sidebar and tint are the SHOP's look, saved for everyone, and PUT
-  // /shop/settings asks for settings.manage. A cashier used to be shown all
-  // four, and Save simply did nothing — the mutation 403'd with no onError,
-  // then closing the canvas snapped the preview back to what was stored. It
-  // read as "the theme will not update" rather than "this is not yours to
-  // change", which is the same disguise the empty product grid wore.
-  const canConfigure = useAuthStore((s) => s.hasPermission)("settings.manage");
-
-  /**
-   * Not on the till.
-   *
-   * The rail button is `fixed right-0 top-1/2`, which on every other screen
-   * lands on a page margin. The POS has no margin — it is a full-bleed two-pane
-   * till — so the gear sat directly on top of the cart's TOTAL column, which is
-   * the single figure a cashier and a customer are both looking at.
-   *
-   * Nobody restyles their shop halfway through a queue either. Appearance is
-   * one Esc away on the screen the owner sets it from.
-   */
-  const onTill = useLocation().pathname.startsWith("/tenant/pos");
+  const { canConfigure, stored } = source;
 
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -206,9 +211,9 @@ export default function ThemeCustomizer() {
   const [tint, setTint] = useState<TintLevel>("subtle");
   const [sidebar, setSidebar] = useState<SidebarStyle>(DEFAULT_SIDEBAR);
 
-  const storedPrimary = settings.data?.theme_primary ?? null;
-  const storedTint = (settings.data?.theme_tint ?? "subtle") as TintLevel;
-  const storedSidebar = (settings.data?.theme_sidebar ?? DEFAULT_SIDEBAR) as SidebarStyle;
+  const storedPrimary = stored.primary;
+  const storedTint = stored.tint;
+  const storedSidebar = stored.sidebar;
 
   useEffect(() => {
     setPrimary(storedPrimary);
@@ -236,8 +241,8 @@ export default function ThemeCustomizer() {
 
   const save = () => {
     setSaveError(null);
-    update.mutate(
-      { theme_primary: primary, theme_tint: tint, theme_sidebar: sidebar } as never,
+    source.save(
+      { primary, tint, sidebar },
       {
         onSuccess: () => {
           setSaved(true);
@@ -294,7 +299,7 @@ export default function ThemeCustomizer() {
       {/* Rail button — always reachable, never over the content. Hidden while
           the canvas is open so it can't sit on top of its own panel, and never
           drawn on the till (see `onTill` above). */}
-      {!open && !onTill && (
+      {!open && !source.hideLauncher && (
         /**
          * A tab that says what it is.
          *
@@ -392,7 +397,7 @@ export default function ThemeCustomizer() {
           <div>
             <h2 className="font-semibold text-gray-800 dark:text-white/90">Appearance</h2>
             <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-              Changes preview instantly. Save to apply for your shop.
+              Changes preview instantly. Save to apply for {source.savedFor}.
             </p>
           </div>
           {/* A finger-sized way out.
@@ -530,10 +535,10 @@ export default function ThemeCustomizer() {
           <button
             type="button"
             onClick={save}
-            disabled={!dirty || update.isPending}
+            disabled={!dirty || source.saving}
             className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-2.5 text-theme-sm font-semibold text-white transition hover:bg-brand-600 disabled:opacity-40"
           >
-            {update.isPending
+            {source.saving
               ? <><SpinnerGlyph /> Saving…</>
               : dirty && !saved
                 ? <><SaveGlyph /> Save</>
@@ -542,5 +547,59 @@ export default function ThemeCustomizer() {
         </footer>
       </aside>
     </div>
+  );
+}
+
+/**
+ * A SHOP'S Appearance — the canvas, kept in the shop's own settings.
+ *
+ * Two different things live in the canvas and only one of them is yours.
+ * Light/dark is a personal preference on this device. The brand colour,
+ * sidebar and tint are the SHOP's look, saved for everyone, and PUT
+ * /shop/settings asks for settings.manage. A cashier used to be shown all
+ * four, and Save simply did nothing — the mutation 403'd with no onError,
+ * then closing the canvas snapped the preview back to what was stored. It
+ * read as "the theme will not update" rather than "this is not yours to
+ * change", which is the same disguise the empty product grid wore.
+ */
+export default function ThemeCustomizer() {
+  const settings = useShopSettings();
+  const update = useUpdateShopSettings();
+  const canConfigure = useAuthStore((s) => s.hasPermission)("settings.manage");
+
+  /**
+   * Not on the till.
+   *
+   * The rail button is `fixed right-0 top-1/2`, which on every other screen
+   * lands on a page margin. The POS has no margin — it is a full-bleed two-pane
+   * till — so the gear sat directly on top of the cart's TOTAL column, which is
+   * the single figure a cashier and a customer are both looking at.
+   *
+   * Nobody restyles their shop halfway through a queue either. Appearance is
+   * one Esc away on the screen the owner sets it from.
+   */
+  const onTill = useLocation().pathname.startsWith("/tenant/pos");
+
+  return (
+    <AppearanceCanvas
+      source={{
+        stored: {
+          primary: settings.data?.theme_primary ?? null,
+          tint: (settings.data?.theme_tint ?? "subtle") as TintLevel,
+          sidebar: (settings.data?.theme_sidebar ?? DEFAULT_SIDEBAR) as SidebarStyle,
+        },
+        canConfigure,
+        hideLauncher: onTill,
+        saving: update.isPending,
+        // Both halves of the outcome, spelled out where the request is made:
+        // the canvas says "Saved", or the server's words under the button.
+        save: (look, on) =>
+          update.mutate(
+            { theme_primary: look.primary, theme_tint: look.tint, theme_sidebar: look.sidebar } as never,
+            { onSuccess: on.onSuccess, onError: on.onError },
+          ),
+        savedFor: "your shop",
+      }}
+    />
   );
 }

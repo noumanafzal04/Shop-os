@@ -817,6 +817,27 @@ export const QA_SECTIONS: QaSection[] = [
         ],
       },
       {
+        id: "admin-appearance",
+        title: "The console's own Appearance",
+        summary: "The platform console's colour and what its menu is painted in — chosen from the console, and worn by everybody on it.",
+        screen: "/admin",
+        required: "optional",
+        what: [
+          "A shop has always had Appearance: its colour, how far that colour reaches into the page, and whether its menu is the brand colour, white, tinted or dark. The console has the same canvas now — the tab on the right edge of every console screen, on a desktop-width screen.",
+          "It is the PLATFORM's look: one, saved once, seen by every super admin and every member of platform staff. Only a super admin is shown the tab. Light or dark is separate — that is the header toggle, and is kept on the device for that person only.",
+          "Untouched, the console is the house colour with its menu in it. Reset hands it back to exactly that.",
+          "A choice is previewed on the real console behind the canvas. Nothing is saved until Save, and closing without saving puts back what was there.",
+        ],
+        checks: [
+          { do: "Open the tab on the right edge and pick a colour and a sidebar.", expect: "The console behind the canvas changes at once — the menu, the band at the top, the buttons. Save is only enabled once something differs from what is stored." },
+          { do: "Close the canvas without saving.", expect: "The console goes back to how it was." },
+          { do: "Pick again, Save, and reload the page.", expect: "It opens in the new look straight away — not in the house blue for a moment first. Every console screen wears it." },
+          { do: "Sign in as platform staff (not a super admin) on another browser.", expect: "They see the same look, and no Appearance tab." },
+          { do: "Press Reset, then Save.", expect: "The house colour and the brand-coloured menu are back, for everybody." },
+          { do: "Sign out.", expect: "The sign-in page is in the house colour, whatever the console is wearing." },
+        ],
+      },
+      {
         id: "admin-customers",
         title: "Customers",
         summary: "The people who order from the shops: found, corrected, switched off.",

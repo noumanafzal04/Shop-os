@@ -1,5 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import ThemeCustomizer from "../../components/theme/ThemeCustomizer";
+import { ConsoleAppearance } from "../../modules/admin/components/ConsoleAppearance";
+import { useConsoleTheme } from "../../modules/admin/hooks/useConsoleAppearance";
 import ServiceWorkerHost from "../../modules/offline/pwa/ServiceWorkerHost";
 import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
 import InstallPrompt from "../../modules/offline/pwa/InstallPrompt";
@@ -185,10 +187,17 @@ export function RequireAdminScreen({ path }: { path: string }) {
  * and AppLayout (which both consoles share) covers neither.
  */
 export function AdminShell() {
+  // The console wears the platform's own look — and takes it off on the way
+  // out, the same as a shop's screens do.
+  useConsoleTheme();
+
   return (
     <>
       <ServiceWorkerHost />
       <Outlet />
+      {/* The canvas a shop has always had, kept in the platform's settings.
+          Drawn for a super admin only; everybody else simply wears it. */}
+      <ConsoleAppearance />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { bootTheme, recallTenantTheme, rememberTenantTheme } from "./rememberedTheme";
+import { bootTheme, PLATFORM_LOOK, recallTenantTheme, rememberTenantTheme } from "./rememberedTheme";
 import { applyTenantTheme, buildRamp } from "./tenantTheme";
 
 /**
@@ -79,7 +79,7 @@ describe("before the first paint", () => {
     expect(brand()).toBe("");
   });
 
-  it("does not dress the platform console, or a signed-out page", () => {
+  it("does not dress the platform console in a SHOP's colours, or a signed-out page in anybody's", () => {
     rememberTenantTheme("shop-a", { primary: GREEN });
 
     signIn({ role: "super_admin", tenant: null });
@@ -92,6 +92,37 @@ describe("before the first paint", () => {
     expect(brand()).toBe("");
 
     localStorage.removeItem("shopos-auth");
+    bootTheme();
+    expect(brand()).toBe("");
+  });
+
+  it("puts the console's own look on the page for the people who work on it", () => {
+    // The console has an Appearance now. Remembered under the platform's own
+    // name, it is back before the first paint for a super admin and for staff.
+    rememberTenantTheme(PLATFORM_LOOK, { primary: GREEN, tint: "strong", sidebar: "dark" });
+
+    for (const role of ["super_admin", "admin_staff"]) {
+      applyTenantTheme({});
+      signIn({ role, tenant: null });
+      expect(brand()).toBe("");
+
+      bootTheme();
+
+      expect(brand(), `${role} opened the console in the house colour`).toBe(buildRamp(GREEN)[500]);
+      expect(root().dataset.sidebar).toBe("dark");
+    }
+  });
+
+  it("does NOT dress a shop in the console's look", () => {
+    // One laptop, the console in the morning and a shop in the afternoon.
+    rememberTenantTheme(PLATFORM_LOOK, { primary: GREEN });
+
+    signIn(owner("shop-a"));
+    bootTheme();
+    expect(brand()).toBe("");
+
+    // …nor a customer, who wears nobody's.
+    signIn({ role: "customer", tenant: null });
     bootTheme();
     expect(brand()).toBe("");
   });

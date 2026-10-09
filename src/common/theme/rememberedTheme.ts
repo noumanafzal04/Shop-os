@@ -75,14 +75,26 @@ export function recallTenantTheme(tenantId: string | null | undefined): TenantTh
 }
 
 /** Who is signed in on this device, read straight from the persisted session. */
-function signedInShop(): string | null {
+/**
+ * The name the PLATFORM CONSOLE's look is remembered under.
+ *
+ * Not a tenant id and never mistakable for one — a shop's id is a UUID. One
+ * laptop is very often signed in to the console in the morning and to a shop
+ * in the afternoon, and each must find its own look and never the other's.
+ */
+export const PLATFORM_LOOK = "platform";
+
+/** Whose look this device should open in: a shop's id, the platform's name, or nobody's. */
+function whoseLook(): string | null {
   try {
     const raw = storage()?.getItem(AUTH_KEY);
     if (!raw) return null;
     const user = (JSON.parse(raw) as { state?: { user?: { role?: string; tenant?: { id?: string } | null } | null } })
       .state?.user;
-    // Only a shop's own people wear a shop's colours. The platform console
-    // and a customer keep the house look.
+    // The console has a look of its own now, and its people wear it.
+    if (user?.role === "super_admin" || user?.role === "admin_staff") return PLATFORM_LOOK;
+    // Only a shop's own people wear a shop's colours. A customer keeps the
+    // house look.
     if (user?.role !== "shop_owner" && user?.role !== "staff") return null;
 
     return user.tenant?.id ?? null;
@@ -107,7 +119,7 @@ export function bootTheme(): { dark: boolean; shop: TenantThemeOptions | null } 
     document.documentElement.classList.toggle("dark", dark);
   }
 
-  const shop = recallTenantTheme(signedInShop());
+  const shop = recallTenantTheme(whoseLook());
   if (shop) applyTenantTheme(shop);
 
   return { dark, shop };
