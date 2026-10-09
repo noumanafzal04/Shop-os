@@ -114,20 +114,36 @@ class CsvImportTradeFieldsTest extends TestCase
         $this->assertSame($group->id, Product::withoutTenancy()->where('sku', 'OIL-5L')->value('tax_group_id'));
     }
 
-    public function test_an_unknown_tax_group_is_left_off_rather_than_invented(): void
+    public function test_an_unknown_tax_group_refuses_the_row_and_invents_nothing(): void
     {
-        // A category can be created from a typo and costs nothing. A tax group
-        // is a RATE — inventing one would price the whole import wrong and look
-        // deliberate, so the item falls back to the shop's default instead.
+        // A category is a shelf. A tax group is a RATE: inventing one prices a
+        // whole import wrong — and so did what this used to do instead, which
+        // was to drop the name and let the item take the shop's default rate
+        // in silence. The row is refused, and says which groups there are.
         $shop = $this->shop('mart');
+        TaxGroup::withoutTenancy()->create(['tenant_id' => $shop->id, 'name' => 'GST 17%', 'rate' => 17, 'is_active' => true]);
 
-        $this->upload($shop, <<<'CSV'
+        $res = $this->upload($shop, <<<'CSV'
         name,item_type,sku,price,tax_group
         Cooking Oil 5L,physical_product,OIL-5L,2800,GTS 17%
-        CSV)->assertOk();
+        CSV)->assertOk()->assertJsonPath('data.failed', 1)->json('data');
 
-        $this->assertNull(Product::withoutTenancy()->where('sku', 'OIL-5L')->value('tax_group_id'));
-        $this->assertSame(0, TaxGroup::withoutTenancy()->where('tenant_id', $shop->id)->count());
+        $this->assertStringContainsString('Tax Group "GTS 17%" is not one of yours (GST 17%)', $res['errors'][0]['messages'][0]);
+        $this->assertSame(0, Product::withoutTenancy()->where('sku', 'OIL-5L')->count());
+        $this->assertSame(1, TaxGroup::withoutTenancy()->where('tenant_id', $shop->id)->count());
+    }
+
+    public function test_a_tax_group_is_matched_whatever_its_capitals(): void
+    {
+        $shop = $this->shop('mart');
+        $group = TaxGroup::withoutTenancy()->create(['tenant_id' => $shop->id, 'name' => 'GST 17%', 'rate' => 17, 'is_active' => true]);
+
+        $this->upload($shop, <<<'CSV'
+        name,sku,price,tax_group
+        Cooking Oil 5L,OIL-5L,2800,gst 17%
+        CSV)->assertOk()->assertJsonPath('data.created', 1);
+
+        $this->assertSame($group->id, Product::withoutTenancy()->where('sku', 'OIL-5L')->value('tax_group_id'));
     }
 
     public function test_a_blank_stock_tracking_column_leaves_the_item_type_to_decide(): void

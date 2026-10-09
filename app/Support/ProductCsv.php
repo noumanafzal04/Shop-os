@@ -2,6 +2,9 @@
 
 namespace App\Support;
 
+use App\Models\TaxGroup;
+use App\Models\Tenant;
+
 /**
  * The column list a merchant's catalog file uses, and what each column is
  * CALLED on the page.
@@ -38,6 +41,9 @@ class ProductCsv
         'item_type' => 'Item Type',
         'sku' => 'SKU',
         'parent_sku' => 'Parent SKU',
+        // A PACK of the row named in Parent SKU: how many base units it holds.
+        // Filled in, the row is a carton; left blank, it is a size.
+        'pack_size' => 'Pack Size',
         'barcode' => 'Barcode',
         'barcodes' => 'Barcodes',
         'plu_code' => 'PLU Code',
@@ -55,6 +61,10 @@ class ProductCsv
         'low_stock_threshold' => 'Low Stock Threshold',
         'min_order_qty' => 'Min Order Qty',
         'track_inventory' => 'Track Inventory',
+
+        // The lot the opening stock arrives in. A medicine's must be dated.
+        'expiry_date' => 'Expiry Date',
+        'batch_number' => 'Batch Number',
 
         // Pharmacy
         'generic_name' => 'Generic Name',
@@ -105,7 +115,8 @@ class ProductCsv
         'kitchen_station' => ['food'],
         'tracks_serial' => ['retail', 'automotive', 'petroleum'],
         'warranty_months' => ['retail', 'automotive', 'petroleum'],
-        'duration_minutes' => ['services'],
+        // `duration_minutes` is NOT here: a workshop sells labour too. It goes
+        // to any shop that keeps a service — see whyNot().
         // Weight-sold lines with a scale label. A restaurant does not price a
         // dish by the kilo, and a phone shop does not weigh a handset.
         'plu_code' => ['mart', 'pharmacy'],
@@ -126,12 +137,149 @@ class ProductCsv
             return self::HEADERS;
         }
 
+        // What the shop IS, not what it was called when it signed up: a
+        // `clinic` is a pharmacy, and compared by its old name it matched no
+        // trade at all — a chemist was handed a template with no medicine
+        // column in it.
+        $trade = BusinessTypes::primary($businessType);
+
         return array_filter(
             self::HEADERS,
             fn (string $field): bool => ! isset(self::TRADE_ONLY[$field])
-                || in_array($businessType, self::TRADE_ONLY[$field], true),
+                || in_array($trade, self::TRADE_ONLY[$field], true),
             ARRAY_FILTER_USE_KEY,
         );
+    }
+
+    /**
+     * The columns THIS SHOP is given — its trade AND the modules it has.
+     *
+     * The trade was only half of it. A baker selling online with no till was
+     * handed Barcode, PLU Code and Wholesale Price; a salon was handed Stock
+     * Quantity; a shop that sells nothing online, "Visible In Marketplace".
+     * The item form already hides each of those from the same shop — this is
+     * the same two questions (what the item is, what the shop has) asked of
+     * the file instead of the screen.
+     *
+     * @return array<string, string> field => header
+     */
+    public static function columnsFor(?Tenant $tenant): array
+    {
+        if ($tenant === null || $tenant->business_type === null) {
+            return self::HEADERS;
+        }
+
+        return array_filter(
+            self::HEADERS,
+            fn (string $field): bool => self::whyNot($field, $tenant) === null,
+            ARRAY_FILTER_USE_KEY,
+        );
+    }
+
+    /**
+     * Why this shop is NOT given a column — null when it is.
+     *
+     * Said as a reason rather than a yes/no, because a file that arrives with
+     * the column anyway is not refused: the column is left out, and the shop
+     * is told which and why.
+     */
+    public static function whyNot(string $field, Tenant $tenant): ?string
+    {
+        $type = (string) $tenant->business_type;
+        $trade = BusinessTypes::primary($type);
+        $has = fn (string $module): bool => ! empty($tenant->moduleMap()[$module]);
+        $kinds = self::importableTypes($tenant);
+        $goods = array_intersect($kinds, [ItemTypes::PHYSICAL, ItemTypes::FOOD, ItemTypes::MEDICINE]) !== [];
+
+        if (isset(self::TRADE_ONLY[$field]) && ! in_array($trade, self::TRADE_ONLY[$field], true)) {
+            return 'it is not something your kind of shop keeps';
+        }
+
+        return match ($field) {
+            'item_type' => count($kinds) > 1 ? null : 'your shop keeps one kind of item',
+            'stock_quantity', 'low_stock_threshold', 'track_inventory' => $goods && $has('inventory')
+                ? null : 'your shop does not use the Inventory module',
+            'expiry_date', 'batch_number' => in_array(ItemTypes::MEDICINE, $kinds, true) && $has('inventory')
+                ? null : 'your shop does not keep dated lots',
+            'barcode', 'barcodes', 'pack_size', 'wholesale_price', 'plu_code', 'tracks_serial', 'warranty_months' => $goods && $has('pos')
+                ? null : 'your shop does not use the till',
+            'visible_in_marketplace' => $has('marketplace') ? null : 'your shop is not selling online',
+            'kitchen_station' => $has('kitchen') ? null : 'your shop does not use the Kitchen module',
+            'duration_minutes' => in_array(ItemTypes::SERVICE, $kinds, true) ? null : 'your shop does not sell services',
+            'parent_sku', 'brand', 'sold_by', 'min_order_qty' => $goods ? null : 'your shop does not sell goods',
+            'tax_group' => TaxGroup::query()->exists() ? null : 'your shop has no tax groups',
+            default => null,
+        };
+    }
+
+    /**
+     * The kinds of item a file can bring in for this shop.
+     *
+     * Everything the shop may catalog, less a DEAL: a deal is the items inside
+     * it, and a row in a sheet cannot say what those are. The template used to
+     * carry an example deal row that imported as a deal of nothing.
+     *
+     * @return string[]
+     */
+    public static function importableTypes(?Tenant $tenant): array
+    {
+        if ($tenant === null || $tenant->business_type === null) {
+            return [ItemTypes::PHYSICAL];
+        }
+
+        return array_values(array_diff(
+            BusinessTypes::itemTypesFor((string) $tenant->business_type, $tenant->moduleMap()),
+            [ItemTypes::DEAL],
+        ));
+    }
+
+    /**
+     * Headers as people write them → the field they mean.
+     *
+     * The header a template hands out is still matched by its own words (see
+     * the note at the top). These are the ones a shopkeeper's OWN sheet, or a
+     * supplier's price list, is likely to carry instead.
+     *
+     * @var array<string, string>
+     */
+    private const ALIASES = [
+        'item' => 'name', 'item_name' => 'name', 'product' => 'name', 'product_name' => 'name', 'title' => 'name',
+        'type' => 'item_type',
+        'code' => 'sku', 'item_code' => 'sku', 'product_code' => 'sku',
+        'price_rs' => 'price', 'selling_price' => 'price', 'retail_price' => 'price', 'rate' => 'price', 'mrp' => 'price',
+        'cost_price' => 'cost', 'purchase_price' => 'cost', 'buying_price' => 'cost', 'cost_rs' => 'cost',
+        // "Sale price" is this product's own name for the marked-down price.
+        'sale_price' => 'discount_price', 'offer_price' => 'discount_price',
+        'stock' => 'stock_quantity', 'qty' => 'stock_quantity', 'quantity' => 'stock_quantity',
+        'opening_stock' => 'stock_quantity', 'stock_qty' => 'stock_quantity',
+        'low_stock' => 'low_stock_threshold', 'low_stock_alert_at' => 'low_stock_threshold', 'reorder_level' => 'low_stock_threshold',
+        'expiry' => 'expiry_date', 'exp_date' => 'expiry_date', 'expires' => 'expiry_date',
+        'batch' => 'batch_number', 'batch_no' => 'batch_number', 'lot' => 'batch_number',
+        'other_barcodes' => 'barcodes', 'extra_barcodes' => 'barcodes',
+        'pack_of' => 'pack_size', 'units_per_pack' => 'pack_size', 'pieces_per_pack' => 'pack_size', 'pack_qty' => 'pack_size',
+        'active' => 'is_active', 'show_online' => 'visible_in_marketplace', 'online' => 'visible_in_marketplace',
+        'tax' => 'tax_rate', 'tax_percent' => 'tax_rate', 'gst' => 'tax_rate',
+        'prescription' => 'requires_prescription', 'rx' => 'requires_prescription',
+        'generic' => 'generic_name', 'salt' => 'generic_name',
+        'warranty' => 'warranty_months', 'duration' => 'duration_minutes', 'station' => 'kitchen_station',
+        'uom' => 'unit', 'parent' => 'parent_sku',
+    ];
+
+    /**
+     * Which field a header in somebody's file means — null when it means none.
+     *
+     * Case, spacing and punctuation are not part of a header: "Price (Rs)",
+     * "price_rs" and "PRICE RS" are one thing.
+     */
+    public static function fieldFor(string $header): ?string
+    {
+        $key = trim((string) preg_replace('/[^a-z0-9]+/', '_', mb_strtolower(trim($header))), '_');
+
+        if (isset(self::HEADERS[$key])) {
+            return $key;
+        }
+
+        return self::ALIASES[$key] ?? null;
     }
 
     /**

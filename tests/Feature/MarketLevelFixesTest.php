@@ -410,7 +410,7 @@ class MarketLevelFixesTest extends TestCase
         $this->assertTrue(
             StockMovement::withoutTenancy()
                 ->where('product_id', $product->id)
-                ->where('reason', 'CSV import recount')
+                ->where('reason', 'Import recount')
                 ->exists(),
         );
     }

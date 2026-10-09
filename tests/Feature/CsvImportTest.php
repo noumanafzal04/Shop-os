@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Category;
 use App\Models\City;
 use App\Models\Product;
 use App\Models\ProductBarcode;
@@ -32,6 +33,9 @@ class CsvImportTest extends TestCase
             'business_type' => 'grocery', 'features' => BusinessTypes::defaultFeatures('grocery'),
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create();
+        // The shelf the size cases file their shirt under. It has to exist: an
+        // import no longer makes a category up — AnyShopImportsItsCatalogTest.
+        Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Garments']);
     }
 
     private function actingAsUser(User $user): static
@@ -51,6 +55,10 @@ class CsvImportTest extends TestCase
 
     public function test_valid_rows_create_products_and_bad_rows_are_reported(): void
     {
+        // The shelf exists: a category the shop does not have is no longer
+        // made up by an import — see AnyShopImportsItsCatalogTest.
+        Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'General']);
+
         $csv = <<<'CSV'
         name,item_type,sku,price,category,stock_quantity,barcodes
         Widget A,physical_product,W-A,100,General,10,
@@ -85,10 +93,21 @@ class CsvImportTest extends TestCase
         $this->assertSame('950.00', Product::withoutTenancy()->where('sku', 'GHEE-1')->first()->price);
     }
 
-    public function test_missing_required_header_is_rejected(): void
+    public function test_a_file_with_nothing_to_know_a_row_by_is_rejected(): void
     {
-        $this->upload("name,sku\nNo Price Column,X-1")
+        // Neither a Name nor a SKU: there is no telling which item a row is.
+        $this->upload("price,stock\n100,5")
             ->assertStatus(422)->assertJsonPath('meta.error_code', 'IMPORT_BAD_HEADER');
+    }
+
+    public function test_a_new_item_with_no_price_is_refused_as_a_row_not_as_a_file(): void
+    {
+        // It used to refuse the whole file for having no Price column, which
+        // also refused a price list's opposite: a stock count keyed on SKU.
+        $res = $this->upload("name,sku\nNo Price Column,X-1")->assertOk()->json('data');
+
+        $this->assertSame(1, $res['failed']);
+        $this->assertSame(['Price is missing.'], $res['errors'][0]['messages']);
     }
 
     public function test_import_requires_products_permission(): void
@@ -108,7 +127,10 @@ class CsvImportTest extends TestCase
         // column names of the products table. The importer lowercases and
         // swaps spaces for underscores, so these still read back in —
         // ProductCsvHeadersTest pins that round trip per column.
-        $this->assertStringContainsString('Name,"Item Type",SKU', $res->streamedContent());
+        // No Item Type: a grocery keeps one kind of item a file can bring in,
+        // so there is nothing for that column to say.
+        $this->assertStringContainsString('Name,SKU,"Parent SKU"', $res->streamedContent());
+        $this->assertStringNotContainsString('Item Type', $res->streamedContent());
     }
 
     /**

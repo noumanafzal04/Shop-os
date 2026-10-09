@@ -21,8 +21,7 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
-use App\Support\BusinessTypes;
-use App\Support\CsvExport;
+use App\Support\Import\ProductSheet;
 use App\Support\ItemTypes;
 use App\Support\LowStock;
 use App\Support\ProductCsv;
@@ -31,7 +30,7 @@ use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class ProductController extends Controller
 {
@@ -178,109 +177,97 @@ class ProductController extends Controller
     }
 
     /** Bulk-import products from a CSV — create/update by SKU, per-row results. */
+    /**
+     * A catalogue file — Excel or CSV — previewed or brought in.
+     *
+     * `dry_run` is the preview: the same import, undone. `categories` and
+     * `mapping` carry what the person answered on that preview — which shelf
+     * an unknown category is, and what a column from another system means.
+     * Both arrive as JSON text, because they sit beside a file in a form and a
+     * category name is not a safe thing to use as a form field's name.
+     */
     public function import(Request $request, ImportProductsAction $action): JsonResponse
     {
-        // The only upload on the platform that took ANY file type. It is read
-        // as text and never stored or served, so the exposure was small — but
-        // "we happen not to save it" is not the reason a rule should hold, and
-        // a 4 MB binary parsed line-by-line as CSV is nobody's intention.
-        $request->validate(['file' => ['required', 'file', 'mimes:csv,txt', 'max:4096']]);
+        // Read as a sheet and never stored or served. `extensions`, not
+        // `mimes`: what a browser calls an .xlsx depends on the machine it was
+        // saved on, and the file is recognised by its own first bytes anyway.
+        $request->validate([
+            'file' => ['required', 'file', 'extensions:csv,txt,xlsx', 'max:4096'],
+            'dry_run' => ['sometimes', 'boolean'],
+            'categories' => ['sometimes', 'nullable', 'json'],
+            'mapping' => ['sometimes', 'nullable', 'json'],
+        ]);
 
-        $summary = $action->execute($request->file('file')->get());
+        $categories = [];
+        foreach ((array) json_decode((string) $request->input('categories', '[]'), true) as $choice) {
+            if (is_array($choice) && is_string($choice['name'] ?? null) && in_array($choice['action'] ?? null, ['create', 'map', 'skip'], true)) {
+                $categories[$choice['name']] = ['action' => $choice['action'], 'id' => is_string($choice['id'] ?? null) ? $choice['id'] : null];
+            }
+        }
+
+        $mapping = [];
+        foreach ((array) json_decode((string) $request->input('mapping', '[]'), true) as $heading => $field) {
+            if (is_string($heading) && (is_string($field) || $field === null)) {
+                $mapping[$heading] = (string) $field;
+            }
+        }
+
+        $summary = $action->execute($request->file('file')->get(), [
+            'dry_run' => $request->boolean('dry_run'),
+            'categories' => $categories,
+            'mapping' => $mapping,
+        ]);
 
         return ApiResponse::ok(
             $summary,
-            "Imported {$summary['created']} new, updated {$summary['updated']}, {$summary['failed']} failed.",
+            $summary['dry_run']
+                ? "Checked {$summary['total']} rows — nothing has been saved yet."
+                : "Imported {$summary['created']} new, updated {$summary['updated']}, {$summary['failed']} failed.",
         );
     }
 
-    /** A ready-to-fill CSV template with the supported columns + one example row. */
     /**
-     * A blank catalog file, in THIS shop's own shape.
+     * A blank catalogue file, in THIS shop's own shape: the columns its trade
+     * and its modules use, a worked example of each kind of item it keeps, and
+     * — as Excel — its own categories in a drop-down.
      *
-     * ── The bug this replaces ───────────────────────────────────────────
-     *
-     * One template went to every trade: thirty-two columns and six worked
-     * rows — a sugar, a Panadol, a karahi, a phone, a service — whatever the
-     * shop actually sold. Meanwhile the importer refuses an item type the
-     * trade may not catalog, read from `BusinessTypes::itemTypesFor()`.
-     *
-     * Two lists, and they disagreed. Proven against the live panel: a
-     * restaurant downloaded this file and uploaded it back UNCHANGED —
-     *
-     *     Imported 4 new, 2 failed.
-     *       row 3 -> Item type "medicine" isn't available for this business type.
-     *       row 7 -> Item type "service" isn't available for this business type.
-     *
-     * — and the four that succeeded put Loose Sugar and a Galaxy A16 into a
-     * restaurant's catalog. Both halves of that are bugs: a file we hand out
-     * that we then refuse, and sample data that quietly becomes real stock.
-     *
-     * ── Why it is generated, not eight files ────────────────────────────
-     *
-     * Eight hand-written templates would drift from the validator exactly as
-     * this one did. The rows come off `itemTypesFor()` — the same list the
-     * importer checks against — so the template CANNOT offer a row the
-     * importer will refuse. There is no second list to drift from, and a trade
-     * added next year gets a correct template without anybody writing one.
+     * One template used to go to every trade, and the importer refused rows the
+     * file had just handed out. The rows now come off the same list the
+     * importer reads (`ProductCsv::importableTypes`), so the template cannot
+     * offer one it will refuse.
      */
-    public function importTemplate(TenantContext $context): StreamedResponse
+    public function importTemplate(Request $request, TenantContext $context): Response
     {
         $tenant = $context->get();
-        $type = $tenant?->business_type;
+        $sheet = ProductSheet::template($tenant);
 
-        // Only the columns this trade has. A restaurant filling in Dosage Form
-        // and Warranty Months is a restaurant being invited to make mistakes.
-        $columns = ProductCsv::headersFor($type);
-
-        // The shop's own words for a shelf and a unit, so the example reads
-        // like something it might actually sell.
-        // `product_categories`, NOT `categoriesFor()` — the latter returns
-        // value/label pairs describing sub-trades ("Fast Food", "Bakery"),
-        // which are not shelves and would read as nonsense in a Category cell.
-        $shelves = $type !== null ? (BusinessTypes::get($type)['product_categories'] ?? []) : [];
-        $units = $type !== null ? BusinessTypes::unitsFor($type) : [];
-        $category = is_string($shelves[0] ?? null) ? $shelves[0] : 'General';
-        $unit = is_string($units[0] ?? null) ? $units[0] : 'Piece';
-
-        // ONE example per item type the shop may actually catalog. A trade that
-        // sells neither goods nor labour gets a header row and nothing else,
-        // which is the honest answer rather than an example it cannot use.
-        $types = $type !== null
-            ? BusinessTypes::itemTypesFor($type, $tenant?->moduleMap())
-            : [ItemTypes::PHYSICAL];
-
-        $samples = array_map(
-            fn (string $itemType): array => ProductCsv::exampleRow($itemType, $category, $unit, $columns),
-            $types,
+        return ProductSheet::download(
+            'products-import-template',
+            $request->query('format') === 'xlsx' ? 'xlsx' : 'csv',
+            $sheet['columns'],
+            $sheet['rows'],
+            $tenant,
         );
-
-        // …and one worked SIZE, for the trades that have them, because a
-        // product with sizes could not be bulk-loaded at all before this.
-        if ($types !== [] && BusinessTypes::variantAttributesFor((string) $type) !== []) {
-            $samples[] = ProductCsv::exampleVariantRow($category, $unit, $columns);
-        }
-
-        // Through the same helper as the export, which writes the UTF-8 BOM.
-        // Hand-rolled, this file was the ONE a merchant types into — and the
-        // one without the marker that makes Excel read Urdu names correctly.
-        return CsvExport::stream('products-import-template.csv', array_values($columns), $samples);
     }
 
     /**
-     * Export the item catalog to CSV. Honours the same filters as index() so a
-     * merchant can "export what I'm looking at", and emits the SAME columns as
-     * the import template — an exported file round-trips straight back through
-     * /products/import for bulk edits.
+     * The catalogue as a sheet. Honours the same filters as index() so a
+     * merchant can "export what I'm looking at" — and comes back through
+     * /products/import: every product, with its sizes and its packs under it.
+     *
+     * Every column by default, because an export is a backup as much as a
+     * spreadsheet. `shape=shop` narrows it to the columns this shop uses, which
+     * is the one to edit.
      */
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request, TenantContext $context): Response
     {
-        // Title Case headers a merchant can read. The importer lowercases and
-        // swaps spaces for underscores, so this round-trips unchanged.
-        $header = ProductCsv::headerRow();
+        $tenant = $context->get();
 
-        $rows = Product::query()
-            ->with(['category:id,name', 'taxGroup:id,name', 'barcodes:id,product_id,variant_id,barcode'])
+        $products = Product::query()
+            ->with([
+                'taxGroup:id,name', 'barcodes:id,product_id,variant_id,barcode',
+                'variants', 'units',
+            ])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     $q->where('name', 'like', "%{$search}%")
@@ -294,55 +281,20 @@ class ProductController extends Controller
             ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
-            // One rule, shared with the reorder list — see LowStock. These
-            // two were copies of each other and a third, divergent copy on the
-            // inventory screen answered the same question differently.
+            // One rule, shared with the reorder list — see LowStock.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderBy('name')
-            ->get()
-            ->map(fn (Product $p) => [
-                $p->name,
-                $p->item_type,
-                $p->sku,
-                // Blank, and it has to BE here: these rows are positional, so
-                // a header with no cell under it shifts every column after it
-                // — an export whose Barcode column holds barcodes under the
-                // wrong heading, which re-imports as the wrong field.
-                // Products have no parent; only sizes do.
-                '',
-                $p->barcode,
-                $p->barcodes->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
-                $p->plu_code,
-                $p->brand,
-                $p->category?->name,
-                $p->unit,
-                $p->sold_by,
-                $p->price,
-                $p->cost,
-                $p->wholesale_price,
-                $p->discount_price,
-                $p->tax_rate,
-                $p->taxGroup?->name,
-                $p->stock_quantity,
-                $p->low_stock_threshold,
-                $p->min_order_qty,
-                $p->track_inventory ? 1 : 0,
-                $p->generic_name,
-                $p->strength,
-                $p->dosage_form,
-                $p->drug_schedule,
-                $p->requires_prescription ? 1 : 0,
-                $p->kitchen_station,
-                $p->tracks_serial ? 1 : 0,
-                $p->warranty_months,
-                $p->duration_minutes,
-                $p->description,
-                $p->is_active ? 1 : 0,
-                $p->visible_in_marketplace ? 1 : 0,
-            ])
-            ->all();
+            ->get();
 
-        return CsvExport::stream('products-'.ShopTime::show(now(), 'Y-m-d').'.csv', $header, $rows);
+        $columns = $request->query('shape') === 'shop' ? ProductCsv::columnsFor($tenant) : ProductCsv::HEADERS;
+
+        return ProductSheet::download(
+            'products-'.ShopTime::show(now(), 'Y-m-d'),
+            $request->query('format') === 'xlsx' ? 'xlsx' : 'csv',
+            $columns,
+            ProductSheet::rows($products, $columns),
+            $tenant,
+        );
     }
 
     public function show(string $id): JsonResponse
