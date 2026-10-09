@@ -8601,3 +8601,26 @@ Decision: `docs/decisions/shopos-the-shops-you-hand-to-somebody.md`.
   once and never re-set by a later seed. Change the password on a live server.
 - Before running it on a server after touching the builder or a catalogue:
   `php artisan test --filter=DemoShopsCommandTest` (about two minutes).
+
+## The admin side: customers are a list — 2026-10-09
+
+Decision: `docs/decisions/shopos-a-customer-made-can-be-found.md`.
+
+- `/admin/customers` was a create form with no list ("customers are created
+  and do not show"). It is the list now: figures, search, filters, a pager, a
+  create dialog and one person's card (edit, set password, switch off / on,
+  remove an account that has never ordered).
+- API: `GET /admin/customers`, `/summary`, `/{id}`; `PATCH /{id}`;
+  `POST /{id}/suspend|activate|password`; `DELETE /{id}` (refused with
+  `CUSTOMER_HAS_ORDERS` when they have ordered).
+- `admin/components/kit.tsx` is the console's shared furniture — use it for
+  every admin page from here on.
+- Admin browser tests are any `e2e/admin-*.spec.ts` (project `admin`).
+
+## Demo shops are on plans, and paid — 2026-10-09
+
+- `demo:shops` puts each shop on a plan through `AssignPlanAction`, month by
+  month, so Billing & Payments is not empty: Basic, Standard and Pro from the
+  ladder, and three plans of their own (`jtdemo-cafe-custom`,
+  `jtdemo-mart-custom`, `jtdemo-fuels-custom` — the last paid by the year).
+- `PlanSeeder` must have run first; `db:seed` runs it before the demo shops.
