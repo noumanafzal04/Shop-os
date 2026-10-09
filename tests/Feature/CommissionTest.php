@@ -258,8 +258,8 @@ class CommissionTest extends TestCase
 
         $this->as($this->admin)->getJson('/api/v1/admin/commission')
             ->assertOk()
-            ->assertJsonPath('data.total_outstanding', 500)
-            ->assertJsonPath('data.shops.0.outstanding_orders', 2);
+            ->assertJsonPath('meta.summary.unbilled.amount', 500)
+            ->assertJsonPath('data.0.outstanding_orders', 2);
 
         $invoice = $this->as($this->admin)->postJson("/api/v1/admin/commission/{$this->shop->id}/invoices", [
             'from' => now()->subDay()->toDateString(),
@@ -274,7 +274,7 @@ class CommissionTest extends TestCase
 
         // Billed is not outstanding.
         $this->as($this->admin)->getJson('/api/v1/admin/commission')
-            ->assertOk()->assertJsonPath('data.total_outstanding', 0);
+            ->assertOk()->assertJsonPath('meta.summary.unbilled.amount', 0);
 
         // And a second invoice for the same window has nothing left to bill —
         // which is the guard against billing one order twice.
@@ -320,7 +320,7 @@ class CommissionTest extends TestCase
         // Void, not deleted — and the money is owed again.
         $this->assertSame(1, CommissionInvoice::withoutTenancy()->count());
         $this->as($this->admin)->getJson('/api/v1/admin/commission')
-            ->assertOk()->assertJsonPath('data.total_outstanding', 200);
+            ->assertOk()->assertJsonPath('meta.summary.unbilled.amount', 200);
     }
 
     public function test_a_paid_invoice_cannot_be_withdrawn(): void
@@ -352,7 +352,7 @@ class CommissionTest extends TestCase
         ])->assertOk();
 
         $this->as($this->admin)->getJson('/api/v1/admin/commission')
-            ->assertOk()->assertJsonPath('data.total_outstanding', 0);
+            ->assertOk()->assertJsonPath('meta.summary.unbilled.amount', 0);
 
         // A written-off charge is not billable, so there is nothing to invoice.
         $this->as($this->admin)->postJson("/api/v1/admin/commission/{$this->shop->id}/invoices", [

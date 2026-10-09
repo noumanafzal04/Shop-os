@@ -9,8 +9,11 @@ use App\Models\Tenant;
 use App\Services\CommissionService;
 use App\Support\ApiResponse;
 use App\Support\PlatformSettings;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 /**
  * WHAT THE PLATFORM IS OWED.
@@ -45,49 +48,170 @@ class CommissionController extends Controller
     }
 
     /**
-     * Every shop, and what it owes.
+     * Every shop, and what it owes — a page at a time.
      *
-     * Ordered by what is outstanding, largest first: this is a screen somebody
-     * opens to chase money, and a list sorted by name buries the four that
-     * matter under forty that do not.
+     * ── What a shop owes is two piles, and they are kept apart ────────
+     *
+     *   NOT YET BILLED   charges on no invoice and not written off. The
+     *                    platform has earned it and has not asked for it.
+     *   BILLED, UNPAID   invoices raised and not yet marked paid. The
+     *                    platform has asked, and is waiting.
+     *
+     * The list used to show only the first as money and the second as a
+     * count of invoices — so a shop holding Rs 40,000 of unpaid invoices and
+     * nothing new read as owing nothing, and sorted to the bottom of a screen
+     * somebody opens to chase money.
+     *
+     * Ordered by the two together, largest first, unless asked otherwise.
+     *
+     * ── Counted in the database, a page at a time ─────────────────────
+     *
+     * This loaded EVERY shop and asked two questions of each — two queries a
+     * shop, on a list with no pages. Forty shops was eighty-one queries; four
+     * hundred would have been eight hundred and one. It is three now, whatever
+     * the platform's size: the page, the figures above it, and what was
+     * collected this month.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, CommissionService $commission): JsonResponse
     {
         $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'owing' => ['sometimes', 'boolean'],
+            'standing' => ['nullable', Rule::in(['unbilled', 'invoiced', 'clear'])],
+            'rate' => ['nullable', Rule::in(['own', 'platform'])],
+            'sort' => ['nullable', Rule::in(['owed', 'unbilled', 'invoiced', 'name'])],
         ]);
 
-        $shops = Tenant::query()
-            ->where('is_demo', false)
-            ->when($request->filled('search'), fn ($q) => $q->where('business_name', 'like', '%'.$request->string('search')->value().'%'))
-            ->get(['id', 'business_name', 'slug', 'commission_rate'])
-            ->map(function (Tenant $shop) {
-                $outstanding = app(CommissionService::class)->outstanding($shop);
+        // A count beside a filter is taken with every OTHER filter applied and
+        // not its own — or pressing "Not yet billed" would change the number
+        // on the button that was pressed.
+        $shops = fn (?string $except = null) => $this->shops($request, $except);
 
-                return [
-                    'id' => $shop->id,
-                    'business_name' => $shop->business_name,
-                    'slug' => $shop->slug,
-                    // Null means "follows the platform default", and the screen
-                    // says so rather than printing the resolved number as
-                    // though the shop had chosen it.
-                    'commission_rate' => $shop->commission_rate !== null ? (float) $shop->commission_rate : null,
-                    'effective_rate' => app(CommissionService::class)->rateFor($shop),
-                    'outstanding_orders' => $outstanding['orders'],
-                    'outstanding_amount' => $outstanding['amount'],
-                    'unpaid_invoices' => CommissionInvoice::withoutTenancy()
-                        ->where('tenant_id', $shop->id)->where('status', 'unpaid')->count(),
-                ];
-            })
-            ->when($request->boolean('owing'), fn ($rows) => $rows->filter(fn ($r) => $r['outstanding_amount'] > 0))
-            ->sortByDesc('outstanding_amount')
-            ->values();
+        $unbilled = 'coalesce(c.outstanding_amount, 0)';
+        $unpaid = 'coalesce(i.unpaid_amount, 0)';
 
-        return ApiResponse::ok([
-            'shops' => $shops,
-            'total_outstanding' => round((float) $shops->sum('outstanding_amount'), 2),
+        $page = $shops()->select([
+            'tenants.id', 'tenants.business_name', 'tenants.slug', 'tenants.business_type', 'tenants.commission_rate',
+            DB::raw('coalesce(c.outstanding_orders, 0) as outstanding_orders'),
+            DB::raw("{$unbilled} as outstanding_amount"),
+            DB::raw('coalesce(i.unpaid_invoices, 0) as unpaid_invoices'),
+            DB::raw("{$unpaid} as unpaid_amount"),
         ]);
+
+        match ($request->query('sort', 'owed')) {
+            'name' => $page->orderBy('tenants.business_name'),
+            'unbilled' => $page->orderByRaw("{$unbilled} desc")->orderBy('tenants.business_name'),
+            'invoiced' => $page->orderByRaw("{$unpaid} desc")->orderBy('tenants.business_name'),
+            // This is a screen somebody opens to chase money: a list sorted by
+            // name buries the four that matter under forty that do not.
+            default => $page->orderByRaw("({$unbilled} + {$unpaid}) desc")->orderBy('tenants.business_name'),
+        };
+
+        $rows = $page->stably()->paginate(25);
+
+        $rows->through(fn (Tenant $shop): array => [
+            'id' => $shop->id,
+            'business_name' => $shop->business_name,
+            'slug' => $shop->slug,
+            'business_type' => $shop->business_type,
+            // Null means "follows the platform default", and the screen
+            // says so rather than printing the resolved number as
+            // though the shop had chosen it.
+            'commission_rate' => $shop->commission_rate !== null ? (float) $shop->commission_rate : null,
+            'effective_rate' => $commission->rateFor($shop),
+            'outstanding_orders' => (int) $shop->getAttribute('outstanding_orders'),
+            'outstanding_amount' => round((float) $shop->getAttribute('outstanding_amount'), 2),
+            'unpaid_invoices' => (int) $shop->getAttribute('unpaid_invoices'),
+            'unpaid_amount' => round((float) $shop->getAttribute('unpaid_amount'), 2),
+            // Everything this shop owes the platform, asked for or not.
+            'owed' => round((float) $shop->getAttribute('outstanding_amount') + (float) $shop->getAttribute('unpaid_amount'), 2),
+        ]);
+
+        $standing = $shops('standing')->selectRaw(implode(', ', [
+            'count(*) as shops',
+            'sum(case when c.tenant_id is not null then 1 else 0 end) as unbilled_shops',
+            'coalesce(sum(c.outstanding_orders), 0) as unbilled_orders',
+            'coalesce(sum(c.outstanding_amount), 0) as unbilled_amount',
+            'sum(case when i.tenant_id is not null then 1 else 0 end) as invoiced_shops',
+            'coalesce(sum(i.unpaid_invoices), 0) as unpaid_invoices',
+            'coalesce(sum(i.unpaid_amount), 0) as unpaid_amount',
+            'sum(case when c.tenant_id is null and i.tenant_id is null then 1 else 0 end) as clear_shops',
+        ]))->toBase()->first();
+
+        $rates = $shops('rate')->selectRaw(
+            'sum(case when tenants.commission_rate is not null then 1 else 0 end) as own,'
+            .' sum(case when tenants.commission_rate is null then 1 else 0 end) as platform'
+        )->toBase()->first();
+
+        // What has actually come in, this calendar month — the one figure on
+        // this screen that is good news, and it had no place on it.
+        //
+        // By `paid_at` alone: only marking an invoice paid ever writes it, and
+        // a paid invoice cannot be withdrawn — so it is the status, with a date.
+        $collected = CommissionInvoice::withoutTenancy()
+            ->where('paid_at', '>=', now()->startOfMonth())
+            ->selectRaw('count(*) as invoices, coalesce(sum(amount), 0) as amount')
+            ->toBase()
+            ->first();
+
+        return ApiResponse::paginated($rows, 'OK', [
+            'summary' => [
+                'shops' => (int) ($standing->shops ?? 0),
+                'unbilled' => [
+                    'shops' => (int) ($standing->unbilled_shops ?? 0),
+                    'orders' => (int) ($standing->unbilled_orders ?? 0),
+                    'amount' => round((float) ($standing->unbilled_amount ?? 0), 2),
+                ],
+                'invoiced' => [
+                    'shops' => (int) ($standing->invoiced_shops ?? 0),
+                    'invoices' => (int) ($standing->unpaid_invoices ?? 0),
+                    'amount' => round((float) ($standing->unpaid_amount ?? 0), 2),
+                ],
+                'clear' => ['shops' => (int) ($standing->clear_shops ?? 0)],
+                'rates' => ['own' => (int) ($rates->own ?? 0), 'platform' => (int) ($rates->platform ?? 0)],
+                'collected_this_month' => [
+                    'invoices' => (int) ($collected->invoices ?? 0),
+                    'amount' => round((float) ($collected->amount ?? 0), 2),
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Real shops, each beside its two piles, narrowed by everything asked
+     * for except `$except`.
+     *
+     * The piles are joined as grouped totals rather than counted per row: one
+     * pass over each table, and real columns to sort and filter on.
+     */
+    private function shops(Request $request, ?string $except): Builder
+    {
+        $charges = DB::table('commission_charges')
+            ->whereNull('invoice_id')
+            ->whereNull('waived_at')
+            ->groupBy('tenant_id')
+            ->selectRaw('tenant_id, count(*) as outstanding_orders, sum(amount) as outstanding_amount');
+
+        $invoices = DB::table('commission_invoices')
+            ->where('status', 'unpaid')
+            ->groupBy('tenant_id')
+            ->selectRaw('tenant_id, count(*) as unpaid_invoices, sum(amount) as unpaid_amount');
+
+        $standing = $except === 'standing' ? null : $request->query('standing');
+        $rate = $except === 'rate' ? null : $request->query('rate');
+
+        return Tenant::query()
+            // A demo is not a business and owes nobody anything.
+            ->real()
+            ->leftJoinSub($charges, 'c', 'c.tenant_id', '=', 'tenants.id')
+            ->leftJoinSub($invoices, 'i', 'i.tenant_id', '=', 'tenants.id')
+            ->when($request->filled('search'), fn (Builder $q) => $q->where(
+                'tenants.business_name', 'like', '%'.$request->string('search')->value().'%',
+            ))
+            ->when($standing === 'unbilled', fn (Builder $q) => $q->whereNotNull('c.tenant_id'))
+            ->when($standing === 'invoiced', fn (Builder $q) => $q->whereNotNull('i.tenant_id'))
+            ->when($standing === 'clear', fn (Builder $q) => $q->whereNull('c.tenant_id')->whereNull('i.tenant_id'))
+            ->when($rate === 'own', fn (Builder $q) => $q->whereNotNull('tenants.commission_rate'))
+            ->when($rate === 'platform', fn (Builder $q) => $q->whereNull('tenants.commission_rate'));
     }
 
     /** One shop: its rate, what it owes, and every bill it has been sent. */
