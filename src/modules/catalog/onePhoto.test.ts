@@ -35,11 +35,16 @@ const page = read(import.meta.glob("./pages/ProductFormPage.tsx", { query: "?raw
 const codeOnly = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 const code = codeOnly(page);
 
-/** The photo section only — the form has other file inputs elsewhere. */
+/**
+ * The picture only — the form has other controls beside it.
+ *
+ * It sits beside the item's name now (it had a tab of its own), so the block
+ * runs from its own marker to the column of fields that follows it.
+ */
 const photoBlock = (() => {
-  const from = code.indexOf('<Section title="Photo">');
-  const to = code.indexOf("</Section>", from);
-  return from === -1 ? "" : code.slice(from, to);
+  const from = code.indexOf('data-testid="item-photo"');
+  const to = code.indexOf('<div className="space-y-4">', from);
+  return from === -1 || to === -1 ? "" : code.slice(from, to);
 })();
 
 describe("the form takes one picture", () => {

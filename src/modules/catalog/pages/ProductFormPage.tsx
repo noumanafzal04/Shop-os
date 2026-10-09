@@ -30,8 +30,18 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import VariantMatrixEditor from "../components/VariantMatrixEditor";
 import { axesFromRows, toPayload, type Axis, type MatrixRow } from "../variantMatrix";
 import { PriceHistory } from "../components/PriceHistory";
+import { TAB_LABEL, refusalsOutOfSight, tabOfField, tabsFor, type FormTab } from "../formTabs";
 
-/** A compact labelled on/off switch used for stock + marketplace flags. */
+/** The on/off pill — inside a Toggle, and beside the title of a section that can be switched off. */
+function Pill({ on }: { on: boolean }) {
+  return (
+    <span className={`block h-6 w-11 shrink-0 rounded-full p-0.5 transition ${on ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"}`}>
+      <span className={`block h-5 w-5 rounded-full bg-white transition ${on ? "translate-x-5" : ""}`} />
+    </span>
+  );
+}
+
+/** A compact labelled on/off switch used for the selling + marketplace flags. */
 function Toggle({
   checked,
   onChange,
@@ -46,6 +56,7 @@ function Toggle({
   return (
     <button
       type="button"
+      aria-pressed={checked}
       onClick={() => onChange(!checked)}
       className="flex w-full items-start justify-between gap-4 rounded-xl border border-gray-200 p-4 text-left dark:border-gray-800"
     >
@@ -53,26 +64,29 @@ function Toggle({
         <span className="block text-sm font-medium text-gray-800 dark:text-white/90">{title}</span>
         {hint && <span className="mt-0.5 block text-theme-xs text-gray-400">{hint}</span>}
       </span>
-      <span
-        className={`mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition ${
-          checked ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"
-        }`}
-      >
-        <span
-          className={`block h-5 w-5 rounded-full bg-white transition ${checked ? "translate-x-5" : ""}`}
-        />
+      <span className="mt-0.5">
+        <Pill on={checked} />
       </span>
     </button>
   );
 }
 
-/** A titled card used to group a section of the form. */
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+/**
+ * A titled card: one group of the form.
+ *
+ * `action` is the one thing that group lets you do — "+ Add pack", or the
+ * switch that turns the whole group off — and it sits level with the title, in
+ * the same place on every card. Each card used to find its own spot for it.
+ */
+function Section({ title, hint, action, children }: { title: string; hint?: string; action?: ReactNode; children?: ReactNode }) {
   return (
     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-      <div className="mb-3">
-        <p className="text-sm font-medium text-gray-800 dark:text-white/90">{title}</p>
-        {hint && <p className="mt-0.5 text-theme-xs text-gray-400">{hint}</p>}
+      <div className={`flex items-start justify-between gap-4 ${children ? "mb-3" : ""}`}>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-800 dark:text-white/90">{title}</p>
+          {hint && <p className="mt-0.5 text-theme-xs text-gray-400">{hint}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </div>
@@ -233,7 +247,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
    * price, read "Saved with warning", closed the drawer, and lost the edit.
    */
   const [blocked, setBlocked] = useState<string[]>([]);
-  const [tab, setTab] = useState<"details" | "media" | "options" | "advanced">("details");
+  const [tab, setTab] = useState<FormTab>("details");
   const syncModifiers = useSyncModifiers(id);
 
   // Capability profile of the currently-selected item type.
@@ -628,20 +642,19 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     return <Alert variant="error" title="No access" message="You don't have permission to manage items." />;
   }
 
-  // Tabs shown depend on the item type + shop capabilities — hide empty ones.
-  const tabs = [
-    { key: "details", label: "Details" },
-    ...(imagesEnabled || marketplaceEnabled || (collectionsQ.data ?? []).length
-      ? [{ key: "media", label: "Media & online" }] : []),
-    // Sizes are editable now, so the tab no longer disappears on edit. It used
-    // to reappear carrying ONLY the modifier block, which is how a shopkeeper who
-    // had just created three sizes came back and found the tab present and the
-    // sizes gone.
-    ...(showVariants || supportsModifiers
-      ? [{ key: "options", label: "Sizes & options" }] : []),
-    ...(isGood || !isService ? [{ key: "advanced", label: "Codes & packs" }] : []),
-  ] as const;
-  const activeTab = tabs.some((t) => t.key === tab) ? tab : "details";
+  // The tabs follow the shop's modules and the item's type — see formTabs.
+  //
+  // Sizes are editable now, so that tab no longer disappears on edit. It used
+  // to reappear carrying ONLY the modifier block, which is how a shopkeeper who
+  // had just created three sizes came back and found the tab present and the
+  // sizes gone.
+  const tabs = tabsFor({ online: marketplaceEnabled, sizes: showVariants, addOns: supportsModifiers, service: isService });
+  const activeTab: FormTab = tabs.includes(tab) ? tab : "details";
+  // What the server refused where nobody is looking, and which tabs hold it.
+  const outOfSight = refusalsOutOfSight(fieldErrors, activeTab, tabs);
+  const refusedOn = new Set(
+    Object.keys(fieldErrors).map((field): FormTab => (tabs.includes(tabOfField(field)) ? tabOfField(field) : "details")),
+  );
 
   return (
     <div className="fixed inset-0 z-[100000] flex justify-end">
@@ -652,11 +665,23 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         aria-modal="true"
         className="relative flex h-full w-full max-w-3xl flex-col bg-white shadow-theme-lg dark:bg-gray-900"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
-          <h2 className="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
-            {isEdit ? `Edit ${existing.data?.name ?? "item"}` : "Add item"}
-          </h2>
+        {/* Header — what is being edited, what kind of thing it is, and whether it is still sold */}
+        <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4 dark:border-gray-800">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
+              {isEdit ? `Edit ${existing.data?.name ?? "item"}` : "Add item"}
+            </h2>
+            {isEdit && (
+              <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-0.5 text-theme-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                {typeInfo?.label ?? existing.data?.item_type}
+              </span>
+            )}
+            {isEdit && !isActive && (
+              <span className="shrink-0 rounded-full bg-warning-50 px-2.5 py-0.5 text-theme-xs font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                Not selling
+              </span>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -667,21 +692,28 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs — a dot on the one holding something the server refused */}
         <div className="flex gap-1 overflow-x-auto border-b border-gray-100 px-4 dark:border-gray-800">
-          {tabs.map((t) => (
+          {tabs.map((key) => (
             <button
-              key={t.key}
+              key={key}
               type="button"
-              onClick={() => setTab(t.key as typeof tab)}
+              onClick={() => setTab(key)}
               className={`relative whitespace-nowrap px-3 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === t.key
+                activeTab === key
                   ? "text-brand-600 dark:text-brand-400"
                   : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
               }`}
             >
-              {t.label}
-              {activeTab === t.key && (
+              {TAB_LABEL[key]}
+              {refusedOn.has(key) && (
+                <span
+                  data-testid={`tab-refused-${key}`}
+                  title="Something here stopped the save"
+                  className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-error-500 align-middle"
+                />
+              )}
+              {activeTab === key && (
                 <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-brand-500" />
               )}
             </button>
@@ -706,46 +738,168 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             {blocked.map((b) => (
               <Alert key={b} variant="error" title="Not saved" message={b} />
             ))}
+            {/* A refusal on another tab, or one with nowhere of its own to be
+                said. Without this a barcode another item already has — typed on
+                Codes & packs — left the person on Details pressing a button
+                that did nothing. */}
+            {outOfSight.length > 0 && (
+              <div
+                data-testid="item-refused"
+                role="alert"
+                className="rounded-xl border border-error-200 bg-error-50 px-4 py-3 dark:border-error-500/30 dark:bg-error-500/10"
+              >
+                <p className="text-sm font-medium text-error-700 dark:text-error-400">
+                  Not saved — {outOfSight.length === 1 ? "one thing" : "a few things"} to fix
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {outOfSight.map((r) => (
+                    <li key={`${r.on ?? ""}${r.message}`} className="flex flex-wrap items-baseline gap-x-2 text-theme-sm text-error-700 dark:text-error-400">
+                      <span>{r.message}</span>
+                      {r.on && (
+                        <button type="button" onClick={() => setTab(r.on!)} className="font-medium underline underline-offset-2">
+                          Open {TAB_LABEL[r.on]}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {warnings.map((w) => (
               <Alert key={w} variant="warning" title="Saved with warning" message={w} />
             ))}
 
             {/* ═══════════════ TAB: Details ═══════════════ */}
             <div className={activeTab === "details" ? "space-y-5" : "hidden"}>
-        {/* Item type — chosen once at creation; immutable after */}
-        {!isEdit ? (
-          allowedTypes.length > 1 && (
-            <div>
-              <Label>Item type</Label>
-              <div className="flex flex-wrap gap-3">
-                {allowedTypes.map((code) => {
-                  const info = (itemTypesQ.data ?? []).find((t) => t.code === code);
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      aria-pressed={itemType === code}
-                      onClick={() => { pickedType.current = true; setItemType(code); }}
-                      className={`rounded-lg border px-5 py-2.5 text-sm transition ${
-                        itemType === code
-                          ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
-                          : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
-                      }`}
-                    >
-                      {info?.label ?? code}
-                    </button>
-                  );
-                })}
-              </div>
+        {/* Item type — chosen once at creation; after that it is the chip in the header */}
+        {!isEdit && allowedTypes.length > 1 && (
+          <div>
+            <Label>Item type</Label>
+            <div className="flex flex-wrap gap-2">
+              {allowedTypes.map((code) => {
+                const info = (itemTypesQ.data ?? []).find((t) => t.code === code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    aria-pressed={itemType === code}
+                    onClick={() => { pickedType.current = true; setItemType(code); }}
+                    className={`rounded-lg border px-4 py-2 text-sm transition ${
+                      itemType === code
+                        ? "border-brand-500 bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10"
+                        : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                    }`}
+                  >
+                    {info?.label ?? code}
+                  </button>
+                );
+              })}
             </div>
-          )
-        ) : (
-          <div className="inline-block rounded-lg bg-gray-100 px-3 py-1 text-theme-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-            {typeInfo?.label ?? existing.data?.item_type}
           </div>
         )}
 
-        {/* ── Essentials ─────────────────────────────────────────────── */}
+        {/* ── What it is: its picture, beside its name ───────────────────
+            The picture had a tab of its own, called "Media & online" whether or
+            not the shop had an online store to speak of. It is here where the
+            shop keeps pictures at all — the images module, or an online store,
+            which cannot do without them — and nowhere where it does not. */}
+        <div className={imagesEnabled ? "grid grid-cols-1 gap-5 sm:grid-cols-[9rem_minmax(0,1fr)]" : undefined}>
+          {imagesEnabled && (
+            <div data-testid="item-photo" className="flex items-start gap-3 sm:flex-col sm:gap-2">
+              {/*
+                ONE PICTURE, AND THE BUTTON SAYS WHICH WAY IT GOES.
+
+                This was "+ Add photos" with an input that took several, and it
+                appended — so somebody replacing a bad photo got a second one,
+                and the bad one stayed first, which is the one every surface
+                actually draws. The server replaces now; the label has to agree
+                with it, or the button still promises to add.
+              */}
+              <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-white/[0.03]">
+                {photoUrl ? (
+                  <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="px-3 text-center text-theme-xs text-gray-400">
+                    No photo yet{!isEdit ? " — it is attached when you save" : ""}
+                  </span>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5 sm:w-36 sm:flex-none">
+                <label className="cursor-pointer rounded-lg border border-brand-500 px-3 py-1.5 text-center text-theme-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">
+                  {images.upload.isPending
+                    ? "Uploading…"
+                    : hasPhoto
+                      ? "Replace photo"
+                      : "+ Add photo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    disabled={images.upload.isPending}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (isEdit) {
+                          images.upload.mutate([file]);
+                        } else {
+                          // Staged until the item exists. ONE, replacing whatever
+                          // was staged before — the same rule as the server's, or
+                          // the form and the endpoint disagree about what a second
+                          // pick means.
+                          setPendingImages([file]);
+                        }
+                      }
+                      e.target.value = ""; // allow re-selecting the same file
+                    }}
+                  />
+                </label>
+                {/*
+                  A REMOVE BUTTON YOU CAN SEE.
+
+                  It was a cross that appeared only while a mouse was over the
+                  tile — so on a tablet, or to anybody who did not happen to
+                  hover, the picture simply could not be removed. Reported as
+                  "unable to delete previous image", and the control was there
+                  the whole time. A labelled button instead: legible beside any
+                  photograph, reachable by keyboard, and it says what it does.
+                */}
+                {photoUrl && (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={images.remove.isPending}
+                    onClick={() => {
+                      if (isEdit) {
+                        const current = existing.data?.images?.[0];
+                        if (current) {
+                          images.remove.mutate(current.id, failed(toast, "That picture is still on the item."));
+                        }
+                      } else {
+                        setPendingImages([]);
+                      }
+                    }}
+                  >
+                    {images.remove.isPending ? "Removing…" : "Remove photo"}
+                  </Button>
+                )}
+                {isEdit && images.upload.error instanceof ApiError && (
+                  <p className="text-theme-xs text-error-500">
+                    {images.upload.error.errors["images.0"]?.[0] ?? images.upload.error.message}
+                  </p>
+                )}
+                <p className={`text-theme-xs ${onlineRequired && !hasPhoto ? "text-warning-500" : "text-gray-400"}`}>
+                  {onlineRequired && !hasPhoto
+                    ? "Items shown online need a picture."
+                    : marketplaceEnabled
+                      ? "What customers see online, and on the till's tiles."
+                      : "Shown on the till's tiles."}
+                </p>
+              </div>
+            </div>
+          )}
+          {/* the end of the picture */}
+
+          <div className="space-y-4">
         <div>
           <Label>
             Name <span className="text-error-500">*</span>
@@ -770,8 +924,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             onChange={setCategoryId}
           />
         </div>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Section title="Price">
+        <div className="space-y-4">
+        {/* Three across where there is a cost to give; a service has none, and
+            two boxes in a row of three left a hole at the end of it. */}
+        <div className={`grid grid-cols-1 gap-4 ${isGood ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <div>
             <Label>
               Price <span className="text-error-500">*</span>
@@ -800,12 +960,17 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <Select
               value={taxGroupId}
               options={[
-                { value: "", label: "— Use own rate / shop default —" },
+                { value: "", label: "Use own rate / shop default" },
                 ...((taxGroups.data ?? []).map((g) => ({ value: g.id, label: `${g.name} (${Number(g.rate)}%)` }))),
               ]}
+              // The box read "Select an option" while holding a real answer:
+              // with no group chosen the item uses its own rate, or the shop's.
+              placeholder="Use own rate / shop default"
               onChange={(v) => setTaxGroupId(v)}
             />
-            <p className="mt-1 text-theme-xs text-gray-400">A reusable rate (managed in Settings → Tax). Overrides the rate below.</p>
+            <p className="mt-1 text-theme-xs text-gray-400">
+              A reusable rate, kept under Settings → Tax. {taxGroupId ? "It is used instead of a rate of the item's own." : "Pick one, or give this item its own rate."}
+            </p>
           </div>
           {!taxGroupId && (
             <div>
@@ -814,6 +979,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             </div>
           )}
         </div>
+        </div>
+        </Section>
 
         {/* Pharmacy specifics — salt/generic name + prescription flag. */}
         {isMedicine && (
@@ -844,6 +1011,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       ...["Tablet", "Capsule", "Syrup", "Suspension", "Injection", "Drops", "Cream / Ointment", "Inhaler", "Sachet", "Spray", "Gel", "Other"].map((f) => ({ value: f, label: f })),
                     ]}
                     value={dosageForm}
+                    placeholder="Tablet, syrup…"
                     onChange={setDosageForm}
                   />
                 </div>
@@ -1113,13 +1281,22 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             />
           </div>
         ) : stockManaged ? (
-          <>
-            <Toggle
-              checked={trackStock}
-              onChange={setTrackStock}
-              title="Track stock for this item"
-              hint="Turn off for made-to-order items — they're always available and never run out."
-            />
+          // One card: the switch level with its title, and what it switches on
+          // inside it. It was a card for the switch and the fields loose below.
+          <Section
+            title="Track stock for this item"
+            hint="Turn off for made-to-order items — they're always available and never run out."
+            action={
+              <button
+                type="button"
+                aria-pressed={trackStock}
+                aria-label="Track stock for this item"
+                onClick={() => setTrackStock(!trackStock)}
+              >
+                <Pill on={trackStock} />
+              </button>
+            }
+          >
             {trackStock && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -1172,13 +1349,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 )}
               </div>
             )}
-          </>
+          </Section>
         ) : null}
-
-        {/* What this item used to cost, and who moved it. Edit only — a new item
-            has no history, and the section renders nothing for anyone whose job
-            does not include reading the shop's trail. */}
-        {isEdit && id && <PriceHistory productId={id} />}
 
         <div>
           <Label>
@@ -1199,123 +1371,70 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           )}
           {err("description") && <p className="mt-1 text-theme-xs text-error-500">{err("description")}</p>}
         </div>
+
+        {/* Selling status. Here, on the tab every item has: it sat at the foot
+            of Codes & packs, which a service does not have — so a salon could
+            not retire a service at all, only delete it. */}
+        <Toggle
+          checked={isActive}
+          onChange={setIsActive}
+          title="Still selling this"
+          hint="Turn off to retire the item — it leaves the till and your online shop but keeps its sales history, unlike deleting it. Turn it back on any time."
+        />
+
+        {/* What this item used to cost, and who moved it. Edit only — a new item
+            has no history, and the section renders nothing for anyone whose job
+            does not include reading the shop's trail. */}
+        {isEdit && id && <PriceHistory productId={id} />}
             </div>
 
-            {/* ═══════════════ TAB: Media & online ═══════════════ */}
-            <div className={activeTab === "media" ? "space-y-5" : "hidden"}>
-        {/* Photos — when the shop uses product images (module on, or sells online) */}
-        {imagesEnabled && (
-        <Section title="Photo">
-          {/*
-            ONE PICTURE, AND THE BUTTON SAYS WHICH WAY IT GOES.
+            {/* ═══════════════ TAB: Online ═══════════════
+                Only in a shop that sells online, and only what is about selling
+                online: whether this item does, what a customer will find when
+                it does, the collections it sits in, the least they may order. */}
+            {marketplaceEnabled && (
+            <div className={activeTab === "online" ? "space-y-5" : "hidden"}>
+        <Toggle
+          checked={visibleOnline}
+          onChange={setVisibleOnline}
+          title="Sell this item online"
+          hint="When on, customers can see and order this item in your online shop. Turn off to keep it in-store only."
+        />
 
-            This was "+ Add photos" with a `multiple` input, and it appended —
-            so somebody replacing a bad photo got a second one, and the bad one
-            stayed first, which is the one every surface actually draws. The
-            server replaces now; the label has to agree with it, or the button
-            still promises to add.
-          */}
-          <div className="mb-3 flex items-center justify-end">
-            <label className="cursor-pointer rounded-lg border border-brand-500 px-3 py-1.5 text-theme-xs font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">
-              {images.upload.isPending
-                ? "Uploading…"
-                : hasPhoto
-                  ? "Replace photo"
-                  : "+ Add photo"}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                disabled={images.upload.isPending}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    if (isEdit) {
-                      images.upload.mutate([file]);
-                    } else {
-                      // Staged until the item exists. ONE, replacing whatever
-                      // was staged before — the same rule as the server's, or
-                      // the form and the endpoint disagree about what a second
-                      // pick means.
-                      setPendingImages([file]);
-                    }
-                  }
-                  e.target.value = ""; // allow re-selecting the same file
-                }}
-              />
-            </label>
-          </div>
-
-          {isEdit && images.upload.error instanceof ApiError && (
-            <p className="mb-2 text-theme-xs text-error-500">
-              {images.upload.error.errors["images.0"]?.[0] ?? images.upload.error.message}
-            </p>
-          )}
-
-          {onlineRequired && !hasPhoto && (
-            <p className="mb-2 text-theme-xs text-warning-500">
-              Add a photo — items shown online need a picture{!isEdit ? " (you can add it right after saving)" : ""}.
-            </p>
-          )}
-
-          {/*
-            A REMOVE BUTTON YOU CAN SEE.
-
-            It was `opacity-0 … group-hover:opacity-100`, which is invisible
-            until a mouse is over the tile — so on a tablet, or to anybody who
-            did not happen to hover, the picture simply could not be removed.
-            Reported as "unable to delete previous image", and the control was
-            there the whole time.
-
-            A labelled button under the picture instead of a ✕ floating on it:
-            it is legible over any photograph, reachable by keyboard, and says
-            what it does.
-          */}
-          {photoUrl ? (
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="h-28 w-28 shrink-0 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-                <img src={photoUrl} alt="" className="h-full w-full object-cover" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-theme-xs text-gray-400">
-                  This is what customers see on the card, in search and in the basket.
-                </p>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  className="mt-2"
-                  disabled={images.remove.isPending}
-                  onClick={() => {
-                    if (isEdit) {
-                      const current = existing.data?.images?.[0];
-                      if (current) {
-                        images.remove.mutate(current.id, failed(toast, "That picture is still on the item."));
-                      }
-                    } else {
-                      setPendingImages([]);
-                    }
-                  }}
-                >
-                  {images.remove.isPending ? "Removing…" : "Remove photo"}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-theme-xs text-gray-400">
-              No photo yet. One picture per item{!isEdit ? " — it is attached when you save" : ""}.
-            </p>
-          )}
-        </Section>
-        )}
-
-        {/* Online storefront — visibility + collections (online shops only) */}
-        {marketplaceEnabled && (
-          <Toggle
-            checked={visibleOnline}
-            onChange={setVisibleOnline}
-            title="Sell this item online"
-            hint="When on, customers can see and order this item in your online shop. Turn off to keep it in-store only."
-          />
+        {visibleOnline && (
+          <Section title="What customers will find" hint="A listing reads well with both. They are filled in on Details.">
+            <ul data-testid="online-ready" className="space-y-2">
+              {[
+                { have: hasPhoto, yes: "A photo", no: "No photo yet" },
+                { have: description.trim() !== "", yes: "A description", no: "No description yet" },
+              ].map((row) => (
+                <li key={row.yes} className="flex flex-wrap items-center gap-x-2 text-theme-sm">
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                      row.have
+                        ? "bg-success-50 text-success-600 dark:bg-success-500/10 dark:text-success-500"
+                        : "bg-warning-50 text-warning-600 dark:bg-warning-500/10 dark:text-warning-400"
+                    }`}
+                  >
+                    {row.have ? "✓" : "!"}
+                  </span>
+                  <span className={row.have ? "text-gray-700 dark:text-gray-300" : "text-warning-600 dark:text-warning-400"}>
+                    {row.have ? row.yes : row.no}
+                  </span>
+                  {!row.have && (
+                    <button
+                      type="button"
+                      onClick={() => setTab("details")}
+                      className="text-theme-xs font-medium text-brand-600 underline underline-offset-2 dark:text-brand-400"
+                    >
+                      Add it on Details
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Section>
         )}
 
         {(collectionsQ.data ?? []).length > 0 && (
@@ -1345,7 +1464,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </div>
         )}
 
+        {isGood && (
+          <div className="max-w-xs">
+            <Label>Minimum order quantity (online)</Label>
+            <Input type="number" min="0" step={0.001} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} placeholder="e.g. 12" />
+            <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity are rejected. The till is not restricted.</p>
+          </div>
+        )}
             </div>
+            )}
 
             {/* ═══════════════ TAB: Variants & options ═══════════════ */}
             <div className={activeTab === "options" ? "space-y-5" : "hidden"}>
@@ -1451,22 +1578,45 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
             {/* ═══════════════ TAB: Codes & packs ═══════════════ */}
             <div className={activeTab === "advanced" ? "space-y-5" : "hidden"}>
-        {/* Codes, packs & pricing extras */}
-        {(isGood || !isService) && (
-              <div className="space-y-4">
-                {/* SKU + brand + base unit */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Codes, units, packs & bulk prices — a service has none of them.
+
+            TWO TO A ROW: the codes, then the brand and the trade price, then
+            how it is measured. It was three, and the unit chips under the third
+            pushed everything below down a different amount in each trade, with
+            "Sold by" left alone on a row of its own. */}
+        {!isService && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
                   <div>
                     <Label>SKU</Label>
                     <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Unique code" />
                     {err("sku") && <p className="mt-1 text-theme-xs text-error-500">{err("sku")}</p>}
                   </div>
+                  {/* Barcode — POS/scanner only */}
+                  {posEnabled && isGood && (
+                    <div>
+                      <Label>Barcode</Label>
+                      <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
+                      {err("barcode") && <p className="mt-1 text-theme-xs text-error-500">{err("barcode")}</p>}
+                    </div>
+                  )}
                   {isGood && (
                     <>
                       <div>
                         <Label>Brand</Label>
                         <Input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Nestlé" />
                       </div>
+                      {/* Wholesale price level — the till's second price */}
+                      {posEnabled && (
+                        <div>
+                          <Label>Wholesale price (optional)</Label>
+                          <Input type="number" min="0" step={0.01} value={wholesalePrice} onChange={(e) => setWholesalePrice(e.target.value)} placeholder="Bulk / trade price" />
+                          {wholesalePrice && Number(wholesalePrice) >= Number(price || 0) && (
+                            <p className="mt-1 text-theme-xs text-warning-500">Wholesale should be below the retail price.</p>
+                          )}
+                          <p className="mt-1 text-theme-xs text-gray-400">Cashiers can switch a POS line to this rate via the price-level dropdown.</p>
+                        </div>
+                      )}
                       <div>
                         <Label>Base unit</Label>
                         <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="pcs, kg, box…" />
@@ -1491,11 +1641,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       </div>
                     </>
                   )}
-                </div>
 
-                {/* Sold by (+ scale PLU for POS weight items) */}
-                {isGood && (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {/* Sold by (+ scale PLU for POS weight items) */}
+                  {isGood && (
                     <div>
                       <Label>Sold by</Label>
                       <Select
@@ -1510,38 +1658,29 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       />
                       <p className="mt-1 text-theme-xs text-gray-400">Weight lets you sell fractions — e.g. 1.5 kg sugar.</p>
                     </div>
-                    {posEnabled && soldBy === "weight" && (
-                      <div>
-                        <Label>Scale PLU code</Label>
-                        <Input value={pluCode} onChange={(e) => setPluCode(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 21" />
-                        {err("plu_code") && <p className="mt-1 text-theme-xs text-error-500">{err("plu_code")}</p>}
-                        <p className="mt-1 text-theme-xs text-gray-400">The number programmed into your weighing scale. (Enable scale barcodes in Settings.)</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {isGood && posEnabled && soldBy === "weight" && (
+                    <div>
+                      <Label>Scale PLU code</Label>
+                      <Input value={pluCode} onChange={(e) => setPluCode(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 21" />
+                      {err("plu_code") && <p className="mt-1 text-theme-xs text-error-500">{err("plu_code")}</p>}
+                      <p className="mt-1 text-theme-xs text-gray-400">The number programmed into your weighing scale. (Enable scale barcodes in Settings.)</p>
+                    </div>
+                  )}
+                </div>
 
-                {/* Barcodes — POS/scanner only */}
+                {/* More codes, and packs — POS/scanner only */}
                 {posEnabled && isGood && (
                   <>
-                    <div>
-                      <Label>Barcode</Label>
-                      <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
-                      {err("barcode") && <p className="mt-1 text-theme-xs text-error-500">{err("barcode")}</p>}
-                    </div>
-
-                    <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
-                      <div className="mb-1 flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional barcodes</p>
-                        <button
-                          type="button"
-                          className={ROW_ACTION}
-                          onClick={() => setExtraBarcodes((b) => [...b, ""])}
-                        >
+                    <Section
+                      title="Additional barcodes"
+                      hint="Beyond the primary barcode — e.g. a different supplier's pack of the same item."
+                      action={
+                        <button type="button" className={ROW_ACTION} onClick={() => setExtraBarcodes((b) => [...b, ""])}>
                           + Add barcode
                         </button>
-                      </div>
-                      <p className="mb-3 text-theme-xs text-gray-400">Beyond the primary barcode — e.g. a different supplier's pack of the same item.</p>
+                      }
+                    >
                       {extraBarcodes.length === 0 ? (
                         <p className="text-theme-xs text-gray-400">None yet.</p>
                       ) : (
@@ -1562,23 +1701,18 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                           </div>
                         ))
                       )}
-                    </div>
+                    </Section>
 
                     {/* Pack sizes (pack-breaking) */}
-                    <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
-                      <div className="mb-1 flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Pack sizes</p>
-                        <button
-                          type="button"
-                          className={ROW_ACTION}
-                          onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}
-                        >
+                    <Section
+                      title="Pack sizes"
+                      hint={`Sell in bigger packs while stock stays counted in ${unit.trim() || "the base unit"}. A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.`}
+                      action={
+                        <button type="button" className={ROW_ACTION} onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}>
                           + Add pack
                         </button>
-                      </div>
-                      <p className="mb-3 text-theme-xs text-gray-400">
-                        Sell in bigger packs while stock stays counted in <span className="font-medium">{unit.trim() || "the base unit"}</span>. A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.
-                      </p>
+                      }
+                    >
                       {units.length === 0 ? (
                         <p className="text-theme-xs text-gray-400">None — sold only in the base unit.</p>
                       ) : (
@@ -1595,34 +1729,24 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         ))
                       )}
                       {err("units") && <p className="mt-1 text-theme-xs text-error-500">{err("units")}</p>}
-                    </div>
-
-                    {/* Wholesale price level */}
-                    <div className="max-w-xs">
-                      <Label>Wholesale price (optional)</Label>
-                      <Input type="number" min="0" step={0.01} value={wholesalePrice} onChange={(e) => setWholesalePrice(e.target.value)} placeholder="Bulk / trade price" />
-                      {wholesalePrice && Number(wholesalePrice) >= Number(price || 0) && (
-                        <p className="mt-1 text-theme-xs text-warning-500">Wholesale should be below the retail price.</p>
-                      )}
-                      <p className="mt-1 text-theme-xs text-gray-400">Cashiers can switch a POS line to this rate via the price-level dropdown.</p>
-                    </div>
+                    </Section>
                   </>
                 )}
 
-                {/* Bulk pricing (quantity breaks) + minimum online order */}
+                {/* Bulk pricing (quantity breaks). The least an online customer
+                    may order used to sit at the foot of this card; it is on the
+                    Online tab, with the rest of what is about selling online. */}
                 {isGood && (
-                  <div className="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
-                    <div className="mb-1 flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Bulk pricing (quantity breaks)</p>
-                      <button
-                        type="button"
-                        className={ROW_ACTION}
-                        onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}
-                      >
+                  <Section
+                    title="Bulk pricing (quantity breaks)"
+                    hint="Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The cheapest tier the quantity reaches is charged, and never more than the normal price."
+                    action={
+                      <button type="button" className={ROW_ACTION} onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}>
                         + Add tier
                       </button>
-                    </div>
-                    <p className="mb-3 text-theme-xs text-gray-400">Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The cheapest tier the quantity reaches is charged, and never more than the normal price.</p>
+                    }
+                  >
+                    {tiers.length === 0 && <p className="text-theme-xs text-gray-400">None — one price, whatever the quantity.</p>}
                     {tiers.map((t, i) => (
                       <div key={i} className="mb-2 flex items-center gap-2">
                         <span className="text-theme-xs text-gray-400">From qty</span>
@@ -1632,26 +1756,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         <button type="button" aria-label={`Remove tier ${i + 1}`} className={ROW_ACTION_DANGER} onClick={() => setTiers((arr) => arr.filter((_, j) => j !== i))}>✕</button>
                       </div>
                     ))}
-                    {marketplaceEnabled && (
-                      <div className="mt-3 max-w-xs">
-                        <Label>Minimum order quantity (online)</Label>
-                        <Input type="number" min="0" step={0.001} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} placeholder="e.g. 12" />
-                        <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity are rejected. POS is not restricted.</p>
-                      </div>
-                    )}
-                  </div>
+                  </Section>
                 )}
               </div>
         )}
-
-            {/* Selling status — outside the goods-only block above, because a
-                service gets discontinued the same as a tin of paint does. */}
-            <Toggle
-              checked={isActive}
-              onChange={setIsActive}
-              title="Still selling this"
-              hint="Turn off to retire the item — it leaves the till and your online shop but keeps its sales history, unlike deleting it. Turn it back on any time."
-            />
             </div>{/* end Codes & packs tab */}
           </div>{/* end scroll area */}
 

@@ -358,9 +358,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "list",
         items: [
-          "Tab 2 — Media & online: the item's photo, and which collections it belongs to.",
-          "Tab 3 — Sizes & options: the same product in sizes or colours (each with its own price and stock), or add-ons like 'extra cheese' that change the price. Name what varies — Size, Colour — list the values, and every combination is made for you, priced in one go.",
-          "Tab 4 — Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit. 'Still selling this' is at the bottom of it.",
+          "The photo is on Details, beside the name — in a shop that keeps photos (the Images module, or an online store).",
+          "Online — only if you have the online store: whether this item is sold there, what a customer will find (a photo and a description), the collections it sits in, and the least they may order.",
+          "Sizes & options: the same product in sizes or colours (each with its own price and stock), or add-ons like 'extra cheese' that change the price. Name what varies — Size, Colour — list the values, and every combination is made for you, priced in one go.",
+          "Codes & packs: extra barcodes for the same product, and pack sizes — sell as a piece, a dozen or a carton while stock is held in the base unit. A service has no such tab.",
+          "If a save is refused because of something on another tab — a barcode another item already has — the form says so at the top of the tab you are on, marks that tab with a red dot, and takes you to it.",
         ],
       },
       { type: "h", text: "The item's photo" },
@@ -375,7 +377,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "h", text: "Stopping an item without losing its history" },
-      { type: "p", text: "Codes & packs → turn OFF 'Still selling this'. The item leaves the till and your online shop, but stays in the catalog marked Inactive, and every past sale still points at it. Turn it back on whenever you stock it again." },
+      { type: "p", text: "Details → turn OFF 'Still selling this', at the foot of the tab. It works for a service the same as for a product. The item leaves the till and your online shop, but stays in the catalog marked Inactive, and every past sale still points at it. Turn it back on whenever you stock it again." },
       {
         type: "note",
         text: "Use that rather than Delete for anything you have ever sold. Deleting removes the item its old receipts and reports refer to; switching it off keeps the record and simply stops it being sold.",
@@ -1828,8 +1830,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Reached from Products → + Add product, not from the menu." },
       { type: "list", items: [
-        "Details — the only tab you must fill in. Name, category, price, description.",
-        "Media & online — photos, and which collections it belongs to. Only if you sell online or use images.",
+        "Details — the only tab you must fill in. Photo, name, category, price, stock, description, and whether you still sell it.",
+        "Online — whether it is sold in your online shop, its collections, and the least a customer may order. Only if you have the online store. (The photo is on Details.)",
         "Sizes & options — sizes and colours, or add-ons that change the price.",
         "Codes & packs — extra barcodes, and selling the same thing by piece or carton.",
       ]},
