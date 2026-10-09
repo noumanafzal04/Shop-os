@@ -65,5 +65,15 @@ class DatabaseSeeder extends Seeder
                 ' — set SEED_DEMO=true to force demo data.'
             );
         }
+
+        // The shops that are handed to somebody — on every server, live ones
+        // included, which is the difference from everything above: they are
+        // built without Faker and are not on the public marketplace.
+        //
+        // Not under test. A suite that seeds the world would build nine shops
+        // each time, and `DemoShopsCommandTest` builds them on purpose.
+        if (! app()->environment('testing')) {
+            $this->call(DemoShopsSeeder::class);
+        }
     }
 }

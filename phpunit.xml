@@ -12,6 +12,13 @@
             <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <groups>
+        <exclude>
+            <!-- Builds all nine demo shops: ~100 s. Run on purpose:
+                 php artisan test - -group=every-demo-shop -->
+            <group>every-demo-shop</group>
+        </exclude>
+    </groups>
     <source>
         <include>
             <directory>app</directory>

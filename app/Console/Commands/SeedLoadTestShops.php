@@ -123,7 +123,7 @@ class SeedLoadTestShops extends Command
         }
 
         if ($this->option('fresh')) {
-            $gone = Tenant::query()->where('slug', 'like', self::PREFIX.'%')->get();
+            $gone = Tenant::query()->where('slug', 'like', $this->slugPrefix().'%')->get();
             foreach ($gone as $t) {
                 $this->line("  removing {$t->business_name}");
 
@@ -283,15 +283,15 @@ class SeedLoadTestShops extends Command
     }
 
     /** @param array{branches: string[], lines: int, sizes: int, batches: bool, dining?: bool, online?: bool, bank_offers?: bool} $spec */
-    private function shop(string $key, string $name, string $type, City $city, array $spec): void
+    protected function shop(string $key, string $name, string $type, City $city, array $spec): Tenant
     {
         $this->newLine();
         $this->info("── {$name} ({$type})");
 
-        $tenant = Tenant::factory()->create([
+        $tenant = $this->newTenant([
             'business_name' => $name,
-            'slug' => self::PREFIX.$key,
-            'email' => "{$key}@loadtest.test",
+            'slug' => $this->slugPrefix().$key,
+            'email' => $this->tenantEmail($key),
             'business_type' => $type,
             'city_id' => $city->id,
             'setup_completed' => true,
@@ -393,9 +393,9 @@ class SeedLoadTestShops extends Command
 
         app(TenantContext::class)->set($tenant);
 
-        $owner = User::factory()->shopOwner($tenant)->create([
-            'name' => "{$name} Owner",
-            'email' => "{$key}@loadtest.test",
+        $owner = $this->newUser('owner', $tenant, [
+            'name' => $this->ownerName($name),
+            'email' => $this->ownerLogin($key),
             'password' => 'password',
         ]);
 
@@ -403,6 +403,7 @@ class SeedLoadTestShops extends Command
         $this->staff($tenant, $branches);
         $categories = $this->categories($tenant, $type);
         $productIds = $this->catalogue($tenant, $type, $categories, $spec, $branches);
+        $this->furnish($tenant, $type, $owner, $branches);
         if (! empty($spec['dining'])) {
             $this->diningRoom($tenant, $branches, $productIds);
         }
@@ -434,7 +435,157 @@ class SeedLoadTestShops extends Command
         $this->theStandingOrders($tenant, $owner, $branches);
 
         app(TenantContext::class)->clear();
+
+        return $tenant;
     }
+
+    // ── What a command built on this one may say differently ──────────
+    //
+    // `demo:shops` builds the same shops for another reason: to be SHOWN to
+    // somebody. It wants every bit of this depth — tills, tabs, khata,
+    // returns, deliveries — under names a person recognises, and nothing else
+    // changed. Each of these answers exactly what this command always wrote,
+    // so the load test itself is the same run it was.
+
+    protected function slugPrefix(): string
+    {
+        return self::PREFIX;
+    }
+
+    /**
+     * A shop, and the people in and around it.
+     *
+     * Through the factories here, which is the right tool for a fixture — and
+     * the reason these two are separate methods: a factory needs Faker, Faker
+     * is a development package, and a server installed with `--no-dev` does
+     * not have it. A command meant to run THERE makes its rows by hand.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function newTenant(array $attributes): Tenant
+    {
+        return Tenant::factory()->create($attributes);
+    }
+
+    /**
+     * @param  'owner'|'staff'|'shopper'  $as
+     * @param  array<string, mixed>  $attributes
+     * @param  string[]  $permissions
+     */
+    protected function newUser(string $as, ?Tenant $tenant, array $attributes, array $permissions = []): User
+    {
+        return match ($as) {
+            'owner' => User::factory()->shopOwner($tenant)->create($attributes),
+            'staff' => User::factory()->tenantStaff($tenant, $permissions)->create($attributes),
+            default => User::factory()->create($attributes),
+        };
+    }
+
+    protected function tenantEmail(string $key): string
+    {
+        return "{$key}@loadtest.test";
+    }
+
+    protected function ownerLogin(string $key): string
+    {
+        return "{$key}@loadtest.test";
+    }
+
+    protected function ownerName(string $shop): string
+    {
+        return "{$shop} Owner";
+    }
+
+    protected function staffLogin(Tenant $tenant, string $job): string
+    {
+        return $tenant->slug."-{$job}@loadtest.test";
+    }
+
+    protected function staffName(string $job, int $i): string
+    {
+        return Str::headline($job);
+    }
+
+    protected function shopperName(int $n, Tenant $tenant): string
+    {
+        return 'Shopper '.$n.' of '.Str::limit($tenant->business_name, 14, '');
+    }
+
+    /** @return string[] the shop's categories, in shelf order */
+    protected function categoryNames(Tenant $tenant, string $type): array
+    {
+        return match ($type) {
+            'pharmacy' => ['Antibiotics', 'Painkillers', 'Cardiac', 'Diabetes', 'Vitamins', 'Syrups', 'Injections', 'Baby Care', 'Skin', 'Surgical'],
+            'services' => ['Appliance', 'Laundry', 'Tailoring', 'Repairs', 'Cleaning', 'Printing', 'Automotive', 'Electronics', 'Home', 'Callout'],
+            'wholesale' => ['Grains', 'Pulses', 'Oils', 'Spices', 'Sugar & Salt', 'Tea', 'Flour', 'Packaging', 'Dry Fruit', 'Misc'],
+            'retail' => ['Lawn', 'Chiffon', 'Linen', 'Kurti', 'Shalwar Kameez', 'Abaya', 'Scarves', 'Formals', 'Casuals', 'Bridal'],
+            // A filling station sells more than fuel, and the shop behind the
+            // forecourt is an ordinary mart. The fuels themselves are NOT
+            // here: they are made in theForecourt(), because a product only
+            // counts as fuel once a tank holds it.
+            'petroleum' => ['Engine Oil', 'Gear Oil', 'Coolant', 'Brake Fluid', 'Filters', 'Batteries', 'Wipers', 'Car Care', 'Tuck Shop', 'Lubricants'],
+            'automotive' => ['Engine', 'Brakes', 'Suspension', 'Electrical', 'Filters', 'Tyres', 'Batteries', 'Body', 'Fluids', 'Labour'],
+            default => ['Rice & Pulses', 'Flour', 'Oil & Ghee', 'Tea & Coffee', 'Spices', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Frozen', 'Cleaning', 'Personal Care', 'Paper Goods', 'Baby', 'Pet'],
+        };
+    }
+
+    /**
+     * Line number `$i` of the catalogue: what it is called, which shelf it
+     * sits on and what it costs.
+     *
+     * `category` is an index into the shop's categories (wrapped), not an id —
+     * the caller owns the ids.
+     *
+     * @param  array{0: string[], 1: string[]}  $words
+     * @return array{name: string, brand: ?string, generic: ?string, category: int, price: int|float, by_weight: bool}
+     */
+    protected function shelfLine(Tenant $tenant, string $type, int $i, array $words): array
+    {
+        $brand = $words[0][$i % 10];
+        $spec = $words[1][intdiv($i, 10) % 10];
+
+        return [
+            'name' => "{$brand} {$spec} #".($i + 1),
+            'brand' => $brand,
+            'generic' => $type === 'pharmacy' ? $brand.' '.$spec : null,
+            'category' => $i,
+            'price' => match ($type) {
+                'pharmacy' => random_int(35, 2400),
+                'retail' => random_int(1800, 24000),
+                default => random_int(60, 4800),
+            },
+            // A grocery weighs some of what it sells; the others never do.
+            'by_weight' => $type === 'mart' && $i % 11 === 0,
+        ];
+    }
+
+    /**
+     * The choice a dish is offered with, or null for none.
+     *
+     * @param  array{product_id: string, variant_id: ?string}  $dish
+     * @return array{name: string, type: string, min: int, max: int, choices: array<int, array{0: string, 1: int}>}|null
+     */
+    protected function modifierFor(Tenant $tenant, int $i, array $dish): ?array
+    {
+        return $i % 2 === 0
+            ? ['name' => 'Spice level', 'type' => 'single', 'min' => 1, 'max' => 1, 'choices' => [['Mild', 0], ['Medium', 0], ['Hot', 0]]]
+            : ['name' => 'Add-ons', 'type' => 'multiple', 'min' => 0, 'max' => 3, 'choices' => [['Extra cheese', 150], ['No onions', 0], ['Raita', 80]]];
+    }
+
+    /** Which dishes are offered a choice at all: the first quarter of the menu. */
+    protected function dishesWithChoices(Tenant $tenant, array $dishes): array
+    {
+        return array_slice($dishes, 0, max(1, intdiv(count($dishes), 4)));
+    }
+
+    /** How many of one thing a customer takes. A mandi trader sells by the sack. */
+    protected function howMany(string $type): int
+    {
+        return $type === 'wholesale' ? random_int(5, 60) : random_int(1, 3);
+    }
+
+    /** Whatever else the shop needs before it starts trading. Nothing, here. */
+    protected function furnish(Tenant $tenant, string $type, User $owner, array $branches): void {}
 
     /**
      * EVERY COMBINATION OF TWO AXES, in the order a person would read them.
@@ -526,14 +677,14 @@ class SeedLoadTestShops extends Command
                 continue;
             }
 
-            User::factory()->tenantStaff($tenant, $permissions)->create([
-                'name' => Str::headline($code),
-                'email' => $tenant->slug."-{$code}@loadtest.test",
+            $this->newUser('staff', $tenant, [
+                'name' => $this->staffName($code, $i),
+                'email' => $this->staffLogin($tenant, $code),
                 'password' => 'password',
                 // Spread across branches: whoever works at branch two must see
                 // branch two's figures and nobody else's.
                 'branch_id' => $branches[$i % count($branches)]->id,
-            ]);
+            ], $permissions);
             $made++;
         }
 
@@ -568,19 +719,7 @@ class SeedLoadTestShops extends Command
     /** @return string[] category ids */
     private function categories(Tenant $tenant, string $type): array
     {
-        $names = match ($type) {
-            'pharmacy' => ['Antibiotics', 'Painkillers', 'Cardiac', 'Diabetes', 'Vitamins', 'Syrups', 'Injections', 'Baby Care', 'Skin', 'Surgical'],
-            'services' => ['Appliance', 'Laundry', 'Tailoring', 'Repairs', 'Cleaning', 'Printing', 'Automotive', 'Electronics', 'Home', 'Callout'],
-            'wholesale' => ['Grains', 'Pulses', 'Oils', 'Spices', 'Sugar & Salt', 'Tea', 'Flour', 'Packaging', 'Dry Fruit', 'Misc'],
-            'retail' => ['Lawn', 'Chiffon', 'Linen', 'Kurti', 'Shalwar Kameez', 'Abaya', 'Scarves', 'Formals', 'Casuals', 'Bridal'],
-            // A filling station sells more than fuel, and the shop behind the
-            // forecourt is an ordinary mart. The fuels themselves are NOT
-            // here: they are made in theForecourt(), because a product only
-            // counts as fuel once a tank holds it.
-            'petroleum' => ['Engine Oil', 'Gear Oil', 'Coolant', 'Brake Fluid', 'Filters', 'Batteries', 'Wipers', 'Car Care', 'Tuck Shop', 'Lubricants'],
-            'automotive' => ['Engine', 'Brakes', 'Suspension', 'Electrical', 'Filters', 'Tyres', 'Batteries', 'Body', 'Fluids', 'Labour'],
-            default => ['Rice & Pulses', 'Flour', 'Oil & Ghee', 'Tea & Coffee', 'Spices', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Frozen', 'Cleaning', 'Personal Care', 'Paper Goods', 'Baby', 'Pet'],
-        };
+        $names = $this->categoryNames($tenant, $type);
 
         $rows = [];
         foreach ($names as $i => $n) {
@@ -628,20 +767,15 @@ class SeedLoadTestShops extends Command
 
         for ($i = 0; $i < $spec['lines']; $i++) {
             $id = (string) Str::uuid7();
-            $brand = $words[0][$i % 10];
-            $spec2 = $words[1][intdiv($i, 10) % 10];
-            $price = match ($type) {
-                'pharmacy' => random_int(35, 2400),
-                'retail' => random_int(1800, 24000),
-                default => random_int(60, 4800),
-            };
-            // A grocery weighs some of what it sells; the others never do.
-            $byWeight = $type === 'mart' && $i % 11 === 0;
+            $line = $this->shelfLine($tenant, $type, $i, $words);
+            $brand = $line['brand'];
+            $price = $line['price'];
+            $byWeight = $line['by_weight'];
 
             $productRows[] = [
                 'id' => $id,
                 'tenant_id' => $tenant->id,
-                'category_id' => $categories[$i % count($categories)],
+                'category_id' => $categories[$line['category'] % count($categories)],
                 'type' => $type === 'services' ? 'service' : 'product',
                 'item_type' => match ($type) {
                     'pharmacy' => 'medicine',
@@ -654,12 +788,12 @@ class SeedLoadTestShops extends Command
                     'services' => 'service',
                     default => 'physical_product',
                 },
-                'name' => "{$brand} {$spec2} #".($i + 1),
+                'name' => $line['name'],
                 'sku' => strtoupper(substr($type, 0, 3)).'-'.str_pad((string) ($i + 1), 6, '0', STR_PAD_LEFT),
                 // A real barcode, because a grocery's whole day is a scanner.
                 'barcode' => (string) (8964000000000 + $i),
                 'brand' => $brand,
-                'generic_name' => $type === 'pharmacy' ? $brand.' '.$spec2 : null,
+                'generic_name' => $line['generic'],
                 'unit' => $byWeight ? 'kg' : 'pcs',
                 'price' => $price,
                 'cost' => round($price * 0.78, 2),
@@ -876,7 +1010,9 @@ class SeedLoadTestShops extends Command
              * from the shop they are meant to imitate. `LowStock` exists
              * BECAUSE the real figure is nought for anything sold in sizes.
              */
-            'UPDATE products p SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = p.id AND bs.variant_id IS NULL), 0) WHERE p.tenant_id = ?',
+            // No alias on the table being updated: MySQL allows one there and
+            // SQLite does not, and this is the same statement either way.
+            'UPDATE products SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = products.id AND bs.variant_id IS NULL), 0) WHERE tenant_id = ?',
             [$tenant->id]
         );
 
@@ -929,24 +1065,26 @@ class SeedLoadTestShops extends Command
         // can take an order from.
         $groups = [];
         $options = [];
-        foreach (array_slice($dishes, 0, max(1, intdiv(count($dishes), 4))) as $i => $dish) {
+        foreach (array_values($this->dishesWithChoices($tenant, $dishes)) as $i => $dish) {
+            $choice = $this->modifierFor($tenant, $i, $dish);
+            if ($choice === null) {
+                continue;
+            }
+
             $gid = (string) Str::uuid7();
             $groups[] = [
                 'id' => $gid,
                 'tenant_id' => $tenant->id,
                 'product_id' => $dish['product_id'],
-                'name' => $i % 2 === 0 ? 'Spice level' : 'Add-ons',
-                'type' => $i % 2 === 0 ? 'single' : 'multiple',
-                'min_select' => $i % 2 === 0 ? 1 : 0,
-                'max_select' => $i % 2 === 0 ? 1 : 3,
+                'name' => $choice['name'],
+                'type' => $choice['type'],
+                'min_select' => $choice['min'],
+                'max_select' => $choice['max'],
                 'sort_order' => 0,
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
-            $choices = $i % 2 === 0
-                ? [['Mild', 0], ['Medium', 0], ['Hot', 0]]
-                : [['Extra cheese', 150], ['No onions', 0], ['Raita', 80]];
-            foreach ($choices as $n => [$label, $delta]) {
+            foreach ($choice['choices'] as $n => [$label, $delta]) {
                 $options[] = [
                     'id' => (string) Str::uuid7(),
                     'tenant_id' => $tenant->id,
@@ -1295,7 +1433,7 @@ class SeedLoadTestShops extends Command
                 // A wholesale line under the minimum order quantity is
                 // refused, and it is right to: that is what a cash-and-carry
                 // IS.
-                'quantity' => $type === 'wholesale' ? random_int(5, 60) : random_int(1, 3),
+                'quantity' => $this->howMany($type),
             ], fn ($v) => $v !== null);
         }
 
@@ -1552,7 +1690,7 @@ class SeedLoadTestShops extends Command
             // catalogue does it — a product's own quantity is a roll-up, not
             // a second opinion.
             DB::update(
-                'UPDATE products p SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = p.id), 0) WHERE p.tenant_id = ?',
+                'UPDATE products SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = products.id), 0) WHERE tenant_id = ?',
                 [$tenant->id],
             );
 
@@ -2841,8 +2979,8 @@ class SeedLoadTestShops extends Command
         ];
 
         foreach (range(1, 40) as $n) {
-            $shopper = User::factory()->create([
-                'name' => 'Shopper '.$n.' of '.Str::limit($tenant->business_name, 14, ''),
+            $shopper = $this->newUser('shopper', null, [
+                'name' => $this->shopperName($n, $tenant),
                 'email' => Str::slug($tenant->slug)."-shopper{$n}@example.test",
                 'phone' => '0345'.str_pad((string) (1000000 + $n), 7, '0', STR_PAD_LEFT),
             ]);
@@ -4107,6 +4245,13 @@ class SeedLoadTestShops extends Command
     {
         $want = max(0, (int) $this->option('sales'));
         if ($want === 0 || $productIds === []) {
+            return;
+        }
+
+        // A shop with no till rings nothing up. Every trade this command
+        // builds has one, so nothing here changes — it matters to a shop that
+        // sells online only, which `CreateSaleAction` would serve all the same.
+        if (($tenant->features['pos'] ?? false) !== true) {
             return;
         }
 
