@@ -14,7 +14,7 @@ import { Modal, ModalForm } from "../../../components/ui/modal";
 import Pager from "../../../components/ui/pager";
 import { ROW_ACTION } from "../../../components/ui/table/rowAction";
 import { useToast } from "../../../components/ui/toast";
-import { CheckCircleIcon, LockIcon, PaperPlaneIcon, PlusIcon, ShootingStarIcon, UserIcon } from "../../../icons";
+import { CheckLineIcon, LockIcon, PaperPlaneIcon, PlusIcon, ShootingStarIcon, UserIcon } from "../../../icons";
 import { Card, Empty, PageHeader, Person, Pill, StatRow, StatTile } from "../components/kit";
 
 /**
@@ -154,7 +154,7 @@ export default function AdminCustomersPage() {
           pressed={ordered === "yes"}
         />
         <StatTile label="New this month" value={figures?.new_this_month.toLocaleString() ?? "—"} tone="purple" icon={<ShootingStarIcon />} loading={summary.isLoading} />
-        <StatTile label="Can sign in" value={figures?.active.toLocaleString() ?? "—"} tone="brand" icon={<CheckCircleIcon />} loading={summary.isLoading} />
+        <StatTile label="Can sign in" value={figures?.active.toLocaleString() ?? "—"} tone="brand" icon={<CheckLineIcon />} loading={summary.isLoading} />
         <StatTile
           label="Switched off"
           value={figures?.suspended.toLocaleString() ?? "—"}

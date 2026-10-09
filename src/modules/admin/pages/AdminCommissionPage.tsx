@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../../../common/api/client";
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
-import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -13,7 +12,21 @@ import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { formatMoney } from "../../../common/format/money";
-import { toIsoDate } from "../../../components/ui/filters/dateRanges";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { useUrlFilters } from "../../../common/hooks/useUrlFilters";
+import {
+  DateRangeFilter,
+  FilterBar,
+  FilterSelect,
+  formatEntryDate,
+  formatRange,
+  resolveRange,
+  type AppliedFilter,
+  type DateRange,
+} from "../../../components/ui/filters";
+import Pager from "../../../components/ui/pager";
+import { CheckLineIcon, DollarLineIcon, PieChartIcon, TimeIcon, UserCircleIcon } from "../../../icons";
+import { Card, Empty, PageHeader, Person, Pill, StatTile } from "../components/kit";
 
 /**
  * THE PLATFORM'S CUT.
@@ -41,10 +54,45 @@ type Shop = {
   slug: string;
   commission_rate: number | null;
   effective_rate: number;
+  /** Earned and not yet asked for: charges on no invoice. */
   outstanding_orders: number;
   outstanding_amount: number;
+  /** Asked for and not yet paid: invoices raised and still open. */
   unpaid_invoices: number;
+  unpaid_amount: number;
+  /** Both piles together — what the list is ordered by. */
+  owed: number;
 };
+
+/** Counted by the server over the whole platform, never off the page that is open. */
+type Summary = {
+  shops: number;
+  unbilled: { shops: number; orders: number; amount: number };
+  invoiced: { shops: number; invoices: number; amount: number };
+  clear: { shops: number };
+  rates: { own: number; platform: number };
+  collected_this_month: { invoices: number; amount: number };
+};
+
+const STANDING = [
+  { value: "unbilled", label: "Not yet billed" },
+  { value: "invoiced", label: "Billed, unpaid" },
+  { value: "clear", label: "Owes nothing" },
+];
+
+const RATE = [
+  { value: "own", label: "On a rate of their own" },
+  { value: "platform", label: "On the platform rate" },
+];
+
+const SORT = [
+  { value: "unbilled", label: "Most not yet billed" },
+  { value: "invoiced", label: "Most billed, unpaid" },
+  { value: "name", label: "Name, A to Z" },
+];
+
+/** What a new invoice may be raised for. Anything else is the custom range. */
+const INVOICE_PERIODS = ["this_month", "last_month", "last_30", "this_quarter"] as const;
 
 type Settings = {
   commission_enabled: boolean;
@@ -84,26 +132,42 @@ type Detail = {
 const money = (n: number) => formatMoney("Rs", n);
 
 /**
- * TODAY IS THE DAY IT IS HERE.
+ * Which day a charge was earned on, AS THE SERVER FILES IT.
  *
- * `toISOString().slice(0, 10)` is the obvious spelling and it is wrong east of
- * Greenwich: in Karachi every moment before 05:00 local is still yesterday in
- * UTC, so an invoice raised early in the morning would bill a window that
- * started on the last day of the previous month. `toIsoDate` reads the LOCAL
- * calendar, and is the one answer this codebase keeps to.
+ * An invoice bills the charges whose date falls in its period, and the server
+ * reads that date in UTC. `charged_at` arrives as an instant with its offset,
+ * so its first ten characters are that same UTC date — and the count shown
+ * before "Raise invoice" is pressed is the count the invoice will have.
  */
-const today = () => toIsoDate(new Date());
-const monthStart = () => {
-  const d = new Date();
-  return toIsoDate(new Date(d.getFullYear(), d.getMonth(), 1));
-};
+const chargedOn = (charge: Charge): string => (charge.charged_at ?? "").slice(0, 10);
 
 export default function AdminCommissionPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [owingOnly, setOwingOnly] = useState(false);
+  // WHAT THE LIST IS NARROWED TO lives in the address, like every filter on
+  // this platform: "look at the ones we have billed and not been paid by" is
+  // a thing people send each other.
+  const { params, get, patch, goToPage, clearAll } = useUrlFilters();
+  const standing = get("standing");
+  const rate = get("rate");
+  const sort = get("sort");
+  const page = Number(params.get("page") ?? 1);
+  // The box types faster than the server answers: local input, debounced
+  // query, and no history entry per keystroke.
+  const [search, setSearch] = useState(get("search"));
+  const debounced = useDebouncedValue(search, 350);
+  useEffect(() => {
+    const term = debounced.trim();
+    // Nothing changed, so touch nothing — or opening ?page=2 from a link
+    // would land on page one.
+    if (term === (params.get("search") ?? "")) return;
+    patch({ search: term });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounced]);
+
   const [open, setOpen] = useState<string | null>(null);
+  // The window a new invoice is raised over. This month, until somebody says otherwise.
+  const [period, setPeriod] = useState<DateRange>(() => resolveRange("this_month", new Date()));
   const [rateDraft, setRateDraft] = useState("");
   const [shopRate, setShopRate] = useState("");
 
@@ -113,13 +177,17 @@ export default function AdminCommissionPage() {
   });
 
   const shops = useQuery({
-    queryKey: ["admin", "commission", search, owingOnly],
-    queryFn: async () =>
-      (
-        await apiGet<{ shops: Shop[]; total_outstanding: number }>("/admin/commission", {
-          params: { search: search.trim() || undefined, owing: owingOnly ? 1 : undefined },
-        })
-      ).data,
+    queryKey: ["admin", "commission", "list", debounced.trim(), standing, rate, sort, page],
+    queryFn: () =>
+      apiGet<Shop[]>("/admin/commission", {
+        params: {
+          search: debounced.trim() || undefined,
+          standing: standing || undefined,
+          rate: rate || undefined,
+          sort: sort || undefined,
+          page,
+        },
+      }),
   });
 
   const detail = useQuery({
@@ -211,23 +279,200 @@ export default function AdminCommissionPage() {
     setShopRate(d.shop.commission_rate === null ? "" : String(d.shop.commission_rate));
   }, [detail.data]);
 
-  const list = shops.data?.shops ?? [];
-  const owed = shops.data?.total_outstanding ?? 0;
+  const list = shops.data?.data ?? [];
+  const pagination = shops.data?.meta?.pagination;
+  const summary = shops.data?.meta?.summary as Summary | undefined;
+  const loadingFigures = shops.isLoading || summary === undefined;
+
+  // What this shop has been asked for and has not paid, and which of its
+  // unbilled orders the period chosen would put on an invoice.
+  const unpaidHere = (detail.data?.invoices ?? []).filter((i) => i.status === "unpaid").reduce((sum, i) => sum + i.amount, 0);
+  const inPeriod = (ch: Charge): boolean =>
+    period.from !== null && period.to !== null && chargedOn(ch) >= period.from && chargedOn(ch) <= period.to;
+  const toBill = (detail.data?.charges ?? []).filter(inPeriod);
+
+  const labelOf = (options: Array<{ value: string; label: string }>, value: string) =>
+    options.find((o) => o.value === value)?.label ?? value;
+
+  const applied: AppliedFilter[] = [
+    ...(standing ? [{ key: "standing", label: "Standing", value: labelOf(STANDING, standing), onRemove: () => patch({ standing: null }) }] : []),
+    ...(rate ? [{ key: "rate", label: "Rate", value: labelOf(RATE, rate), onRemove: () => patch({ rate: null }) }] : []),
+  ];
+  const narrowed = applied.length > 0 || debounced.trim() !== "";
 
   return (
     <>
       <PageMeta title="Commission" description="What the marketplace earns, and who owes it" />
 
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Commission</h1>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          A share of what the marketplace sells for each shop. Separate from their plan, which is
-          what they pay for the software — the two are billed apart so either can be questioned.
+      <PageHeader
+        icon={<PieChartIcon />}
+        tone="orange"
+        title="Commission"
+        subtitle="A share of what the marketplace sells for each shop — billed apart from their plan, so either can be questioned."
+      />
+
+      {/* OFF is said at the top of the page, not inside a settings card
+          somebody has to scroll to: while it is off nothing below is growing. */}
+      {s && !s.commission_enabled && (
+        <p role="status" className="mb-5 rounded-2xl border border-warning-200 bg-warning-50 px-4 py-3 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+          Commission is off. Completed online orders are recording nothing, and no shop is being charged.
         </p>
+      )}
+
+      {/* ── What is owed, in the two piles it is owed in ─────────────────
+          Counted by the server over every shop — never off the page that is
+          open. Two of them are also the fastest way to the shops they count. */}
+      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="commission-figures">
+        <StatTile
+          label="Not yet billed"
+          tone={summary && summary.unbilled.amount > 0 ? "amber" : "slate"}
+          icon={<TimeIcon />}
+          loading={loadingFigures}
+          value={money(summary?.unbilled.amount ?? 0)}
+          hint={summary ? `${summary.unbilled.orders} ${summary.unbilled.orders === 1 ? "order" : "orders"} · ${summary.unbilled.shops} ${summary.unbilled.shops === 1 ? "shop" : "shops"}` : undefined}
+          onPress={() => patch({ standing: standing === "unbilled" ? null : "unbilled" })}
+          pressed={standing === "unbilled"}
+        />
+        <StatTile
+          label="Billed, unpaid"
+          tone={summary && summary.invoiced.amount > 0 ? "red" : "slate"}
+          icon={<DollarLineIcon />}
+          loading={loadingFigures}
+          value={money(summary?.invoiced.amount ?? 0)}
+          hint={summary ? `${summary.invoiced.invoices} ${summary.invoiced.invoices === 1 ? "invoice" : "invoices"} · ${summary.invoiced.shops} ${summary.invoiced.shops === 1 ? "shop" : "shops"}` : undefined}
+          onPress={() => patch({ standing: standing === "invoiced" ? null : "invoiced" })}
+          pressed={standing === "invoiced"}
+        />
+        <StatTile
+          label="Collected this month"
+          tone="green"
+          // Drawn in the chip's own ink. The circled tick carries a green of
+          // its own, and on a green chip it is a blank square.
+          icon={<CheckLineIcon />}
+          loading={loadingFigures}
+          value={money(summary?.collected_this_month.amount ?? 0)}
+          hint={summary ? `${summary.collected_this_month.invoices} ${summary.collected_this_month.invoices === 1 ? "invoice" : "invoices"} paid` : undefined}
+        />
+        <StatTile
+          label="On a rate of their own"
+          tone="brand"
+          icon={<UserCircleIcon />}
+          loading={loadingFigures}
+          value={summary?.rates.own ?? 0}
+          hint={summary ? `${summary.rates.platform} follow the platform's ${s ? `${s.commission_rate}%` : "rate"}` : undefined}
+          onPress={() => patch({ rate: rate === "own" ? null : "own" })}
+          pressed={rate === "own"}
+        />
       </div>
 
+      {/* ── Who owes what ────────────────────────────────────────────── */}
+      <FilterBar
+        search={{ value: search, onChange: setSearch, placeholder: "Search a shop's name…", label: "Search shops" }}
+        applied={applied}
+        onClearAll={() => {
+          setSearch("");
+          // The order is not a filter; clearing what the list is narrowed to
+          // should not also reshuffle it.
+          clearAll(["sort"]);
+        }}
+        results={{ count: pagination?.total, noun: "shops", loading: shops.isLoading }}
+      >
+        <FilterSelect label="Any standing" value={standing} onChange={(v) => patch({ standing: v || null })} options={STANDING} />
+        <FilterSelect label="Any rate" value={rate} onChange={(v) => patch({ rate: v || null })} options={RATE} />
+        <FilterSelect label="Most owed first" value={sort} onChange={(v) => patch({ sort: v || null })} options={SORT} />
+      </FilterBar>
+
+      <Card>
+        {shops.isError ? (
+          <Empty icon={<PieChartIcon />} title="The list could not be loaded" hint="Try again in a moment." action={<Button size="sm" variant="outline" onClick={() => shops.refetch()}>Try again</Button>} />
+        ) : !shops.isLoading && list.length === 0 ? (
+          narrowed
+            ? <Empty icon={<PieChartIcon />} title="No shop matches" hint="Try fewer words, or clear the filters." />
+            : <Empty icon={<PieChartIcon />} title="No shops yet" hint="A shop appears here the day it is opened, and owes something the day an online order is completed." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[52rem] text-left text-theme-sm" data-testid="commission-table">
+              <thead>
+                <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                  <th className="px-5 py-3 font-medium">Shop</th>
+                  <th className="px-5 py-3 font-medium">Rate</th>
+                  <th className="px-5 py-3 font-medium">Not yet billed</th>
+                  <th className="px-5 py-3 font-medium">Billed, unpaid</th>
+                  <th className="px-5 py-3 font-medium">Owes in all</th>
+                  <th className="px-5 py-3 text-right font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {shops.isLoading
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={6} className="px-5 py-4">
+                          <div className="h-9 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                        </td>
+                      </tr>
+                    ))
+                  : list.map((shop) => (
+                      <tr key={shop.id} data-shop={shop.business_name} className="text-gray-700 dark:text-gray-300">
+                        <td className="px-5 py-3">
+                          <Person name={shop.business_name} />
+                        </td>
+                        <td className="px-5 py-3">
+                          {/* Null means "follows the platform". Saying so beats
+                              printing the resolved number as though the shop
+                              had chosen it — the difference matters the moment
+                              the platform rate moves. */}
+                          <Pill tone={shop.commission_rate === null ? "slate" : "purple"}>
+                            {shop.effective_rate}% · {shop.commission_rate === null ? "platform" : "own"}
+                          </Pill>
+                        </td>
+                        <td className="px-5 py-3">
+                          {shop.outstanding_amount > 0 ? (
+                            <>
+                              <p className="font-medium tabular-nums text-warning-600 dark:text-warning-400">{money(shop.outstanding_amount)}</p>
+                              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                                {shop.outstanding_orders} {shop.outstanding_orders === 1 ? "order" : "orders"}
+                              </p>
+                            </>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {shop.unpaid_amount > 0 ? (
+                            <>
+                              <p className="font-medium tabular-nums text-error-600 dark:text-error-400">{money(shop.unpaid_amount)}</p>
+                              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                                {shop.unpaid_invoices} {shop.unpaid_invoices === 1 ? "invoice" : "invoices"}
+                              </p>
+                            </>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          {shop.owed > 0
+                            ? <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{money(shop.owed)}</span>
+                            : <span className="text-gray-400">Nothing</span>}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <button className={ROW_ACTION} onClick={() => setOpen(shop.id)} aria-label={`Open ${shop.business_name}`}>
+                            Open
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      <Pager pagination={pagination} onPage={goToPage} noun="shops" />
+
       {/* ── The rate everybody follows ───────────────────────────────── */}
-      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+      {/* Under the list, not above it: this is changed once a year and the
+          list is read every week. */}
+      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]" data-testid="commission-settings">
         {settings.isLoading || !s ? (
           <p className="text-sm text-gray-400">Loading…</p>
         ) : (
@@ -253,13 +498,6 @@ export default function AdminCommissionPage() {
                 {s.commission_enabled ? "Pause commission" : "Turn commission on"}
               </Button>
             </div>
-
-            {!s.commission_enabled && (
-              <p className="mb-4 rounded-xl bg-warning-50 px-4 py-3 text-theme-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-                Commission is off. Completed online orders are recording nothing, and no shop is
-                being charged.
-              </p>
-            )}
 
             <div className="grid gap-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
               <div>
@@ -317,94 +555,6 @@ export default function AdminCommissionPage() {
         )}
       </div>
 
-      {/* ── Who owes what ────────────────────────────────────────────── */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-semibold text-gray-800 dark:text-white/90">{money(owed)}</span>
-          <span className="text-theme-sm text-gray-500 dark:text-gray-400">outstanding across all shops</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className={`rounded-xl border px-3 py-2 text-theme-sm ${
-              owingOnly
-                ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
-                : "border-gray-200 text-gray-600 dark:border-gray-800 dark:text-gray-300"
-            }`}
-            onClick={() => setOwingOnly((v) => !v)}
-          >
-            Only shops that owe
-          </button>
-          <div className="w-56">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Shop name" />
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        {shops.isLoading ? (
-          <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
-        ) : list.length === 0 ? (
-          <p className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            {owingOnly ? "Nobody owes anything." : "No shops."}
-          </p>
-        ) : (
-          <table className="w-full min-w-[44rem] text-left text-theme-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <th className="px-5 py-3 font-medium">Shop</th>
-                <th className="px-5 py-3 font-medium">Rate</th>
-                <th className="px-5 py-3 font-medium">Unbilled orders</th>
-                <th className="px-5 py-3 font-medium">Outstanding</th>
-                <th className="px-5 py-3 font-medium">Invoices</th>
-                <th className="px-5 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {list.map((shop) => (
-                <tr key={shop.id} className="text-gray-700 dark:text-gray-300">
-                  <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">
-                    {shop.business_name}
-                  </td>
-                  <td className="px-5 py-3">
-                    {shop.effective_rate}%
-                    {/*
-                      Null means "follows the platform". Saying so beats
-                      printing the resolved number as though the shop had
-                      chosen it — the difference matters the moment the
-                      platform rate moves.
-                    */}
-                    {shop.commission_rate === null && (
-                      <span className="ml-1 text-theme-xs text-gray-400">platform</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">{shop.outstanding_orders || "—"}</td>
-                  <td className="px-5 py-3">
-                    {shop.outstanding_amount > 0 ? (
-                      <span className="font-medium text-warning-600 dark:text-warning-400">
-                        {money(shop.outstanding_amount)}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    {shop.unpaid_invoices > 0 ? (
-                      <Badge color="warning">{shop.unpaid_invoices} unpaid</Badge>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <button className={ROW_ACTION} onClick={() => setOpen(shop.id)}>
-                      Open
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
 
       {/* ── One shop ─────────────────────────────────────────────────── */}
       <Modal isOpen={open !== null} onClose={() => setOpen(null)} className="max-w-3xl">
@@ -412,23 +562,13 @@ export default function AdminCommissionPage() {
           title={detail.data?.shop.business_name ?? "Commission"}
           description={
             detail.data
-              ? `${detail.data.shop.effective_rate}% · ${money(detail.data.outstanding.amount)} outstanding across ${detail.data.outstanding.orders} order${detail.data.outstanding.orders === 1 ? "" : "s"}`
+              ? `${detail.data.shop.effective_rate}% · ${money(detail.data.outstanding.amount)} not yet billed across ${detail.data.outstanding.orders} order${detail.data.outstanding.orders === 1 ? "" : "s"}${unpaidHere > 0 ? ` · ${money(unpaidHere)} billed and unpaid` : ""}`
               : undefined
           }
           footer={
-            <>
-              <Button variant="outline" onClick={() => setOpen(null)}>
-                Close
-              </Button>
-              <Button
-                disabled={raise.isPending || (detail.data?.outstanding.orders ?? 0) === 0}
-                onClick={() =>
-                  open && raise.mutate({ id: open, from: monthStart(), to: today() })
-                }
-              >
-                Raise invoice for this month
-              </Button>
-            </>
+            <Button variant="outline" onClick={() => setOpen(null)}>
+              Close
+            </Button>
           }
         >
           {detail.isLoading || !detail.data ? (
@@ -462,9 +602,39 @@ export default function AdminCommissionPage() {
               </div>
 
               <div>
-                <h4 className="mb-2 text-sm font-semibold text-gray-800 dark:text-white/90">
-                  Unbilled orders
-                </h4>
+                {/* THE PERIOD IS CHOSEN, AND WHAT IT WOULD BILL IS SAID FIRST.
+                    This was one button — "Raise invoice for this month" — so
+                    last month's orders could only be billed by waiting for
+                    them to be this month's, and nobody was told how much the
+                    invoice would be for until it existed. */}
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-gray-800 dark:text-white/90">Not yet billed</h4>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <DateRangeFilter
+                      label="Period"
+                      value={period}
+                      onChange={setPeriod}
+                      presets={INVOICE_PERIODS}
+                      // An invoice is for a period. "All time" is not one.
+                      allowAll={false}
+                      align="right"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={raise.isPending || toBill.length === 0}
+                      onClick={() => open && period.from && period.to && raise.mutate({ id: open, from: period.from, to: period.to })}
+                    >
+                      Raise invoice
+                    </Button>
+                  </div>
+                </div>
+                <p className="mb-2 text-theme-xs text-gray-500 dark:text-gray-400" data-testid="invoice-would-bill">
+                  {detail.data.charges.length === 0
+                    ? "Nothing has been earned that is not already on an invoice."
+                    : toBill.length === 0
+                      ? `Nothing was earned in ${formatRange(period)}. Pick the period the orders below fall in.`
+                      : `${toBill.length} of ${detail.data.charges.length} ${detail.data.charges.length === 1 ? "order" : "orders"} fall in ${formatRange(period)} — an invoice for ${money(toBill.reduce((sum, ch) => sum + ch.amount, 0))}.`}
+                </p>
                 <div className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                   {detail.data.charges.length === 0 && (
                     <p className="px-4 py-6 text-center text-theme-sm text-gray-400">
@@ -472,8 +642,13 @@ export default function AdminCommissionPage() {
                     </p>
                   )}
                   {detail.data.charges.map((ch) => (
-                    <div key={ch.id} className="flex items-center gap-3 px-4 py-2 text-theme-sm">
-                      <span className="flex-1 text-gray-700 dark:text-gray-300">{ch.order_number}</span>
+                    // Dimmed when the period above would leave it out — so the
+                    // list itself shows what the invoice will and will not take.
+                    <div key={ch.id} className={`flex items-center gap-3 px-4 py-2 text-theme-sm ${inPeriod(ch) ? "" : "opacity-45"}`}>
+                      <span className="flex-1 text-gray-700 dark:text-gray-300">
+                        {ch.order_number}
+                        <span className="ml-2 text-theme-xs text-gray-400">{formatEntryDate(chargedOn(ch))}</span>
+                      </span>
                       <span className="text-gray-400">
                         {money(ch.base_amount)} × {ch.rate_percent}%
                       </span>
@@ -506,19 +681,16 @@ export default function AdminCommissionPage() {
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-gray-800 dark:text-white/90">{inv.number}</div>
                         <div className="text-theme-xs text-gray-400">
-                          {inv.period_start} → {inv.period_end} · {inv.orders_count} orders
+                          {formatRange({ from: inv.period_start, to: inv.period_end })} · {inv.orders_count} {inv.orders_count === 1 ? "order" : "orders"}
+                          {inv.status === "paid" && inv.paid_at ? ` · paid ${formatEntryDate(inv.paid_at)}` : ""}
                         </div>
                       </div>
                       <span className="font-medium text-gray-800 dark:text-white/90">
                         {money(inv.amount)}
                       </span>
-                      <Badge
-                        color={
-                          inv.status === "paid" ? "success" : inv.status === "void" ? "light" : "warning"
-                        }
-                      >
-                        {inv.status}
-                      </Badge>
+                      <Pill tone={inv.status === "paid" ? "green" : inv.status === "void" ? "slate" : "amber"}>
+                        {inv.status === "void" ? "withdrawn" : inv.status}
+                      </Pill>
                       {inv.status === "unpaid" && (
                         <>
                           <button
