@@ -214,6 +214,13 @@ export interface ShopSettings {
   loyalty_min_redeem: number;
   barcode_show_price: boolean;
   barcode_show_name: boolean;
+  /** What a label carries and what it is printed on — set on Barcode Labels. */
+  label_show_digits: boolean;
+  label_show_shop: boolean;
+  label_show_pack: boolean;
+  label_cut_lines: boolean;
+  label_stock: string;
+  label_paper: string;
   scale_barcode_enabled: boolean;
   scale_barcode_prefix: string;
   scale_barcode_mode: "weight" | "price";

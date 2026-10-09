@@ -66,3 +66,67 @@ describe("still a barcode afterwards", () => {
     expect(code128ModuleCount("ABCDEFGH")).toBeGreaterThan(code128ModuleCount("AB"));
   });
 });
+
+/**
+ * THE BARS THEMSELVES.
+ *
+ * The four patterns below were not produced by this encoder: they are what a
+ * different library (python-barcode) writes for the same values, and each was
+ * read back by a decoder written without reference to either. A test that only
+ * compared this encoder with itself would pass for any consistent mistake.
+ *
+ * And they are read off the DRAWING — the rectangles in the SVG a label is
+ * printed from — the way a scanner reads a sticker, not out of the encoder's
+ * own working. A pattern that was right and then drawn wrong would be a
+ * sticker that does not scan.
+ */
+function code128Modules(value: string): string {
+  const svg = code128BarsSvg(value);
+  const width = Number(/viewBox="0 0 (\d+) 100"/.exec(svg)?.[1]);
+  const modules = Array.from({ length: width }, () => "0");
+
+  for (const bar of svg.matchAll(/<rect x="(\d+)" y="0" width="(\d+)"/g)) {
+    for (let i = 0; i < Number(bar[2]); i++) modules[Number(bar[1]) + i] = "1";
+  }
+
+  // Ten blank modules either side are the quiet zone, not the symbol.
+  return modules.slice(10, width - 10).join("");
+}
+
+describe("the bars a scanner reads", () => {
+  const SOMEBODY_ELSES: Record<string, string> = {
+      "123456": "11010011100101100111001000101100011100010110100011011101100011101011",
+      "8961230000011": "110100111001101101111011001000010111011011101101100110011011001100110011011001011110111010011100110100010111101100011101011",
+      "12345": "1101001110010110011100100010110001011110111011011100100111010110001100011101011",
+      "MILK-1L-004": "110100100001011101100011000100010100011011101011000111010011011100100111001101000110111010011011100100111011001001110110011001001110101000111101100011101011"
+  };
+
+  it.each(Object.keys(SOMEBODY_ELSES))("%s is the pattern another encoder gives it", (value) => {
+    expect(code128Modules(value)).toBe(SOMEBODY_ELSES[value]);
+  });
+
+  it("a manufacturer's thirteen digits fit the standard sticker", () => {
+    // 47 mm of sticker between its edges. In Set B this code was 198 modules
+    // and each bar 0.237 mm — under the 0.25 a supermarket scanner needs, on
+    // EVERY ordinary product, on the default size.
+    const modules = code128ModuleCount("8961230000011");
+
+    expect(modules).toBe(143);
+    expect(47 / modules).toBeGreaterThan(0.25);
+  });
+
+  it("digits go two to a symbol, and an odd one out is still said", () => {
+    // 12 digits: start + 6 pairs + check + stop. 13: the same, plus the switch and the last digit.
+    expect(code128Modules("896123000001").length).toBe(11 * 8 + 13);
+    expect(code128Modules("8961230000011").length).toBe(11 * 10 + 13);
+  });
+
+  it("a code with letters in it is left in the set that has letters", () => {
+    expect(code128Modules("MILK-1L-004").length).toBe(11 * (1 + 11 + 1) + 13);
+  });
+
+  it("a short number is not worth the change of set", () => {
+    // Three digits in Set C would be start, a pair, the switch, a digit: no shorter.
+    expect(code128Modules("417").length).toBe(11 * (1 + 3 + 1) + 13);
+  });
+});

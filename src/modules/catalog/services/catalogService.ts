@@ -9,6 +9,7 @@ import type {
   ProductFilters,
   ProductInput,
 } from "../types";
+import type { ImportSummary } from "../importFile";
 
 export const catalogService = {
   // ── Categories ──────────────────────────────────────────────────
@@ -106,19 +107,27 @@ export const catalogService = {
   deleteImage: (productId: string, imageId: string) =>
     apiDelete<Product>(`/products/${productId}/images/${imageId}`),
 
-  // ── Bulk CSV import ────────────────────────────────────────────
-  importProducts: (file: File) => {
+  // ── Bulk import (Excel or CSV) ─────────────────────────────────
+  /**
+   * `dryRun` is the check: the same import, run and undone. `categories` and
+   * `mapping` are what somebody answered on that check. Both go as JSON text —
+   * they sit beside a file in a form, and a category's name is not a safe
+   * thing to use as a form field's name.
+   */
+  importProducts: ({ file, dryRun, categories, mapping }: ImportRequest) => {
     const fd = new FormData();
     fd.append("file", file);
+    if (dryRun) fd.append("dry_run", "1");
+    if (categories && categories.length > 0) fd.append("categories", JSON.stringify(categories));
+    if (mapping && Object.keys(mapping).length > 0) fd.append("mapping", JSON.stringify(mapping));
     return apiPost<ImportSummary>("/products/import", fd);
   },
-  importTemplateUrl: "/products/import/template",
 };
 
-export interface ImportSummary {
-  total: number;
-  created: number;
-  updated: number;
-  failed: number;
-  errors: Array<{ row: number; messages: string[] }>;
+export interface ImportRequest {
+  file: File;
+  dryRun?: boolean;
+  categories?: Array<{ name: string; action: string; id?: string }>;
+  /** A heading in the file → the field it means ("" to leave it out). */
+  mapping?: Record<string, string>;
 }

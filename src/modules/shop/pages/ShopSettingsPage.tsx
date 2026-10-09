@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import { StationsField } from "../components/StationsField";
@@ -1348,11 +1349,22 @@ export default function ShopSettingsPage() {
               <>
               <TwoCol
                 left={
-                  <SectionCard icon={<BarcodeGlyph />} title="Barcode labels" description="What shows on printed product labels.">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <ToggleRow checked={!!prefs.barcode_show_name} onChange={(v) => setP("barcode_show_name", v)} label="Show name" hint="Prints the product name above the bars." />
-                      <ToggleRow checked={!!prefs.barcode_show_price} onChange={(v) => setP("barcode_show_price", v)} label="Show price" hint="Prints the retail price on the label." />
-                    </div>
+                  /* MOVED, and said. What a label carries used to be two switches
+                     here — two screens from the sticker they changed, with six
+                     more choices on the labels screen itself. Nobody printing
+                     could say which were in force. They are one set now, on
+                     the screen that draws the label. */
+                  <SectionCard icon={<BarcodeGlyph />} title="Barcode labels" description="What a label shows, and the sticker it is printed on.">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      These are set on the <strong>Barcode Labels</strong> screen now, beside the label itself — so what you change is what you see printed.
+                    </p>
+                    {tenantFeatures.labels ? (
+                      <Link to="/tenant/labels" className="mt-3 inline-block text-sm font-medium text-brand-500 hover:text-brand-600">
+                        Open Barcode Labels →
+                      </Link>
+                    ) : (
+                      <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">Your shop does not have the Labels module.</p>
+                    )}
                   </SectionCard>
                 }
                 right={

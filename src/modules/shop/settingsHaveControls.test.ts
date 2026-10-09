@@ -88,6 +88,18 @@ function keysWithAControl(): Set<string> {
   for (const m of page.matchAll(/\bsetP\(\s*"([a-z_0-9]+)"/g)) written.add(m[1]);
   for (const m of page.matchAll(/\bset\(\s*"([a-z_0-9]+)"/g)) written.add(m[1]);
 
+  // What a label carries is set on the screen that DRAWS the label, beside it
+  // — not here. That screen keeps each choice under a setting named in one
+  // map, and writes them through it. Read rather than excused: a key dropped
+  // from that map is a setting with no control again, and this says so.
+  const labels = read("src/modules/catalog/labels/prefs.ts");
+  const held = /const HELD_AS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(labels);
+  expect(held).not.toBeNull();
+  const onTheLabelsScreen = [...(held as RegExpExecArray)[1].matchAll(/:\s*"([a-z_0-9]+)"/g)].map((m) => m[1]);
+  expect(onTheLabelsScreen.length).toBeGreaterThanOrEqual(8);
+  expect(read("src/modules/catalog/pages/LabelsPage.tsx")).toMatch(/save\.mutate\(toSettings\(/);
+  for (const key of onTheLabelsScreen) written.add(key);
+
   // Same denominator question, for the other half of the comparison.
   expect(written.size).toBeGreaterThan(30);
   return written;

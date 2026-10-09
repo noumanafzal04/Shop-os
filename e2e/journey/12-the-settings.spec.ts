@@ -977,19 +977,34 @@ test("G11 · Receipt: what is typed is on the preview at once, and on the paper 
 
 // ── G12: Barcodes ────────────────────────────────────────────────────
 
-test("G12 · Barcode labels: what the shop switched off is not on the label it prints", async ({ page, request }) => {
-  await choose(page, request, { tab: "Barcodes" },
-    async (p) => { await setSwitch(p, "Show name", true); await setSwitch(p, "Show price", false); },
-    { barcode_show_name: true, barcode_show_price: false },
-    async (p) => { await expect(toggle(p, "Show price")).toHaveAttribute("aria-checked", "false"); },
-  );
+test("G12 · Barcode labels: what a label carries is chosen beside the label, said to be saved, and kept", async ({ page, request }) => {
+  // These were two switches under Settings → Barcodes, two screens from the
+  // sticker they changed. They are on the screen that draws the label now.
+  await restore(request, { barcode_show_name: true, barcode_show_price: true });
 
   await page.goto("/tenant/labels");
   await settled(page);
-  const options = page.getByRole("button", { name: /options|what to print|customi[sz]e/i }).first();
-  if (await options.isVisible().catch(() => false)) await options.click();
-  await expect(page.getByRole("button", { name: "Product name", exact: true }), "the Labels screen ignored the shop's choice").toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Price", exact: true })).toHaveAttribute("aria-pressed", "false");
+  const fields = page.getByTestId("label-fields");
+  await expect(fields, "the Labels screen did not start from the shop's own choice").toContainText("Price", { timeout: 15_000 });
+
+  await fields.click();
+  await page.getByRole("checkbox", { name: "Price", exact: true }).uncheck();
+  await page.getByRole("heading", { name: "Barcode labels" }).click();
+  await expect(fields).not.toContainText("Price");
+  // WHICH settings are in force, said — not left to be guessed.
+  await expect(page.getByTestId("label-settings-state")).toContainText("Saved for your shop", { timeout: 15_000 });
+  await expect.poll(async () => (await held(request)).barcode_show_price, { message: "the choice made on the Labels screen was not saved" }).toBe(false);
+
+  // …and it is still the shop's choice on the next visit.
+  await page.reload();
+  await settled(page);
+  await expect(page.getByTestId("label-fields")).toContainText("Product name", { timeout: 15_000 });
+  await expect(page.getByTestId("label-fields")).not.toContainText("Price");
+
+  // Settings no longer holds a second copy of it — it points here.
+  await openSettings(page, "Barcodes");
+  await expect(toggle(page, "Show price")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Open Barcode Labels →" })).toBeVisible();
 
   await restore(request, { barcode_show_price: true });
 });
@@ -1201,15 +1216,15 @@ test("G9 · saving one tab does not put back a setting somebody changed elsewher
   await restore(request, { invoice_footer: "QA — changed somewhere else" });
 
   // The person on this screen flips one switch and saves.
-  const moved = await setSwitch(page, "Show price", !(before.barcode_show_price as boolean));
+  const moved = await setSwitch(page, "Read weighing-scale labels", !(before.scale_barcode_enabled as boolean));
   expect(moved).toBe(true);
   await save(page);
 
   const after = await held(request);
-  expect(after.barcode_show_price).toBe(!(before.barcode_show_price as boolean));
+  expect(after.scale_barcode_enabled).toBe(!(before.scale_barcode_enabled as boolean));
   expect(after.invoice_footer, "Save on one tab put back a setting that was changed elsewhere").toBe("QA — changed somewhere else");
 
-  await restore(request, { invoice_footer: before.invoice_footer ?? null, barcode_show_price: before.barcode_show_price });
+  await restore(request, { invoice_footer: before.invoice_footer ?? null, scale_barcode_enabled: before.scale_barcode_enabled });
 });
 
 // ── G5: a second lane. LAST, because a shop with lanes asks which one you are on. ──

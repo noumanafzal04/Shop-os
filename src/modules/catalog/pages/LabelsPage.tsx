@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
+import { Link, useSearchParams } from "react-router";
+import { useMoney, useShopSettings, useUpdateShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -8,39 +9,29 @@ import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useGenerateBarcode, useProducts } from "../hooks/useCatalog";
 import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
-import type { Product } from "../types";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
+import { GAP, PAD, PAGE, STOCKS, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
+import { LABEL_FIELDS, labelPrefs, toSettings, type LabelPrefs } from "../labels/prefs";
 
 /**
- * Label stock, in millimetres, because a sticker is a physical object. Sizing
- * the page in px and hoping meant a "medium" label printed at whatever the
- * driver felt like; mm survives the trip to the printer intact.
+ * BARCODE LABELS — what to print on one side, the paper it lands on, on the other.
+ *
+ * ── What was wrong with the screen before ───────────────────────────────
+ *
+ * It previewed "one of each product", so nobody could say how many sheets a
+ * run would take or where on the sheet a sticker would land. Its settings were
+ * in two places — two switches under Settings → Barcodes, six more behind a
+ * collapsed "Options" here, forgotten on every visit — so nobody printing could
+ * say which were in force. And a product was ONE label: its carton, which is
+ * scanned by the carton's barcode and sold at the carton's price, had none.
+ *
+ * So: the right-hand side is the SHEET, as it will print, one sheet at a time
+ * with how many fit and how many sheets there are; every setting is on this
+ * page, open, and saved for the shop; and each pack or size with a barcode of
+ * its own is its own row, with its own count.
  */
-type StockKey = "38x25" | "50x25" | "50x38" | "100x50";
-
-interface Stock {
-  label: string;
-  hint: string;
-  w: number; // mm
-  h: number; // mm
-  bar: number; // barcode block height, mm
-  name: number; // pt
-  price: number; // pt
-  meta: number; // pt
-  lines: 1 | 2; // product-name lines that fit
-}
-
-const STOCKS: Record<StockKey, Stock> = {
-  "38x25": { label: "38 × 25", hint: "Small", w: 38, h: 25, bar: 8, name: 5.5, price: 8, meta: 4.5, lines: 1 },
-  "50x25": { label: "50 × 25", hint: "Standard", w: 50, h: 25, bar: 9, name: 6, price: 9.5, meta: 5, lines: 1 },
-  "50x38": { label: "50 × 38", hint: "Tall", w: 50, h: 38, bar: 13, name: 7.5, price: 12, meta: 6, lines: 2 },
-  "100x50": { label: "100 × 50", hint: "Shelf tag", w: 100, h: 50, bar: 18, name: 12, price: 18, meta: 8.5, lines: 2 },
-};
-
-/** Sticker padding and the gap between stickers on a sheet, mm. */
-const PAD = 1.5;
-const GAP = 2;
 
 /**
  * Narrowest bar a supermarket scanner reliably reads, mm. Below this the label
@@ -49,29 +40,26 @@ const GAP = 2;
  */
 const MIN_X_DIM = 0.25;
 
-const FIELDS = [
-  { key: "name", label: "Product name" },
-  { key: "price", label: "Price" },
-  { key: "digits", label: "Barcode number" },
-  { key: "shop", label: "Shop name" },
-  { key: "pack", label: "Pack size" },
-  { key: "cut", label: "Cut lines" },
-] as const;
-
-type FieldKey = (typeof FIELDS)[number]["key"];
+/** CSS pixels in a millimetre, for fitting a 210 mm sheet into the column. */
+const PX_PER_MM = 96 / 25.4;
 
 export default function LabelsPage() {
   const money = useMoney();
   const settings = useShopSettings();
+  const save = useUpdateShopSettings();
+  const toast = useToast();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const shopName = useAuthStore((s) => s.user?.tenant?.business_name) ?? "";
+  // Whoever prints labels need not be whoever manages Settings. Their choices
+  // still print — they are simply not kept, and the page says which it is.
+  const keeps = hasPermission("settings.manage");
 
-  const [search, setSearch] = useState("");
-  const [query, setQuery] = useState("");
+  const [params] = useSearchParams();
+  const [search, setSearch] = useState(params.get("search") ?? "");
+  const [query, setQuery] = useState(params.get("search") ?? "");
   const [page, setPage] = useState(1);
   const products = useProducts({ search: query || undefined, page });
   const generate = useGenerateBarcode();
-  const toast = useToast();
 
   // Typing shouldn't fire a request per keystroke.
   useEffect(() => {
@@ -80,94 +68,101 @@ export default function LabelsPage() {
   }, [search]);
   useEffect(() => setPage(1), [query]);
 
-  // How many labels each product gets, plus the product itself — held here and
-  // not looked up from the visible page, so a run built across two searches
-  // still prints both halves.
+  // How many of each label, and the label itself — held here and not looked up
+  // from the visible page, so a run built across two searches prints both halves.
   const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [picked, setPicked] = useState<Record<string, Product>>({});
+  const [picked, setPicked] = useState<Record<string, Printable>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  const [stockKey, setStockKey] = useState<StockKey>("50x25");
-  const [showOptions, setShowOptions] = useState(false);
-  const [mode, setMode] = useState<"sheet" | "roll">("sheet");
-  const [skip, setSkip] = useState(0);
-  // Settings → Barcodes says what a label carries in this shop; the tick boxes
-  // here override it for one print run. The two switches used to save and then
-  // be read by nobody, so a shop that turned the price off still printed it.
-  const [fields, setFields] = useState<Record<FieldKey, boolean>>({
-    name: true, price: true, digits: true, shop: false, pack: false, cut: true,
-  });
+  // The shop's saved choices, taken once they arrive; changed here.
+  const [prefs, setPrefs] = useState<LabelPrefs>(() => labelPrefs(undefined));
   const seeded = useRef(false);
   useEffect(() => {
     if (seeded.current || !settings.data) return;
     seeded.current = true;
-    setFields((f) => ({
-      ...f,
-      name: settings.data.barcode_show_name !== false,
-      price: settings.data.barcode_show_price !== false,
-    }));
+    setPrefs(labelPrefs(settings.data));
   }, [settings.data]);
 
+  const change = (patch: Partial<LabelPrefs>) => {
+    setPrefs((p) => ({ ...p, ...patch }));
+    if (!keeps) return;
+    save.mutate(toSettings(patch), {
+      onError: (e) => toast.error(e instanceof Error ? e.message : "That setting was not saved."),
+    });
+  };
+
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  /** Shown as large as the column allows; "actual size" is the paper at 100%, scrolled. */
+  const [actualSize, setActualSize] = useState(false);
+  const [zoom, setZoom] = useState(1);
+
+  /** Stickers already peeled off the first sheet. About THIS sheet of paper, so never saved. */
+  const [skip, setSkip] = useState(0);
+  const [sheetNo, setSheetNo] = useState(1);
   const [bulkBusy, setBulkBusy] = useState(false);
 
-  const stock = STOCKS[stockKey];
+  const stock = STOCKS[prefs.stock];
+  const fit = perSheet(stock);
   const rows = products.data?.data ?? [];
   const pagination = products.data?.meta.pagination;
-  const missing = rows.filter((p) => !p.barcode);
+  const missing = rows.filter((p) => !p.barcode && printables(p).length === 0);
 
   const queue = useMemo(
     () => Object.entries(qtys)
       .filter(([, q]) => q > 0)
-      .map(([id, q]) => ({ product: picked[id], qty: q }))
-      .filter((r) => !!r.product),
+      .map(([key, q]) => ({ label: picked[key], qty: q }))
+      .filter((r) => !!r.label),
     [qtys, picked],
   );
-
   const total = queue.reduce((n, r) => n + r.qty, 0);
 
-  /** The print list: each product repeated by its quantity. */
-  const sheet = useMemo(() => {
-    const out: Product[] = [];
-    for (const r of queue) for (let i = 0; i < r.qty; i++) out.push(r.product);
+  /** The run: each label repeated by its count, in the order it was added. */
+  const run = useMemo(() => {
+    const out: Printable[] = [];
+    for (const r of queue) for (let i = 0; i < r.qty; i++) out.push(r.label);
     return out;
   }, [queue]);
 
+  // A roll is one sticker a "page"; a sheet is as many as fit.
+  const paper = useMemo(
+    () => (prefs.paper === "roll" ? sheets(run, 1) : sheets(run, fit.count, skip)),
+    [prefs.paper, run, fit.count, skip],
+  );
+  const shown = Math.min(Math.max(1, sheetNo), Math.max(1, paper.length));
+  useEffect(() => { if (sheetNo !== shown) setSheetNo(shown); }, [sheetNo, shown]);
+
   /**
    * Bars get thinner as the code gets longer and the label stays the same
-   * width. Flag the products that have crossed the line for this stock.
+   * width. Flag the ones that have crossed the line for this stock.
    */
   const tooThin = useMemo(
-    () => queue.filter((r) => (stock.w - PAD * 2) / code128ModuleCount(r.product.barcode!) < MIN_X_DIM),
+    () => queue.filter((r) => (stock.w - PAD * 2) / code128ModuleCount(r.label.barcode) < MIN_X_DIM),
     [queue, stock.w],
   );
 
-  const setQty = (p: Product, q: number) => {
+  const setQty = (label: Printable, q: number) => {
     const n = Math.max(0, Math.min(999, Math.round(q)));
     setQtys((m) => {
       const next = { ...m };
-      if (n === 0) delete next[p.id]; else next[p.id] = n;
+      if (n === 0) delete next[label.key]; else next[label.key] = n;
       return next;
     });
     setPicked((m) => {
-      if (n === 0) { const { [p.id]: _drop, ...rest } = m; return rest; }
-      return { ...m, [p.id]: p };
+      if (n === 0) { const { [label.key]: _drop, ...rest } = m; return rest; }
+      return { ...m, [label.key]: label };
     });
   };
 
   /** Clearing the box to retype must not be read as "zero" until you leave it. */
-  const commitDraft = (p: Product) => {
-    const raw = drafts[p.id];
-    setDrafts((d) => { const { [p.id]: _drop, ...rest } = d; return rest; });
+  const commitDraft = (label: Printable) => {
+    const raw = drafts[label.key];
+    setDrafts((d) => { const { [label.key]: _drop, ...rest } = d; return rest; });
     if (raw === undefined) return;
-    setQty(p, raw.trim() === "" ? 0 : Number(raw));
+    setQty(label, raw.trim() === "" ? 0 : Number(raw));
   };
 
   /**
-   * Barcodes for everything that lacks one.
-   *
-   * This used to be try/finally with no catch: one failure part-way through
-   * abandoned the rest of the run and said nothing, so a shopkeeper who asked
-   * for 200 barcodes and got 40 had no way to know. The count is reported
+   * Barcodes for everything on this page that lacks one. The count is reported
    * either way — a partial result is a result, and it has to be stated.
    */
   const generateAll = async () => {
@@ -195,41 +190,45 @@ export default function LabelsPage() {
     return <Alert variant="error" title="No access" message="You don't have permission to manage the catalog." />;
   }
 
-  const printCss = mode === "roll"
+  const printCss = prefs.paper === "roll"
     ? `@page { size: ${stock.w}mm ${stock.h}mm; margin: 0; }`
-    : `@page { size: A4; margin: 8mm; }`;
+    : `@page { size: A4; margin: ${PAGE.margin}mm; }`;
 
-  const stepper = (p: Product) => {
-    const q = qtys[p.id] ?? 0;
+  const stepper = (label: Printable) => {
+    const q = qtys[label.key] ?? 0;
     return (
       <div className="flex shrink-0 items-center gap-1">
         <button
           className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 transition hover:bg-gray-100 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/10"
-          onClick={() => setQty(p, q - 1)}
+          onClick={() => setQty(label, q - 1)}
           disabled={q === 0}
-          aria-label={`One fewer ${p.name} label`}
+          aria-label={`One fewer ${label.name} label`}
         >
           −
         </button>
         <input
           className="h-8 w-12 rounded-lg border border-gray-200 bg-white text-center text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-          value={drafts[p.id] ?? String(q)}
+          value={drafts[label.key] ?? String(q)}
           onFocus={(e) => e.currentTarget.select()}
-          onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/\D/g, "") }))}
-          onBlur={() => commitDraft(p)}
+          onChange={(e) => setDrafts((d) => ({ ...d, [label.key]: e.target.value.replace(/\D/g, "") }))}
+          onBlur={() => commitDraft(label)}
           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-          aria-label={`Labels for ${p.name}`}
+          aria-label={`Labels for ${label.name}`}
         />
         <button
           className="h-8 w-8 rounded-lg bg-brand-500 text-white transition hover:bg-brand-600"
-          onClick={() => setQty(p, q + 1)}
-          aria-label={`One more ${p.name} label`}
+          onClick={() => setQty(label, q + 1)}
+          aria-label={`One more ${label.name} label`}
         >
           +
         </button>
       </div>
     );
   };
+
+  const card = (label: Printable, key: string) => (
+    <LabelCard key={key} label={label} stock={stock} prefs={prefs} shopName={shopName} money={money} />
+  );
 
   return (
     <>
@@ -244,15 +243,16 @@ export default function LabelsPage() {
           #label-sheet { display: block !important; position: absolute; left: 0; top: 0; width: 100%; }
           .no-print { display: none !important; }
           .lbl { break-inside: avoid; }
-          .roll-page { break-after: page; }
-          .roll-page:last-child { break-after: auto; }
+          .paper-page { break-after: page; }
+          .paper-page:last-child { break-after: auto; }
         }
       `}</style>
 
       <div className="no-print mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Barcode labels</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Pick products, choose a sticker size, print.</p>
+          <Link to="/tenant/products" className="text-theme-xs text-gray-500 hover:text-brand-500">← Products</Link>
+          <h2 className="mt-0.5 text-xl font-semibold text-gray-800 dark:text-white/90">Barcode labels</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Say how many of each on the left. The paper on the right is what will print.</p>
         </div>
         <div className="flex items-center gap-2">
           {missing.length > 0 && (
@@ -266,39 +266,41 @@ export default function LabelsPage() {
         </div>
       </div>
 
-      <div className="no-print grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
-        {/* ── Products ─────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:col-span-7">
+      {/* The list is as wide as a name and a count need, and no wider: every
+          pixel past that is the sheet's, so it is shown as near to its real
+          size as the screen allows. */}
+      {/* Split from `lg`, not `xl`: a tablet held sideways is 1024 wide, and
+          stacked there the sheet scrolls away from the list that fills it. */}
+      <div className="no-print flex flex-col items-start gap-5 lg:flex-row">
+        {/* ── What to print ────────────────────────────────────── */}
+        <section className="w-full shrink-0 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:w-[300px] xl:w-[340px]">
           <div className="p-4">
-            <Input placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input aria-label="Search products" placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
 
-          {/* What's queued, always in view — including products from a search you've since left. */}
+          {/* What's queued, always in view — including labels from a search you've since left. */}
           {queue.length > 0 && (
-            <div className="border-y border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
+            <div data-testid="label-queue" className="border-y border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-white/[0.02]">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-theme-xs font-medium uppercase tracking-wide text-gray-400">
-                  {total} label{total > 1 ? "s" : ""} queued
+                  {total} label{total > 1 ? "s" : ""} to print
                 </span>
-                <button
-                  className={ROW_ACTION_DANGER}
-                  onClick={() => { setQtys({}); setPicked({}); setDrafts({}); }}
-                >
+                <button className={ROW_ACTION_DANGER} onClick={() => { setQtys({}); setPicked({}); setDrafts({}); }}>
                   Clear
                 </button>
               </div>
-              <div className="space-y-1.5">
+              <div className="max-h-40 space-y-1.5 overflow-y-auto">
                 {queue.map((r) => (
-                  <div key={r.product.id} className="flex items-center gap-3">
-                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{r.product.name}</span>
-                    {stepper(r.product)}
+                  <div key={r.label.key} className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{r.label.name}</span>
+                    {stepper(r.label)}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="max-h-[26rem] space-y-0.5 overflow-y-auto p-2">
+          <div className="max-h-[30rem] space-y-0.5 overflow-y-auto p-2">
             {products.isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-14 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
@@ -306,246 +308,354 @@ export default function LabelsPage() {
             ) : rows.length === 0 ? (
               <p className="py-12 text-center text-sm text-gray-400">No products match.</p>
             ) : (
-              rows.map((p) => (
-                <div
-                  key={p.id}
-                  className={`flex items-center gap-3 rounded-lg px-2.5 py-2 transition ${
-                    (qtys[p.id] ?? 0) > 0 ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-gray-50 dark:hover:bg-white/5"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-gray-800 dark:text-white/90">{p.name}</div>
-                    <div className="mt-0.5 flex items-center gap-2 text-theme-xs text-gray-400">
-                      <span className="tabular-nums">{money(p.price)}</span>
-                      {p.barcode ? (
-                        <span className="truncate font-mono">{p.barcode}</span>
-                      ) : (
-                        <span className="text-warning-600 dark:text-warning-400">no barcode</span>
-                      )}
-                    </div>
-                  </div>
+              rows.map((p) => {
+                const labels = printables(p);
+                const own = labels.find((l) => l.part === null);
+                const parts = labels.filter((l) => l.part !== null);
+                const any = labels.some((l) => (qtys[l.key] ?? 0) > 0);
 
-                  {p.barcode ? (
-                    stepper(p)
-                  ) : (
-                    <button
-                      className="shrink-0 rounded-lg border border-brand-500 px-2.5 py-1.5 text-theme-xs font-medium text-brand-600 transition hover:bg-brand-50 disabled:opacity-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
-                      onClick={() =>
-                        generate.mutate(p.id, {
-                          onSuccess: () => toast.success(`Barcode generated for ${p.name}`),
-                          onError: (e) =>
-                            toast.error(e instanceof Error ? e.message : `Couldn't generate a barcode for ${p.name}.`),
-                        })
-                      }
-                      disabled={generate.isPending || bulkBusy}
-                    >
-                      Generate
-                    </button>
-                  )}
-                </div>
-              ))
+                return (
+                  <div key={p.id} className={`rounded-lg px-2.5 py-2 transition ${any ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-gray-50 dark:hover:bg-white/5"}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-gray-800 dark:text-white/90">{p.name}</div>
+                        <div className="mt-0.5 flex items-center gap-2 text-theme-xs text-gray-400">
+                          <span className="tabular-nums">{money(p.price)}</span>
+                          {p.barcode ? (
+                            <span className="truncate font-mono">{p.barcode}</span>
+                          ) : parts.length > 0 ? (
+                            <span>labels by size or pack</span>
+                          ) : (
+                            <span className="text-warning-600 dark:text-warning-400">no barcode</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {own ? (
+                        stepper(own)
+                      ) : parts.length === 0 ? (
+                        <button
+                          className="shrink-0 rounded-lg border border-brand-500 px-2.5 py-1.5 text-theme-xs font-medium text-brand-600 transition hover:bg-brand-50 disabled:opacity-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                          onClick={() =>
+                            generate.mutate(p.id, {
+                              onSuccess: () => toast.success(`Barcode generated for ${p.name}`),
+                              onError: (e) =>
+                                toast.error(e instanceof Error ? e.message : `Couldn't generate a barcode for ${p.name}.`),
+                            })
+                          }
+                          disabled={generate.isPending || bulkBusy}
+                        >
+                          Generate
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {/* Each pack and size that has a barcode of its own is its
+                        own sticker: a carton is scanned by the carton's code. */}
+                    {parts.map((l) => (
+                      <div key={l.key} className="mt-1.5 flex items-center gap-3 border-l-2 border-gray-200 pl-3 dark:border-gray-700">
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-theme-sm text-gray-700 dark:text-gray-200">{l.part}</div>
+                          <div className="flex items-center gap-2 text-theme-xs text-gray-400">
+                            <span className="tabular-nums">{money(l.price)}</span>
+                            <span className="truncate font-mono">{l.barcode}</span>
+                          </div>
+                        </div>
+                        {stepper(l)}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
             )}
           </div>
 
           <Pager pagination={pagination} onPage={setPage} noun="items" />
         </section>
 
-        {/* ── Label ────────────────────────────────────────────── */}
-        <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] lg:col-span-5">
-          <div className="flex flex-wrap gap-1.5 p-4">
-            {(Object.keys(STOCKS) as StockKey[]).map((k) => {
-              const s = STOCKS[k];
-              const on = k === stockKey;
-              return (
-                <button
-                  key={k}
-                  onClick={() => setStockKey(k)}
-                  className={`flex-1 rounded-lg border px-2 py-2 transition ${
-                    on
-                      ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"
-                      : "border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600"
-                  }`}
-                >
-                  <span className={`block whitespace-nowrap text-theme-xs font-semibold tabular-nums ${on ? "text-brand-600 dark:text-brand-400" : "text-gray-700 dark:text-gray-200"}`}>
-                    {s.label}
-                  </span>
-                  <span className="block text-[10px] text-gray-400">{s.hint}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="px-4 pb-4">
-            {queue.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-                <p className="text-sm text-gray-500 dark:text-gray-400">Nothing queued yet.</p>
-                <p className="mt-1 text-theme-xs text-gray-400">
-                  Add labels with <span className="font-semibold">+</span> and they'll show here at real size.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl bg-gray-100 p-4 dark:bg-gray-900/60">
-                {/* One of each product, at true size — twelve copies of the same
-                    sticker told you nothing the first one didn't. */}
-                <div className="mx-auto flex w-fit flex-wrap justify-center bg-white p-3 shadow-sm" style={{ gap: `${GAP}mm` }}>
-                  {queue.slice(0, 6).map((r) => (
-                    <LabelCard key={r.product.id} p={r.product} stock={stock} fields={fields} shopName={shopName} money={money} />
+        {/* ── The paper ────────────────────────────────────────── */}
+        <div className="w-full min-w-0 flex-1 space-y-4">
+          <section data-testid="label-settings" className="rounded-2xl border border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="block">
+                <span className={CAPTION}>Sticker size</span>
+                <select aria-label="Sticker size" value={prefs.stock} onChange={(e) => change({ stock: e.target.value as StockKey })} className={SELECT}>
+                  {(Object.keys(STOCKS) as StockKey[]).map((k) => (
+                    <option key={k} value={k}>{STOCKS[k].label} mm — {STOCKS[k].hint}</option>
                   ))}
-                </div>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className={CAPTION}>Printed on</span>
+                <select aria-label="Printed on" value={prefs.paper} onChange={(e) => change({ paper: e.target.value === "roll" ? "roll" : "sheet" })} className={SELECT}>
+                  <option value="sheet">A4 sheet of stickers</option>
+                  <option value="roll">Label roll</option>
+                </select>
+              </label>
+
+              {/* Six things a label may carry, several at once — so a list of
+                  ticks, not a list of one. The button says how it stands. */}
+              <div className="relative">
+                <span className={CAPTION}>On each label</span>
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={fieldsOpen}
+                  onClick={() => setFieldsOpen((v) => !v)}
+                  className={`dropdown-toggle flex items-center justify-between gap-2 text-left ${SELECT}`}
+                  data-testid="label-fields"
+                >
+                  <span className="truncate">{LABEL_FIELDS.filter((f) => prefs[f.key]).map((f) => f.label).join(", ") || "Barcode only"}</span>
+                  <span aria-hidden="true">▾</span>
+                </button>
+                <Dropdown isOpen={fieldsOpen} onClose={() => setFieldsOpen(false)} className="left-0 mt-1 w-56 p-2">
+                  {LABEL_FIELDS.map((f) => (
+                    <label key={f.key} className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-theme-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
+                      <input
+                        type="checkbox"
+                        checked={prefs[f.key]}
+                        onChange={() => change({ [f.key]: !prefs[f.key] })}
+                        className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
+                      />
+                      {f.label}
+                    </label>
+                  ))}
+                </Dropdown>
               </div>
-            )}
-          </div>
 
-          {tooThin.length > 0 && (
-            <p className="mx-4 mb-4 rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-              {tooThin.length === 1 ? `${tooThin[0].product.name}'s barcode is` : `${tooThin.length} barcodes are`}{" "}
-              too long for a {stock.label} mm sticker — the bars print too thin to scan. Pick a wider size.
+              {prefs.paper === "sheet" && (
+                <label className="block">
+                  <span className={CAPTION}>Used stickers to skip</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={fit.count - 1}
+                    value={skip}
+                    aria-label="Stickers already used on the first sheet"
+                    onChange={(e) => setSkip(Math.max(0, Math.min(fit.count - 1, Number(e.target.value) || 0)))}
+                    className={`w-24 tabular-nums ${SELECT}`}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* WHICH settings are in force, said — the whole reason these are
+                on this page and not under Settings. */}
+            <p data-testid="label-settings-state" className="mt-2.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              {!keeps
+                ? "For this print only — your shop's saved label settings are changed by whoever manages Settings."
+                : save.isPending
+                  ? "Saving…"
+                  : "Saved for your shop — every label prints this way until you change it here."}
             </p>
-          )}
+          </section>
 
-          <div className="border-t border-gray-100 dark:border-gray-800">
-            <button
-              className="flex w-full items-center justify-between px-4 py-3 text-theme-xs text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              onClick={() => setShowOptions((v) => !v)}
-            >
-              <span className="font-medium">
-                Options
-                <span className="ml-2 font-normal text-gray-400">
-                  {mode === "sheet" ? `A4 sheet${skip ? ` · skip ${skip}` : ""}` : "Label roll"}
-                </span>
-              </span>
-              <span className={`transition ${showOptions ? "rotate-180" : ""}`}>⌄</span>
-            </button>
+          <section className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              {/* How many fit, how many there are, how many sheets that is. */}
+              <p data-testid="label-count" className="text-theme-sm text-gray-700 dark:text-gray-200">
+                {prefs.paper === "roll" ? (
+                  total === 0 ? "One sticker at a time, off a roll." : <><strong>{total}</strong> label{total === 1 ? "" : "s"} off the roll</>
+                ) : (
+                  <>
+                    <strong>{fit.count}</strong> fit on a sheet ({fit.cols} across, {fit.rows} down)
+                    {total > 0 && <> · <strong>{total}</strong> label{total === 1 ? "" : "s"} · <strong>{paper.length}</strong> sheet{paper.length === 1 ? "" : "s"}</>}
+                  </>
+                )}
+              </p>
 
-            {showOptions && (
-              <div className="space-y-4 px-4 pb-4">
-                <div>
-                  <p className="mb-1.5 text-theme-xs font-medium uppercase tracking-wide text-gray-400">Show on label</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {FIELDS.map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        // On or off, SAID. These chips showed their state by
-                        // colour alone: six buttons a reader announced as six
-                        // identical buttons, with no way to hear which parts
-                        // of the label were about to be printed.
-                        aria-pressed={fields[f.key]}
-                        onClick={() => setFields((s) => ({ ...s, [f.key]: !s[f.key] }))}
-                        className={`rounded-full border px-3 py-1.5 text-theme-xs transition ${
-                          fields[f.key]
-                            ? "border-brand-500 bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                            : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* The sheet at its real size where the screen has room for
+                    it; where it has not, as large as fits — and one press
+                    from real size, scrolled. */}
+                {prefs.paper === "sheet" && total > 0 && (zoom < 0.995 || actualSize) && (
+                  <button
+                    type="button"
+                    onClick={() => setActualSize((v) => !v)}
+                    aria-pressed={actualSize}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-theme-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                  >
+                    {actualSize ? "Fit to screen" : `Actual size (shown at ${Math.round(zoom * 100)}%)`}
+                  </button>
+                )}
+
+                {paper.length > 1 && (
+                  <div className="flex items-center gap-1.5" role="group" aria-label={prefs.paper === "roll" ? "Which label" : "Which sheet"}>
+                    <button
+                      type="button"
+                      className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      onClick={() => setSheetNo(shown - 1)}
+                      disabled={shown <= 1}
+                      aria-label={prefs.paper === "roll" ? "Previous label" : "Previous sheet"}
+                    >
+                      ‹
+                    </button>
+                    <span data-testid="label-page" className="min-w-[7.5rem] text-center text-theme-sm tabular-nums text-gray-700 dark:text-gray-200">
+                      {prefs.paper === "roll" ? "Label" : "Sheet"} {shown} of {paper.length}
+                    </span>
+                    <button
+                      type="button"
+                      className="h-8 w-8 rounded-lg border border-gray-200 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                      onClick={() => setSheetNo(shown + 1)}
+                      disabled={shown >= paper.length}
+                      aria-label={prefs.paper === "roll" ? "Next label" : "Next sheet"}
+                    >
+                      ›
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4">
+              {total === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Nothing to print yet.</p>
+                  <p className="mt-1 text-theme-xs text-gray-400">
+                    Add labels with <span className="font-semibold">+</span> on the left and the sheet fills up here.
+                  </p>
+                </div>
+              ) : prefs.paper === "roll" ? (
+                <div className="flex justify-center overflow-x-auto rounded-xl bg-gray-100 p-6 dark:bg-gray-900/60">
+                  <div data-testid="label-paper" className="bg-white shadow-sm">
+                    {(paper[shown - 1] ?? []).map((l, i) => (l ? card(l, `${l.key}-${i}`) : null))}
                   </div>
                 </div>
-
-                <div>
-                  <p className="mb-1.5 text-theme-xs font-medium uppercase tracking-wide text-gray-400">Paper</p>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex gap-1.5">
-                      {([["sheet", "A4 sheet"], ["roll", "Label roll"]] as const).map(([m, label]) => (
-                        <button
-                          key={m}
-                          onClick={() => setMode(m)}
-                          className={`rounded-lg border px-3 py-1.5 text-theme-xs transition ${
-                            mode === m
-                              ? "border-brand-500 bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
-                              : "border-gray-200 text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    {mode === "sheet" && (
-                      <label className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                        Skip
-                        <input
-                          type="number"
-                          min={0}
-                          max={99}
-                          value={skip}
-                          onChange={(e) => setSkip(Math.max(0, Math.min(99, Number(e.target.value) || 0)))}
-                          className="h-8 w-14 rounded-lg border border-gray-200 bg-white px-2 text-center text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-                        />
-                        used stickers
-                      </label>
+              ) : (
+                <SheetPreview actualSize={actualSize} onScale={setZoom}>
+                  <div
+                    data-testid="label-paper"
+                    className="grid content-start"
+                    style={{
+                      gridTemplateColumns: `repeat(${fit.cols}, ${stock.w}mm)`,
+                      gridAutoRows: `${stock.h}mm`,
+                      gap: `${GAP}mm`,
+                      padding: `${PAGE.margin}mm`,
+                    }}
+                  >
+                    {(paper[shown - 1] ?? []).map((l, i) =>
+                      l ? card(l, `${l.key}-${i}`) : (
+                        // A sticker already peeled off: nothing prints here.
+                        <div key={`used-${i}`} data-used className="rounded-sm border border-dashed border-gray-300 bg-gray-50" />
+                      ),
                     )}
                   </div>
-                </div>
+                </SheetPreview>
+              )}
+            </div>
+
+            {tooThin.length > 0 && (
+              <p className="mx-4 mb-4 rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                {tooThin.length === 1 ? `${tooThin[0].label.name}'s barcode is` : `${tooThin.length} barcodes are`}{" "}
+                too long for a {stock.label} mm sticker — the bars print too thin to scan. Pick a wider size.
+              </p>
+            )}
+          </section>
+        </div>
+      </div>
+
+      {/* Print-only — the same sheets the preview pages through, every one of them. */}
+      <div id="label-sheet">
+        {paper.map((labels, n) => (
+          <div className="paper-page" key={n}>
+            {prefs.paper === "roll" ? (
+              labels.map((l, i) => (l ? card(l, `${l.key}-${n}-${i}`) : null))
+            ) : (
+              <div
+                className="grid content-start"
+                style={{ gridTemplateColumns: `repeat(${fit.cols}, ${stock.w}mm)`, gridAutoRows: `${stock.h}mm`, gap: `${GAP}mm` }}
+              >
+                {labels.map((l, i) => (l ? card(l, `${l.key}-${n}-${i}`) : <div key={`used-${n}-${i}`} />))}
               </div>
             )}
           </div>
-        </section>
-      </div>
-
-      {/* Print-only sheet — hidden on screen; the preview above is what you see. */}
-      <div id="label-sheet">
-        {mode === "roll" ? (
-          sheet.map((p, i) => (
-            <div className="roll-page" key={`${p.id}-${i}`}>
-              <LabelCard p={p} stock={stock} fields={fields} shopName={shopName} money={money} />
-            </div>
-          ))
-        ) : (
-          <div className="flex flex-wrap" style={{ gap: `${GAP}mm` }}>
-            {Array.from({ length: skip }).map((_, i) => (
-              <div key={`skip-${i}`} style={{ width: `${stock.w}mm`, height: `${stock.h}mm` }} />
-            ))}
-            {sheet.map((p, i) => (
-              <LabelCard key={`${p.id}-${i}`} p={p} stock={stock} fields={fields} shopName={shopName} money={money} />
-            ))}
-          </div>
-        )}
+        ))}
       </div>
     </>
   );
 }
 
+const CAPTION = "mb-1 block text-theme-xs font-medium text-gray-500 dark:text-gray-400";
+const SELECT =
+  "h-10 min-w-[11rem] max-w-[16rem] rounded-lg border border-gray-300 bg-white px-3 text-theme-sm text-gray-800 focus:border-brand-400 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+
+/**
+ * An A4 sheet, drawn at its true size — and only made smaller where the screen
+ * has not the room for it.
+ *
+ * Laid out in real millimetres and then scaled as a whole, so where a sticker
+ * sits in the preview is where it sits on the paper: a preview laid out in its
+ * own units is a second layout, and two layouts drift. `actualSize` is the
+ * paper at 100% whatever the room, scrolled inside its frame.
+ */
+function SheetPreview({ actualSize, onScale, children }: { actualSize: boolean; onScale: (scale: number) => void; children: React.ReactNode }) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [fits, setFits] = useState(1);
+
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+
+    // 24 px of grey round the sheet, so it reads as paper on a desk.
+    const measure = () => setFits(Math.min(1, (el.clientWidth - 24) / (PAGE.w * PX_PER_MM)));
+    measure();
+
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
+
+  useEffect(() => onScale(fits), [fits, onScale]);
+
+  const scale = actualSize ? 1 : fits;
+
+  return (
+    <div ref={frame} data-testid="label-frame" className={`rounded-xl bg-gray-100 p-3 dark:bg-gray-900/60 ${actualSize ? "overflow-auto" : "overflow-hidden"}`}>
+      <div className="mx-auto" style={{ width: `${PAGE.w * PX_PER_MM * scale}px`, height: `${PAGE.h * PX_PER_MM * scale}px` }}>
+        <div
+          className="origin-top-left bg-white shadow-sm"
+          style={{ width: `${PAGE.w}mm`, height: `${PAGE.h}mm`, transform: `scale(${scale})` }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LabelCard({
-  p, stock, fields, shopName, money,
+  label, stock, prefs, shopName, money,
 }: {
-  p: Product;
+  label: Printable;
   stock: Stock;
-  fields: Record<FieldKey, boolean>;
+  prefs: LabelPrefs;
   shopName: string;
   money: (n: string | number) => string;
 }) {
-  // Discount-aware price; weight items show the per-unit rate ("/kg").
-  const sale =
-    p.discount_price != null && Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price)
-      ? Number(p.discount_price)
-      : null;
-  const perUnit = p.sold_by === "weight" && p.unit ? `/${p.unit}` : "";
-  // Largest pack (units are sorted smallest-first) → "Box = 100 pcs".
-  const pack = fields.pack && p.units?.length ? p.units[p.units.length - 1] : null;
-  const head = (fields.shop && shopName) || fields.name;
+  const pack = prefs.pack ? label.packLine : null;
+  const head = (prefs.shop && shopName) || prefs.name;
 
   return (
     <div
       className={`lbl flex flex-col justify-between overflow-hidden bg-white text-center text-black ${
-        fields.cut ? "border border-gray-300" : ""
+        prefs.cut ? "border border-gray-300" : ""
       }`}
       style={{ width: `${stock.w}mm`, height: `${stock.h}mm`, padding: `${PAD}mm` }}
     >
       {head ? (
         <div className="min-h-0">
-          {fields.shop && shopName && (
+          {prefs.shop && shopName && (
             <div className="truncate uppercase leading-none" style={{ fontSize: `${stock.meta}pt`, letterSpacing: "0.08em" }}>
               {shopName}
             </div>
           )}
-          {fields.name && (
+          {prefs.name && (
             <div
               className={`font-medium ${stock.lines === 1 ? "line-clamp-1" : "line-clamp-2"}`}
               style={{ fontSize: `${stock.name}pt`, lineHeight: 1.15 }}
             >
-              {p.name}
+              {label.name}
             </div>
           )}
         </div>
@@ -554,28 +664,28 @@ function LabelCard({
       )}
 
       <div className="min-h-0">
-        <div style={{ height: `${stock.bar}mm` }} dangerouslySetInnerHTML={{ __html: code128BarsSvg(p.barcode!) }} />
-        {fields.digits && (
+        <div style={{ height: `${stock.bar}mm` }} dangerouslySetInnerHTML={{ __html: code128BarsSvg(label.barcode) }} />
+        {prefs.digits && (
           <div className="font-mono leading-none" style={{ fontSize: `${stock.meta}pt`, letterSpacing: "0.06em" }}>
-            {p.barcode}
+            {label.barcode}
           </div>
         )}
       </div>
 
-      {(fields.price || pack) && (
+      {(prefs.price || pack) && (
         <div className="flex items-baseline justify-center gap-1 leading-none">
-          {fields.price && (
+          {prefs.price && (
             <span className="font-bold tabular-nums" style={{ fontSize: `${stock.price}pt` }}>
-              {money(sale ?? p.price)}
-              {perUnit && <span className="font-normal" style={{ fontSize: `${stock.meta}pt` }}>{perUnit}</span>}
+              {money(label.price)}
+              {label.perUnit && <span className="font-normal" style={{ fontSize: `${stock.meta}pt` }}>{label.perUnit}</span>}
             </span>
           )}
-          {fields.price && sale != null && (
-            <span className="text-gray-500 line-through" style={{ fontSize: `${stock.meta}pt` }}>{money(p.price)}</span>
+          {prefs.price && label.was != null && (
+            <span className="text-gray-500 line-through" style={{ fontSize: `${stock.meta}pt` }}>{money(label.was)}</span>
           )}
           {pack && (
             <span className="ml-auto truncate text-gray-600" style={{ fontSize: `${stock.meta}pt` }}>
-              {pack.name} = {Number(pack.factor)} {p.unit ?? "pcs"}
+              {pack}
             </span>
           )}
         </div>

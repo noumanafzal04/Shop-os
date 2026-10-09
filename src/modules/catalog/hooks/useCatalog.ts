@@ -4,7 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { catalogService } from "../services/catalogService";
+import { catalogService, type ImportRequest } from "../services/catalogService";
 import type { CollectionInput, ModifierGroup, ProductFilters, ProductInput } from "../types";
 
 // ── Categories ────────────────────────────────────────────────────
@@ -220,8 +220,14 @@ export function useProductMutations() {
   });
 
   const importCsv = useMutation({
-    mutationFn: (file: File) => catalogService.importProducts(file),
-    onSuccess: invalidate,
+    mutationFn: (request: ImportRequest) => catalogService.importProducts(request),
+    // A check saves nothing, so there is nothing to read again. The real thing
+    // can have made categories as well as items.
+    onSuccess: (_res, request) => {
+      if (request.dryRun) return;
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
   });
 
   return { create, update, remove, importCsv };

@@ -183,6 +183,9 @@ export const QA_SECTIONS: QaSection[] = [
         ],
         checks: [
           { do: "Select a few products and print to PDF.", expect: "The sheet carries the name, price and barcode of each, and the barcodes scan." },
+          { do: "Ask for more labels than one sheet holds (73 on the standard sticker).", expect: "The page says 30 fit on a sheet and 3 sheets; the arrows page through all three; the PDF has three pages." },
+          { do: "Change the sticker size and switch Price off in the drop-downs above the sheet, then reload.", expect: "It says Saved for your shop, the sheet follows at once, and both choices are still there after the reload. Settings \u2192 Barcodes no longer has those switches." },
+          { do: "Give an item a pack with its own barcode and price.", expect: "The pack is its own row with its own count, and its sticker carries the pack's barcode and the pack's price." },
         ],
       },
     ],

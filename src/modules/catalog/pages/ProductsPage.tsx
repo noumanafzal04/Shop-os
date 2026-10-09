@@ -18,12 +18,13 @@ import { useCategories, useProductMutations, useProducts, useSoldOut, useVariant
 import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { FilterBar, FilterSelect, type AppliedFilter } from "../../../components/ui/filters";
-import { ApiError } from "../../../common/types/api";
-import { api } from "../../../common/api/client";
 import { downloadFile } from "../../../common/api/download";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
+import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
+import { DropdownItem } from "../../../components/ui/dropdown/DropdownItem";
+import { ImportProductsModal } from "../components/ImportProductsModal";
 
 /** Friendly label for each item type (drops the raw product/service split). */
 const TYPE_LABEL: Record<ItemTypeCode, string> = {
@@ -96,7 +97,7 @@ export default function ProductsPage() {
     page,
   });
   const categories = useCategories();
-  const { remove, importCsv } = useProductMutations();
+  const { remove } = useProductMutations();
 
   /** Parents and their children, flattened once — the picker and the pill that
    *  names the current choice must read the same list. */
@@ -169,10 +170,13 @@ export default function ProductsPage() {
   // ── Export the current (filtered) catalog to CSV ─────────────────
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
-  const exportCsv = async () => {
+  const [exportMenu, setExportMenu] = useState(false);
+  const exportCatalog = async (format: "xlsx" | "csv", shape: "shop" | "full") => {
     setExporting(true);
     try {
       await downloadFile("/products/export", {
+        format,
+        shape,
         search: debouncedSearch || undefined,
         type: type || undefined,
         category_id: categoryId || undefined,
@@ -185,32 +189,8 @@ export default function ProductsPage() {
     }
   };
 
-  // ── Bulk CSV import ──────────────────────────────────────────────
+  // ── Bulk import — its own three steps, in its own component ──────
   const importModal = useModal();
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const importSummary = importCsv.data?.data ?? null;
-  const importError = importCsv.error instanceof ApiError
-    ? importCsv.error.firstFieldError() ?? importCsv.error.message
-    : null;
-
-  const openImport = () => {
-    setCsvFile(null);
-    importCsv.reset();
-    importModal.openModal();
-  };
-  const runImport = () => {
-    if (!csvFile || importCsv.isPending) return;
-    importCsv.mutate(csvFile);
-  };
-  const downloadTemplate = async () => {
-    const res = await api.get("/products/import/template", { responseType: "blob" });
-    const url = URL.createObjectURL(res.data as Blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "products-import-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const rows = products.data?.data ?? [];
   const pagination = products.data?.meta.pagination;
@@ -247,10 +227,39 @@ export default function ProductsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={exporting}>
-            {exporting ? "Exporting…" : "Export CSV"}
-          </Button>
-          <Button size="sm" variant="outline" onClick={openImport}>Import CSV</Button>
+          {/* Two exports, because they are for two jobs: a sheet to correct
+              and send back, in this shop's own columns — and everything, as a
+              file to keep. */}
+          <div className="relative">
+            <Button size="sm" variant="outline" className="dropdown-toggle" onClick={() => setExportMenu((v) => !v)} disabled={exporting}>
+              {exporting ? "Exporting…" : "Export"}
+            </Button>
+            <Dropdown isOpen={exportMenu} onClose={() => setExportMenu(false)} className="right-0 mt-2 w-64 p-1.5">
+              <DropdownItem
+                onItemClick={() => { setExportMenu(false); void exportCatalog("xlsx", "shop"); }}
+                className="block w-full rounded-lg px-3 py-2 text-left text-theme-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                <span className="font-medium">Excel — to edit and send back</span>
+                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">Your shop&rsquo;s columns, with sizes and packs</span>
+              </DropdownItem>
+              <DropdownItem
+                onItemClick={() => { setExportMenu(false); void exportCatalog("csv", "full"); }}
+                className="block w-full rounded-lg px-3 py-2 text-left text-theme-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                <span className="font-medium">CSV — everything, to keep</span>
+                <span className="block text-theme-xs text-gray-500 dark:text-gray-400">Every column, as a backup</span>
+              </DropdownItem>
+            </Dropdown>
+          </div>
+          <Button size="sm" variant="outline" onClick={importModal.openModal}>Import</Button>
+          {/* Only where the shop prints labels at all — and carrying whatever
+              the list is narrowed to, so "labels for what I am looking at" is
+              one press. */}
+          {features?.labels && (
+            <Link to={search.trim() ? `/tenant/labels?search=${encodeURIComponent(search.trim())}` : "/tenant/labels"}>
+              <Button size="sm" variant="outline">Labels</Button>
+            </Link>
+          )}
           <Link to="/tenant/products/new">
             <Button size="sm">+ Add Item</Button>
           </Link>
@@ -624,88 +633,7 @@ export default function ProductsPage() {
         </div>
       </Modal>
 
-      {/* Bulk CSV import */}
-      <Modal isOpen={importModal.isOpen} onClose={importModal.closeModal} className="max-w-lg p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Import products from CSV</h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Load your whole catalog at once. Rows are matched by <strong>SKU</strong> — an existing SKU updates that item, a new one is created.
-        </p>
-
-        <button onClick={downloadTemplate} className="mb-3 text-theme-sm text-brand-500 hover:text-brand-600">
-          ↓ Download sample CSV template
-        </button>
-
-        {/* WHY THIS NO LONGER LISTS THE COLUMNS OR THE ITEM TYPES.
-            It used to, and it was a THIRD copy of a list the server already
-            holds twice — the template that hands them out and the importer
-            that checks them. Those two had already drifted: the template gave
-            every trade a medicine row and a service row, and the importer
-            refused them, so a restaurant that downloaded this file and
-            uploaded it back unchanged got two rows rejected and four sample
-            products it never asked for.
-            The template is now built for the shop that asks for it, which
-            makes it the one place the answer lives. A panel that recites the
-            columns beside it is the next copy to go stale. */}
-        <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
-          <p className="mb-1.5 font-medium text-gray-700 dark:text-gray-300">Start from the template</p>
-          <p className="mb-2 text-gray-500 dark:text-gray-400">
-            It is built for <strong>your shop</strong> — only the columns your trade uses, with a worked example in each.{" "}
-            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">Name</span> and{" "}
-            <span className="rounded bg-error-50 px-1 font-medium text-error-600 dark:bg-error-500/10">Price</span> are the only
-            columns you must fill in. <strong>Category</strong> is matched by name and created if you do not have it yet.
-          </p>
-          <p className="mb-1.5 font-medium text-gray-700 dark:text-gray-300">Items that come in sizes</p>
-          <p className="mb-2 text-gray-500 dark:text-gray-400">
-            A size is its own row: put the parent item&rsquo;s SKU in <code>Parent SKU</code>. Order does not matter, and an
-            import never removes a size it did not mention.
-          </p>
-          <div className="overflow-x-auto">
-            <code className="whitespace-pre text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
-              name,sku,parent_sku,price,stock_quantity{"\n"}
-              T-Shirt,TSHIRT,,900,0{"\n"}
-              Small,TSHIRT-S,TSHIRT,900,20{"\n"}
-              Large,TSHIRT-L,TSHIRT,1000,15
-            </code>
-          </div>
-        </div>
-
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(e) => setCsvFile(e.target.files?.[0] ?? null)}
-          className="mb-4 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-brand-600 dark:text-gray-300 dark:file:bg-brand-500/10"
-        />
-
-        {importError && <div className="mb-3"><Alert variant="error" title="Import failed" message={importError} /></div>}
-
-        {importSummary && (
-          <div className="mb-4 rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
-            <p className="text-gray-700 dark:text-gray-300">
-              <span className="font-medium text-success-600">{importSummary.created} created</span>,{" "}
-              <span className="font-medium text-brand-600">{importSummary.updated} updated</span>
-              {importSummary.failed > 0 && <>, <span className="font-medium text-error-600">{importSummary.failed} failed</span></>}
-              {" "}of {importSummary.total} rows.
-            </p>
-            {importSummary.errors.length > 0 && (
-              <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-theme-xs text-error-500">
-                {importSummary.errors.slice(0, 20).map((e, i) => (
-                  <li key={i}>Row {e.row}: {e.messages.join(", ")}</li>
-                ))}
-                {importSummary.errors.length > 20 && <li>…and {importSummary.errors.length - 20} more.</li>}
-              </ul>
-            )}
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={importModal.closeModal}>
-            {importSummary ? "Close" : "Cancel"}
-          </Button>
-          <Button size="sm" onClick={runImport} disabled={!csvFile || importCsv.isPending}>
-            {importCsv.isPending ? "Importing…" : "Import"}
-          </Button>
-        </div>
-      </Modal>
+      <ImportProductsModal isOpen={importModal.isOpen} onClose={importModal.closeModal} />
 
       {/* Cross-branch availability ("check other branches") */}
       <BranchStockModal

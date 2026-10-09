@@ -1,7 +1,7 @@
 /**
- * Self-contained Code128-B barcode encoder → SVG string. No dependency, works
- * offline / under strict CSP. Covers ASCII 32–126, which includes the numeric
- * barcodes True Serve generates and typical SKUs.
+ * Self-contained Code 128 barcode encoder → SVG string. No dependency, works
+ * offline / under strict CSP. Covers ASCII 32–126: a run of digits goes out in
+ * Set C (two digits a symbol), anything else in Set B.
  *
  * Each table entry is the module bit-pattern (1 = bar, 0 = space); data
  * symbols are 11 modules, the stop symbol is 13.
@@ -32,6 +32,9 @@ const PATTERNS = [
 ];
 
 const START_B = 104;
+const START_C = 105;
+/** In Set C: "what follows is Set B". */
+const CODE_B = 100;
 const STOP = 106;
 
 /**
@@ -41,23 +44,53 @@ const STOP = 106;
  */
 const QUIET = 10;
 
-/** Build the full module bit-string for a value (Code B). */
+/**
+ * The symbols a value is made of, before the check symbol and the stop.
+ *
+ * ── Why digits go in pairs ──────────────────────────────────────────────
+ *
+ * Every barcode a manufacturer prints is a number, thirteen digits long. In
+ * Set B that is thirteen symbols — 198 modules with its quiet zones — and on
+ * the standard 50 mm sticker each bar came out 0.24 mm wide: under what a
+ * supermarket scanner reliably reads, so the page warned "too long for this
+ * sticker" about EVERY ordinary product, on the default size.
+ *
+ * Set C carries two digits in one symbol. The same number is 143 modules and
+ * its bars 0.33 mm — the same sticker, and it scans. An odd digit left over at
+ * the end is said in Set B, after the symbol that announces the change.
+ *
+ * Only a value that is ALL digits is treated this way. Switching sets inside a
+ * mixed code ("MILK-1L-004") saves little and is one more thing to get wrong.
+ */
+function symbolsOf(value: string): number[] {
+  if (/^\d{4,}$/.test(value)) {
+    const symbols = [START_C];
+    const paired = value.length - (value.length % 2);
+
+    for (let i = 0; i < paired; i += 2) symbols.push(Number(value.slice(i, i + 2)));
+    if (paired < value.length) symbols.push(CODE_B, value.charCodeAt(paired) - 32);
+
+    return symbols;
+  }
+
+  return [
+    START_B,
+    ...value.split("").map((ch) => {
+      const code = ch.charCodeAt(0);
+
+      return code >= 32 && code <= 126 ? code - 32 : 0; // fall back to space
+    }),
+  ];
+}
+
+/** Build the full module bit-string for a value. */
 function encode(value: string): string {
-  const chars = value.split("");
-  let checksum = START_B;
-  const symbols = [START_B];
+  const symbols = symbolsOf(value);
 
-  chars.forEach((ch, i) => {
-    const code = ch.charCodeAt(0);
-    const val = code >= 32 && code <= 126 ? code - 32 : 0; // fall back to space
-    symbols.push(val);
-    checksum += val * (i + 1);
-  });
+  // The start symbol counts once; every symbol after it by its position.
+  const checksum = symbols.reduce((sum, symbol, i) => sum + symbol * Math.max(1, i), 0) % 103;
 
-  symbols.push(checksum % 103);
-  symbols.push(STOP);
-
-  return symbols.map((s) => PATTERNS[s]).join("");
+  return [...symbols, checksum, STOP].map((s) => PATTERNS[s]).join("");
 }
 
 /**
