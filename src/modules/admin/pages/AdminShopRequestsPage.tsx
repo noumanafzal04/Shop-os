@@ -12,11 +12,29 @@ import { Modal } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import Input from "../../../components/form/input/InputField";
 import { FilterChips } from "../../../components/ui/filters";
+import { useUrlFilters } from "../../../common/hooks/useUrlFilters";
+import { TaskIcon } from "../../../icons";
+import { DemoShopsList } from "../components/DemoShopsList";
+import { refreshAfterADemoChanges, useApproveShopRequest, useDemoShops } from "../hooks/useDemoShops";
+import { PageHeader } from "../components/kit";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
 
 /**
- * Demos asking to become businesses.
+ * DEMO SHOPS — the ones that asked to stay, and the ones still being tried.
+ *
+ * ── Two lists, because there are two kinds of demo ─────────────────────
+ *
+ * This screen was one list: demos whose visitor had pressed "Keep this shop".
+ * Every OTHER demo — nine in ten of them — was nowhere on the admin side at
+ * all, so somebody from the platform sitting beside a shopkeeper who had just
+ * said yes had nothing to press. "Trying it now" is that list, with the
+ * admin's own way to keep one (see DemoShopsList and KeepDemoDialog).
+ *
+ * "Asked to stay" is still what the page opens on, and still what the rail's
+ * badge counts: those are people WAITING, and a queue comes before a list.
+ *
+ * ── Asked to stay: demos asking to become businesses ───────────────────
  *
  * ── Oldest first, and that is the whole design ─────────────────────────
  *
@@ -45,6 +63,12 @@ const QUEUE = [
   { value: "all" as const, label: "All" },
 ];
 
+/** In the address as `?show=trying`, so the dashboard and a colleague can link straight to it. */
+const LISTS = [
+  { value: "asked" as const, label: "Asked to stay" },
+  { value: "trying" as const, label: "Trying it now" },
+];
+
 export default function AdminShopRequestsPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -52,6 +76,11 @@ export default function AdminShopRequestsPage() {
   const [page, setPage] = useState(1);
   const [declining, setDeclining] = useState<ShopRequest | null>(null);
   const [reason, setReason] = useState("");
+  const { get, patch } = useUrlFilters();
+  const show = get("show") === "trying" ? "trying" : "asked";
+  // Read here as well as by the list itself, for the number on the tab —
+  // one request, since both ask for the same page of the same thing.
+  const trying = useDemoShops(1).data?.meta?.pagination?.total;
 
   const rows = useQuery({
     queryKey: ["admin", "shop-requests", status, page],
@@ -60,16 +89,16 @@ export default function AdminShopRequestsPage() {
 
   const done = (message: string) => {
     toast.success(message);
-    void queryClient.invalidateQueries({ queryKey: ["admin", "shop-requests"] });
+    // Declined: the shop goes back to being a demo on its own clock, so it is
+    // on the other list again and off the badge.
+    refreshAfterADemoChanges(queryClient);
   };
   const failed = (e: unknown) =>
     toast.error(e instanceof ApiError ? e.message : "That did not go through.");
 
-  const approve = useMutation({
-    mutationFn: (id: string) => apiPost<unknown>(`/admin/shop-requests/${id}/approve`),
-    onSuccess: ({ message }) => done(message ?? "Approved."),
-    onError: failed,
-  });
+  // The same call, and the same list of what it makes stale, as the two other
+  // buttons that turn a demo into a business.
+  const approve = useApproveShopRequest();
 
   const decline = useMutation({
     mutationFn: ({ id, why }: { id: string; why: string }) =>
@@ -97,19 +126,36 @@ export default function AdminShopRequestsPage() {
 
   return (
     <>
-      <PageMeta title="Shop requests" description="Demo shops asking to become businesses" />
+      <PageMeta title="Demo shops" description="Demo shops being tried, and the ones asking to become businesses" />
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Shop requests</h1>
-          <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            {oldest
-              // The number that says whether this screen is being run properly.
-              ? <>Somebody has been waiting <strong>{howLong(oldest.requested_at)}</strong>.</>
-              : "Nobody is waiting."}
-          </p>
-        </div>
+      <PageHeader
+        icon={<TaskIcon />}
+        tone="purple"
+        title="Demo shops"
+        subtitle={
+          oldest
+            // The number that says whether this screen is being run properly.
+            ? <>Somebody has been waiting <strong>{howLong(oldest.requested_at)}</strong> for an answer.</>
+            : "Nobody is waiting for an answer."
+        }
+        actions={
+          <FilterChips
+            options={LISTS}
+            value={show}
+            counts={{ asked: waiting, trying }}
+            ariaLabel="Which demo shops to show"
+            // "Asked to stay" is the absence of the parameter: it is what the
+            // rail's badge leads to, and that link should stay a plain one.
+            onChange={(next) => patch({ show: next === "trying" ? "trying" : null })}
+          />
+        }
+      />
 
+      {show === "trying" && <DemoShopsList />}
+
+      {show === "asked" && (
+      <>
+      <div className="mb-4 flex justify-end">
         <FilterChips
           options={QUEUE}
           value={status}
@@ -126,7 +172,8 @@ export default function AdminShopRequestsPage() {
       {!rows.isLoading && list.length === 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-white/10 dark:bg-white/[0.03]">
           <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-            No requests. Demo shops clear themselves away on their own.
+            No requests. A demo nobody asks to keep clears itself away after a day —
+            unless you keep it for them, under “Trying it now”.
           </p>
         </div>
       )}
@@ -169,7 +216,7 @@ export default function AdminShopRequestsPage() {
 
             {r.status === "pending" && (
               <div className="mt-4 flex gap-2.5">
-                <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(r.id)}>
+                <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(r.id, { onError: failed })}>
                   Approve
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setDeclining(r)}>
@@ -187,6 +234,8 @@ export default function AdminShopRequestsPage() {
           twenty-five others was a business asking to pay that nobody could
           see. */}
       <Pager pagination={pagination} onPage={setPage} noun="requests" />
+      </>
+      )}
 
       <Modal isOpen={declining !== null} onClose={() => setDeclining(null)} className="max-w-md p-6">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Decline this request</h3>

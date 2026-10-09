@@ -113,6 +113,11 @@ export interface Tenant {
   /** When that demo clears itself away. Absolute, so it can be printed. */
   demo_expires_at?: string | null;
   /**
+   * Whoever pressed "Keep this shop" on this demo and is still waiting. Sent
+   * on a demo's own page only — a list of shops does not ask once per row.
+   */
+  keep_request?: { id: string; contact_name: string; contact_email: string; requested_at: string | null } | null;
+  /**
    * WHICH DOOR THIS SHOP CAME IN THROUGH.
    *
    *   demo      — somebody is trying it right now

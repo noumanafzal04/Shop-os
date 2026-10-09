@@ -36,7 +36,7 @@ const SCREENS: Array<{ path: string; name: string; budget?: number }> = [
   { path: "/admin", name: "the console", budget: 8 },
   { path: "/admin/tenants", name: "businesses" },
   { path: "/admin/tenants/new", name: "create a business", budget: 8 },
-  { path: "/admin/shop-requests", name: "shop requests" },
+  { path: "/admin/shop-requests", name: "demo shops" },
   { path: "/admin/enquiries", name: "enquiries" },
   { path: "/admin/plans", name: "plans" },
   { path: "/admin/payments", name: "payments" },

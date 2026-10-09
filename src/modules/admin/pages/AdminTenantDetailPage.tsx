@@ -4,6 +4,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import { ModulePicker } from "../components/ModulePicker";
+import { DemoBanner } from "../components/DemoBanner";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -1284,8 +1285,13 @@ export default function AdminTenantDetailPage() {
             : t.status === "suspended" ? <Badge color="error">suspended</Badge>
             : <Badge color="success">active</Badge>}
           {t.online_shop_enabled && <Badge color="info">online shop</Badge>}
+          {t.is_demo && <Badge color="light">demo</Badge>}
         </div>
       </div>
+
+      {/* A demo says it is one, above everything else, with the one decision
+          there is to make about it. */}
+      {t.is_demo && !t.deleted_at && <DemoBanner tenant={t} />}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Info + actions */}

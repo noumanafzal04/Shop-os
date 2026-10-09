@@ -469,7 +469,10 @@ const adminMainItems: NavItem[] = [
   // NOT GroupIcon. It was the same glyph as Tenants directly above it, which
   // is the collision this rail has already been swept for once: two rows
   // wearing one icon is a rail you have to read word by word.
-  { icon: <TaskIcon />, name: "Shop requests", path: "/admin/shop-requests" },
+  // "Demo shops", not "Shop requests": the screen is every demo now — the
+  // ones being tried as well as the ones that asked to stay. The badge is
+  // still only the people WAITING, and the path has not moved.
+  { icon: <TaskIcon />, name: "Demo shops", path: "/admin/shop-requests" },
   { icon: <PaperPlaneIcon />, name: "Enquiries", path: "/admin/enquiries" },
   { icon: <ListIcon />, name: "Plans", path: "/admin/plans" },
   // Riders waiting to be approved. On the MAIN rail rather than under
