@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AnnouncementController;
+use App\Http\Controllers\Api\V1\Admin\AppearanceController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\BannerController as AdminBannerController;
 use App\Http\Controllers\Api\V1\Admin\BillingController;
@@ -1134,6 +1135,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // because a 403 on the rail's own poll would log an error on every
             // screen a banner-ads staffer opens.
             Route::get('/inbox', [InboxController::class, 'index']);
+            // How the console looks. READ by every platform role — the screen
+            // has to be painted for whoever is looking at it — and written by
+            // a super admin only: it is the platform's look, worn by everybody.
+            Route::get('/appearance', [AppearanceController::class, 'show']);
+            Route::put('/appearance', [AppearanceController::class, 'update'])->middleware('role:super_admin');
             // Demos asking to become businesses. Gated on the permission
             // that already means "may open a shop" rather than a new one — the
             // decision here IS opening a shop, just one that already has

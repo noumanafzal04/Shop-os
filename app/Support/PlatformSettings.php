@@ -51,6 +51,44 @@ class PlatformSettings
             // What an add-on costs a month — module key => rupees. A module
             // with no price here is free to add. See ModulePackages::bill().
             'module_addon_prices' => [],
+
+            // ── How the console itself looks ────────────────────────
+            //
+            // The platform's own Appearance — the twin of a shop's
+            // `theme_primary` / `theme_tint` / `theme_sidebar`, and the same
+            // three choices. Saved once and worn by everybody who works on the
+            // console, the way a shop's is worn by everybody who works there.
+            //
+            // The defaults ARE the house look: no colour chosen (the
+            // stylesheet's own), a designed hint of it in the surfaces, and
+            // the menu in the brand colour. A console nobody has dressed looks
+            // exactly as it always has.
+            //
+            // Deliberately absent from `rules()`: those are what the
+            // commission screen may save, and whoever sets a commission rate
+            // is not thereby whoever repaints the console. See
+            // `appearanceRules()`.
+            'console_theme_primary' => null,
+            'console_theme_tint' => 'subtle',
+            'console_theme_sidebar' => 'primary',
+        ];
+    }
+
+    /**
+     * What the console's Appearance may be set to.
+     *
+     * A colour is six hex digits or nothing — nothing is "the house colour",
+     * and it is stored as null rather than as today's house colour, so a
+     * rebrand of the product reaches every console that never chose.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function appearanceRules(): array
+    {
+        return [
+            'console_theme_primary' => ['present', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'console_theme_tint' => ['required', 'in:none,subtle,strong'],
+            'console_theme_sidebar' => ['required', 'in:primary,light,tinted,dark'],
         ];
     }
 
@@ -105,6 +143,23 @@ class PlatformSettings
                 ['value' => $value, 'updated_by' => $userId],
             );
         }
+
+        Cache::forget(self::CACHE_KEY);
+    }
+
+    /**
+     * Hand a setting back to its default.
+     *
+     * By removing its row, not by writing the default into it. A row means
+     * somebody CHANGED something; a row holding yesterday's default is a
+     * setting that will not follow tomorrow's — and for the one setting whose
+     * default is "nothing chosen", there is no value to write at all.
+     *
+     * @param  array<int, string>  $keys
+     */
+    public static function forget(array $keys): void
+    {
+        PlatformSetting::query()->whereIn('key', array_intersect($keys, array_keys(self::defaults())))->delete();
 
         Cache::forget(self::CACHE_KEY);
     }
