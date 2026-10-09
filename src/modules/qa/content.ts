@@ -705,6 +705,26 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Count the businesses on the console against the tenant list.", expect: "Demo shops are not counted as businesses. They were once, and it made the number wrong by more than half." },
         ],
       },
+      {
+        id: "admin-customers",
+        title: "Customers",
+        summary: "The people who order from the shops: found, corrected, switched off.",
+        screen: "/admin/customers",
+        required: "always",
+        what: [
+          "A customer here is somebody with an account on the app, ordering from ANY shop. It is not one shop's own customer book (khata) — that belongs to the shop and is on the shop's side.",
+          "The screen is the list: who they are, how many orders across every shop, what they have spent on DELIVERED orders, when they last ordered. It used to be a single form with no list at all — an account could be made and never found again.",
+          "The figures above the list are counted by the server, not read off the page that is open. Two of them are buttons: Have ordered, and Switched off.",
+          "An account that has never ordered can be removed (it was made by mistake). One that has ordered cannot — an order belongs to its customer, and removing them would take a sale out of a shop's history. It is switched off instead.",
+        ],
+        checks: [
+          { do: "Make a customer with a name, a phone and a password.", expect: "They are at the top of the list straight away, marked Can sign in, with no orders yet. A name and a password with neither a phone nor an email cannot be created." },
+          { do: "Search by part of the phone number.", expect: "Only that person. Then by name and by email." },
+          { do: "Open them, set a new password, and sign in on the app with it.", expect: "The new password works and the old one does not. They were signed out everywhere." },
+          { do: "Switch the account off.", expect: "They cannot sign in, the row says Switched off, and the Switched off figure goes up by one and leads to them." },
+          { do: "Open a customer who has ordered.", expect: "The shops they ordered from are named, and there is no Remove account button — only Switch off." },
+        ],
+      },
     ],
   },
 

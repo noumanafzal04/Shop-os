@@ -58,7 +58,10 @@ const JOURNEY_ONLY = /journey\/.*\.spec\.ts/;
 // works at twenty-eight rows.
 const VOLUME_ONLY = /at-volume\.spec\.ts/;
 // The console that prices every shop — see e2e/admin-console.spec.ts.
-const ADMIN_ONLY = /admin-console\.spec\.ts/;
+// Anchored on the folder: `journey/11-the-admin-returns.spec.ts` has "admin-"
+// in the middle of its name, and an unanchored pattern handed the admin
+// project a stage of the journey — which is lived once, in order.
+const ADMIN_ONLY = /\/admin-[a-z-]+\.spec\.ts$/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
