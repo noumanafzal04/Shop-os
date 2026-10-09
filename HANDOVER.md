@@ -8681,3 +8681,28 @@ Decision: `docs/decisions/shopos-a-dashboard-is-asked-about-a-period.md`.
 **Known, not fixed here:** the other admin date filters (billing, audit)
 resolve "Today" on the laptop's date while the server cuts on UTC; the shop
 header overflows a 320px screen by 24px.
+
+## The admin keeps a demo shop for its owner — 2026-10-09
+
+Decision: `docs/decisions/shopos-the-admin-keeps-a-demo.md`.
+
+- **`/admin/shop-requests` is "Demo shops" now** (rail label too; the address
+  and the permission `tenants.create` have not moved). Two lists: *Asked to
+  stay* (the queue, as before, and what the badge counts) and *Trying it now*
+  (`?show=trying`) — every demo, with shelf, sales and time left.
+- `GET /admin/demo-shops`, `POST /admin/demo-shops/{tenant}/keep`
+  (`owner_name`, `owner_email` unique, `owner_phone?`, `password` ≥ 8,
+  `business_name?` unique). `KeepDemoShopAction` gives the owner a sign-in,
+  makes the shop real, answers any request that was waiting, and audits it.
+- **One rule for "a demo becomes a business": `Tenant::becomeABusiness()`** —
+  used by the approval and by the admin's keep.
+- A demo's own page (`GET /admin/tenants/{id}`) carries `keep_request` when it
+  is a demo, and shows `DemoBanner`: *Make it a real shop*, or *Approve their
+  request* if the owner already asked (they have chosen a password).
+- Panel: `admin/components/{DemoShopsList,KeepDemoDialog,DemoBanner,demoClock,
+  suggestPassword}`, `admin/hooks/useDemoShops.ts` (`refreshAfterADemoChanges`
+  — the one list of what goes stale).
+- **A demo is on NO plan, on purpose.** It looked "Premium" up by name; the plan
+  was renamed Standard, so it has been null for weeks. Now it says so. A kept
+  shop has paid nothing and is on no plan until an admin gives it one.
+- No migration.
