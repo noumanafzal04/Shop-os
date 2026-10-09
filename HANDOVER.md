@@ -8640,3 +8640,44 @@ Decision: `docs/decisions/shopos-a-plan-says-what-it-includes.md`.
   "What it pays"), Plans (included modules, tabbed dialog with checkboxes,
   add-on prices).
 - **Run `php artisan migrate`** — `2026_10_09_000001_a_plan_names_its_modules`.
+
+## A dashboard is asked about a period — both consoles, 2026-10-09
+
+Decision: `docs/decisions/shopos-a-dashboard-is-asked-about-a-period.md`.
+
+- **`app/Support/DashboardPeriod.php` is the whole arithmetic**, for the shop's
+  dashboard and the platform's: the two dates, what they are compared with
+  (like for like — 1–9 Oct against 1–9 Sep, not the nine days before the 1st),
+  what the chart draws (a point a day ≤ 31 days, a week ≤ 120, then a month;
+  one day = the seven ending on it), and how far back to read.
+- `GET /dashboard` and `GET /admin/dashboard` take `?from=&to=` (both `Y-m-d`,
+  both optional, three years at most → 422 in words).
+- **Flows follow the period; states do not.** Sales, refunds, expenses, profit,
+  customers, the chart, the spending breakdown, the leaders, per-branch takings
+  and a chemist's dispensing are cut to it. Low stock, what is owed, the
+  pipeline, the floor/bay, the till block and the line at the top are NOW.
+- Shop payload: `today` is ALWAYS today; `period` is the period asked about
+  (same shape + `from/to/days/compared_from/compared_to/today/asked/series`).
+  **Asked nothing, the payload is what it always was** (today · the week · the
+  month's spending and leaders) — that is what `partner/` reads. The panel
+  always sends both dates.
+- Platform payload: `period` + `in_period` (revenue, payments, new_tenants,
+  kept_from_demo, online_orders, orders_value, new_customers). `kpis` is
+  untouched and is "right now". Opens on the last seven days; cut on the
+  server's calendar (UTC); a running period is compared with the same PART of
+  the one before.
+- Panel: `modules/dashboard/period.ts` (the words — labels are written from
+  what the SERVER says it answered), `components/PeriodBar.tsx` (heading +
+  two arrows + the one `DateRangeFilter`), `hooks/useDashboardPeriod.ts`
+  (`?from&to` in the address; the opening period is their ABSENCE, so a page
+  left open follows the clock). `dateRanges.ts` gained `last_quarter` and
+  `stepRange`; `DateRangeFilter` takes an optional `today`.
+- The trend chart's own Today / 3 Days / Week toggle is gone. A books-only
+  business opens on This month; its strip is Money In · Money Out · Net.
+- `TradeProfile.orders/customers` are nouns now ("Orders", "Guests") — the
+  caller adds the day.
+- No migration.
+
+**Known, not fixed here:** the other admin date filters (billing, audit)
+resolve "Today" on the laptop's date while the server cuts on UTC; the shop
+header overflows a 320px screen by 24px.
