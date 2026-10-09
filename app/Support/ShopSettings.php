@@ -258,9 +258,17 @@ class ShopSettings
             'loyalty_redeem_value' => 1,       // 1 point = Rs 1
             'loyalty_min_redeem' => 100,       // must have ≥100 pts to redeem
 
-            // Barcode labels
+            // Barcode labels — set on the Barcode Labels screen itself, where
+            // the sticker they describe is on the page beside them. They sat
+            // under Settings, two screens away from the thing they changed.
             'barcode_show_price' => true,
             'barcode_show_name' => true,
+            'label_show_digits' => true,   // the number under the bars
+            'label_show_shop' => false,    // the shop's name across the top
+            'label_show_pack' => false,    // "Carton = 24 pcs" on a single's label
+            'label_cut_lines' => true,     // a hairline round each sticker
+            'label_stock' => '50x25',      // sticker size, mm
+            'label_paper' => 'sheet',      // an A4 sheet of stickers, or a roll
 
             // ── Scale (embedded-weight) barcodes ────────────────────────
             // Grocery/deli scales print in-store EAN-13s that carry a PLU
@@ -349,6 +357,12 @@ class ShopSettings
             'loyalty_min_redeem' => ['sometimes', 'integer', 'min:0', 'max:1000000'],
             'barcode_show_price' => ['sometimes', 'boolean'],
             'barcode_show_name' => ['sometimes', 'boolean'],
+            'label_show_digits' => ['sometimes', 'boolean'],
+            'label_show_shop' => ['sometimes', 'boolean'],
+            'label_show_pack' => ['sometimes', 'boolean'],
+            'label_cut_lines' => ['sometimes', 'boolean'],
+            'label_stock' => ['sometimes', 'in:38x25,50x25,50x38,100x50'],
+            'label_paper' => ['sometimes', 'in:sheet,roll'],
             'scale_barcode_enabled' => ['sometimes', 'boolean'],
             'scale_barcode_prefix' => ['sometimes', 'string', 'regex:/^\d{1,2}$/'],
             'scale_barcode_mode' => ['sometimes', 'in:weight,price'],

@@ -72,6 +72,37 @@ class ShopSettingsTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_what_a_label_carries_is_the_shops_and_comes_back_as_it_was_set(): void
+    {
+        // Out of the box: the name, the price and the number, on a standard
+        // sticker, on a sheet.
+        $this->actingAsUser($this->owner)->getJson('/api/v1/shop/settings')->assertOk()
+            ->assertJsonPath('data.label_stock', '50x25')
+            ->assertJsonPath('data.label_paper', 'sheet')
+            ->assertJsonPath('data.label_show_digits', true)
+            ->assertJsonPath('data.label_show_shop', false);
+
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', [
+            'label_stock' => '100x50', 'label_paper' => 'roll',
+            'label_show_shop' => true, 'label_show_digits' => false, 'barcode_show_price' => false,
+        ])->assertOk();
+
+        $this->actingAsUser($this->owner)->getJson('/api/v1/shop/settings')->assertOk()
+            ->assertJsonPath('data.label_stock', '100x50')
+            ->assertJsonPath('data.label_paper', 'roll')
+            ->assertJsonPath('data.label_show_shop', true)
+            ->assertJsonPath('data.label_show_digits', false)
+            ->assertJsonPath('data.barcode_show_price', false)
+            // What was not sent is as it was.
+            ->assertJsonPath('data.label_cut_lines', true);
+    }
+
+    public function test_a_sticker_size_nobody_makes_is_refused(): void
+    {
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['label_stock' => '70x40'])->assertStatus(422);
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['label_paper' => 'fanfold'])->assertStatus(422);
+    }
+
     public function test_staff_without_settings_permission_blocked(): void
     {
         $staff = User::factory()->tenantStaff($this->tenant, [Permissions::SALES_MANAGE])->create();
