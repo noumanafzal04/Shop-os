@@ -8624,3 +8624,19 @@ Decision: `docs/decisions/shopos-a-customer-made-can-be-found.md`.
   ladder, and three plans of their own (`jtdemo-cafe-custom`,
   `jtdemo-mart-custom`, `jtdemo-fuels-custom` — the last paid by the year).
 - `PlanSeeder` must have run first; `db:seed` runs it before the demo shops.
+
+## A plan says what it includes; an add-on is on the shop — 2026-10-09
+
+Decision: `docs/decisions/shopos-a-plan-says-what-it-includes.md`.
+
+- `app/Support/ModulePackages.php` is the whole rule: what a trade can use,
+  what it cannot open without, what each rung of the ladder includes, what a
+  shop is offered, how its own modules sit against its plan, and its bill.
+- A plan's list is a starting point and a label. **`tenants.features` is still
+  the only gate**, written only by `applyModules()`.
+- An add-on = a module the shop has that its plan does not include. It is on
+  the bill by being on the shop — there is no "add-on record" to forget.
+- Admin screens: create a business (three bands), a shop's page (picker +
+  "What it pays"), Plans (included modules, tabbed dialog with checkboxes,
+  add-on prices).
+- **Run `php artisan migrate`** — `2026_10_09_000001_a_plan_names_its_modules`.
