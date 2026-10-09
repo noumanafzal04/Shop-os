@@ -8564,3 +8564,40 @@ three-column grid on Codes & packs (unit chips push a column down, "Sold by"
 sits alone), and the tab called "Media & online" in a shop that sells nothing
 online.
 
+
+## The item form follows the shop — 2026-10-09
+
+Decision: `docs/decisions/shopos-the-item-form-follows-the-shop.md`.
+
+- The photo is on **Details**, beside the name; the second tab is **Online**
+  and exists only in a shop with the online store. `catalog/formTabs.ts` is the
+  one place that says which tabs there are and which tab a field is on.
+- **Still selling this** is on Details. It was on Codes & packs, which a
+  service does not have — a service could not be retired, only deleted.
+- A save the server refuses on another tab is said at the top of the open tab,
+  with the tab named and marked. Before, Create did nothing visible.
+- Codes & packs is two to a row; its lists are one kind of card.
+- `e2e/item-form.spec.ts` — 2 walks, 12 mutations caught.
+
+## The shops you hand to somebody — `demo:shops`, 2026-10-09
+
+Decision: `docs/decisions/shopos-the-shops-you-hand-to-somebody.md`.
+
+    php artisan demo:shops            # shop1@johartown.demo … shop9@johartown.demo / password
+    php artisan demo:shops --fresh    # rebuild them
+    php artisan demo:shops --listed   # and leave them on the public marketplace
+
+- One shop per trade, built by the load test's own builder (real sales, tabs,
+  kitchen dockets, deliveries, khata) under believable names:
+  `app/Console/Commands/SeedDemoShops.php`, catalogues in
+  `app/Console/Commands/DemoShops/`.
+- **Runs with `composer install --no-dev`.** Nothing in it may use a factory —
+  `DemoShopsCommandTest` fails if it does.
+- It is the last step of `db:seed` (`DemoShopsSeeder`), skipped under test.
+  `migrate:fresh --seed --force` on a server therefore ends with the nine
+  logins. **`migrate:fresh` drops every table** — only on a server with nothing
+  to keep.
+- A second platform administrator: `admin@trueserve.app` / `Admin@123`, made
+  once and never re-set by a later seed. Change the password on a live server.
+- Before running it on a server after touching the builder or a catalogue:
+  `php artisan test --filter=DemoShopsCommandTest` (about two minutes).
