@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Modal } from "../modal";
 import { CalendarGlyph, ChevronGlyph } from "./FilterIcons";
 import { FilterOption, FilterPopover } from "./FilterPopover";
-import { shopToday, shopTodayDate } from "../../../common/shopDay";
+import { shopTodayDate } from "../../../common/shopDay";
 import {
   EMPTY_RANGE,
   formatRange,
@@ -16,6 +16,7 @@ import {
   RANGE_KEYS,
   rangeName,
   resolveRange,
+  toIsoDate,
   type DateRange,
   type RangeKey,
 } from "./dateRanges";
@@ -53,6 +54,7 @@ export function DateRangeFilter({
   align = "left",
   allowAll = true,
   extra = [],
+  today: asOf,
 }: {
   value: DateRange;
   onChange: (range: DateRange) => void;
@@ -74,9 +76,15 @@ export function DateRangeFilter({
    * usually wants it.
    */
   extra?: ReadonlyArray<{ key: string; label: string; range: DateRange }>;
+  /**
+   * What "today" is, when it is not the shop's. The platform console is cut
+   * on the server's calendar, and passes the date the server says it is — so
+   * "Today" in this menu asks for the day the server will answer with.
+   */
+  today?: Date;
 }) {
   const [custom, setCustom] = useState(false);
-  const today = shopTodayDate();
+  const today = asOf ?? shopTodayDate();
   const preset = matchPreset(value, today);
   const chosen = value.from !== null || value.to !== null;
   // A caller-supplied range is named by its own row, so it must not ALSO tick
@@ -170,6 +178,7 @@ export function DateRangeFilter({
         open={custom}
         initial={value}
         presets={presets}
+        today={today}
         onClose={() => setCustom(false)}
         onApply={(range) => {
           onChange(range);
@@ -192,26 +201,28 @@ function CustomRangeDialog({
   open,
   initial,
   presets,
+  today: asOf,
   onClose,
   onApply,
 }: {
   open: boolean;
   initial: DateRange;
   presets: readonly RangeKey[];
+  today: Date;
   onClose: () => void;
   onApply: (range: DateRange) => void;
 }) {
   const [draft, setDraft] = useState<DateRange>(initial);
-  const [month, setMonth] = useState(() => startingMonth(initial));
+  const [month, setMonth] = useState(() => startingMonth(initial, asOf));
 
   useEffect(() => {
     if (!open) return;
     setDraft(initial);
-    setMonth(startingMonth(initial));
+    setMonth(startingMonth(initial, asOf));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const today = shopToday();
+  const today = toIsoDate(asOf);
   const complete = draft.from !== null && draft.to !== null;
 
   /**
@@ -242,7 +253,7 @@ function CustomRangeDialog({
           <p className="mb-2 text-theme-xs font-semibold uppercase tracking-wide text-gray-400">Quick ranges</p>
           <div className="flex flex-wrap gap-1 sm:flex-col">
             {presets.slice(0, 7).map((key) => {
-              const range = resolveRange(key);
+              const range = resolveRange(key, asOf);
 
               return (
                 <button
@@ -250,7 +261,7 @@ function CustomRangeDialog({
                   type="button"
                   onClick={() => {
                     setDraft(range);
-                    setMonth(startingMonth(range));
+                    setMonth(startingMonth(range, asOf));
                   }}
                   className={`rounded-lg px-2.5 py-1.5 text-left text-theme-sm transition ${
                     isSameRange(draft, range)
@@ -305,7 +316,7 @@ function CustomRangeDialog({
             ? "Select a start and end date"
             : draft.to === null
               ? "Now pick the end date"
-              : formatRange(draft)}
+              : formatRange(draft, asOf)}
         </p>
 
         <div className="flex gap-2.5">
@@ -339,8 +350,8 @@ function CustomRangeDialog({
 }
 
 /** Which month to open on: the range's own start, or this month. */
-function startingMonth(range: DateRange): Date {
-  const anchor = range.from !== null ? fromIsoDate(range.from) : shopTodayDate();
+function startingMonth(range: DateRange, today: Date): Date {
+  const anchor = range.from !== null ? fromIsoDate(range.from) : today;
 
   return new Date(anchor.getFullYear(), anchor.getMonth(), 1);
 }

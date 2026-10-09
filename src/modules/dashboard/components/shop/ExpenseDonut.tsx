@@ -11,15 +11,17 @@ const MAX_SLICES = 6;
 
 interface Props {
   breakdown: ExpenseSlice[];
+  /** What the period is called — "Today", "This month", "1 – 9 Oct". */
+  period: string;
   money: (n: string | number) => string;
 }
 
 /**
- * This month's spend per category. The wedges walk down the tenant's own brand
+ * The period's spend per category. The wedges walk down the tenant's own brand
  * ramp — a sequential palette, since expense categories have no inherent
  * good/bad meaning that a red or green wedge would imply.
  */
-export function ExpenseDonut({ breakdown, money }: Props) {
+export function ExpenseDonut({ breakdown, period, money }: Props) {
   const colors = useChartColors();
   const { theme } = useTheme();
   const dark = theme === "dark";
@@ -53,7 +55,7 @@ export function ExpenseDonut({ breakdown, money }: Props) {
       pie: {
         donut: {
           size: "72%",
-          // Idle centre = this month's total; hovering a wedge swaps in that
+          // Idle centre = the period's total; hovering a wedge swaps in that
           // category's own name and figure.
           labels: {
             show: true,
@@ -72,7 +74,7 @@ export function ExpenseDonut({ breakdown, money }: Props) {
             total: {
               show: true,
               showAlways: true,
-              label: "This month",
+              label: period,
               fontSize: "12px",
               color: dark ? colors["gray-400"] : colors["gray-500"],
               formatter: () => money(total),
@@ -92,14 +94,14 @@ export function ExpenseDonut({ breakdown, money }: Props) {
       <h3 className="font-semibold tracking-tight text-gray-800 dark:text-white/90">
         Where the money went
       </h3>
-      <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-        Expenses this month, by category
+      <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400" data-testid="spend-window">
+        Expenses by category · {period}
       </p>
 
       {slices.length === 0 ? (
         <div className="mt-5">
           <EmptyPanel
-            message="No expenses recorded this month."
+            message="Nothing was spent in this period."
             hint="Categories appear here as soon as you log one."
           />
         </div>

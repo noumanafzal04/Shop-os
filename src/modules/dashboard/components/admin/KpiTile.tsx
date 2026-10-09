@@ -15,6 +15,10 @@ interface Props {
   format: (n: number) => string;
   /** The single tile the console leads with. */
   emphasis?: boolean;
+  /** The figure the strip is FOR, drawn as the filled card. One per strip. */
+  featured?: boolean;
+  /** A second fact about the same figure — "4 payments", "worth Rs 12,000". */
+  caption?: string;
   /**
    * The SAME quantity over time, when the payload happens to carry it — the
    * monthly revenue series behind "revenue this month", the monthly sign-up
@@ -32,7 +36,7 @@ interface Props {
  * itself: this one printed "-100.43%" with a hyphen and no rounding while the
  * shop printed "−100.4%" with a typographic minus. One number, one format.
  */
-export function KpiTile({ label, value, icon, kpi, basis, format, emphasis = false, spark }: Props) {
+export function KpiTile({ label, value, icon, kpi, basis, format, emphasis = false, featured = false, caption, spark }: Props) {
   return (
     <MetricTile
       label={label}
@@ -43,6 +47,8 @@ export function KpiTile({ label, value, icon, kpi, basis, format, emphasis = fal
       delta={kpi.delta_pct}
       deltaTitle={`${format(kpi.previous)} ${basis}`}
       emphasis={emphasis}
+      featured={featured}
+      caption={caption}
       spark={spark}
     />
   );

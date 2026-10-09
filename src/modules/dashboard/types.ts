@@ -1,3 +1,5 @@
+import type { PeriodTold } from "./period";
+
 /**
  * Dashboard payload contracts — mirrors App\Services\DashboardService.
  *
@@ -18,9 +20,17 @@ export interface Kpi {
   delta_pct: number | null;
 }
 
+/**
+ * One point of the chart. A day, until the period is too long to draw a point
+ * a day — then a week, then a month; `period.series.bucket` says which.
+ */
 export interface SeriesDay {
-  day: string; // "Mon"
-  date: string; // "2026-08-05"
+  /** What the axis calls the point: "Mon", "9 Oct", "Oct". */
+  day: string;
+  /** The first date the point covers: "2026-08-05". */
+  date: string;
+  /** The last date it covers — the same as `date` for a point a day wide. */
+  to?: string;
   revenue: number;
   /** Money in that wasn't a sale. Zero for a shop that records none. */
   other_income: number;
@@ -74,34 +84,47 @@ export interface ActivityRow {
   tenant_id?: string | null;
 }
 
+/** The figures a shop is shown for a day or a run of days. */
+export interface ShopFigures {
+  sales_count: number;
+  revenue: number;
+  /** Non-sale money in — kept apart from `revenue` so "what we sold" stays honest. */
+  other_income: number;
+  /**
+   * Handed back in the period. `revenue` stays GROSS — a refund is dated by
+   * the day it went out, so netting it would rewrite a day that may already
+   * be closed and banked. `profit` has it subtracted.
+   */
+  refunds: number;
+  expenses: number;
+  profit: number;
+  /** Buyers served, not tickets rung — one customer once, however often they came. */
+  customers_count: number;
+  /** Signed % against what the period is compared with; null when that was zero. */
+  deltas: {
+    revenue: number | null;
+    expenses: number | null;
+    profit: number | null;
+  };
+}
+
 export interface TenantDashboard {
   setup_completed: boolean;
   online_shop_enabled: boolean;
   subscription_expired: boolean;
   subscription_state: "active" | "grace" | "read_only";
   grace_ends_at: string | null;
-  today: {
-    sales_count: number;
-    revenue: number;
-    /** Non-sale money in — kept apart from `revenue` so "what we sold" stays honest. */
-    other_income: number;
-    /**
-     * Handed back today. `revenue` above stays GROSS — a refund is dated by
-     * the day it went out, so netting it would rewrite a day that may already
-     * be closed and banked. `profit` has it subtracted.
-     */
-    refunds: number;
-    expenses: number;
-    profit: number;
-    /** Buyers served, not tickets rung. */
-    customers_count: number;
-    /** Signed % against the same figure yesterday; null when yesterday was zero. */
-    deltas: {
-      revenue: number | null;
-      expenses: number | null;
-      profit: number | null;
-    };
-  };
+  /**
+   * TODAY, whatever period was asked about. The line at the head of the
+   * screen is about now.
+   */
+  today: ShopFigures;
+  /**
+   * THE PERIOD ASKED ABOUT — the same figures, for its dates, and which dates
+   * those are. Identical to `today` when nobody asked. Everything on the
+   * screen that is a flow reads this; see modules/dashboard/period.ts.
+   */
+  period: PeriodTold & ShopFigures;
   pending_orders: number;
   pending_reservations: number;
   low_stock_count: number;
@@ -110,9 +133,12 @@ export interface TenantDashboard {
   products_count: number;
   // The branch these figures reflect (null = all branches / HQ view).
   branch_scope: string | null;
-  /** Last 7 days, oldest first, zero-filled so the chart never has a hole. */
+  /**
+   * The period a point at a time, oldest first, zero-filled so the chart never
+   * has a hole. A single day is drawn as the last of the seven that led to it.
+   */
   sales_series: SeriesDay[];
-  /** This month's spend per category. Empty when the shop keeps no books. */
+  /** The period's spend per category. Empty when the shop keeps no books. */
   expense_breakdown: ExpenseSlice[];
   inventory: {
     low_stock: number;
@@ -145,7 +171,7 @@ export interface TenantDashboard {
   };
   recent_sales: RecentSaleRow[];
   recent_expenses: RecentExpenseRow[];
-  /** Each entry is null when there is nothing to crown yet. */
+  /** The period's leaders. Each entry is null when there is nothing to crown. */
   highlights: {
     top_product: { name: string; units: number; revenue: number } | null;
     top_category: { name: string; revenue: number } | null;
@@ -194,7 +220,7 @@ export interface TenantDashboard {
     overdue: number;
   } | null;
   activity: ActivityRow[];
-  // Per-branch today's sales (HQ comparison). Empty for single-branch shops.
+  // Per-branch sales in the period (HQ comparison). Empty for single-branch shops.
   branches: Array<{ branch_id: string; branch: string; sales_count: number; revenue: number }>;
 }
 
@@ -205,6 +231,29 @@ export interface BayStage {
 }
 
 export interface AdminDashboard {
+  /** The period `in_period` is cut to. The seven days ending today when nobody asked. */
+  period: PeriodTold;
+  /**
+   * WHAT HAPPENED IN THE PERIOD — flows only, each beside the same count for
+   * the period it is compared with. What the platform IS (shops,
+   * subscriptions, riders) is `kpis`, and is always now.
+   */
+  in_period: {
+    /** Subscription money collected. Absent without `billing.view`. */
+    revenue?: Kpi;
+    /** How many payments that was. Absent without `billing.view`. */
+    payments?: number;
+    /** Real shops that joined. A demo handed out from the landing page did not. */
+    new_tenants: Kpi;
+    /** Shops that began as a demo and were turned into a business in the period. */
+    kept_from_demo: number;
+    /** Marketplace orders placed. */
+    online_orders: Kpi;
+    /** What those orders came to — the shops' money, not the platform's. */
+    orders_value: number;
+    /** People who signed up to buy. */
+    new_customers: Kpi;
+  };
   tenants: {
     /**
      * Shops a stranger was handed from the landing page, which expire the next

@@ -26,10 +26,10 @@ describe("trade profiles", () => {
   });
 
   it("calls transactions what the trade calls them", () => {
-    expect(tradeProfile("automotive").orders).toBe("Jobs Today");
-    expect(tradeProfile("services").customers).toBe("Clients Today");
-    expect(tradeProfile("mart").customers).toBe("Shoppers Today");
-    expect(tradeProfile("food").customers).toBe("Guests Today");
+    expect(tradeProfile("automotive").orders).toBe("Jobs");
+    expect(tradeProfile("services").customers).toBe("Clients");
+    expect(tradeProfile("mart").customers).toBe("Shoppers");
+    expect(tradeProfile("food").customers).toBe("Guests");
   });
 
   it("gives every trade a fallback chain, never a single option", () => {
@@ -41,8 +41,8 @@ describe("trade profiles", () => {
 
   it("falls back to the default for an unknown or missing type", () => {
     const fallback = tradeProfile(null);
-    expect(fallback.orders).toBe("Orders Today");
-    expect(fallback.customers).toBe("Customers Today");
+    expect(fallback.orders).toBe("Orders");
+    expect(fallback.customers).toBe("Customers");
     expect(tradeProfile("something-we-never-shipped")).toEqual(fallback);
   });
 

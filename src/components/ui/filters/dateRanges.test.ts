@@ -9,6 +9,7 @@ import {
   orderRange,
   RANGE_KEYS,
   resolveRange,
+  stepRange,
   toIsoDate,
 } from "./dateRanges";
 import { setShopDayRule } from "../../../common/shopDay";
@@ -70,6 +71,76 @@ describe("resolveRange", () => {
 
   it("leaves both ends open for all time", () => {
     expect(resolveRange("all", TODAY)).toEqual({ from: null, to: null });
+  });
+
+  it("ends last quarter on its own last day, and finds it across a new year", () => {
+    // August is the third quarter; the one before it is April to June.
+    expect(resolveRange("last_quarter", TODAY)).toEqual({ from: "2026-04-01", to: "2026-06-30" });
+    // In February the quarter before is the last of the year before.
+    expect(resolveRange("last_quarter", new Date(2027, 1, 10))).toEqual({ from: "2026-10-01", to: "2026-12-31" });
+    // …and the first quarter ends on a leap day's month correctly.
+    expect(resolveRange("last_quarter", new Date(2028, 4, 2))).toEqual({ from: "2028-01-01", to: "2028-03-31" });
+  });
+});
+
+describe("stepRange — the same period, one along", () => {
+  const day = (iso: string) => ({ from: iso, to: iso });
+
+  it("moves a day by a day, and stops at today", () => {
+    expect(stepRange(day("2026-08-26"), -1, TODAY)).toEqual(day("2026-08-25"));
+    expect(stepRange(day("2026-08-25"), 1, TODAY)).toEqual(day("2026-08-26"));
+    // Nowhere later than today to go: the arrow is disabled by this null.
+    expect(stepRange(day("2026-08-26"), 1, TODAY)).toBeNull();
+  });
+
+  it("moves a run of days by its own length", () => {
+    const week = resolveRange("last_7", TODAY);
+
+    expect(stepRange(week, -1, TODAY)).toEqual({ from: "2026-08-13", to: "2026-08-19" });
+    expect(stepRange({ from: "2026-08-13", to: "2026-08-19" }, 1, TODAY)).toEqual(week);
+  });
+
+  it("pulls a step that would run past today back to end on it, at full length", () => {
+    // Seven days ending the 22nd, forward: the seven ending the 29th do not
+    // exist yet. The seven ending today do.
+    expect(stepRange({ from: "2026-08-16", to: "2026-08-22" }, 1, TODAY)).toEqual({ from: "2026-08-20", to: "2026-08-26" });
+  });
+
+  it("moves a month by a month, whatever their lengths", () => {
+    // This month so far, back: ALL of July — thirty-one days, not twenty-six.
+    expect(stepRange(resolveRange("this_month", TODAY), -1, TODAY)).toEqual({ from: "2026-07-01", to: "2026-07-31" });
+    // July back to June, which is a day shorter.
+    expect(stepRange({ from: "2026-07-01", to: "2026-07-31" }, -1, TODAY)).toEqual({ from: "2026-06-01", to: "2026-06-30" });
+    // And forward from July is August as far as it has got.
+    expect(stepRange({ from: "2026-07-01", to: "2026-07-31" }, 1, TODAY)).toEqual({ from: "2026-08-01", to: "2026-08-26" });
+    // March back to February, in a leap year and out of one.
+    expect(stepRange({ from: "2028-03-01", to: "2028-03-31" }, -1, new Date(2028, 5, 1))).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+    expect(stepRange({ from: "2027-03-01", to: "2027-03-31" }, -1, new Date(2027, 5, 1))).toEqual({ from: "2027-02-01", to: "2027-02-28" });
+    // January back to the December of the year before.
+    expect(stepRange({ from: "2027-01-01", to: "2027-01-31" }, -1, new Date(2027, 5, 1))).toEqual({ from: "2026-12-01", to: "2026-12-31" });
+  });
+
+  it("moves a quarter by a quarter and a year by a year", () => {
+    expect(stepRange(resolveRange("last_quarter", TODAY), -1, TODAY)).toEqual({ from: "2026-01-01", to: "2026-03-31" });
+    expect(stepRange(resolveRange("last_quarter", TODAY), 1, TODAY)).toEqual({ from: "2026-07-01", to: "2026-08-26" });
+    expect(stepRange(resolveRange("this_year", TODAY), -1, TODAY)).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+    expect(stepRange({ from: "2025-01-01", to: "2025-12-31" }, 1, TODAY)).toEqual(resolveRange("this_year", TODAY));
+  });
+
+  it("treats the 1st on its own as a day, not as a month", () => {
+    expect(stepRange(day("2026-08-01"), -1, TODAY)).toEqual(day("2026-07-31"));
+    // ON the 1st, today is also "this month so far" — the same two dates.
+    // Back from today is still yesterday, not the whole of last month.
+    expect(stepRange(day("2026-08-01"), -1, new Date(2026, 7, 1))).toEqual(day("2026-07-31"));
+  });
+
+  it("treats a few days from the 1st as a run of days — it is neither a whole month nor this one so far", () => {
+    expect(stepRange({ from: "2026-07-01", to: "2026-07-05" }, -1, TODAY)).toEqual({ from: "2026-06-26", to: "2026-06-30" });
+  });
+
+  it("has nothing to step when an end is open", () => {
+    expect(stepRange({ from: null, to: null }, -1, TODAY)).toBeNull();
+    expect(stepRange({ from: "2026-08-01", to: null }, -1, TODAY)).toBeNull();
   });
 });
 

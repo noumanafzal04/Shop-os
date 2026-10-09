@@ -71,7 +71,7 @@ export function FloorPanel({ floor, caps }: { floor: NonNullable<TenantDashboard
 }
 
 /**
- * Today's prescription trade.
+ * The period's prescription trade.
  *
  * A medical store's day is two businesses sharing a counter: over-the-counter
  * sales, and the scripts it is answerable for. The dashboard counted them as
@@ -80,15 +80,18 @@ export function FloorPanel({ floor, caps }: { floor: NonNullable<TenantDashboard
  */
 export function DispensingPanel({
   dispensing,
+  period,
   money,
 }: {
   dispensing: NonNullable<TenantDashboard["dispensing"]>;
+  /** What the period is called — "Today", "This month", "1 – 9 Oct". */
+  period: string;
   money: (n: string | number) => string;
 }) {
   return (
     <SectionCard
-      title="Dispensed today"
-      subtitle="Against a prescription, apart from counter trade"
+      title="Dispensed"
+      subtitle={`${period} · against a prescription, apart from counter trade`}
       icon={<DocsIcon className="size-5" />}
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -101,7 +104,7 @@ export function DispensingPanel({
         <Stat
           label="Prescribers"
           value={dispensing.prescribers.toLocaleString()}
-          caption={dispensing.prescribers > 0 ? "distinct doctors today" : undefined}
+          caption={dispensing.prescribers > 0 ? "different doctors" : undefined}
           tone="gray"
         />
       </div>

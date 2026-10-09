@@ -1,41 +1,51 @@
-import { useState } from "react";
 import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 
 import { useTheme } from "../../../../context/ThemeContext";
+import { formatRange, fromIsoDate } from "../../../../components/ui/filters";
+import { seriesGrain, type PeriodTold } from "../../period";
 import type { SeriesDay } from "../../types";
 import { useChartColors } from "./chartTheme";
 import { EmptyPanel, SkeletonBar } from "./SectionCard";
 import { formatDate } from "./format";
 
-/**
- * The payload carries exactly seven days, so the toggle offers the windows
- * those days can honestly answer for. There is no month or year series in the
- * contract, and a chart must never draw a period it wasn't given.
- */
-const WINDOWS = [
-  { key: "today", label: "Today", days: 1 },
-  { key: "three", label: "3 Days", days: 3 },
-  { key: "week", label: "Week", days: 7 },
-] as const;
-
 const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+
+/** As many names as the axis has room for before they run into each other. */
+const MOST_AXIS_LABELS = 10;
 
 interface Props {
   series: SeriesDay[];
+  /**
+   * The period the page is reading. The chart draws what the SERVER cut for
+   * it — a point a day, a week or a month — and says which; it used to carry
+   * a Today / 3 Days / Week toggle of its own, which is one window too many
+   * on a page that now has a period at the top of it.
+   */
+  period: PeriodTold;
   money: (n: string | number) => string;
   showRevenue: boolean;
   showExpenses: boolean;
   showProfit: boolean;
 }
 
-export function SalesTrendChart({ series, money, showRevenue, showExpenses, showProfit }: Props) {
-  const [window, setWindow] = useState<(typeof WINDOWS)[number]["key"]>("week");
+/** What one point covers, written out — the tooltip's heading. */
+function pointTitle(point: SeriesDay, today: Date): string {
+  return point.to && point.to !== point.date
+    ? formatRange({ from: point.date, to: point.to }, today)
+    : formatDate(point.date);
+}
+
+export function SalesTrendChart({ series, period, money, showRevenue, showExpenses, showProfit }: Props) {
   const colors = useChartColors();
   const { theme } = useTheme();
   const dark = theme === "dark";
 
-  const days = series.slice(-(WINDOWS.find((w) => w.key === window)?.days ?? 7));
+  const days = series;
+  const asOf = fromIsoDate(period.today);
+  // Thirty names on an axis is thirty names nobody can read. Every nth one
+  // is kept; the tooltip still names every point in full.
+  const every = Math.ceil(days.length / MOST_AXIS_LABELS);
 
   const chartSeries = [
     showRevenue && { name: "Revenue", data: days.map((d) => d.revenue), color: colors["brand-500"] },
@@ -84,7 +94,7 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
     },
     xaxis: {
       type: "category",
-      categories: days.map((d) => d.day),
+      categories: days.map((d, i) => (i % every === 0 ? d.day : "")),
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: { style: { colors: dark ? colors["gray-400"] : colors["gray-500"], fontSize: "12px" } },
@@ -101,6 +111,13 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
       theme: dark ? "dark" : "light",
       shared: true,
       intersect: false,
+      x: {
+        formatter: (_value: unknown, at?: { dataPointIndex?: number }) => {
+          const point = days[at?.dataPointIndex ?? -1];
+
+          return point ? pointTitle(point, asOf) : "";
+        },
+      },
       y: { formatter: (value: number) => money(value) },
     },
   };
@@ -115,30 +132,15 @@ export function SalesTrendChart({ series, money, showRevenue, showExpenses, show
           <h3 className="font-semibold tracking-tight text-gray-800 dark:text-white/90">
             {showRevenue ? "Sales & Spending" : "Spending"}
           </h3>
-          <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-            {first && last
-              ? days.length === 1
-                ? formatDate(last.date)
-                : `${formatDate(first.date)} → ${formatDate(last.date)}`
-              : "No data yet"}
+          <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400" data-testid="trend-window">
+            {!first || !last
+              ? "No data yet"
+              : period.days === 1
+                ? // One day is not a trend. It is drawn as the last of the
+                  // seven that led to it, and the card says that is what it did.
+                  `The seven days up to ${formatDate(last.date)}`
+                : `${formatDate(first.date)} → ${formatDate(last.to ?? last.date)} · a point ${seriesGrain(period)}`}
           </p>
-        </div>
-        <div className="flex shrink-0 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
-          {WINDOWS.map((w) => (
-            <button
-              key={w.key}
-              type="button"
-              onClick={() => setWindow(w.key)}
-              aria-pressed={window === w.key}
-              className={`rounded-md px-3 py-1.5 text-theme-xs font-medium transition-colors ${
-                window === w.key
-                  ? "bg-white text-gray-800 shadow-theme-xs dark:bg-gray-900 dark:text-white/90"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
-              }`}
-            >
-              {w.label}
-            </button>
-          ))}
         </div>
       </div>
 

@@ -4,6 +4,8 @@ import { SectionCard } from "./SectionCard";
 
 interface Props {
   branches: TenantDashboard["branches"];
+  /** What the period is called — "Today", "This month", "1 – 9 Oct". */
+  period: string;
   /** The branch these dashboard figures are focused on, if any. */
   scope: string | null;
   money: (n: string | number) => string;
@@ -12,16 +14,16 @@ interface Props {
 }
 
 /**
- * HQ view: today's takings side by side. The bar is each branch's share of the
+ * HQ view: the period's takings side by side. The bar is each branch's share of the
  * busiest branch, so the comparison is readable without a second axis.
  */
-export function BranchComparison({ branches, scope, money, canManage = true }: Props) {
+export function BranchComparison({ branches, period, scope, money, canManage = true }: Props) {
   const top = Math.max(...branches.map((b) => b.revenue), 0);
 
   return (
     <SectionCard
-      title="Today by branch"
-      subtitle={scope ? "Figures above are focused on one branch" : "All branches"}
+      title="By branch"
+      subtitle={`${period} · ${scope ? "the figures above are one branch's" : "all branches"}`}
       icon={<GridIcon className="size-5" />}
       to={canManage ? "/tenant/branches" : undefined}
       toLabel="Manage"

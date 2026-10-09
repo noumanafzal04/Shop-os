@@ -1,7 +1,11 @@
 import PageMeta from "../../components/common/PageMeta";
 import { DashboardHero } from "../../modules/dashboard/components/DashboardHero";
+import { PeriodBar } from "../../modules/dashboard/components/PeriodBar";
 import Alert from "../../components/ui/alert/Alert";
+import { isSameRange, resolveRange, type DateRange, type RangeKey } from "../../components/ui/filters";
 import { useTenantDashboard } from "../../modules/dashboard/hooks/useDashboard";
+import { useDashboardPeriod, useShopToday } from "../../modules/dashboard/hooks/useDashboardPeriod";
+import { periodName } from "../../modules/dashboard/period";
 import { ActivityTimeline } from "../../modules/dashboard/components/shop/ActivityTimeline";
 import { AttentionPanel } from "../../modules/dashboard/components/shop/AttentionPanel";
 import { BranchComparison } from "../../modules/dashboard/components/shop/BranchComparison";
@@ -50,11 +54,24 @@ function greeting(hour: number): string {
  * carry.
  */
 export default function ShopDashboard() {
-  const { data, isLoading, isError } = useTenantDashboard();
   const user = useAuthStore((s) => s.user);
   const { mode } = useUiMode();
   const caps = useCapabilities();
   const money = useMoney();
+
+  // THE PERIOD. A shop that sells opens on today — "what did we take" is the
+  // question it is opened with. A business that keeps books and sells nothing
+  // has little to show for any one day, so it opens on the month, which is
+  // the window its tiles used to hard-code.
+  const opensOn: RangeKey = !caps.sells && caps.keepsBooks ? "this_month" : "today";
+  const today = useShopToday();
+  const { pinned, pin } = useDashboardPeriod();
+  const asked = pinned ?? resolveRange(opensOn, today);
+  const { data, isLoading, isError, isPlaceholderData } = useTenantDashboard(asked);
+  // Choosing the opening period again UN-pins: the page goes back to
+  // following the clock instead of holding today's date for ever.
+  const ask = (next: DateRange) => pin(isSameRange(next, resolveRange(opensOn, today)) ? null : next);
+  const called = data ? periodName(data.period) : "";
 
   const basic = mode === "basic";
   // Skeleton tile count has to match what the loaded strip will render, or the
@@ -69,7 +86,7 @@ export default function ShopDashboard() {
         : 5
     : caps.keepsBooks
       ? basic
-        ? 2
+        ? 3
         : 4
       : 0;
 
@@ -106,8 +123,9 @@ export default function ShopDashboard() {
         chips={
           data && caps.sells && basic
             ? [
-                { label: trade.orders, value: data.today.sales_count.toLocaleString() },
-                { label: trade.customers, value: data.today.customers_count.toLocaleString() },
+                // The band is about NOW, whatever period is being read below it.
+                { label: `${trade.orders} Today`, value: data.today.sales_count.toLocaleString() },
+                { label: `${trade.customers} Today`, value: data.today.customers_count.toLocaleString() },
               ]
             : undefined
         }
@@ -161,6 +179,15 @@ export default function ShopDashboard() {
         <QuickActions caps={caps} show="top" />
       </div>
 
+      {/* The heading of every FIGURE below it — what was sold, spent and
+          earned, and who led. What is low, owed or waiting is the state of
+          things now, and each of those panels says so in its own name. */}
+      {tileCount > 0 && (
+        <div className="mb-4 md:mb-5">
+          <PeriodBar range={asked} onChange={ask} today={today} told={data?.period} busy={isPlaceholderData} />
+        </div>
+      )}
+
       {isLoading || !data ? (
         <div className="space-y-5 md:space-y-6">
           {tileCount > 0 && <KpiRowSkeleton count={tileCount} />}
@@ -184,7 +211,13 @@ export default function ShopDashboard() {
           )}
         </div>
       ) : (
-        <div className="space-y-5 md:space-y-6">
+        // Dimmed while a newly asked period is on its way: these are still
+        // the LAST period's figures, and every one of them says which.
+        <div
+          className={`space-y-5 transition-opacity md:space-y-6 ${isPlaceholderData ? "opacity-60" : ""}`}
+          aria-busy={isPlaceholderData}
+          data-testid="dashboard-figures"
+        >
           <KpiRow data={data} caps={caps} money={money} compact={basic} />
 
           {/* The trade's own panel, directly under the money and above the
@@ -193,7 +226,7 @@ export default function ShopDashboard() {
               outranks everything below it. Absent, never empty: the server
               sends null for a shop that is not this trade. */}
           {data.floor && <FloorPanel floor={data.floor} caps={caps} />}
-          {data.dispensing && <DispensingPanel dispensing={data.dispensing} money={money} />}
+          {data.dispensing && <DispensingPanel dispensing={data.dispensing} period={called} money={money} />}
           {data.bay && <BayPanel bay={data.bay} money={money} canVisit={caps.visit("/tenant/workshop")} />}
 
           {/* Basic mode is the calm view: what needs doing, and the counters
@@ -203,13 +236,14 @@ export default function ShopDashboard() {
               <div className={caps.keepsBooks ? "lg:col-span-2" : "lg:col-span-3"}>
                 <SalesTrendChart
                   series={data.sales_series}
+                  period={data.period}
                   money={money}
                   showRevenue={caps.sells}
                   showExpenses={caps.keepsBooks}
                   showProfit={caps.sells}
                 />
               </div>
-              {caps.keepsBooks && <ExpenseDonut breakdown={data.expense_breakdown} money={money} />}
+              {caps.keepsBooks && <ExpenseDonut breakdown={data.expense_breakdown} period={called} money={money} />}
             </div>
           )}
 
@@ -247,6 +281,7 @@ export default function ShopDashboard() {
               {data.branches.length > 0 && (
                 <BranchComparison
                   branches={data.branches}
+                  period={called}
                   scope={data.branch_scope}
                   money={money}
                   // The comparison is worth reading either way; managing the
@@ -280,7 +315,7 @@ export default function ShopDashboard() {
             </div>
           )}
 
-          {!basic && <HighlightsRow highlights={data.highlights} caps={caps} money={money} />}
+          {!basic && <HighlightsRow highlights={data.highlights} period={called} caps={caps} money={money} />}
 
           {!basic && <ActivityTimeline rows={data.activity} />}
 

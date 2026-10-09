@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { ArrowDownIcon, ArrowUpIcon } from "../../../icons";
 import { formatDelta } from "./deltaFormat";
 import { Sparkline } from "./Sparkline";
-import { hasShape } from "./sparkShape";
+import { condense, hasShape } from "./sparkShape";
 
 /**
  * THE ONE NUMBER-TILE BOTH CONSOLES LEAD WITH.
@@ -106,27 +106,42 @@ interface MetricTileProps {
    * solid, where the others draw a line.
    */
   featured?: boolean;
+  /**
+   * The series IS the figure — every point of it — rather than leading up to
+   * it. True when the tile shows a period and `spark` is that period, a point
+   * at a time; false when the tile shows one day and `spark` is the days
+   * before it. It decides which bars of the featured tile are drawn solid.
+   */
+  sparkWhole?: boolean;
 }
 
 /**
- * The week as bars, the last one — today — solid.
+ * The series as bars.
  *
- * Heights are a share of the week's best day. A week of nothing draws
- * nothing: seven stubs of equal height would read as seven equal days.
+ * For ONE DAY the bars are the days that led to it and the last one — the day
+ * itself — is solid. For a PERIOD every bar is part of the figure, so every
+ * bar is solid: one bright bar at the end of a month would say the month's
+ * takings were its last day's.
+ *
+ * Heights are a share of the best bar. A run of nothing draws nothing: seven
+ * stubs of equal height would read as seven equal days.
  */
-function WeekBars({ points }: { points: number[] }) {
-  const top = Math.max(...points.map((p) => Math.max(0, p)));
+function WeekBars({ points, whole }: { points: number[]; whole: boolean }) {
+  const bars = condense(points);
+  const top = Math.max(...bars.map((p) => Math.max(0, p)));
   if (top <= 0) return null;
 
   return (
-    <span className="flex h-12 shrink-0 items-end gap-1.5" aria-hidden>
-      {points.map((p, i) => (
+    <span className={`flex h-12 shrink-0 items-end ${bars.length > 7 ? "gap-1" : "gap-1.5"}`} aria-hidden>
+      {bars.map((p, i) => (
         <span
           key={i}
           // Never less than a sliver: a day that took a little must not be
           // drawn the same as a day that took nothing.
           style={{ height: `${p > 0 ? Math.max(8, Math.round((p / top) * 100)) : 4}%` }}
-          className={`w-3 rounded-t-sm sm:w-3.5 ${i === points.length - 1 ? "bg-white" : "bg-white/35"}`}
+          className={`rounded-t-sm ${bars.length > 7 ? "w-1.5 sm:w-2" : "w-3 sm:w-3.5"} ${
+            whole ? "bg-white/80" : i === bars.length - 1 ? "bg-white" : "bg-white/35"
+          }`}
         />
       ))}
     </span>
@@ -145,6 +160,7 @@ export function MetricTile({
   caption,
   spark,
   featured = false,
+  sparkWhole = false,
 }: MetricTileProps) {
   if (featured) {
     return (
@@ -160,15 +176,21 @@ export function MetricTile({
             </span>
             <DeltaPill delta={delta} invert={invertDelta} title={deltaTitle} />
           </div>
-          <div className="flex items-end justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-[1.6rem] font-bold leading-tight tracking-[-0.025em] tabular-nums sm:text-[1.75rem]" title={value}>
-                {value}
-              </p>
-              <p className="mt-2 text-theme-sm font-semibold leading-snug text-white/90" title={label}>{label}</p>
-              {caption && <p className="mt-0.5 text-theme-xs leading-snug text-white/70" title={caption}>{caption}</p>}
+          <div>
+            {/* THE FIGURE HAS THE ROW TO ITSELF. It used to share it with the
+                bars, and in a strip of four — a day with a refund on it, or
+                any period longer than a week — the bars won: the one number
+                the card exists to show was printed as "Rs 2,…". */}
+            <p className="truncate text-[1.6rem] font-bold leading-tight tracking-[-0.025em] tabular-nums sm:text-[1.75rem]" title={value}>
+              {value}
+            </p>
+            <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-theme-sm font-semibold leading-snug text-white/90" title={label}>{label}</p>
+                {caption && <p className="mt-0.5 text-theme-xs leading-snug text-white/70" title={caption}>{caption}</p>}
+              </div>
+              {hasShape(spark) && <WeekBars points={spark} whole={sparkWhole} />}
             </div>
-            {hasShape(spark) && <WeekBars points={spark} />}
           </div>
         </div>
       </div>

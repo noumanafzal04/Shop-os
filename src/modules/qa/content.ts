@@ -539,6 +539,36 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Switch to the tax year.", expect: "The window is 1 Jul – 30 Jun, and the figures inside it add up to the months it covers." },
         ],
       },
+      {
+        id: "dashboard-period",
+        title: "The dashboard, asked about a period",
+        summary: "Today, yesterday, a week, a month, a quarter, a year or any two dates — and every figure says which.",
+        screen: "/tenant",
+        required: "always",
+        what: [
+          "The dashboard has a period, shown as a heading directly above the figures: its name (Today, Last 7 days, This month…), what it is compared with, two arrows that step it a period at a time, and a menu with every range and a custom one.",
+          "Everything that is a FLOW follows it: sales, refunds, expenses, profit, orders, customers, the chart, the spending breakdown, the leaders, what each branch took, what a chemist dispensed. Everything that is a STATE does not: low stock, what is owed, the order pipeline, the floor, the bay and the line at the very top of the page are what is true NOW.",
+          "A period is compared with its LIKE: a day with the day before; the first nine days of a month with the first nine of the month before (not the nine days before the 1st, which are always the poorest); a whole month with the whole month before; anything else with the same number of days immediately before. The heading says which.",
+          "One day is not a trend, so for a single day the chart draws the seven days ending on it and says so. A month is a point a day, a quarter a point a week, a year a point a month.",
+          "A shop that sells opens on Today. A business that only keeps books opens on This month. The opening period is NOT written into the address, so a dashboard left open overnight is on the new day in the morning; any other period IS, so a refresh keeps it.",
+        ],
+        checks: [
+          { do: "Open the dashboard.", expect: "The heading says Today · Compared with yesterday, the tiles say Today's Sales / Today's Profit, the later arrow is disabled, and the address has no dates in it." },
+          { do: "Press the earlier arrow once.", expect: "Yesterday. The tiles now say Yesterday's Sales — no tile anywhere still says Today — and the figures are yesterday's. The line at the top of the page still talks about today." },
+          { do: "Pick Last 7 days from the menu.", expect: "The tiles say Sales, Expenses, Profit with no day in the name; the chart is those seven days; the breakdown says Last 7 days. Add up the chart's days by hand once: they come to the Sales tile exactly." },
+          { do: "Pick This month, on a day after the 1st.", expect: "The heading says what it is compared with — the same days of LAST month, e.g. \"compared with 1 – 9 Sep\" — and a customer who came three times this month is counted once." },
+          { do: "Pick Last quarter, then This year.", expect: "The chart says \"a point a week\", then \"a point a month\". The bars behind the Sales tile say what one bar is." },
+          { do: "Pick Custom range and choose two dates.", expect: "Nothing changes until Apply. After it, the heading is the two dates and how many days they are. Refresh the page: the same period, the same figures." },
+          { do: "Pick Today from the menu again.", expect: "The dates leave the address. Choosing Today must un-pin, not pin today's date." },
+          { do: "Compare one period with Reports → Sales for the same two dates.", expect: "The same total. Then ring a sale at 1 am: it belongs to the day before, on both screens." },
+          { do: "Open the menu on a phone.", expect: "It opens inside the screen." },
+        ],
+        wrong: [
+          "A tile reading \"Today's Sales\" while the heading says anything but Today.",
+          "The chart's points not adding up to the tile above them.",
+          "The line at the top of the page, low stock, or what is owed changing when the period changes — those are about now.",
+        ],
+      },
     ],
   },
 
@@ -692,6 +722,26 @@ export const QA_SECTIONS: QaSection[] = [
     title: "The admin console",
     blurb: "The platform side. This is where shops are created and where most of your test setup happens.",
     steps: [
+      {
+        id: "admin-dashboard",
+        title: "The platform dashboard",
+        summary: "What happened in a period, and what the platform is right now — on two separate rows.",
+        screen: "/admin",
+        required: "always",
+        what: [
+          "The first row is the PERIOD's, named in the heading above it: revenue collected (and how many payments), new tenants (and how many were kept from a demo), online orders (and what they came to), new customers. It opens on the last seven days — a single day of a platform paid by the month is mostly noughts.",
+          "The second row, Right now, is what the platform IS: total tenants, active subscriptions, active riders. It does not move when the period does.",
+          "The period is cut on the SERVER's calendar, like the billing ledger's date filter. The trend charts under it are the long view — twelve months of revenue, six of sign-ups — and say so; they do not follow the period.",
+          "Staff without the billing permission are not shown the money: the revenue tile is absent, not zero.",
+        ],
+        checks: [
+          { do: "Open the console.", expect: "The heading says Last 7 days and what it is compared with. No dates in the address." },
+          { do: "Pick This month, then step back with the arrow.", expect: "The first row changes to last month — the whole of it. The Right now row has not moved at all." },
+          { do: "Record a payment for a shop, then read Today.", expect: "Revenue collected goes up by it and the payment count by one." },
+          { do: "Hand out a demo shop from the landing page and read Today.", expect: "New tenants does NOT go up — a demo is not a business. Approve a Keep-this-shop request: \"1 kept from a demo\" appears under New tenants." },
+          { do: "Sign in as platform staff without Billing.", expect: "There is no Revenue collected tile, and the row is three tiles wide with no gap." },
+        ],
+      },
       {
         id: "admin-tenants",
         title: "Businesses, plans and billing",

@@ -8,16 +8,18 @@ import { tileGrid } from "./tone";
 
 interface Props {
   highlights: TenantDashboard["highlights"];
+  /** What the period is called — "Today", "This month", "1 – 9 Oct". */
+  period: string;
   caps: Capabilities;
   money: (n: string | number) => string;
 }
 
 /**
- * This month's leaders. Each entry is nullable in the contract — a shop that
+ * The period's leaders. Each entry is nullable in the contract — a shop that
  * only served walk-ins genuinely has no top customer — and a null card is
  * dropped rather than filled with a dash.
  */
-export function HighlightsRow({ highlights, caps, money }: Props) {
+export function HighlightsRow({ highlights, period, caps, money }: Props) {
   const cards: Array<{ key: string; label: string; name: string; meta: string; icon: ReactNode }> = [];
 
   const { top_product, top_category, top_customer, top_staff } = highlights;
@@ -69,7 +71,7 @@ export function HighlightsRow({ highlights, caps, money }: Props) {
   if (cards.length === 0) return null;
 
   return (
-    <SectionCard title="This month's leaders" icon={<ShootingStarIcon className="size-5" />}>
+    <SectionCard title="Leaders" subtitle={`By what they brought in · ${period}`} icon={<ShootingStarIcon className="size-5" />}>
       <div className={tileGrid(cards.length)}>
         {cards.map((card) => (
           <div

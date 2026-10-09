@@ -23,7 +23,11 @@
 export type FocusKey = "expiring" | "lowStock" | "pipeline" | "catalog";
 
 export interface TradeProfile {
-  /** What one completed transaction is called. */
+  /**
+   * What completed transactions are called — the noun alone. WHEN is the
+   * caller's to say: these once had the day written into them, and then a
+   * dashboard was asked about last month.
+   */
   orders: string;
   /** What the people on the other side of the counter are called. */
   customers: string;
@@ -36,8 +40,8 @@ export interface TradeProfile {
 }
 
 const DEFAULT: TradeProfile = {
-  orders: "Orders Today",
-  customers: "Customers Today",
+  orders: "Orders",
+  customers: "Customers",
   focus: ["pipeline", "lowStock", "catalog"],
 };
 
@@ -47,8 +51,8 @@ const PROFILES: Record<string, Partial<TradeProfile>> = {
    * waiting. Stock matters weekly, the pass matters now.
    */
   food: {
-    orders: "Orders Today",
-    customers: "Guests Today",
+    orders: "Orders",
+    customers: "Guests",
     focus: ["pipeline", "lowStock", "catalog"],
   },
 
@@ -66,7 +70,7 @@ const PROFILES: Record<string, Partial<TradeProfile>> = {
    * customer who cannot find sugar buys their whole basket somewhere else.
    */
   mart: {
-    customers: "Shoppers Today",
+    customers: "Shoppers",
     focus: ["lowStock", "expiring", "pipeline", "catalog"],
   },
 
@@ -82,14 +86,14 @@ const PROFILES: Record<string, Partial<TradeProfile>> = {
    * runs out of.
    */
   automotive: {
-    orders: "Jobs Today",
+    orders: "Jobs",
     focus: ["lowStock", "pipeline", "catalog"],
   },
 
   /** No shelf to run down — the catalog IS the offer. */
   services: {
-    orders: "Jobs Today",
-    customers: "Clients Today",
+    orders: "Jobs",
+    customers: "Clients",
     focus: ["catalog", "pipeline"],
   },
 

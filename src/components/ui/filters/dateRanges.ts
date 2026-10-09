@@ -57,6 +57,7 @@ export type RangeKey =
   | "this_month"
   | "last_month"
   | "this_quarter"
+  | "last_quarter"
   | "this_year";
 
 /** The presets a list offers, in the order somebody reads them. */
@@ -69,6 +70,7 @@ export const RANGE_KEYS: readonly RangeKey[] = [
   "this_month",
   "last_month",
   "this_quarter",
+  "last_quarter",
   "this_year",
 ];
 
@@ -82,6 +84,7 @@ const LABELS: Record<RangeKey, string> = {
   this_month: "This month",
   last_month: "Last month",
   this_quarter: "This quarter",
+  last_quarter: "Last quarter",
   this_year: "This year",
 };
 
@@ -149,6 +152,15 @@ export function resolveRange(key: RangeKey, today: Date = shopTodayDate()): Date
       const first = new Date(base.getFullYear(), Math.floor(base.getMonth() / 3) * 3, 1);
 
       return { from: iso(first), to: iso(base) };
+    }
+    case "last_quarter": {
+      const thisQuarter = Math.floor(base.getMonth() / 3) * 3;
+      // Month −3 of January is October of the year before, and day 0 of this
+      // quarter's first month is the last day of the one before it.
+      const first = new Date(base.getFullYear(), thisQuarter - 3, 1);
+      const last = new Date(base.getFullYear(), thisQuarter, 0);
+
+      return { from: iso(first), to: iso(last) };
     }
     case "this_year":
       return { from: iso(new Date(base.getFullYear(), 0, 1)), to: iso(base) };
@@ -255,6 +267,77 @@ export function formatRange(range: DateRange, today: Date = shopTodayDate()): st
   }
 
   return `${formatDay(from)}${year(start)} – ${formatDay(to)}${year(end)}`;
+}
+
+/**
+ * THE SAME PERIOD, ONE ALONG — earlier or later.
+ *
+ * A dashboard is read a period at a time: today, then yesterday, then the day
+ * before. Opening a menu for each step is three clicks to say "back one", so
+ * the period control carries two arrows and this is what they do.
+ *
+ * What "one along" means depends on the SHAPE of the period, not its length:
+ *
+ *   a calendar month, quarter or year — whole, or so far — moves by one of
+ *   those. September steps back to all of August (thirty-one days, not
+ *   thirty), and forward to October as far as it has got.
+ *
+ *   anything else moves by its own length: a day by a day, seven days by
+ *   seven, a picked fortnight by a fortnight.
+ *
+ * Forward stops at today. A step that would run past it is pulled back to end
+ * on it; a period that already ends today has nowhere later to go, and the
+ * answer is null — which is what disables the arrow.
+ */
+export function stepRange(range: DateRange, direction: -1 | 1, today: Date = shopTodayDate()): DateRange | null {
+  if (range.from === null || range.to === null) return null;
+
+  const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const from = fromIsoDate(range.from);
+  const to = fromIsoDate(range.to);
+  if (direction === 1 && to >= now) return null;
+
+  const months = calendarShape(from, to, now);
+
+  if (months !== null) {
+    // Never in the future: forward was refused above unless this period ended
+    // before today, and the unit after one that has ended has begun.
+    const first = new Date(from.getFullYear(), from.getMonth() + direction * months, 1);
+    const last = new Date(first.getFullYear(), first.getMonth() + months, 0);
+
+    return { from: toIsoDate(first), to: toIsoDate(last > now ? now : last) };
+  }
+
+  const days = Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+  const end = shift(to, direction * days);
+  // Pulled back to end today, keeping its length — "the next seven days" from
+  // last week is the seven ending today, not four days and three of nothing.
+  const last = end > now ? now : end;
+
+  return { from: toIsoDate(shift(last, -(days - 1))), to: toIsoDate(last) };
+}
+
+/**
+ * How many months wide a period's calendar shape is — 1, 3 or 12 — or null
+ * when it is just a run of days.
+ *
+ * It has the shape when it starts on the first day of the unit and ends on
+ * the unit's last day, or on today inside it ("this month", so far). A single
+ * day never has one: the 1st, alone, steps back to the 31st and not to the
+ * whole of the month before.
+ */
+function calendarShape(from: Date, to: Date, today: Date): 1 | 3 | 12 | null {
+  if (from.getDate() !== 1 || from.getTime() === to.getTime()) return null;
+
+  for (const months of [1, 3, 12] as const) {
+    if (from.getMonth() % months !== 0) continue;
+    const last = new Date(from.getFullYear(), from.getMonth() + months, 0);
+    const inside = to >= from && to <= last;
+
+    if (inside && (to.getTime() === last.getTime() || to.getTime() === today.getTime())) return months;
+  }
+
+  return null;
 }
 
 /** Whichever way round they were clicked, `from` is the earlier one. */
