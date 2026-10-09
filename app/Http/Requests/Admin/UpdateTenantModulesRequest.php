@@ -18,6 +18,10 @@ class UpdateTenantModulesRequest extends FormRequest
     {
         return [
             'modules' => ['required', 'array', 'min:1'],
+            // This shop's own price for an add-on, by the month. A key left
+            // out keeps the platform's price; nought is "thrown in free".
+            'addon_prices' => ['sometimes', 'nullable', 'array'],
+            'addon_prices.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
             'modules.*' => ['boolean'],
             // Only known module keys may be toggled.
             ...collect(array_keys($this->input('modules', [])))

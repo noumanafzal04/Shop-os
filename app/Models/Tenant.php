@@ -126,6 +126,7 @@ class Tenant extends BaseModel
             'delivery_fee' => 'decimal:2',
             'features' => 'array',
             'limits' => 'array',
+            'addon_prices' => 'array',
             'setup_completed' => 'boolean',
             'is_demo' => 'boolean',
             'demo_expires_at' => 'datetime',

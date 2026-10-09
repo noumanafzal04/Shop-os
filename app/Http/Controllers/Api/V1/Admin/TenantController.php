@@ -24,8 +24,10 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\TenantEntitlement;
 use App\Support\ApiResponse;
+use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
+use App\Support\PlatformSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -244,6 +246,63 @@ class TenantController extends Controller
     }
 
     /**
+     * What a shop of this trade is offered on this plan: what the plan
+     * includes, what can be added, and what is not for the trade at all.
+     *
+     * Asked by the create screen each time the trade or the plan changes, so
+     * the answer on screen is the server's and not a second copy of the rule.
+     */
+    public function moduleOffer(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'business_type' => ['required', 'string', 'max:60'],
+            'plan_id' => ['nullable', 'uuid'],
+        ]);
+
+        $plan = empty($data['plan_id']) ? null : Plan::query()->find($data['plan_id']);
+
+        return ApiResponse::ok(
+            ModulePackages::propose($data['business_type'], $plan) + [
+                'essential' => ModulePackages::essentialFor($data['business_type']),
+                'prices' => (object) ModulePackages::prices(),
+                'plan' => $plan === null ? null : ['id' => $plan->id, 'name' => $plan->name, 'price' => (float) $plan->price, 'months' => (int) $plan->billing_period_months],
+            ],
+        );
+    }
+
+    /** What each add-on costs a month. Read by anybody who can see a shop; set by the owner of the platform. */
+    public function modulePrices(): JsonResponse
+    {
+        return ApiResponse::ok((object) ModulePackages::prices());
+    }
+
+    public function updateModulePrices(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'prices' => ['present', 'array'],
+            'prices.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+        ]);
+
+        $unknown = array_diff(array_keys($data['prices']), Modules::keys());
+        if ($unknown !== []) {
+            return ApiResponse::error('There is no module called '.implode(', ', $unknown).'.', 422, [
+                'prices' => ['Only real modules can be priced.'],
+            ], 'VALIDATION_ERROR');
+        }
+
+        // A price of nought, or none, is "free to add" — kept off the list
+        // rather than stored as a zero that reads like a decision.
+        $prices = collect($data['prices'])
+            ->filter(fn ($price) => $price !== null && (float) $price > 0)
+            ->map(fn ($price) => round((float) $price, 2))
+            ->all();
+
+        PlatformSettings::put(['module_addon_prices' => $prices], $request->user()->id);
+
+        return ApiResponse::ok((object) ModulePackages::prices(), 'Add-on prices saved');
+    }
+
+    /**
      * Change which modules a tenant has. This is the only lever on a shop's
      * capability — no plan grants or revokes one, so nothing can undo what is
      * set here except an admin setting it again.
@@ -256,6 +315,20 @@ class TenantController extends Controller
         $tenant->applyModules(
             collect($request->validated('modules'))->only(Modules::keys())->all(),
         );
+
+        // The shop's own price for an add-on travels with the choice of
+        // add-ons, because it is decided at the same moment: "they can have
+        // Customers & Khata, at 300 rather than 500". Only real modules, and
+        // an empty answer clears the price back to the platform's.
+        if ($request->has('addon_prices')) {
+            $own = collect($request->validated('addon_prices') ?? [])
+                ->only(Modules::keys())
+                ->filter(fn ($price) => $price !== null && $price !== '')
+                ->map(fn ($price) => round((float) $price, 2))
+                ->all();
+
+            $tenant->forceFill(['addon_prices' => $own ?: null])->save();
+        }
 
         return ApiResponse::ok(new TenantResource($tenant->fresh()->load('city', 'plan')), 'Modules updated');
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Plan;
+use App\Support\ModulePackages;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -57,6 +58,10 @@ class PlanResource extends JsonResource
                 'staff' => PlanLimits::REGISTRY['staff']['default'],
                 'registers' => PlanLimits::REGISTRY['registers']['default'],
             ],
+            // What the plan includes, and whether that is its own list or its
+            // rung's. A starting point and a label: see ModulePackages.
+            'modules' => ModulePackages::ofPlan($this->resource),
+            'modules_own' => is_array($this->modules),
             'is_active' => $this->is_active,
             // A bespoke deal for one business rather than a rung on the ladder.
             'is_custom' => $this->is_custom,

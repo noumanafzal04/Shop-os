@@ -47,6 +47,10 @@ class PlatformSettings
             // zero so a platform can pause billing without losing the number
             // it had agreed with everybody.
             'commission_enabled' => false,
+
+            // What an add-on costs a month — module key => rupees. A module
+            // with no price here is free to add. See ModulePackages::bill().
+            'module_addon_prices' => [],
         ];
     }
 
@@ -59,6 +63,8 @@ class PlatformSettings
             'commission_rate' => ['sometimes', 'numeric', 'min:0', 'max:50'],
             'commission_base' => ['sometimes', 'in:goods,total'],
             'commission_enabled' => ['sometimes', 'boolean'],
+            'module_addon_prices' => ['sometimes', 'array'],
+            'module_addon_prices.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
         ];
     }
 

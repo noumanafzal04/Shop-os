@@ -38,6 +38,7 @@ class Plan extends Model
         'max_offline_days',
         'grace_orders_month',
         'retention_months',
+        'modules',
         'is_active',
         'is_custom',
     ];
@@ -58,6 +59,9 @@ class Plan extends Model
             'max_offline_days' => 'integer',
             'grace_orders_month' => 'integer',
             'retention_months' => 'integer',
+            // A list of module keys, or null for "what this rung includes".
+            // See ModulePackages: a starting point and a label, never the gate.
+            'modules' => 'array',
         ];
     }
 

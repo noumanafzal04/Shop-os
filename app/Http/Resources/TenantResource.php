@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
+use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
@@ -73,6 +74,16 @@ class TenantResource extends JsonResource
             // What its type would have proposed — so the admin can see at a
             // glance which modules were a deliberate choice for this shop.
             'default_modules' => Modules::defaultsFor($this->business_type),
+            // How this shop's modules sit against its plan, and what that
+            // comes to: which are the plan's, which were added for this shop,
+            // and what one period costs with them. Only where the plan has
+            // been loaded — a list of fifty shops is not fifty plan lookups.
+            'package' => $this->when(
+                $this->resource->relationLoaded('plan'),
+                fn () => ModulePackages::standing($this->business_type, $this->plan, $this->features ?? [])
+                    + ['offer' => collect(ModulePackages::propose($this->business_type, $this->plan))->except('modules')->all()]
+                    + ['bill' => ModulePackages::bill($this->resource), 'own_prices' => (object) ($this->addon_prices ?? [])],
+            ),
             // Live usage-vs-limit — detail view only (loads `users`), to keep
             // the tenant list free of per-row count queries.
             'limits_usage' => $this->when(

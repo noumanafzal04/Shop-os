@@ -1241,6 +1241,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             // Module catalog for the Module Management screen
             Route::get('/modules', [TenantController::class, 'moduleCatalog'])->middleware('permission:tenants.view');
+            // What a trade is offered on a plan, and what an add-on costs.
+            Route::get('/modules/offer', [TenantController::class, 'moduleOffer'])->middleware('permission:tenants.view');
+            Route::get('/modules/prices', [TenantController::class, 'modulePrices'])->middleware('permission:tenants.view');
+            Route::put('/modules/prices', [TenantController::class, 'updateModulePrices'])->middleware('role:super_admin');
 
             // Tenant management — permission-gated per action
             Route::prefix('tenants')->group(function (): void {

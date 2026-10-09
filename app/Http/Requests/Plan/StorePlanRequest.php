@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Plan;
 
+use App\Support\Modules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -37,6 +38,11 @@ class StorePlanRequest extends FormRequest
             'retention_months' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1200'],
             'is_active' => ['sometimes', 'boolean'],
             'is_custom' => ['sometimes', 'boolean'],
+            // Which modules the plan includes. Null puts it back on what its
+            // rung of the ladder includes; an empty list is a plan that
+            // includes nothing beyond a trade's essentials.
+            'modules' => ['sometimes', 'nullable', 'array'],
+            'modules.*' => ['string', Rule::in(Modules::keys())],
         ];
     }
 }
