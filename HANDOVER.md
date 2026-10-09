@@ -8510,3 +8510,57 @@ Minimum order and Free delivery above; `MyOrdersPage` Delivery/Coupon lines and
 
 **Next for the journey:** finance. Then the product import per trade and per
 module (the user's request of 2026-10-08, kept for the end).
+
+## Any shop's file comes in — the import engine, 2026-10-09
+
+Decision: `shopos-any-shops-file`. Asked for by the owner (import problems per
+business type; fields by trade AND by assigned modules).
+
+**Server.** `ImportProductsAction` rewritten — one engine: Excel or CSV,
+preview by rollback (`dry_run`), category choices and column mapping as JSON
+beside the file, `failed_rows` / `warnings` / `ignored_columns` /
+`unknown_categories` in the answer. `App\Support\Spreadsheet\{Zip, XlsxReader,
+XlsxWriter, Tabular}` (no new composer package, no new extension).
+`App\Support\Import\{Cell, CategoryPaths, ProductSheet}`. `ProductCsv` gained
+`columnsFor`, `whyNot`, `importableTypes`, `fieldFor` and three columns (Pack
+Size, Expiry Date, Batch Number). Template and export take `?format=xlsx|csv`;
+export takes `?shape=shop` and writes sizes and packs as rows. No migration.
+
+**Panel.** `catalog/components/ImportProductsModal.tsx` (file → check →
+import), `catalog/importFile.ts`, an Export menu on Products.
+
+**Tests.** `AnyShopImportsItsCatalogTest`, `SpreadsheetTest`,
+`importFile.test.ts`, `e2e/import-catalog.spec.ts` (desktop).
+
+**Not built.** Chunked/queued import for files over 2,000 rows; several
+barcodes for one pack; a label per pack.
+
+**Asked for next by the owner (2026-10-09), in this order:** the product page
+and label/barcode screens (tidy by modules; label settings onto the labels
+page; products beside a paginated sheet preview); then the demo seeder and
+shareable demo shops (`shop1@johartown.demo` a cafe with 500+ items, sales,
+tables and kitchen tickets; `shop2` a mart; one per trade) and a second super
+admin `admin@trueserve.app`; the DigitalOcean / database audit; finance when
+asked.
+
+## Labels: the sheet beside the list — 2026-10-09
+
+Decision: `shopos-the-sheet-beside-the-list`. Asked for by the owner.
+
+**Server.** Six label settings in `ShopSettings` (defaults + rules). No migration.
+
+**Panel.** `LabelsPage` rewritten: products (and their packs and sizes) on the
+left, the A4 sheet as it prints on the right with a count and a pager;
+settings as drop-downs on the page, saved for the shop.
+`catalog/labels/{sheet,prefs}.ts`. `code128.ts` encodes digits in Set C.
+Products has a Labels button; Settings → Barcodes points to the labels screen.
+
+**Tests.** `sheet.test.ts`, `prefs.test.ts`, `code128.test.ts`,
+`e2e/labels-sheet.spec.ts`; journey G12 / G9 moved with the settings.
+
+**Stopped on the owner's word:** the item form's tidy-up — nothing in
+`ProductFormPage.tsx` was changed. Two things were about to be: the ragged
+three-column grid on Codes & packs (unit chips push a column down, "Sold by"
+sits alone), and the tab called "Media & online" in a shop that sells nothing
+online.
+

@@ -383,11 +383,11 @@ the delivery charge stays on the order and is the rider's — P4 and P5 assert
 it. And a bake nobody counted is out of stock, correctly: stage A gives this
 shop the inventory module.
 
-Browser mutations on P2/P3/P3b: 7 run, 7 caught (checkout total, delivery
-shown as free, an order below the minimum placeable, no minimum message, no
-free-delivery hint, the shop page hiding its minimum and its free threshold).
-Six were left unrun when the work was stopped: the category key, My orders'
-delivery line and status words, collection charged delivery, the minimum never
-short, and the server's category name — runner `mut/e2e7.py`, start at 7.
+Browser mutations on P2/P3/P3b: 13 run, 13 caught — the checkout total,
+delivery shown as free, an order below the minimum placeable, no minimum
+message, no free-delivery hint, the shop page hiding its minimum and its free
+threshold (2026-10-08); the category key, My orders' delivery line and status
+words, collection charged delivery, the minimum never short, and the server's
+category name (2026-10-09, the six left when the work was stopped).
 
 Next: finance (when the owner asks for it).
