@@ -8706,3 +8706,22 @@ Decision: `docs/decisions/shopos-the-admin-keeps-a-demo.md`.
   was renamed Standard, so it has been null for weeks. Now it says so. A kept
   shop has paid nothing and is on no plan until an admin gives it one.
 - No migration.
+
+## Who owes the platform — the commission screen, 2026-10-09
+
+Decision: `docs/decisions/shopos-who-owes-the-platform.md`.
+
+- `GET /admin/commission` is **paginated** (25) with `search`, `standing`
+  (`unbilled|invoiced|clear`), `rate` (`own|platform`), `sort`
+  (`owed|unbilled|invoiced|name`). Rows carry BOTH piles as money
+  (`outstanding_amount`, `unpaid_amount`, `owed`); `meta.summary` has the four
+  figures. Three queries regardless of size (was 2 per shop).
+- A figure beside a filter is counted with every other filter applied and not
+  its own (`shops($request, $except)`).
+- Panel: kit header + four `StatTile`s (three are filters) + `FilterBar`, all
+  URL-backed; `Pager`. The shop panel raises an invoice for a CHOSEN period and
+  says what it would bill first (`data-testid="invoice-would-bill"`).
+- The platform-rate card is under the list; "commission is off" is at the top.
+- `check-circle.svg` carries its own green — it is a blank square on a green
+  chip. Use `CheckLineIcon` inside a filled `StatTile`.
+- No migration.
