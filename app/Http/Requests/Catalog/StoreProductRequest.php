@@ -97,6 +97,13 @@ class StoreProductRequest extends FormRequest
             'units.*.factor' => ['required_with:units', 'numeric', 'min:0.001'],
             'units.*.price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'units.*.barcode' => ['nullable', 'string', 'max:191'],
+            // Which pack this row IS, so an edit updates it where it stands
+            // rather than replacing it — see SyncProductUnitsAction.
+            'units.*.id' => ['nullable', 'uuid'],
+            // Every other code printed on the pack. Absent = as it was.
+            'units.*.barcodes' => ['sometimes', 'nullable', 'array', 'max:10'],
+            // Nullable: an emptied box arrives as null, and is simply dropped.
+            'units.*.barcodes.*' => ['nullable', 'string', 'max:191'],
             // Combo/deal contents — ONLY a deal bundles other products.
             'combo_items' => [$isDeal ? 'nullable' : 'prohibited', 'array', 'max:30'],
             // 'distinct': the same component twice would decrement its stock

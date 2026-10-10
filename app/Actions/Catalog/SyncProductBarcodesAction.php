@@ -43,7 +43,10 @@ class SyncProductBarcodesAction
         // barcode is one of those rows. Deleting them all here would wipe every
         // size's code the moment somebody edited the alternates, which is a
         // different form of the same bug this file was written to prevent.
-        $product->barcodes()->whereNull('variant_id')->delete();
+        //
+        // And not a PACK's codes either, for the same reason: those rows mean a
+        // carton, and are written by SyncProductUnitsAction.
+        $product->barcodes()->whereNull('variant_id')->whereNull('product_unit_id')->delete();
         foreach ($clean as $barcode) {
             $product->barcodes()->create(['tenant_id' => $tenantId, 'barcode' => $barcode]);
         }

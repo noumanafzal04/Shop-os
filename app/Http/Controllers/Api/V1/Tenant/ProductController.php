@@ -30,6 +30,7 @@ use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class ProductController extends Controller
@@ -40,7 +41,7 @@ class ProductController extends Controller
     public function index(Request $request, BranchContext $branch): JsonResponse
     {
         $products = Product::query()
-            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
+            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     // Match name, brand, generic/salt (pharmacy), SKU, primary
@@ -265,8 +266,8 @@ class ProductController extends Controller
 
         $products = Product::query()
             ->with([
-                'taxGroup:id,name', 'barcodes:id,product_id,variant_id,barcode',
-                'variants', 'units',
+                'taxGroup:id,name', 'barcodes:id,product_id,variant_id,product_unit_id,barcode',
+                'variants', 'units.codes:id,product_unit_id,barcode',
             ])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
@@ -305,7 +306,7 @@ class ProductController extends Controller
             // computed from these and the selection used to stop at the name,
             // so the figure could not be produced from the row it was already
             // loading.
-            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,barcode', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
+            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
             ->findOrFail($id);
 
         return ApiResponse::ok(array_merge($product->toArray(), [
@@ -478,8 +479,21 @@ class ProductController extends Controller
     public function destroy(string $id): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
-        $product->variants()->delete(); // soft
-        $product->delete();             // soft
+
+        DB::transaction(function () use ($product): void {
+            // ITS CODES GO WITH IT.
+            //
+            // The item's own barcode is freed by the soft delete — every
+            // lookup for a code skips a deleted item. Its OTHER codes and its
+            // packs are rows of their own, and were left standing: a shop that
+            // deleted "Biscuits (old)" and carded the item again was told the
+            // carton's barcode was "already used by another product", by a
+            // product it could no longer find anywhere to take the code off.
+            $product->barcodes()->delete();
+            $product->units()->delete();    // soft
+            $product->variants()->delete(); // soft
+            $product->delete();             // soft
+        });
 
         return ApiResponse::noContent('Item deleted');
     }

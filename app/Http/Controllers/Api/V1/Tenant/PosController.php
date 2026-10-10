@@ -91,6 +91,24 @@ class PosController extends Controller
                 ->where('product_id', $product->id)
                 ->whereNotNull('variant_id')
                 ->value('variant_id');
+
+            // ── …or to ONE PACK ─────────────────────────────────────────
+            //
+            // The same trap, one row over. A carton's SECOND code is a row in
+            // `barcodes` too, so the parent is found here and the pack lookup
+            // further down — which only runs when nothing was found — never
+            // gets its turn. Without this the till rings one piece, at one
+            // piece's price, for a code that is printed on twenty-four.
+            //
+            // Only a pack the item still has: `units` is the live list.
+            $packId = ProductBarcode::query()
+                ->where('barcode', $code)
+                ->where('product_id', $product->id)
+                ->whereNotNull('product_unit_id')
+                ->value('product_unit_id');
+            if ($packId !== null && $product->units->contains('id', $packId)) {
+                $unitId = $packId;
+            }
         }
 
         if ($product === null) {

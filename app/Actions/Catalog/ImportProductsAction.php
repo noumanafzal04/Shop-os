@@ -894,6 +894,11 @@ class ImportProductsAction
                     'price' => $data['price'] ?? null,
                     'barcode' => $data['barcode'] ?? null,
                 ];
+                // The pack's OTHER codes, when the row gives any. Left off
+                // otherwise — to SyncProductUnitsAction an absent list means
+                // "as it was", so a file that says nothing of them does not
+                // strip every carton of its second code.
+                $others = ($data['barcodes'] ?? []) !== [] ? ['barcodes' => $data['barcodes']] : [];
 
                 $at = null;
                 foreach ($desired as $i => $have) {
@@ -910,10 +915,10 @@ class ImportProductsAction
                         'factor' => $pack['factor'],
                         'price' => $pack['price'] ?? $desired[$at]['price'],
                         'barcode' => $pack['barcode'] ?? $desired[$at]['barcode'],
-                    ];
+                    ] + $others;
                     $accepted[] = [$row, 'updated'];
                 } else {
-                    $desired[] = $pack;
+                    $desired[] = $pack + $others;
                     $accepted[] = [$row, 'created'];
                 }
             }

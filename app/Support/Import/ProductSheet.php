@@ -44,7 +44,7 @@ final class ProductSheet
         'parent_sku' => 'Only for a SIZE or a PACK of another item: the SKU of the item it belongs to.',
         'pack_size' => 'Only for a PACK: how many it holds (a carton of 24 is 24). Name is what the pack is called, Price is for the whole pack.',
         'barcode' => 'The barcode printed on it. This column is Text — leave it that way, or Excel rounds long numbers.',
-        'barcodes' => 'Any other barcodes the same item carries, with | between them.',
+        'barcodes' => 'Any other barcodes the same item carries, with | between them. On a PACK row, the other codes printed on that pack.',
         'plu_code' => 'The scale code for an item sold by weight (1 to 7 digits).',
         'brand' => 'The maker or brand name.',
         'category' => 'One of your categories — pick from the list. A sub-category is written Parent > Child. One you do not have yet is asked about when you import; it is never made from a spelling mistake.',
@@ -186,7 +186,9 @@ final class ProductSheet
                 'item_type' => $p->item_type,
                 'sku' => $p->sku,
                 'barcode' => $p->barcode,
-                'barcodes' => $p->barcodes->whereNull('variant_id')->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
+                // The piece's own other codes — not a size's, and not a pack's:
+                // each of those is written on its own row below.
+                'barcodes' => $p->barcodes->whereNull('variant_id')->whereNull('product_unit_id')->pluck('barcode')->reject(fn ($b) => $b === $p->barcode)->implode('|'),
                 'plu_code' => $p->plu_code,
                 'brand' => $p->brand,
                 // The PATH, so two shelves with one name come back as two.
@@ -246,6 +248,9 @@ final class ProductSheet
                     'parent_sku' => $p->sku,
                     'pack_size' => (float) $u->factor,
                     'barcode' => $u->barcode,
+                    // Every other code printed on the pack, as the item's own
+                    // row has for the piece.
+                    'barcodes' => $p->barcodes->where('product_unit_id', $u->id)->pluck('barcode')->implode('|'),
                     'price' => $u->price,
                 ]);
             }

@@ -259,7 +259,7 @@ class CreateProductAction
         }
 
         return [
-            'product' => $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'),
+            'product' => $product->load('category', 'variants', 'images', 'collections', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'),
             'warnings' => $warnings,
         ];
     }

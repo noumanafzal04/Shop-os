@@ -191,8 +191,29 @@ class PosProjection
                 : [],
 
             // Alternate codes. The primary `barcode` above is separate.
+            //
+            // A PACK's extra codes are NOT in this list. A till built before
+            // packs could carry one reads every entry here as "one piece" —
+            // handed a carton's second code it would ring a single at a
+            // single's price, offline, with nobody to say otherwise. Left out,
+            // that till answers "no item found", which is a refusal a cashier
+            // can see. They travel in `codes`, with what they mean.
             'barcodes' => $product->relationLoaded('barcodes')
-                ? $product->barcodes->pluck('barcode')->values()->all()
+                ? $product->barcodes->whereNull('product_unit_id')->pluck('barcode')->values()->all()
+                : [],
+
+            // Every extra code that means something NARROWER than the item:
+            // one size of it, or one pack of it. The list above cannot say
+            // which, so a till working from it alone asks "which size?" while
+            // holding the answer, and could not tell a carton from a piece.
+            'codes' => $product->relationLoaded('barcodes')
+                ? $product->barcodes
+                    ->filter(fn ($b) => $b->variant_id !== null || $b->product_unit_id !== null)
+                    ->map(fn ($b): array => [
+                        'code' => $b->barcode,
+                        'variant_id' => $b->variant_id,
+                        'unit_id' => $b->product_unit_id,
+                    ])->values()->all()
                 : [],
 
             // The cover photo's SMALL square, and only that. A food shop's POS

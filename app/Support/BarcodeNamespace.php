@@ -85,6 +85,9 @@ class BarcodeNamespace
             ->where('barcode', $barcode)
             ->where(function ($q) use ($product, $exceptVariant): void {
                 $q->where('product_id', '!=', $product->id)
+                    // A code on one of this item's own PACKS is not also a
+                    // piece's or a size's: the first means twenty-four.
+                    ->orWhereNotNull('product_unit_id')
                     ->orWhere(fn ($q) => $exceptVariant === null
                         ? $q->whereNotNull('variant_id')
                         : $q->whereNotNull('variant_id')->where('variant_id', '!=', $exceptVariant));
@@ -103,6 +106,48 @@ class BarcodeNamespace
                 "Barcode {$barcode} is already used as another item's code (product, variant, or pack).",
                 'BARCODE_TAKEN',
             );
+        }
+    }
+
+    /**
+     * Refuse a second code for a PACK that already means something else.
+     *
+     * Stricter than the rule for a pack's first code, on purpose. That one has
+     * always let a pack repeat its own item's barcode — the lookup reaches the
+     * piece first, so nothing rings wrong, and refusing it now would stop a
+     * shop saving an item it has had for a year. An EXTRA code has no history
+     * to respect, so it gets the plain rule: one code, one thing. Not this
+     * item's own barcode, not one of its other codes, not another pack's.
+     *
+     * `$exceptUnit` is the pack the code is being put ON: its own rows are
+     * being replaced, and its own first code is no clash (a repeat of that is
+     * dropped by the caller, not refused).
+     */
+    public static function assertFreeForPack(string $barcode, Product $product, ?string $exceptUnit): void
+    {
+        // Any item's own barcode — this one's included. The piece and the
+        // carton cannot share a number: the till would have to guess.
+        $clashesPrimary = Product::query()->where('barcode', $barcode)->exists();
+
+        $clashesAlternate = ProductBarcode::query()
+            ->where('barcode', $barcode)
+            ->where(fn ($q) => $q->whereNull('product_unit_id')
+                ->when($exceptUnit !== null, fn ($q) => $q->orWhere('product_unit_id', '!=', $exceptUnit)))
+            ->exists();
+
+        $clashesVariant = ProductVariant::query()->where('sku', $barcode)->exists();
+
+        $clashesUnit = ProductUnit::query()
+            ->where('barcode', $barcode)
+            ->when($exceptUnit !== null, fn ($q) => $q->whereKeyNot($exceptUnit))
+            ->exists();
+
+        if ($clashesPrimary || $clashesAlternate || $clashesVariant || $clashesUnit) {
+            $whose = $clashesPrimary && $product->barcode === $barcode
+                ? "this item's own barcode — that one means a single piece"
+                : 'already used as another code in your shop (an item, a size, or a pack)';
+
+            throw DomainException::unprocessable("Barcode {$barcode} is {$whose}.", 'BARCODE_TAKEN');
         }
     }
 }

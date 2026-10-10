@@ -90,7 +90,7 @@ class UpdateProductAction
             }
         });
 
-        $product->load('category', 'variants', 'images', 'collections', 'units', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name');
+        $product->load('category', 'variants', 'images', 'collections', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name');
 
         if ($product->cost !== null && (float) $product->price < (float) $product->cost) {
             $warnings[] = 'Selling price is below cost — this item sells at a loss.';
