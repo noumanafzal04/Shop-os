@@ -8957,7 +8957,17 @@ Decision: `docs/decisions/shopos-every-list-says-which-nothing.md`. Panel only.
   `results.loading`.
 - **e2e:** `e2e/list-failed.spec.ts` — 14 shop lists, reads only, runs with
   `--no-deps`.
-- **NOT DONE:** ~30 card/tile/panel lists that do not use `<TableEmpty>`.
+- **Lists that are not tables: `<ListEmpty from={query} what="…">`**
+  (`common/ui/ListEmpty.tsx`) wrapped round the empty state — 62 places.
+  The guard also fails for any `) : rows.length === 0 ? (` under an
+  `x.isLoading ?` / `x.isPending ?` that does not open with `<ListEmpty>` or
+  `<TableEmpty>`, or is told a different query. Exemptions are named in the
+  test with a reason and must still exist. `CategoryManager` and the billing
+  `ChaseList` take `asked`.
+- **Billing:** when `/admin/billing/summary` is refused or fails, the page
+  draws `ListEmpty what="the billing figures"` and NONE of the cards
+  (`noFigures`). The ledger is its own request and still draws.
+- **e2e:** also `e2e/admin-list-failed.spec.ts` (admin project).
 - **Dev database:** the e2e owner's shop, *Sweep Mart*, ran out of
   subscription + grace on 2026-10-10 (~17:40 PKT). Every shop-side e2e that
   WRITES now gets 403 `SUBSCRIPTION_EXPIRED`, starting with
