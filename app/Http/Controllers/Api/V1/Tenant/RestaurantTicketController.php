@@ -30,6 +30,7 @@ use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
 use App\Support\ShopDay;
+use App\Support\TabBill;
 use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -164,6 +165,38 @@ class RestaurantTicketController extends Controller
             'shopName' => $this->context->get()?->business_name,
             'ticket' => $ticket->load('table'),
             'kot' => $kot->load('items'),
+        ]);
+    }
+
+    /**
+     * "Bill please" — what the table owes, on paper, before it pays.
+     *
+     * A read: it changes nothing, so anybody who may see the tab may print it
+     * — the waiter whose table it is, or the manager covering the floor. The
+     * figures are TabBill's, which is the sale path's own rule for a tab, so
+     * the paper says what the till will ask for.
+     *
+     * Refused for a tab that is not open (its invoice is the paper for that)
+     * and for one with nothing left to pay.
+     */
+    public function bill(RestaurantTicket $ticket)
+    {
+        if (! $ticket->isOpen()) {
+            throw DomainException::conflict('This tab is closed — print its invoice instead.', 'TICKET_NOT_OPEN');
+        }
+
+        $tenant = $this->context->get();
+        $bill = TabBill::of($ticket, (float) ($tenant?->setting('default_tax_rate', 0) ?? 0));
+
+        if ($bill['lines'] === []) {
+            throw DomainException::unprocessable('Nothing on this tab is waiting to be paid.', 'NOTHING_TO_BILL');
+        }
+
+        return response()->view('restaurant.bill', [
+            'tenant' => $tenant,
+            'settings' => $tenant?->allSettings() ?? [],
+            'ticket' => $ticket->load(['table', 'waiter:id,name']),
+            'bill' => $bill,
         ]);
     }
 

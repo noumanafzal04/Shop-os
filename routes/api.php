@@ -1038,6 +1038,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::get('tickets', [RestaurantTicketController::class, 'index']);
                     Route::post('tickets', [RestaurantTicketController::class, 'store']);
                     Route::get('tickets/{ticket}', [RestaurantTicketController::class, 'show']);
+                    // "Bill please": what the table owes, on paper, before it
+                    // pays. A read — anybody who may see the tab may print it.
+                    Route::get('tickets/{ticket}/bill', [RestaurantTicketController::class, 'bill']);
                     Route::post('tickets/{ticket}/items', [RestaurantTicketController::class, 'addItems']);
                     // More, fewer, or a kitchen note — while the line is
                     // still unsent. Before this a tab could only add and void.
