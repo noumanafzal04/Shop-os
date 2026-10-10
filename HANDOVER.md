@@ -8766,3 +8766,65 @@ Decision: `docs/decisions/shopos-every-console-screen-says-which-it-is.md`.
   that scrolls to `#details #modules #limits #offline #people #payments`
   (`scroll-mt-36` on each). NOT tabs — `journey/11` reads the whole page.
 - No migration.
+- **Every `e2e/admin-*.spec.ts` carries the `roomToWork` hook** (`e2e/api.ts`):
+  all of them sign in as ONE admin and the API allows a person 240 requests a
+  minute. Without it the ninth spec file tipped the limit and a different spec
+  failed each run. A new admin spec needs the same `beforeEach`.
+
+## A business that only keeps books — journey stage Q, 2026-10-10
+
+Decisions: `docs/decisions/shopos-a-business-that-only-keeps-books.md`,
+`docs/decisions/shopos-first-paint-asks-nobody.md`. Cases and run:
+`docs/qa/journey/CASES.md` (Stage Q), `RUNS.md`.
+
+**The rule: ask what the business HAS, never what trade it is called, and ask
+it in one place.**
+
+- Panel: `common/tenant/kindOfBusiness.ts` → `sells`, `hasTill`,
+  `buysFromSuppliers`, `sellsOnline`, `noun` ("shop" | "business"). Wording
+  that depends on it lives in a small tested module per screen and the page
+  prints what comes back: `expenses/booksWords`, `income/cashbookShape`,
+  `income/ledgerShape`, `shop/subscriptionRows`, `shop/settingsWords`,
+  `admin/tradePhrase`, `activity/words`. A new sentence about a till, a
+  drawer or a sale goes through one of them.
+- Server: `BooksDrawer::hasTill()`; `untouchedDrawerWarning($user, …)` returns
+  NULL for a business with no till — callers `array_filter` their warnings.
+  `PlanLimits` rows carry `needs`, and the snapshot `kind` (count | policy) and
+  `applies`. `/commission` carries `applies`.
+- `BusinessTypes::defaultIncomeCategories(?string $code)` — a type may name
+  its own (`income_categories` in its template); only `finance` does. Seeded
+  at setup; no migration for existing finance businesses.
+- **Dashboard `books` block** (`DashboardService::booksWaiting`): `bills_due`,
+  `income_due` ({count, amount, oldest}), `over_budget` ({count, over_by,
+  categories}). Null without the expenses module. Panel:
+  `dashboard/components/shop/booksWaiting.ts` makes both the rows and the
+  head-of-page sentence from it. `BudgetStanding::forMonth()` is the one
+  answer the Budgets tab and the dashboard read.
+- Expenses and Income open on `?tab=` (`common/routing/tabInUrl.ts`).
+- Cashbook: `ReportWindow` + `useReportWindow` (shared with Reports) instead of
+  four buttons; "Open ledger" → `/tenant/ledger?from=&to=`.
+- Ledger: `MoneyFilterBar periodIsGiven` — the period is not a chip, not
+  counted, and survives Clear all. The page REPLACES its filters with what the
+  bar hands back (merging was why Clear all cleared nothing).
+  `activeFilterCount`: a date range is one filter.
+- `/tenant/sales` sits behind `RequireFeature ["pos","marketplace","products",
+  "services"]` — the server's own list; `src/test/doorsTheServerShuts.test.ts`.
+- Help: a block may say who it is for — `needs` (ANY on) / `lacks` (NONE on);
+  `articlesFor` filters bodies. Used by cashbook, ledger, expenses, income,
+  dashboard, subscription.
+- **Fonts are local.** `src/assets/fonts/outfit-latin{,-ext}.woff2` +
+  `@font-face` in `index.css`; nothing is imported from Google.
+  `src/test/firstPaintAsksNobody.test.ts`.
+- `MapPicker` container is `isolate` (Leaflet's z-indexes stay inside it) and
+  takes `place` ("shop" by default).
+- Journey stage 28 makes ITS OWN business (Q1 calls `begin()`); see
+  `panel/e2e/journey/README.md`. Q2 can only run once per business.
+- Backend 3,494 tests exit 0 · vitest 208 files / 2,366 · build 0 · stage Q
+  13/13 · admin e2e 30/30 · shop chrome + dashboard-period (desktop + phone)
+  93/93 · mutations 106/106.
+- No migration.
+
+Not done, on purpose: the plan's own description still reads as a shop's on a
+books-only business (it is the admin's text); the shop side's screens have no
+`h1`; the income form reports a warning as a toast while the expense form
+holds it in the form.

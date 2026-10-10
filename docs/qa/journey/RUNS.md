@@ -390,4 +390,59 @@ threshold (2026-10-08); the category key, My orders' delivery line and status
 words, collection charged delivery, the minimum never short, and the server's
 category name (2026-10-09, the six left when the work was stopped).
 
-Next: finance (when the owner asks for it).
+## Stage Q — an office that only keeps its books (2026-10-10)
+
+`JOURNEY_TRADE=finance … e2e/journey/28`, on a business the stage makes for
+itself — "QA Finance 1010-124849", Basic, the Expense & Income module and
+nothing else. The one trade whose subject is what is NOT switched on, so it
+cannot begin on the everything-on shop stage 01 makes.
+
+| Stage | Cases | Result |
+|---|---|---|
+| Q — a books-only business is made, the owner walks in, its menu, what it earns, money in, bills, the rent comes round, a ceiling passed, cashbook, ledger, report and front page, subscription and settings, a mistake put right | 13 | 13 passed (after the fixes below), 1.6 minutes |
+
+Nothing was broken. Every request answered 200 and the backend's own
+books-only walkthrough was green. What was wrong was that the product it had
+bought spoke to it as a shop with a till, on every screen — and two things it
+needed to be told were not on its front page at all.
+
+| # | Found at | What an office met | Fix |
+|---|---|---|---|
+| 98 | Q1 | "Only what a **finance manager shop** can use" (and, for other trades, "a auto & tyre shop", "a retail store shop") | each trade says what it is: "a books-only business", "an auto workshop" |
+| 99 | Q2 | Setup called it a business and its map still asked for "your shop address"; the look was saved "for your shop" | the map and the theme panel take the noun |
+| 100 | Q2 | **"Nothing needs you right now" directly above "Attention needed · 1 to look at"** | the head and the panel read the same figures |
+| 101 | Q2 | No tile for recording income — half of everything it does | Record income, first of its four |
+| 102 | Q3 | **`/tenant/sales`, typed, drew the whole Sales screen around two refused requests** | behind the server's own module gate |
+| 103 | Q3 | "Your shop" on the rail; Recent activity: "updated a tenant", "created a user" | "Your business"; the Activity page's own words |
+| 104 | Q4 | Income: "money in **that isn't a sale**… your sales revenue is counted automatically". Expenses: "…your drawer" | said by what the business has |
+| 105 | Q4 | **No income category for anything it earns** — Interest, Owner Investment, Rent Received, Supplier Refund, Other | Client Payments, Service Fees, Sales, Commission, Donations & Grants |
+| 106 | Q5, Q6 | **Every cash entry: "you have no shift open — the drawer was not adjusted"** — the bill form held open; on income it REPLACED "Income recorded". "Cash (from till)" | a business with no till is handed no drawer sentence; "Cash" |
+| 107 | Q7 | **A bill that had fallen due was on no front page** — a badge on a tab of another screen | the head of the dashboard, and a row that opens the Recurring tab |
+| 108 | Q8 | **A budget passed was said once, to whoever typed the bill, and nowhere after** | the head of the dashboard, and a row that opens Budgets |
+| 109 | Q9 | Cashbook: Sales and Refunds columns, empty for ever; "use the POS shift close"; four fixed windows | Income · Expenses; any window, the tax year and a custom range among them |
+| 110 | Q10 | Ledger: chips for Sales, Refunds and Supplier paid | the kinds of line it can have |
+| 111 | Q10 | **"Clear all" on the ledger cleared nothing** | the page replaces its filters, not merges them |
+| 112 | Q10 | **The ✕ on the ledger's period sent a custom period with no dates — refused by the server.** A range counted as two filters; "Nothing moved in this period" could never be reached | the period is the page's subject, not a filter |
+| 113 | Q11 | A row of one tab; the chart's days as thirty-one wire dates; "500000" | no tab row; "1 Oct"; "500,000" |
+| 114 | Q12 | Subscription: Products, Orders, Registers, Offline selling counted against it; **"Offline selling 0 / 0" drawn as a usage bar (every shop)**; "Full" in red for one branch of one; 4.5% commission on online orders it cannot take; "MB Of Storage" | only what applies; rules in words; amber "All 1 in use"; no commission card |
+| 115 | Q12 | Settings: an Online shop card saying it could not have one — in the words "Your plan is Expense Manager only", **shown to ANY shop without online selling** | no card for a business with nothing to list; a true sentence for the rest |
+| 116 | Q12 | **The map was painted over the Save bar** — the Save button behind a map | the map keeps to its own layer |
+| 117 | harness | Three assertions true only on the first morning failed every resumed run | asked only while they are true |
+| 118 | harness | **The map check asked what was "on top" and was told "the button" under a map that covered it** — tiles take no pointer events | measured in pixels |
+| 119 | harness | **A check inside "if not already filed" never ran on a resumed business**; the income toast replaced the success message and nothing read it | wording checked every run; the case reads what the business is told |
+| 120 | admin specs | **Every screen waited on Google Fonts before its first paint** — found as a spec "taking 7.3s" with the API answering in 20 ms | the typeface is the app's own file; `docs/decisions/shopos-first-paint-asks-nobody.md` |
+
+Right first time: the budget arithmetic, a recurring bill posted on its due
+date with the next a month on from THAT date, the usual figure surviving a
+different one, the ledger's balance carried across a window, the export being
+the screen, and every total after an edit, a duplicate and a deletion.
+
+Mutations: 106 run, 106 caught — 38 on the screens of the lived business, 12
+that need a new business each, 18 by the backend's tests, 38 by the panel's.
+Four survived first: one was a mutation of mine that changed nothing (PHP's
+`true == 'never'` is true), and three were real — the map check (118), the
+income message (119), and a font guard that accepted one subset declared
+twice. Each was fixed and then caught.
+
+**Every trade has now been lived once.** Next: the packaging gap (several
+barcodes for one pack).

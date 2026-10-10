@@ -165,7 +165,7 @@ Stages A–G run for each type with ALL modules on. Each adds its own cases:
 | Petroleum | tanks, pumps, forecourt shift with meters and dips, tanker delivery, sale by amount |
 | Services | service items, portfolio, jobs board |
 | Online | no till: orders only, storefront listing |
-| Finance | books only: expenses, income, cashbook, ledger |
+| Finance | books only, on a business given ONLY the books: what is not there, income and bills, a bill that comes round, a ceiling passed, cashbook, ledger |
 
 ## Stage H — a restaurant's own day (`20-food-the-floor.spec.ts`, `JOURNEY_TRADE=food`)
 
@@ -307,6 +307,37 @@ browser that nobody has signed in to.
 | P4 | Riders → Orders → My orders | Through its stages | a rider added; New → Confirm → Start preparing → rider → Out for delivery; the customer reads "On the way"; Complete; the sale is the goods (1,500) and the 200 left on the order is the delivery |
 | P5 | Riders | The cash comes back | the rider holds Rs 1,700; the settlement lists the order and says Rs 200 of it is what the rider earned; nothing held after |
 | P6 | My orders → Orders | Changed their mind | a cake to collect, placed and cancelled by the customer while new; Cancelled on the shop's list with nothing to move it on to |
+
+## Stage Q — an office that only keeps its books (`28-finance-the-books.spec.ts`, `JOURNEY_TRADE=finance`)
+
+The one stage that does NOT begin on a shop given everything: what a Finance
+Manager bought is the books and nothing else, and what is absent is half the
+subject. So Q1 makes its own business. A small software house, two days:
+
+- **yesterday** — a client pays 450,000; salaries 240,000 go out; the rent
+  (usually 80,000, monthly) falls due
+- **today** — 120,000 and 80,000 in (the second in notes); electricity 18,400
+  in cash and internet 6,500 out; a billboard at 26,500 against a Marketing
+  ceiling of 20,000; the rent is posted at what the landlord asked, 85,000
+
+In 650,000 · out 376,400 · net 273,600. Yesterday closes at 125,000, which is
+the balance today opens on.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| Q1 | Admin → Create a business | A business that only keeps books | called "a books-only business"; two switches — the books (needed, on) and Basic HR — and nineteen folded away; created on Basic with nothing that sells |
+| Q2 | Sign in → Setup → Dashboard | The owner walks in | asked where its BUSINESS is, map and all; the head of the page and the panel under it agree the books are empty; four tiles, Record income first; opens on This month |
+| Q3 | The menu, and addresses typed | The books and nothing else | eleven screens, each opens, nothing refused; "Your business" on the rail; eight screens it did not buy send it home with no request made; Recent activity in the Activity page's words |
+| Q4 | Income, Expenses → Categories | Somewhere to file what it earns | Client Payments, Service Fees and the rest; its own added; each screen says what it is for with no sale, till or drawer in it |
+| Q5 | Income | Money in | "Cash", not "Cash (to till)"; a cash entry saves and the form CLOSES; total 650,000; found by invoice number, and the total follows |
+| Q6 | Expenses | Bills | "Cash", not "Cash (from till)"; a cash bill saves with nothing to add; no drawer moved |
+| Q7 | Recurring → Dashboard | The rent comes round | the head says 1 bill has fallen due; the row lands on the Recurring tab; posted at 85,000, dated the day it was DUE; the next is a month on from the due date; the usual figure untouched |
+| Q8 | Budgets → Expenses → Dashboard | A ceiling passed | saved, and the form stays to say by how much (6,500.00 over 20,000.00); the Budgets tab and the head of the dashboard agree; the row lands on Budgets |
+| Q9 | Cashbook | Its books by the day | Date · Income · Expenses · Net · Running net; this month to the rupee; any window — today, tax year, last month, custom; today opens on 125,000; Open ledger carries the window |
+| Q10 | Ledger | Every line, balance carried | Income and Expenses chips only; opening 125,000 → closing 273,600; no ✕ on the period; a filter does not move the opening balance; Clear all clears, and keeps the period; the export is the screen |
+| Q11 | Reports → Dashboard | The same month | one report and no row of one tab; Money In / Out / Net equal on both; days as "1 Oct" |
+| Q12 | Subscription → Settings | Its own | counted against storage, branches and staff only; "All 1 in use", not a red "Full"; no commission card; no Online shop card; the map stays under the Save bar |
+| Q13 | Expenses → Cashbook → Ledger | A mistake put right | a figure corrected and put back; the same bill twice is SAID, then taken off; every total follows; the ledger closes on 273,600 |
 
 ## Stage I — the day is closed off by mistake (`13-a-day-closed-by-mistake.spec.ts`, mart)
 
