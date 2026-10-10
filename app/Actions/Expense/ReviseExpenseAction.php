@@ -84,13 +84,13 @@ class ReviseExpenseAction
                 if ($created !== null) {
                     $expense->forceFill(['cash_movement_id' => $created->id])->save();
                 } else {
-                    $warnings[] = BooksDrawer::untouchedDrawerWarning($practice, 'Changed to cash');
+                    $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice, 'Changed to cash');
                 }
             }
 
             return [
                 'expense' => $expense->load(['category:id,name', 'supplier:id,name']),
-                'warnings' => $warnings,
+                'warnings' => array_values(array_filter($warnings)),
             ];
         });
     }

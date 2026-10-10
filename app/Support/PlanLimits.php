@@ -55,6 +55,8 @@ class PlanLimits
      *   enforced false = configurable + reported, but no hard block yet
      *   kind     'count' (default) = a number of rows the shop owns
      *            'policy'          = a rule about behaviour, not a possession
+     *   needs    the modules that make the row MEAN anything — ANY one is
+     *            enough; absent = it applies to every business. See appliesTo().
      * ]
      *
      * `kind` exists because one guard elsewhere is only true of countable
@@ -67,8 +69,8 @@ class PlanLimits
      */
     public const REGISTRY = [
         // ── Billed usage: the plan sets the baseline ────────────────────
-        'products' => ['owner' => 'plan', 'column' => 'max_products', 'label' => 'products', 'enforced' => true],
-        'orders_month' => ['owner' => 'plan', 'column' => 'max_orders_month', 'label' => 'orders this month', 'enforced' => false],
+        'products' => ['owner' => 'plan', 'column' => 'max_products', 'label' => 'products', 'enforced' => true, 'needs' => ['products', 'services']],
+        'orders_month' => ['owner' => 'plan', 'column' => 'max_orders_month', 'label' => 'orders this month', 'enforced' => false, 'needs' => ['pos', 'marketplace', 'dine_in']],
         // Declared so it is configurable and visible; enforcement wires in when
         // image byte accounting lands.
         'storage_mb' => ['owner' => 'plan', 'column' => 'max_storage_mb', 'label' => 'MB of storage', 'enforced' => false],
@@ -86,7 +88,7 @@ class PlanLimits
         'staff' => ['owner' => 'tenant', 'column' => 'max_staff', 'default' => 5, 'label' => 'staff members', 'enforced' => true],
         // Checkout lanes. A single-counter shop needs no register row at all,
         // so most tenants sit at zero used.
-        'registers' => ['owner' => 'tenant', 'column' => 'max_registers', 'default' => 2, 'label' => 'registers', 'enforced' => true],
+        'registers' => ['owner' => 'tenant', 'column' => 'max_registers', 'default' => 2, 'label' => 'registers', 'enforced' => true, 'needs' => ['pos']],
         // How long a till may keep SELLING with no contact with the server.
         //
         // Not enforced through assert(): nothing is being created, so there is
@@ -99,7 +101,7 @@ class PlanLimits
         // expiry at all, and a sale rung forty days ago still syncs and is
         // still accepted. Expiring the queue along with the selling window is
         // how offline systems lose money.
-        'offline_days' => ['owner' => 'tenant', 'column' => 'max_offline_days', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy'],
+        'offline_days' => ['owner' => 'tenant', 'column' => 'max_offline_days', 'default' => 3, 'label' => 'days offline', 'enforced' => false, 'kind' => 'policy', 'needs' => ['pos']],
         // May this shop's tills SELL with no server at all?
         //
         // The kill switch, and the reason it is a separate key rather than
@@ -121,7 +123,7 @@ class PlanLimits
         // Defaults to 0. A shop gets offline selling when an admin decides it
         // does, after shadow mode has actually proved the pricing mirror on
         // that shop's own carts.
-        'offline_selling' => ['owner' => 'tenant', 'column' => 'max_offline_selling', 'default' => 0, 'label' => 'offline selling', 'enforced' => false, 'kind' => 'policy', 'switch' => true],
+        'offline_selling' => ['owner' => 'tenant', 'column' => 'max_offline_selling', 'default' => 0, 'label' => 'offline selling', 'enforced' => false, 'kind' => 'policy', 'switch' => true, 'needs' => ['pos']],
         // The point past which a till stops trading blind altogether.
         //
         // `offline_days` MARKS; this REFUSES, and the two are deliberately
@@ -151,13 +153,43 @@ class PlanLimits
         //
         // Not the queue, either. Sales already rung sync for ever, like every
         // other offline rule here — see `offline_selling`.
-        'offline_hard_stop_days' => ['owner' => 'tenant', 'default' => 0, 'label' => 'hard stop after N days offline', 'enforced' => false, 'kind' => 'policy', 'zero_means' => 'never'],
+        'offline_hard_stop_days' => ['owner' => 'tenant', 'default' => 0, 'label' => 'hard stop after N days offline', 'enforced' => false, 'kind' => 'policy', 'zero_means' => 'never', 'needs' => ['pos']],
     ];
 
     /** Is this a number of rows the shop owns, rather than a rule about behaviour? */
     public static function isCountable(string $key): bool
     {
         return (self::REGISTRY[$key]['kind'] ?? 'count') === 'count';
+    }
+
+    /**
+     * CAN THIS BUSINESS EVER USE THE THING BEING LIMITED?
+     *
+     * A limit on something a business cannot have is not a limit, it is a
+     * line of noise — and on its own Subscription page it reads as a promise.
+     * An office that bought only the books was shown "Products 0 / 1,000",
+     * "Registers 0 / 1" and "Offline selling 0 / 0": three things it has no
+     * screen for, counted against it, on the page that says what it pays for.
+     *
+     * Asked of the MODULES, not of the trade. A Finance Manager given the
+     * till later has registers to count from that moment, and a shop whose
+     * catalogue was withdrawn has none.
+     */
+    public static function appliesTo(Tenant $tenant, string $key): bool
+    {
+        $needs = self::REGISTRY[$key]['needs'] ?? [];
+
+        if ($needs === []) {
+            return true;
+        }
+
+        foreach ($needs as $module) {
+            if ($tenant->featureEnabled($module)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Limits the admin assigns to a shop rather than selling on a plan. */
@@ -509,6 +541,12 @@ class PlanLimits
                 'key' => $key,
                 'label' => $meta['label'],
                 'owner' => $meta['owner'],
+                // A count of things owned, or a rule about behaviour. A rule
+                // is not "used": drawing "offline selling 0 / 0" as a usage
+                // bar says nothing true in any reading of it.
+                'kind' => $meta['kind'] ?? 'count',
+                // Whether this business has the module the row is about.
+                'applies' => self::appliesTo($tenant, $key),
                 'limit' => $limit,
                 'baseline' => $baseline,
                 // Null when either side is unlimited — there is no difference to

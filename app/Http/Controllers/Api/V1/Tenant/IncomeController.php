@@ -132,7 +132,7 @@ class IncomeController extends Controller
             if ($created !== null) {
                 $income->forceFill(['cash_movement_id' => $created->id])->save();
             } else {
-                $warnings[] = BooksDrawer::untouchedDrawerWarning($practice, 'Changed to cash');
+                $warnings[] = BooksDrawer::untouchedDrawerWarning($request->user(), $practice, 'Changed to cash');
             }
         }
 
@@ -141,7 +141,8 @@ class IncomeController extends Controller
             'message' => 'Income updated',
             'data' => $income->load('category:id,name'),
             'errors' => (object) [],
-            'meta' => (object) array_filter(['warnings' => $warnings]),
+            // Filtered: a business with no till is handed no drawer sentence (null).
+            'meta' => (object) array_filter(['warnings' => array_values(array_filter($warnings))]),
         ]);
     }
 

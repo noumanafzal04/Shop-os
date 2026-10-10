@@ -394,6 +394,16 @@ class BusinessTypes
                     'Repairs', 'Courier', 'Printing', 'Software & Subscriptions',
                     'Professional Fees', 'Tax', 'Insurance', 'Bank Charges', 'Miscellaneous',
                 ],
+                // What this business EARNS — see defaultIncomeCategories().
+                // Every other type's revenue is its sales, which nobody types
+                // in. This one has no till: every rupee it takes is entered by
+                // hand, and it needs somewhere to file the ones that are its
+                // living, not only the odd ones that are not.
+                'income_categories' => [
+                    'Client Payments', 'Service Fees', 'Sales', 'Commission',
+                    'Donations & Grants', 'Rent Received', 'Interest',
+                    'Owner Investment', 'Refund Received', 'Other Income',
+                ],
                 'categories' => [
                     ['value' => 'office', 'label' => 'Office / Company'],
                     ['value' => 'agency', 'label' => 'Agency'],
@@ -631,15 +641,36 @@ class BusinessTypes
     }
 
     /**
-     * Default INCOME categories seeded on setup. Deliberately type-independent:
-     * these are NON-sales "other income" buckets (sales revenue is derived by
-     * the Cashbook, never entered here), and they mean the same across a shop,
-     * a clinic or a restaurant.
+     * Default INCOME categories seeded on setup.
+     *
+     * For a business that sells, these are NON-sales "other income" buckets:
+     * its revenue is derived by the Cashbook from the sales themselves and is
+     * never entered by hand, so the list is the same five odd ones for a
+     * shop, a pharmacy or a restaurant.
+     *
+     * ── The one trade that sentence was never true of ───────────────────
+     *
+     * This comment used to end "…they mean the same across a shop, a clinic or
+     * a restaurant", and the list was handed to every type alike. A Finance
+     * Manager has no sales to derive anything from. A software house, a
+     * school, a clinic keeping only its books here types in ALL of its income
+     * — and was given Interest, Owner Investment, Rent Received, Supplier
+     * Refund and Other Income to file it under. Its fees, the whole of what it
+     * earns, had exactly one honest home: "Other".
+     *
+     * So a type may name its own (`income_categories` in its template), and
+     * the one type whose income is all hand-entered does.
      *
      * @return list<string>
      */
-    public static function defaultIncomeCategories(): array
+    public static function defaultIncomeCategories(?string $code = null): array
     {
+        $own = $code === null ? null : (self::get(self::primary($code))['income_categories'] ?? null);
+
+        if (is_array($own) && $own !== []) {
+            return array_values($own);
+        }
+
         return [
             'Other Income',
             'Owner Investment',

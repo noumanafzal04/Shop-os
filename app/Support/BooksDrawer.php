@@ -92,12 +92,43 @@ class BooksDrawer
     }
 
     /**
-     * The sentence to hand back when a cash entry moved no drawer. The two
-     * cases read differently on purpose: one is "you have no till open", the
-     * other is "the till you have open isn't real".
+     * Does this person's business have a till at all?
+     *
+     * A drawer is a thing the POS module brings. An office that only keeps its
+     * books — a Finance Manager, or any business sold the Expense & Income
+     * module alone — pays its electricity bill in notes from a cash box that
+     * this product has never been told about and cannot count.
      */
-    public static function untouchedDrawerWarning(bool $practice, string $verb = 'Recorded as cash'): string
+    public static function hasTill(User $user): bool
     {
+        return (bool) $user->tenant?->featureEnabled('pos');
+    }
+
+    /**
+     * The sentence to hand back when a cash entry moved no drawer — or null
+     * when there is no drawer for it to have moved.
+     *
+     * The two cases read differently on purpose: one is "you have no till
+     * open", the other is "the till you have open isn't real".
+     *
+     * ── Why a business with no till hears nothing ───────────────────────
+     *
+     * It used to hear this on EVERY cash entry it ever made: "you have no
+     * shift open — the drawer was not adjusted", under the word Saved, with
+     * the form held open until it was dismissed. To a shop that is a useful
+     * sentence: go and open your shift. To a business with no POS module it
+     * names two things it does not have and cannot get, as though it had
+     * forgotten to do something — and it said so about its rent, its tea
+     * money and its petty cash, every time, for as long as it kept books.
+     *
+     * A warning is a thing somebody can act on. Nobody could act on this one.
+     */
+    public static function untouchedDrawerWarning(User $user, bool $practice, string $verb = 'Recorded as cash'): ?string
+    {
+        if (! self::hasTill($user)) {
+            return null;
+        }
+
         return $practice
             ? $verb.', but your open shift is a practice till — no real drawer was adjusted.'
             : $verb.', but you have no shift open — the drawer was not adjusted.';

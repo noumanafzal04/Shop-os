@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\ExpenseBudget;
-use App\Models\ExpenseCategory;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\BudgetStanding;
 use App\Support\Permissions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,52 +38,9 @@ class ExpenseBudgetController extends Controller
         $month = Carbon::parse($request->query('month', now()->toDateString()))->startOfMonth();
         $branchScope = $this->branch->scopeId();
 
-        $spend = Expense::query()
-            ->when($branchScope, fn ($q, $b) => $q->where('branch_id', $b))
-            ->whereBetween('expense_date', [$month, $month->copy()->endOfMonth()])
-            ->selectRaw('expense_category_id, COALESCE(SUM(amount), 0) as spent')
-            ->groupBy('expense_category_id')
-            ->pluck('spent', 'expense_category_id');
-
-        // Categories that were spent against this month, whatever became of
-        // them since.
-        $spentAgainst = array_values(array_filter($spend->keys()->all()));
-
-        // Retiring a category does not unspend its money. Filtering the rows to
-        // active categories while the spend map still counted the retired ones
-        // meant the page silently dropped real expenditure: a shop that closed
-        // "Ramzan Promo" in May was shown an August total lower than what it
-        // actually spent, with nothing to click and no hint anything was
-        // missing. A retired category earns its row for exactly as long as it
-        // has money against it — soft-deleted ones too, for the same reason.
-        $rows = ExpenseCategory::withTrashed()
-            ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $spentAgainst))
-            ->orderBy('name')
-            ->get()
-            ->map(function (ExpenseCategory $c) use ($month, $branchScope, $spend): array {
-                $inForce = ExpenseBudget::inForce($c->id, $month, $branchScope);
-                $ceiling = $inForce['amount'];
-                $spent = round((float) ($spend[$c->id] ?? 0), 2);
-
-                return [
-                    'expense_category_id' => $c->id,
-                    'category' => $c->name,
-                    // So the screen can mark the row rather than presenting a
-                    // closed category as somewhere the shop can still budget.
-                    'is_retired' => ! $c->is_active || $c->trashed(),
-                    'budget' => $ceiling,
-                    // Which row set it, so the screen can offer a box that
-                    // edits the one the merchant meant. Without these two the
-                    // month-override half of the model is unreachable from any
-                    // UI, and clearing a budget uncovers another one without
-                    // warning.
-                    'standing' => $inForce['standing'],
-                    'is_override' => $inForce['is_override'],
-                    'spent' => $spent,
-                    'remaining' => $ceiling === null ? null : round($ceiling - $spent, 2),
-                    'over' => $ceiling !== null && $spent > $ceiling,
-                ];
-            });
+        // One answer for every reader — the dashboard says the same thing
+        // about the same month. See BudgetStanding.
+        $rows = BudgetStanding::forMonth($request->user()->tenant_id, $month, $branchScope);
 
         return ApiResponse::ok($rows, 'OK', ['month' => $month->format('Y-m')]);
     }

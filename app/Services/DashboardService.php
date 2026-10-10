@@ -22,6 +22,8 @@ use App\Models\Order;
 use App\Models\Plan;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\RecurringExpense;
+use App\Models\RecurringIncome;
 use App\Models\Reservation;
 use App\Models\RestaurantTicket;
 use App\Models\Rider;
@@ -32,6 +34,7 @@ use App\Models\SaleReturn;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BudgetStanding;
 use App\Support\BusinessTypes;
 use App\Support\DashboardPeriod;
 use App\Support\LowStock;
@@ -273,6 +276,9 @@ class DashboardService
             ],
             'recent_sales' => $sells ? $this->recentSales($tenant, $branchId) : [],
             'recent_expenses' => $keepsBooks ? $this->recentExpenses($tenant, $branchId) : [],
+            // What the BOOKS are waiting on. Null when the shop keeps none, so
+            // the panel is absent rather than empty.
+            'books' => $keepsBooks ? $this->booksWaiting($tenant, $branchId) : null,
             // The leaders by revenue — of the period asked about, or of this
             // month when none was. Each is nullable: a shop that sold nothing,
             // or only to walk-ins, genuinely has no top customer.
@@ -892,6 +898,74 @@ class DashboardService
     /**
      * @return array<int, array<string, mixed>>
      */
+    /**
+     * WHAT THE BOOKS ARE WAITING ON, right now.
+     *
+     * Two things, and for a business that only keeps books they are the ONLY
+     * two things that can ever need it:
+     *
+     *   a bill (or an expected payment) that has fallen DUE. A recurring
+     *   entry never posts itself — that is the design, see RecurringExpense —
+     *   so a due one sits on its own tab until a person confirms the figure.
+     *
+     *   a category that has gone past the ceiling set for it this month.
+     *
+     * Neither was on the dashboard. The warning for a passed budget is spoken
+     * once, at the moment of entry, to whoever typed the bill; the due list
+     * is a badge on a tab of another screen. So an office with its rent ten
+     * days overdue and its marketing 40% over opened the front page every
+     * morning to "Nothing needs you right now" — which, for a business with
+     * no stock to run low and no order to accept, it said every day for ever.
+     *
+     * States, not flows: this is about NOW, whatever period the dashboard was
+     * asked about. Due is judged by the date on the shop's wall, the same
+     * "today" the due list itself filters on.
+     *
+     * @return array{
+     *     bills_due: array{count: int, amount: float, oldest: ?string},
+     *     income_due: array{count: int, amount: float, oldest: ?string},
+     *     over_budget: array{count: int, over_by: float, categories: list<string>}
+     * }
+     */
+    private function booksWaiting(Tenant $tenant, ?string $branchId): array
+    {
+        // A due date and an expense date are both TYPED dates — the one on the
+        // wall, not the trading day a late-night till is still in.
+        $wall = ShopDay::calendarToday($tenant);
+
+        $due = function (string $model) use ($tenant, $branchId, $wall): array {
+            $rows = $model::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+                ->whereDate('next_due_on', '<=', $wall)
+                ->orderBy('next_due_on')
+                ->get(['amount', 'next_due_on']);
+
+            return [
+                'count' => $rows->count(),
+                'amount' => round((float) $rows->sum(fn ($r) => (float) $r->amount), 2),
+                'oldest' => $rows->first()?->next_due_on?->toDateString(),
+            ];
+        };
+
+        $over = BudgetStanding::forMonth($tenant->id, Carbon::parse($wall), $branchId)
+            ->where('over', true)
+            // The worst first: the names shown are the ones most worth opening.
+            ->sortBy('remaining')
+            ->values();
+
+        return [
+            'bills_due' => $due(RecurringExpense::class),
+            'income_due' => $due(RecurringIncome::class),
+            'over_budget' => [
+                'count' => $over->count(),
+                'over_by' => round((float) $over->sum(fn (array $row) => $row['spent'] - (float) $row['budget']), 2),
+                'categories' => $over->take(3)->pluck('category')->values()->all(),
+            ],
+        ];
+    }
+
     private function recentExpenses(Tenant $tenant, ?string $branchId): array
     {
         return Expense::withoutTenancy()

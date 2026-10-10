@@ -64,7 +64,7 @@ class ApplyBusinessTypeDefaultsAction
         }
 
         if (! IncomeCategory::query()->where('tenant_id', $tenant->id)->exists()) {
-            foreach (BusinessTypes::defaultIncomeCategories() as $name) {
+            foreach (BusinessTypes::defaultIncomeCategories($businessType) as $name) {
                 IncomeCategory::query()->create([
                     'tenant_id' => $tenant->id,
                     'name' => $name,

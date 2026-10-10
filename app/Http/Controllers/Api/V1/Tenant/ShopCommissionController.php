@@ -42,6 +42,11 @@ class ShopCommissionController extends Controller
             ->get();
 
         return ApiResponse::ok([
+            // Whether this business can take an online order at all. The rate
+            // below is the PLATFORM's and exists for everybody, so without
+            // this a business with no storefront was told it pays 4.5% on
+            // orders it has no way to receive.
+            'applies' => $shop->featureEnabled('marketplace'),
             'rate' => $commission->rateFor($shop),
             // Whether this shop negotiated its own, or follows the platform's.
             // A shop asking "why am I paying this" deserves the answer.

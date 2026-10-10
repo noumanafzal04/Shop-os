@@ -69,10 +69,11 @@ class RecordIncomeAction
             }
 
             if ($inCash && $income->cash_movement_id === null) {
-                $warnings[] = BooksDrawer::untouchedDrawerWarning($practice);
+                // Null for a business with no till: there is no drawer to mention.
+                $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice);
             }
 
-            return ['income' => $income->load('category:id,name'), 'warnings' => $warnings];
+            return ['income' => $income->load('category:id,name'), 'warnings' => array_values(array_filter($warnings))];
         });
     }
 }

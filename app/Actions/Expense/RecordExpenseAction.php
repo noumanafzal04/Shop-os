@@ -79,7 +79,7 @@ class RecordExpenseAction
 
             return [
                 'expense' => $expense->load(['category:id,name', 'supplier:id,name']),
-                'warnings' => $this->warningsFor($expense, $paidInCash, $practice),
+                'warnings' => $this->warningsFor($user, $expense, $paidInCash, $practice),
             ];
         });
     }
@@ -90,7 +90,7 @@ class RecordExpenseAction
      *
      * @return array<int, string>
      */
-    private function warningsFor(Expense $expense, bool $paidInCash, bool $practice): array
+    private function warningsFor(User $user, Expense $expense, bool $paidInCash, bool $practice): array
     {
         $warnings = [];
 
@@ -108,7 +108,8 @@ class RecordExpenseAction
         }
 
         if ($paidInCash && $expense->cash_movement_id === null) {
-            $warnings[] = BooksDrawer::untouchedDrawerWarning($practice);
+            // Null for a business with no till: there is no drawer to mention.
+            $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice);
         }
 
         $month = Carbon::parse($expense->expense_date)->startOfMonth();
@@ -132,6 +133,6 @@ class RecordExpenseAction
             }
         }
 
-        return $warnings;
+        return array_values(array_filter($warnings));
     }
 }
