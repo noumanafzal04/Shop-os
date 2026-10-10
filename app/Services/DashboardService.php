@@ -1591,9 +1591,13 @@ class DashboardService
      * One KPI tile: the figure, the period it is measured against, and the
      * change between them.
      *
+     * Public because the billing screen measures its own period the same way,
+     * and a second copy of "the change between two figures" is two screens
+     * that can round it differently.
+     *
      * @return array{value: int|float, previous: int|float, delta_pct: float|null}
      */
-    private function kpi(int|float $current, int|float $previous): array
+    public function kpi(int|float $current, int|float $previous): array
     {
         return [
             'value' => $current,

@@ -9,8 +9,10 @@ use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Services\DashboardService;
 use App\Support\ApiResponse;
+use App\Support\DashboardPeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class BillingController extends Controller
@@ -100,12 +102,71 @@ class BillingController extends Controller
     }
 
     /**
-     * Billing overview: revenue, and subscription health buckets.
+     * Billing overview: what came in over a period, and what the subscriptions
+     * are right now.
+     *
+     * ── The period ───────────────────────────────────────────────────────
+     *
+     * The screen had one date control and it was at the bottom, on the
+     * ledger, called "Any date". Everything above it was fixed: "this month",
+     * "this year", "all time". Asked what came in last month, or in the week
+     * of Eid, the top of the billing screen could not say — and its owner,
+     * looking at it, asked whether it should not have a date picker.
+     *
+     * `from` and `to` name the period (see DashboardPeriod — the same class
+     * the dashboards are asked with, so the same like-for-like comparison).
+     * With neither it is THIS MONTH SO FAR: what is paid by the month is read
+     * by the month, and that is the figure this screen has always led with.
+     *
+     * What follows the period is the FLOW — what was collected, in how many
+     * payments, from how many shops — each beside the same figure for the
+     * period it is set against. What is late, who to ring and how the
+     * subscriptions stand are states: they are what they are now, whatever
+     * period is asked.
+     *
+     * The period's ends are cut exactly as the ledger's date filter cuts
+     * them, so "collected" here and the ledger's own total for the same two
+     * dates are one number. BillingTest holds them to that.
      */
-    public function summary(DashboardService $dashboards): JsonResponse
+    public function summary(Request $request, DashboardService $dashboards): JsonResponse
     {
+        $asked = $request->validate(DashboardPeriod::rules());
+
         $now = now();
         $soon = now()->addDays(7);
+
+        $period = DashboardPeriod::of($asked['from'] ?? null, $asked['to'] ?? null, $now->toDateString(), 'month');
+        $periodStart = Carbon::parse($period->from)->startOfDay();
+        $periodEnd = Carbon::parse($period->to)->endOfDay();
+        $comparedStart = Carbon::parse($period->comparedFrom)->startOfDay();
+        // A period still running is set against the same PART of the one
+        // before — up to this hour of its last day. Against the whole of it,
+        // every morning would read as a decline. Same rule as the dashboard.
+        $comparedEnd = $period->to === $period->today
+            ? Carbon::parse($period->comparedTo)->setTimeFrom($now)
+            : Carbon::parse($period->comparedTo)->endOfDay();
+
+        $flow = SubscriptionPayment::query()
+            ->select(DB::raw(
+                'COALESCE(SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END), 0) as collected,'
+                .' COALESCE(SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN 1 ELSE 0 END), 0) as payments,'
+                .' COALESCE(SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END), 0) as collected_before,'
+                .' COALESCE(SUM(CASE WHEN paid_at >= ? AND paid_at <= ? THEN 1 ELSE 0 END), 0) as payments_before,'
+                // A shop that paid twice in the period — a renewal and an
+                // add-on, a part-payment and the rest — is one shop.
+                .' COUNT(DISTINCT CASE WHEN paid_at >= ? AND paid_at <= ? THEN tenant_id END) as shops,'
+                .' COUNT(DISTINCT CASE WHEN paid_at >= ? AND paid_at <= ? THEN tenant_id END) as shops_before'
+            ))
+            ->setBindings([
+                $periodStart, $periodEnd,
+                $periodStart, $periodEnd,
+                $comparedStart, $comparedEnd,
+                $comparedStart, $comparedEnd,
+                $periodStart, $periodEnd,
+                $comparedStart, $comparedEnd,
+            ], 'select')
+            ->toBase()
+            ->first();
 
         /**
          * Buckets that actually partition the shops.
@@ -143,6 +204,19 @@ class BillingController extends Controller
         $live = Tenant::query()->where('status', '!=', TenantStatus::Suspended);
 
         return ApiResponse::ok([
+            'period' => $period->toArray(),
+            // Each as the dashboards' tiles are: the figure, the one it is set
+            // against, and the change — worked out once, by the same method.
+            'in_period' => [
+                'collected' => $dashboards->kpi(
+                    round((float) ($flow->collected ?? 0), 2),
+                    round((float) ($flow->collected_before ?? 0), 2),
+                ),
+                'payments' => $dashboards->kpi((int) ($flow->payments ?? 0), (int) ($flow->payments_before ?? 0)),
+                'shops' => $dashboards->kpi((int) ($flow->shops ?? 0), (int) ($flow->shops_before ?? 0)),
+            ],
+            // `this_month` is still sent: the backend is deployed before the
+            // panel, and the screen already out there leads with it.
             'revenue' => [
                 'this_month' => round((float) SubscriptionPayment::query()
                     ->where('paid_at', '>=', $now->copy()->startOfMonth())->sum('amount'), 2),

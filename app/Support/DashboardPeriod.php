@@ -84,7 +84,8 @@ final class DashboardPeriod
      * @param  string|null  $from  absent with `to` absent: the period the screen opens on.
      *                             Absent alone: the one day `to` names.
      * @param  string|null  $to  absent alone: up to today.
-     * @param  'today'|'week'  $opens  what the screen opens on — the day, or the seven days ending on it.
+     * @param  'today'|'week'|'month'  $opens  what the screen opens on — the day, the seven days ending
+     *                                         on it, or its month so far (the 1st up to it).
      *
      * @throws ValidationException when the dates are back to front, or further apart than a dashboard reads
      */
@@ -96,9 +97,12 @@ final class DashboardPeriod
 
         if (! $asked) {
             $to = $today;
-            $from = $opens === 'week'
-                ? CarbonImmutable::parse($today)->subDays(6)->toDateString()
-                : $today;
+            $from = match ($opens) {
+                'week' => CarbonImmutable::parse($today)->subDays(6)->toDateString(),
+                // What is paid by the month is read by the month.
+                'month' => CarbonImmutable::parse($today)->startOfMonth()->toDateString(),
+                default => $today,
+            };
         } elseif ($from === null) {
             $from = $to;
         } elseif ($to === null) {
