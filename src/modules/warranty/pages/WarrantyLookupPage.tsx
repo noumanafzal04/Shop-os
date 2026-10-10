@@ -20,6 +20,7 @@ import {
 } from "../services/warrantyService";
 import { ApiError } from "../../../common/types/api";
 import { daysLeft, deskDate } from "../cover";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const fmtDate = deskDate;
 
@@ -391,11 +392,13 @@ function HoldingTab() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          {status === "open"
-            ? "Nothing booked in — the shop isn't holding anybody's unit."
-            : "No claims match."}
-        </p>
+        <ListEmpty from={claims} what="the warranty claims">
+          <p className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center text-theme-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            {status === "open"
+              ? "Nothing booked in — the shop isn't holding anybody's unit."
+              : "No claims match."}
+          </p>
+        </ListEmpty>
       ) : (
         /* `data-rows` says "these are this screen's records".
            Not decoration: the volume suite asks every screen whether it is

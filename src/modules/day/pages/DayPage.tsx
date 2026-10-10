@@ -27,6 +27,7 @@ import { turnsAtLabel } from "../../../common/shopDay";
 import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 import { useBranchStore } from "../../../stores/branchStore";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 type Tab = "today" | "shifts" | "history" | "banking";
 
@@ -607,9 +608,11 @@ export default function DayPage() {
                 ))}
               </div>
             ) : shiftRows.length === 0 ? (
-              <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                No shifts in this range.
-              </p>
+              <ListEmpty from={shifts} what="the shifts">
+                <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No shifts in this range.
+                </p>
+              </ListEmpty>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-theme-sm">
@@ -696,7 +699,9 @@ export default function DayPage() {
               ))}
             </div>
           ) : (history.data?.data ?? []).length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">No days in this range.</p>
+            <ListEmpty from={history} what="the closed days">
+              <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">No days in this range.</p>
+            </ListEmpty>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-theme-sm">
@@ -769,9 +774,11 @@ export default function DayPage() {
               ))}
             </div>
           ) : (deposits.data?.data ?? []).length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-              Nothing banked in this range.
-            </p>
+            <ListEmpty from={deposits} what="the bankings">
+              <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nothing banked in this range.
+              </p>
+            </ListEmpty>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-theme-sm">

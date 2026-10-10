@@ -17,6 +17,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCountSheet, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCountLine } from "../services/stocktakeService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * The count sheet — the screen somebody stands in the aisle with.
@@ -253,9 +254,11 @@ export default function StockCountSheetPage() {
             ))}
           </div>
         ) : items.length === 0 ? (
-          <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            {onlyUncounted ? "Every line has been counted." : "Nothing matches."}
-          </p>
+          <ListEmpty from={sheet} what="the count sheet">
+            <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+              {onlyUncounted ? "Every line has been counted." : "Nothing matches."}
+            </p>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">

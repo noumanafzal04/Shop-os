@@ -5,6 +5,7 @@ import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { useStaffModule } from "../../staff/hooks/useStaff";
 import { useFuelPumps } from "../hooks/useFuel";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Who is on which hose tonight.
@@ -81,19 +82,21 @@ export function StartShiftModal({ onClose, onStart, busy }: Props) {
           // A DEAD END NEEDS A DOOR. This said what was wrong and stopped
           // there, so the one thing to do next — card a hose against a tank —
           // sat on a screen the operator had to already know the name of.
-          <div className="rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center dark:border-gray-700">
-            <p className="text-sm text-gray-600 dark:text-gray-300">No active nozzles are set up.</p>
-            <p className="mx-auto mt-1 max-w-xs text-theme-xs text-gray-400">
-              A shift opens on the meters, so it needs at least one hose carded against a tank.
-            </p>
-            <Link
-              to="/tenant/fuel/setup"
-              onClick={onClose}
-              className="mt-3 inline-block text-sm font-medium text-brand-500 hover:underline dark:text-brand-400"
-            >
-              Go to Tanks &amp; pumps
-            </Link>
-          </div>
+          <ListEmpty from={pumps} what="the pumps">
+            <div className="rounded-xl border border-dashed border-gray-300 px-4 py-8 text-center dark:border-gray-700">
+              <p className="text-sm text-gray-600 dark:text-gray-300">No active nozzles are set up.</p>
+              <p className="mx-auto mt-1 max-w-xs text-theme-xs text-gray-400">
+                A shift opens on the meters, so it needs at least one hose carded against a tank.
+              </p>
+              <Link
+                to="/tenant/fuel/setup"
+                onClick={onClose}
+                className="mt-3 inline-block text-sm font-medium text-brand-500 hover:underline dark:text-brand-400"
+              >
+                Go to Tanks &amp; pumps
+              </Link>
+            </div>
+          </ListEmpty>
         ) : (
           live.map(({ pump, nozzles }) => (
             <div key={pump.id}>

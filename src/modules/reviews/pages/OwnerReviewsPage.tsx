@@ -8,6 +8,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPost } from "../../../common/api/client";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 interface OwnerReview {
   id: string;
@@ -83,9 +84,11 @@ export default function OwnerReviewsPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-gray-300 py-16 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-          No reviews yet — they'll appear here once customers rate your shop.
-        </p>
+        <ListEmpty from={reviews} what="the reviews">
+          <p className="rounded-2xl border border-dashed border-gray-300 py-16 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            No reviews yet — they'll appear here once customers rate your shop.
+          </p>
+        </ListEmpty>
       ) : (
         <div className="space-y-4">
           {rows.map((r) => (

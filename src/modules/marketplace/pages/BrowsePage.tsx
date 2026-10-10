@@ -12,6 +12,7 @@ import { useAisle, useAisleFacets } from "../hooks/useMarketplace";
 import type { AisleFilters } from "../services/marketplaceService";
 import { usePin } from "../usePin";
 import { useAuthStore } from "../../../stores/authStore";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const SORTS: Array<{ value: NonNullable<AisleFilters["sort"]>; label: string }> = [
   { value: "name", label: "Alphabetical" },
@@ -218,26 +219,28 @@ export default function BrowsePage() {
                 {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
               </div>
             ) : rows.length === 0 ? (
-              <div className="rounded-3xl border border-dashed border-gray-300 px-6 py-20 text-center dark:border-white/10">
-                <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-white/5">
-                  <SearchIcon className="size-6" />
-                </span>
-                <p className="text-base font-semibold text-gray-900 dark:text-white">Nothing matched</p>
-                <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
-                  {chips.length > 0
-                    ? "Try removing a filter — the counts beside each option show what is actually there."
-                    : "No shop has listed anything yet. Check back soon."}
-                </p>
-                {chips.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="mt-4 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600"
-                  >
-                    Clear filters
-                  </button>
-                )}
-              </div>
+              <ListEmpty from={aisle} what="the products">
+                <div className="rounded-3xl border border-dashed border-gray-300 px-6 py-20 text-center dark:border-white/10">
+                  <span className="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-white/5">
+                    <SearchIcon className="size-6" />
+                  </span>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white">Nothing matched</p>
+                  <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
+                    {chips.length > 0
+                      ? "Try removing a filter — the counts beside each option show what is actually there."
+                      : "No shop has listed anything yet. Check back soon."}
+                  </p>
+                  {chips.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      className="mt-4 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-600"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              </ListEmpty>
             ) : (
               <div
                 /* Dimmed, not replaced, while the next page arrives — a grid

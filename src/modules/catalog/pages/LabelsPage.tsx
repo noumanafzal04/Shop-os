@@ -14,6 +14,7 @@ import Pager from "../../../components/ui/pager";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
 import { GAP, PAD, PAGE, STOCKS, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
 import { LABEL_FIELDS, labelPrefs, toSettings, type LabelPrefs } from "../labels/prefs";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * BARCODE LABELS — what to print on one side, the paper it lands on, on the other.
@@ -306,7 +307,9 @@ export default function LabelsPage() {
                 <div key={i} className="h-14 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
               ))
             ) : rows.length === 0 ? (
-              <p className="py-12 text-center text-sm text-gray-400">No products match.</p>
+              <ListEmpty from={products} what="the product list">
+                <p className="py-12 text-center text-sm text-gray-400">No products match.</p>
+              </ListEmpty>
             ) : (
               rows.map((p) => {
                 const labels = printables(p);

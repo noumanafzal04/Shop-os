@@ -18,6 +18,7 @@ import { sellingPrice } from "../../catalog/pricing";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useTakeOrder } from "../hooks/useOrders";
 import type { Product } from "../../catalog/types";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const CHANNELS = [
   { value: "phone", label: "Phone call" },
@@ -283,9 +284,11 @@ export default function TakeOrderPage() {
           </div>
 
           {!results.isLoading && shelf.length === 0 && (
-            <p className="rounded-xl border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              {debounced ? `Nothing in the catalogue matches “${debounced}”.` : "This shop has no products yet."}
-            </p>
+            <ListEmpty from={results} what="the products">
+              <p className="rounded-xl border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                {debounced ? `Nothing in the catalogue matches “${debounced}”.` : "This shop has no products yet."}
+              </p>
+            </ListEmpty>
           )}
 
           {/* SAYS HOW MANY MORE THERE ARE. The old list showed one page with

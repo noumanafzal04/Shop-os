@@ -278,6 +278,7 @@ export default function IncomePage() {
 
       {tab === "categories" ? (
         <CategoryManager
+          asked={categories}
           title="Income categories"
           hint={words.incomeCategories}
           noun="income entry"

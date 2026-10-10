@@ -10,6 +10,7 @@ import { useDispensingRegister, useRecall } from "../hooks/usePharmacy";
 import type { DispensingRow } from "../services/pharmacyService";
 import { toIsoDate } from "../../../components/ui/filters";
 import { shopTodayDate } from "../../../common/shopDay";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -101,9 +102,11 @@ function RegisterTab() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-12 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-            Nothing prescription-only was dispensed in this period.
-          </p>
+          <ListEmpty from={register} what="the register">
+            <p className="py-12 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+              Nothing prescription-only was dispensed in this period.
+            </p>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-theme-sm">

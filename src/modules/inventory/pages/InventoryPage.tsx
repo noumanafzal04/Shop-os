@@ -26,6 +26,7 @@ import Pager from "../../../components/ui/pager";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { formatQuantity, formatQuantityWithUnit } from "../../../common/format/quantity";
 import { isPastDate } from "../../../common/shopDay";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 
 type AdjustType = "in" | "out" | "set";
@@ -604,7 +605,9 @@ export default function InventoryPage() {
             {movements.isLoading ? (
               <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
             ) : (movements.data?.data ?? []).length === 0 ? (
-              <p className="text-theme-xs text-gray-400">No movements yet.</p>
+              <ListEmpty from={movements} what="the stock movements">
+                <p className="text-theme-xs text-gray-400">No movements yet.</p>
+              </ListEmpty>
             ) : (
               <ul className="max-h-40 space-y-1 overflow-y-auto text-theme-xs text-gray-500 dark:text-gray-400">
                 {(movements.data?.data ?? []).slice(0, 8).map((m) => (
@@ -708,7 +711,9 @@ export default function InventoryPage() {
           {batches.isLoading ? (
             <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
           ) : (batches.data ?? []).length === 0 ? (
-            <p className="text-theme-xs text-gray-400">No batches yet — stock is untracked by lot.</p>
+            <ListEmpty from={batches} what="the batches">
+              <p className="text-theme-xs text-gray-400">No batches yet — stock is untracked by lot.</p>
+            </ListEmpty>
           ) : (
             <div className="max-h-48 space-y-1 overflow-y-auto">
               {(batches.data ?? []).map((b) => {

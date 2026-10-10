@@ -15,6 +15,7 @@ import { Link } from "react-router";
 import Alert from "../../../components/ui/alert/Alert";
 import type { FuelTank } from "../services/fuelService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 })} L`;
 
@@ -151,7 +152,9 @@ export default function FuelSetupPage() {
 
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
             {(tanks.data ?? []).length === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-gray-400">No tanks yet.</p>
+              <ListEmpty from={tanks} what="the tanks">
+                <p className="px-4 py-12 text-center text-sm text-gray-400">No tanks yet.</p>
+              </ListEmpty>
             ) : (
               tanks.data?.map((t) => (
                 <div key={t.id} className="flex items-start justify-between gap-3 px-4 py-3">
@@ -217,7 +220,9 @@ export default function FuelSetupPage() {
 
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
             {(pumps.data ?? []).length === 0 ? (
-              <p className="px-4 py-12 text-center text-sm text-gray-400">No pumps yet.</p>
+              <ListEmpty from={pumps} what="the pumps">
+                <p className="px-4 py-12 text-center text-sm text-gray-400">No pumps yet.</p>
+              </ListEmpty>
             ) : (
               pumps.data?.map((p) => (
                 <div key={p.id} className="px-4 py-3">

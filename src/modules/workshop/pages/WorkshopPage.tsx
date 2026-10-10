@@ -16,6 +16,7 @@ import { BookInModal } from "../components/BookInModal";
 import { findOnBoard } from "../find";
 import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * What is in the shop right now.
@@ -181,14 +182,16 @@ export default function WorkshopPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No {words.units} in the shop.</p>
-          <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
-            Take one in when it arrives — {words.goesOn.toLowerCase()} go on as you work, and the
-            whole job becomes an invoice when the customer collects.
-          </p>
-          <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>{words.takeIn}</Button>
-        </div>
+        <ListEmpty from={jobs} what="the job cards">
+          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No {words.units} in the shop.</p>
+            <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
+              Take one in when it arrives — {words.goesOn.toLowerCase()} go on as you work, and the
+              whole job becomes an invoice when the customer collects.
+            </p>
+            <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>{words.takeIn}</Button>
+          </div>
+        </ListEmpty>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
           {STAGES.map((stage) => {

@@ -10,6 +10,7 @@ import { useProducts, useProduct } from "../../catalog/hooks/useCatalog";
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { useWriteOffStock } from "../hooks/useInventory";
 import type { Product } from "../../catalog/types";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * TAKING SOMETHING OFF THE SHELF AND SAYING WHAT IT COST.
@@ -147,7 +148,9 @@ export function WriteOffModal({ open, onClose }: { open: boolean; onClose: () =>
               ) : results.isLoading ? (
                 <p className="py-3 text-center text-theme-xs text-gray-400">Looking…</p>
               ) : (results.data?.data ?? []).length === 0 ? (
-                <p className="py-3 text-center text-theme-xs text-gray-400">Nothing matches “{search}”.</p>
+                <ListEmpty from={results} what="the products">
+                  <p className="py-3 text-center text-theme-xs text-gray-400">Nothing matches “{search}”.</p>
+                </ListEmpty>
               ) : (
                 (results.data?.data ?? []).map((p) => (
                   <button

@@ -13,6 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useVehicleHistory, useVehicleMutations, useVehicles } from "../hooks/useVehicles";
 import type { Vehicle } from "../services/vehiclesService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const blank = {
   registration: "", make: "", model: "", year: "", colour: "",
@@ -172,11 +173,13 @@ export default function VehiclesPage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            {query
-              ? "No vehicle matches."
-              : "No vehicles yet — add one, or register a plate at the till while ringing a sale."}
-          </p>
+          <ListEmpty from={vehicles} what="the vehicles">
+            <p className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+              {query
+                ? "No vehicle matches."
+                : "No vehicles yet — add one, or register a plate at the till while ringing a sale."}
+            </p>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">
@@ -297,9 +300,11 @@ export default function VehiclesPage() {
         {history.isLoading ? (
           <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
         ) : (history.data?.visits ?? []).length === 0 ? (
-          <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            Nothing done to this vehicle yet.
-          </p>
+          <ListEmpty from={history} what="this vehicle's visits">
+            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+              Nothing done to this vehicle yet.
+            </p>
+          </ListEmpty>
         ) : (
           <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
             {(history.data?.visits ?? []).map((visit) => (

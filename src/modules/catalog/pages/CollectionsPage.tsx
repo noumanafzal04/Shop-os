@@ -18,6 +18,7 @@ import {
 import type { Collection } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 export default function CollectionsPage() {
   const confirm = useConfirm();
@@ -120,10 +121,12 @@ export default function CollectionsPage() {
           {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}
         </div>
       ) : list.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No collections yet.</p>
-          <Button size="sm" className="mt-3" onClick={openCreate}>Create your first collection</Button>
-        </div>
+        <ListEmpty from={collections} what="the collections">
+          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No collections yet.</p>
+            <Button size="sm" className="mt-3" onClick={openCreate}>Create your first collection</Button>
+          </div>
+        </ListEmpty>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((c) => (

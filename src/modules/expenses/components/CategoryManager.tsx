@@ -11,6 +11,8 @@ import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import type { CategoryInput } from "../services/expensesService";
+import type { Asked } from "../../../components/ui/table/TableEmpty";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 interface Category {
   id: string;
@@ -27,6 +29,8 @@ interface Props {
   hint: string;
   categories: Category[];
   loading: boolean;
+  /** The query the categories came from — see ListEmpty. */
+  asked: Asked;
   money: (n: number | string) => string;
   /** "expense" / "income" — used in the copy so the screen speaks plainly. */
   noun: string;
@@ -91,7 +95,7 @@ const SORTS: Array<{ value: Sort; label: string }> = [
  * are drawn a page at a time, because rendering three hundred list items to
  * show twenty-four of them costs the reader nothing and the browser plenty.
  */
-export function CategoryManager({ title, hint, categories, loading, money, noun, mutations }: Props) {
+export function CategoryManager({ title, hint, categories, loading, asked, money, noun, mutations }: Props) {
   const toast = useToast();
   const confirm = useConfirm();
   const { isOpen, openModal, closeModal } = useModal();
@@ -309,14 +313,16 @@ export function CategoryManager({ title, hint, categories, loading, money, noun,
           ))}
         </div>
       ) : categories.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700">
-          <p className="text-theme-sm font-medium text-gray-700 dark:text-gray-200">No categories yet</p>
-          <p className="mx-auto mt-1 max-w-sm text-theme-sm text-gray-500 dark:text-gray-400">
-            Categories are how you'll read your own books later — start with the three or four you
-            spend on most.
-          </p>
-          <Button size="sm" onClick={openNew} className="mt-4">+ Add the first one</Button>
-        </div>
+        <ListEmpty from={asked} what="the categories">
+          <div className="rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700">
+            <p className="text-theme-sm font-medium text-gray-700 dark:text-gray-200">No categories yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-theme-sm text-gray-500 dark:text-gray-400">
+              Categories are how you'll read your own books later — start with the three or four you
+              spend on most.
+            </p>
+            <Button size="sm" onClick={openNew} className="mt-4">+ Add the first one</Button>
+          </div>
+        </ListEmpty>
       ) : matched === 0 ? (
         <p className="rounded-xl bg-gray-50 px-4 py-8 text-center text-theme-sm text-gray-500 dark:bg-white/[0.02] dark:text-gray-400">
           {search.trim() !== ""

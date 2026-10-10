@@ -19,6 +19,7 @@ import { refreshAfterADemoChanges, useApproveShopRequest, useDemoShops } from ".
 import { PageHeader } from "../components/kit";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * DEMO SHOPS — the ones that asked to stay, and the ones still being tried.
@@ -170,12 +171,14 @@ export default function AdminShopRequestsPage() {
       {rows.isLoading && <p className="text-theme-sm text-gray-500">Loading…</p>}
 
       {!rows.isLoading && list.length === 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-white/10 dark:bg-white/[0.03]">
-          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-            No requests. A demo nobody asks to keep clears itself away after a day —
-            unless you keep it for them, under “Trying it now”.
-          </p>
-        </div>
+        <ListEmpty from={rows} what="the shop requests">
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-white/10 dark:bg-white/[0.03]">
+            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+              No requests. A demo nobody asks to keep clears itself away after a day —
+              unless you keep it for them, under “Trying it now”.
+            </p>
+          </div>
+        </ListEmpty>
       )}
 
       <div className="space-y-3">

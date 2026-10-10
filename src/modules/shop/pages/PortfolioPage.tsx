@@ -5,6 +5,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useGallery, useGalleryMutations } from "../hooks/useShop";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Portfolio / gallery — showcase photos on the public storefront (salon work,
@@ -53,9 +54,11 @@ export default function PortfolioPage() {
           {Array.from({ length: 4 }).map((_, i) => <div key={i} className="aspect-square animate-pulse rounded-xl bg-gray-200 dark:bg-gray-800" />)}
         </div>
       ) : images.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No photos yet — add work samples or storefront shots.</p>
-        </div>
+        <ListEmpty from={gallery} what="the gallery">
+          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No photos yet — add work samples or storefront shots.</p>
+          </div>
+        </ListEmpty>
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {images.map((img) => (

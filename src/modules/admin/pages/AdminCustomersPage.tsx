@@ -16,6 +16,7 @@ import { ROW_ACTION } from "../../../components/ui/table/rowAction";
 import { useToast } from "../../../components/ui/toast";
 import { CheckLineIcon, LockIcon, PaperPlaneIcon, PlusIcon, ShootingStarIcon, UserIcon } from "../../../icons";
 import { Card, Empty, PageHeader, Person, Pill, StatRow, StatTile } from "../components/kit";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * THE PLATFORM'S CUSTOMERS — made here, and then found here.
@@ -186,16 +187,20 @@ export default function AdminCustomersPage() {
         {list.isError ? (
           <Empty icon={<UserIcon />} title="The list could not be loaded" hint={said(list.error, "Try again in a moment.")} action={<Button size="sm" variant="outline" onClick={() => list.refetch()}>Try again</Button>} />
         ) : !list.isLoading && rows.length === 0 ? (
-          filtered ? (
-            <Empty icon={<UserIcon />} title="Nobody matches" hint="Try fewer words, or clear the filters." />
-          ) : (
-            <Empty
-              icon={<UserIcon />}
-              title="No customers yet"
-              hint="People appear here when they sign up on the app — or make an account for somebody yourself."
-              action={<Button size="sm" onClick={() => setCreating(true)}>New customer</Button>}
-            />
-          )
+          <ListEmpty from={list} what="the customer list">
+            {
+              filtered ? (
+                <Empty icon={<UserIcon />} title="Nobody matches" hint="Try fewer words, or clear the filters." />
+              ) : (
+                <Empty
+                  icon={<UserIcon />}
+                  title="No customers yet"
+                  hint="People appear here when they sign up on the app — or make an account for somebody yourself."
+                  action={<Button size="sm" onClick={() => setCreating(true)}>New customer</Button>}
+                />
+              )
+            }
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left" data-testid="customers-table">

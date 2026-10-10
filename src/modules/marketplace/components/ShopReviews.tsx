@@ -16,6 +16,7 @@ import {
   useSubmitReview,
 } from "../hooks/useMarketplace";
 import { StarIcon } from "./MarketIcons";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 export function Stars({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
   return (
@@ -115,9 +116,11 @@ export function ShopReviews({ slug, shopName }: { slug: string | undefined; shop
         {reviews.isLoading ? (
           <div className="h-24 animate-pulse rounded-3xl bg-gray-100 dark:bg-white/5" />
         ) : rows.length === 0 ? (
-          <p className="rounded-3xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-            No reviews yet — be the first.
-          </p>
+          <ListEmpty from={reviews} what="the reviews">
+            <p className="rounded-3xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+              No reviews yet — be the first.
+            </p>
+          </ListEmpty>
         ) : (
           <div className="space-y-3">
             {rows.map((r) => (

@@ -12,6 +12,7 @@ import { useApproveShopRequest, useDemoShops } from "../hooks/useDemoShops";
 import { ends, opened } from "./demoClock";
 import { KeepDemoDialog, type DemoToKeep } from "./KeepDemoDialog";
 import { Card, Empty, Person, Pill } from "./kit";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * THE SHOPS PEOPLE ARE TRYING RIGHT NOW.
@@ -52,11 +53,13 @@ export function DemoShopsList() {
     <>
       <Card>
         {list.length === 0 ? (
-          <Empty
-            icon={<ShootingStarIcon />}
-            title="Nobody is trying a demo right now"
-            hint="A demo appears here the moment somebody opens one from the front page, and clears itself away a day later."
-          />
+          <ListEmpty from={rows} what="the demo shops">
+            <Empty
+              icon={<ShootingStarIcon />}
+              title="Nobody is trying a demo right now"
+              hint="A demo appears here the moment somebody opens one from the front page, and clears itself away a day later."
+            />
+          </ListEmpty>
         ) : (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800" data-testid="demo-shops">
             {list.map((demo) => {

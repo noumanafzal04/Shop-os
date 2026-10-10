@@ -23,6 +23,7 @@ import { dineInService, type TicketItem } from "../services/dineInService";
 import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "../tabLines";
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * A control in the tab's header. A real button — bordered, a finger tall.
@@ -634,7 +635,9 @@ export default function TabPage() {
             {products.isLoading ? (
               Array.from({ length: 12 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)
             ) : menu.length === 0 ? (
-              <p className="col-span-full py-10 text-center text-sm text-gray-500 dark:text-gray-400">No menu items match.</p>
+              <ListEmpty from={products} what="the menu">
+                <p className="col-span-full py-10 text-center text-sm text-gray-500 dark:text-gray-400">No menu items match.</p>
+              </ListEmpty>
             ) : (
               menu.map((p) => {
                 const off = whyNot(p);

@@ -6,6 +6,7 @@ import Label from "../../../components/form/Label";
 import { useMoney } from "../../shop/hooks/useShop";
 import { dineInService } from "../services/dineInService";
 import { shopToday } from "../../../common/shopDay";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * How each section did.
@@ -57,9 +58,11 @@ export default function WaiterReportModal({ isOpen, onClose }: { isOpen: boolean
       {report.isPending ? (
         <div className="h-40 animate-pulse rounded-xl bg-gray-100 dark:bg-white/5" />
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center dark:border-gray-700">
-          <p className="text-theme-sm text-gray-500 dark:text-gray-400">No tables were run in that period.</p>
-        </div>
+        <ListEmpty from={report} what="the waiter report">
+          <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center dark:border-gray-700">
+            <p className="text-theme-sm text-gray-500 dark:text-gray-400">No tables were run in that period.</p>
+          </div>
+        </ListEmpty>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-theme-sm">

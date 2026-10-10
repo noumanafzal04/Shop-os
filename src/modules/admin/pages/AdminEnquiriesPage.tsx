@@ -15,6 +15,7 @@ import { PaperPlaneIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * PEOPLE WHO ASKED FOR A PERSON.
@@ -141,11 +142,13 @@ export default function AdminEnquiriesPage() {
       {rows.isLoading && <p className="text-theme-sm text-gray-500">Loading…</p>}
 
       {!rows.isLoading && list.length === 0 && (
-        <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-white/10 dark:bg-white/[0.03]">
-          <p className="text-theme-sm text-gray-500 dark:text-gray-400">
-            Nothing here. Most visitors take the demo instead, which needs nobody.
-          </p>
-        </div>
+        <ListEmpty from={rows} what="the enquiries">
+          <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-white/10 dark:bg-white/[0.03]">
+            <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+              Nothing here. Most visitors take the demo instead, which needs nobody.
+            </p>
+          </div>
+        </ListEmpty>
       )}
 
       <div className="space-y-3">

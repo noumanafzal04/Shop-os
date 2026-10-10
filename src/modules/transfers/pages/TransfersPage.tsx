@@ -17,6 +17,7 @@ import { ApiError } from "../../../common/types/api";
 import { useBranches } from "../../branches/hooks/useBranches";
 import { catalogService } from "../../catalog/services/catalogService";
 import { useTransfers, useCreateTransfer } from "../hooks/useTransfers";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 interface Line {
   product_id: string;
@@ -182,7 +183,9 @@ export default function TransfersPage() {
                 {results.isLoading ? (
                   <div className="px-4 py-3 text-sm text-gray-400">Searching…</div>
                 ) : (results.data ?? []).length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-400">No matches.</div>
+                  <ListEmpty from={results} what="the products">
+                    <div className="px-4 py-3 text-sm text-gray-400">No matches.</div>
+                  </ListEmpty>
                 ) : (
                   (results.data ?? []).map((p) => (
                     <button

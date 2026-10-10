@@ -8,6 +8,7 @@ import { useToast } from "../../../components/ui/toast";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDeadStockReport, useMarginsReport, useValuationReport } from "../hooks/useExpenses";
 import { rangeParams, type ReportRange } from "../reportPeriod";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /** A report you cannot take to an accountant is half a report. */
 function ExportButton({ url, params, filename }: { url: string; params?: Record<string, unknown>; filename: string }) {
@@ -134,7 +135,9 @@ export function MarginsTab({ range }: { range: ReportRange }) {
         {report.isLoading ? (
           <Loading />
         ) : (data?.best ?? []).length === 0 ? (
-          <Empty>No sales in this period.</Empty>
+          <ListEmpty from={report} what="the stock report">
+            <Empty>No sales in this period.</Empty>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">
@@ -214,7 +217,9 @@ export function ValuationTab() {
         {report.isLoading ? (
           <Loading />
         ) : (data?.by_category ?? []).length === 0 ? (
-          <Empty>Nothing on the shelves.</Empty>
+          <ListEmpty from={report} what="the stock report">
+            <Empty>Nothing on the shelves.</Empty>
+          </ListEmpty>
         ) : (
           <table className="w-full text-left text-theme-sm">
             <tbody>
@@ -242,7 +247,9 @@ export function ValuationTab() {
         {report.isLoading ? (
           <Loading />
         ) : (data?.items ?? []).length === 0 ? (
-          <Empty>Nothing on the shelves.</Empty>
+          <ListEmpty from={report} what="the stock report">
+            <Empty>Nothing on the shelves.</Empty>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">
@@ -332,7 +339,9 @@ export function DeadStockTab() {
         {report.isLoading ? (
           <Loading />
         ) : (data?.items ?? []).length === 0 ? (
-          <Empty>Everything on the shelves has moved inside this window.</Empty>
+          <ListEmpty from={report} what="the stock report">
+            <Empty>Everything on the shelves has moved inside this window.</Empty>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">

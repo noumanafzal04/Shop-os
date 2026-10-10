@@ -18,6 +18,7 @@ import { useCategories } from "../../catalog/hooks/useCatalog";
 import Pager from "../../../components/ui/pager";
 import { useStockCounts, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCount } from "../services/stocktakeService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const STATUS: Record<StockCount["status"], { label: string; color: "success" | "info" | "light" }> = {
   counting: { label: "Counting", color: "info" },
@@ -114,13 +115,15 @@ export default function StocktakePage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">No counts yet.</p>
-            <p className="mt-1 text-theme-xs text-gray-400">
-              Until someone counts, the shop's stock figure is a belief. A first count usually finds more than
-              anyone expects.
-            </p>
-          </div>
+          <ListEmpty from={counts} what="the stock counts">
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm text-gray-500 dark:text-gray-400">No counts yet.</p>
+              <p className="mt-1 text-theme-xs text-gray-400">
+                Until someone counts, the shop's stock figure is a belief. A first count usually finds more than
+                anyone expects.
+              </p>
+            </div>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-theme-sm">

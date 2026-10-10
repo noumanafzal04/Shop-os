@@ -15,6 +15,7 @@ import {
 import type { Bank, BankCardOffer } from "../services/banksService";
 import { BankOfferForm } from "../components/BankOfferForm";
 import { BankForm } from "../components/BankForm";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Banks, and the campaigns they fund on their own cards.
@@ -113,14 +114,16 @@ export default function BankOffersPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No banks yet.</p>
-          <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
-            Add one only when you have actually agreed a deal — the till offers a bank to the
-            cashier only while one of its campaigns is running.
-          </p>
-          <Button size="sm" className="mt-3" onClick={() => setEditingBank("new")}>Add bank</Button>
-        </div>
+        <ListEmpty from={banks} what="the banks">
+          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+            <p className="text-gray-500 dark:text-gray-400">No banks yet.</p>
+            <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
+              Add one only when you have actually agreed a deal — the till offers a bank to the
+              cashier only while one of its campaigns is running.
+            </p>
+            <Button size="sm" className="mt-3" onClick={() => setEditingBank("new")}>Add bank</Button>
+          </div>
+        </ListEmpty>
       ) : (
         <div className="space-y-4">
           {rows.map((bank) => {

@@ -14,8 +14,9 @@ import { ownerAuth, roomToWork } from "./api";
  * them reaches its empty cell by `rows.length === 0`, and rows are
  * `data ?? []`.
  *
- * The cell answers for all three now (see TableEmpty). This walks the shop's
- * lists with each one's request failing and holds them to it:
+ * The cell answers for all three now (see TableEmpty, and ListEmpty for the
+ * lists that are cards rather than tables). This walks the shop's lists with
+ * each one's request failing and holds them to it:
  *
  *   it says THIS list could not be loaded, in the server's own words
  *   it does not say there is nothing
@@ -30,7 +31,7 @@ interface Listed {
   path: string;
   /** The screen's own file, under src/modules — where its empty sentence is written. */
   screen: string;
-  /** The request the list is drawn from. */
+  /** The request the list is drawn from: its path under /api/v1, exactly. */
   api: string;
   /** What the screen calls it when it has not come. */
   says: string;
@@ -39,25 +40,31 @@ interface Listed {
 }
 
 const LISTS: Listed[] = [
-  { path: "/tenant/customers", screen: "customers/pages/CustomersPage.tsx", api: "**/api/v1/customers?*", says: "The customer list could not be loaded.", empty: /No customers yet/ },
-  { path: "/tenant/suppliers", screen: "purchases/pages/SuppliersPage.tsx", api: "**/api/v1/suppliers?*", says: "The supplier list could not be loaded.", empty: /No suppliers yet/ },
-  { path: "/tenant/purchases", screen: "purchases/pages/PurchaseOrdersPage.tsx", api: "**/api/v1/purchase-orders?*", says: "The purchase orders could not be loaded.", empty: /No purchase orders yet/ },
-  { path: "/tenant/sales", screen: "sales/pages/SalesPage.tsx", api: "**/api/v1/sales?*", says: "The sales list could not be loaded.", empty: /No sales (yet|match)/ },
-  { path: "/tenant/products", screen: "catalog/pages/ProductsPage.tsx", api: "**/api/v1/products?*", says: "The product list could not be loaded.", empty: /No (items|products) (yet|match)/ },
-  { path: "/tenant/inventory", screen: "inventory/pages/InventoryPage.tsx", api: "**/api/v1/products?*", says: "The stock list could not be loaded.", empty: /No tracked products/ },
-  { path: "/tenant/staff", screen: "staff/StaffPage.tsx", api: "**/api/v1/staff?*", says: "The staff list could not be loaded.", empty: /No staff yet|Nobody matches/ },
-  { path: "/tenant/activity", screen: "activity/pages/ActivityPage.tsx", api: "**/api/v1/audit-logs?*", says: "The activity log could not be loaded.", empty: /Nothing here for that/ },
-  { path: "/tenant/coupons", screen: "coupons/pages/CouponsPage.tsx", api: "**/api/v1/coupons?*", says: "The coupons could not be loaded.", empty: /No coupons yet/ },
-  { path: "/tenant/promotions", screen: "promotions/pages/PromotionsPage.tsx", api: "**/api/v1/promotions", says: "The promotions could not be loaded.", empty: /No promotions yet/ },
-  { path: "/tenant/expenses", screen: "expenses/pages/ExpensesPage.tsx", api: "**/api/v1/expenses?*", says: "The expenses could not be loaded.", empty: /No expenses (yet|recorded)/ },
-  { path: "/tenant/income", screen: "income/pages/IncomePage.tsx", api: "**/api/v1/incomes?*", says: "The income entries could not be loaded.", empty: /No income recorded yet/ },
-  { path: "/tenant/ledger", screen: "income/pages/LedgerPage.tsx", api: "**/api/v1/ledger?*", says: "The ledger could not be loaded.", empty: /Nothing (moved in this period|matches these filters)/ },
-  { path: "/tenant/cashbook", screen: "income/pages/CashbookPage.tsx", api: "**/api/v1/cashbook?*", says: "The cashbook could not be loaded.", empty: /No money movement/ },
+  { path: "/tenant/customers", screen: "customers/pages/CustomersPage.tsx", api: "/customers", says: "The customer list could not be loaded.", empty: /No customers yet/ },
+  { path: "/tenant/suppliers", screen: "purchases/pages/SuppliersPage.tsx", api: "/suppliers", says: "The supplier list could not be loaded.", empty: /No suppliers yet/ },
+  { path: "/tenant/purchases", screen: "purchases/pages/PurchaseOrdersPage.tsx", api: "/purchase-orders", says: "The purchase orders could not be loaded.", empty: /No purchase orders yet/ },
+  { path: "/tenant/sales", screen: "sales/pages/SalesPage.tsx", api: "/sales", says: "The sales list could not be loaded.", empty: /No sales (yet|match)/ },
+  { path: "/tenant/products", screen: "catalog/pages/ProductsPage.tsx", api: "/products", says: "The product list could not be loaded.", empty: /No (items|products) (yet|match)/ },
+  { path: "/tenant/inventory", screen: "inventory/pages/InventoryPage.tsx", api: "/products", says: "The stock list could not be loaded.", empty: /No tracked products/ },
+  { path: "/tenant/staff", screen: "staff/StaffPage.tsx", api: "/staff", says: "The staff list could not be loaded.", empty: /No staff yet|Nobody matches/ },
+  { path: "/tenant/activity", screen: "activity/pages/ActivityPage.tsx", api: "/audit-logs", says: "The activity log could not be loaded.", empty: /Nothing here for that/ },
+  { path: "/tenant/coupons", screen: "coupons/pages/CouponsPage.tsx", api: "/coupons", says: "The coupons could not be loaded.", empty: /No coupons yet/ },
+  { path: "/tenant/promotions", screen: "promotions/pages/PromotionsPage.tsx", api: "/promotions", says: "The promotions could not be loaded.", empty: /No promotions yet/ },
+  { path: "/tenant/expenses", screen: "expenses/pages/ExpensesPage.tsx", api: "/expenses", says: "The expenses could not be loaded.", empty: /No expenses (yet|recorded)/ },
+  { path: "/tenant/income", screen: "income/pages/IncomePage.tsx", api: "/incomes", says: "The income entries could not be loaded.", empty: /No income recorded yet/ },
+  { path: "/tenant/ledger", screen: "income/pages/LedgerPage.tsx", api: "/ledger", says: "The ledger could not be loaded.", empty: /Nothing (moved in this period|matches these filters)/ },
+  { path: "/tenant/cashbook", screen: "income/pages/CashbookPage.tsx", api: "/cashbook", says: "The cashbook could not be loaded.", empty: /No money movement/ },
+  // ── and the lists that are not tables: cards, tiles, panels ──────
+  { path: "/tenant/categories", screen: "catalog/pages/CategoriesPage.tsx", api: "/categories", says: "The categories could not be loaded.", empty: /No categories yet/ },
+  { path: "/tenant/collections", screen: "catalog/pages/CollectionsPage.tsx", api: "/collections", says: "The collections could not be loaded.", empty: /No collections yet/ },
+  { path: "/tenant/stocktake", screen: "stocktake/pages/StocktakePage.tsx", api: "/inventory/counts", says: "The stock counts could not be loaded.", empty: /No counts yet/ },
+  { path: "/tenant/riders", screen: "orders/pages/RidersPage.tsx", api: "/riders", says: "The riders could not be loaded.", empty: /No riders yet/ },
+  { path: "/tenant/reviews", screen: "reviews/pages/OwnerReviewsPage.tsx", api: "/reviews", says: "The reviews could not be loaded.", empty: /No reviews yet/ },
 ];
 
 async function failIts(page: Page, list: Listed, status: number, message: string): Promise<{ asked: () => number }> {
   let asked = 0;
-  await page.route(list.api, (route) => {
+  await page.route((url) => url.pathname.endsWith(`/api/v1${list.api}`), (route) => {
     if (route.request().method() !== "GET") return route.continue();
     asked++;
 
@@ -160,7 +167,7 @@ test("a list that is really empty still says so — that sentence is for THAT", 
   test.skip(info.project.name !== "desktop", "one walk is enough");
   // The same request, answered properly with nothing in it.
   const list = LISTS.find((l) => l.path === "/tenant/coupons")!;
-  await page.route(list.api, (route) =>
+  await page.route((url) => url.pathname.endsWith(`/api/v1${list.api}`), (route) =>
     route.request().method() !== "GET"
       ? route.continue()
       : route.fulfill({

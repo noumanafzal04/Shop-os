@@ -17,6 +17,7 @@ import { useAnnouncements, useAnnouncementMutations } from "../hooks/useAdmin";
 import type { Announcement } from "../services/adminService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Each label now describes who actually receives it.
@@ -130,14 +131,16 @@ export default function AdminAnnouncementsPage() {
       {announcements.isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
       ) : rows.length === 0 ? (
-        <Card>
-          <Empty
-            icon={<ChatIcon />}
-            title="No announcements yet"
-            hint="Write one as a draft; nobody is told anything until you press Send."
-            action={<Button size="sm" onClick={openCreate}>+ New announcement</Button>}
-          />
-        </Card>
+        <ListEmpty from={announcements} what="the announcements">
+          <Card>
+            <Empty
+              icon={<ChatIcon />}
+              title="No announcements yet"
+              hint="Write one as a draft; nobody is told anything until you press Send."
+              action={<Button size="sm" onClick={openCreate}>+ New announcement</Button>}
+            />
+          </Card>
+        </ListEmpty>
       ) : (
         <div className="space-y-3">
           {rows.map((a) => (

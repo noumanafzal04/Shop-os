@@ -1389,6 +1389,7 @@ function ExpenseCategoriesTab({ money }: { money: Money }) {
 
   return (
     <CategoryManager
+      asked={categories}
       title="Expense categories"
       hint="Seeded from your trade, then yours. One with entries filed under it is turned off rather than deleted, so past months stay readable."
       noun="expense"

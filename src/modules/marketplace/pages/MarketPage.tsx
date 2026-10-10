@@ -9,6 +9,7 @@ import { useAisle, useAisleFacets, useBanners, useMarketShops } from "../hooks/u
 import { marketplaceService, type PublicBanner } from "../services/marketplaceService";
 import { usePin } from "../usePin";
 import { useAuthStore } from "../../../stores/authStore";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * THE MARKET'S FRONT PAGE.
@@ -211,11 +212,13 @@ export default function MarketPage() {
               {Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)}
             </div>
           ) : fresh.data?.data.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-gray-300 py-16 text-center dark:border-white/10">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {cityName ? `No shop in ${cityName} has listed anything yet.` : "No shop has listed anything yet."}
-              </p>
-            </div>
+            <ListEmpty from={fresh} what="the products">
+              <div className="rounded-3xl border border-dashed border-gray-300 py-16 text-center dark:border-white/10">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {cityName ? `No shop in ${cityName} has listed anything yet.` : "No shop has listed anything yet."}
+                </p>
+              </div>
+            </ListEmpty>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {fresh.data!.data.map((p) => (

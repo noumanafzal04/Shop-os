@@ -1,6 +1,6 @@
 import { platformToday } from "../../../common/time/platformToday";
 import { useMemo, useState } from "react";
-import TableEmpty from "../../../components/ui/table/TableEmpty";
+import TableEmpty, { emptyBecause, type Asked } from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
 import { downloadCsv } from "../../../common/api/download";
@@ -20,6 +20,7 @@ import { DollarLineIcon, GroupIcon, PieChartIcon } from "../../../icons";
 import { ANY_DATE, datesName, ledgerDates, ledgerEmpty, ledgerNote, ledgerTotalNote } from "../ledgerWords";
 import { PageHeader } from "../components/kit";
 import type { ChaseRow, MethodSplit, OutstandingBucket, PaymentTotals } from "../services/adminService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const METHODS = [
   { value: "cash", label: "Cash" },
@@ -97,6 +98,9 @@ export default function AdminPaymentsPage() {
 
   const payments = usePayments({ search, method, from: range.from, to: range.to, page });
 
+  const figures = emptyBecause(summary);
+  const noFigures = figures.denied !== null || figures.failed !== null;
+
   const p = s?.in_period;
   const against = s ? comparedWith(s.period) : "";
   const basis = /\d/.test(against) ? `in ${against}` : against;
@@ -165,6 +169,18 @@ export default function AdminPaymentsPage() {
         subtitle="What came in for plans, what has not, and who to ring about it."
       />
 
+      {/* THE FIGURES ARE ONE REQUEST. When it is refused or fails there is
+          nothing honest to draw above the ledger: the tiles waited for ever,
+          and under them "Nobody is behind. Every shop is inside its
+          subscription." was said about a list that had not arrived. */}
+      {noFigures ? (
+        <div className="mb-6">
+          <ListEmpty from={summary} what="the billing figures">
+            {null}
+          </ListEmpty>
+        </div>
+      ) : (
+      <>
       {/* WHAT CAME IN, over the period at its head — each figure beside the
           same one for the period it is set against. */}
       <div className="mb-6 space-y-4">
@@ -230,9 +246,11 @@ export default function AdminPaymentsPage() {
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2 md:gap-6">
-        <ChaseList rows={s?.chase} loading={summary.isLoading} />
+        <ChaseList rows={s?.chase} loading={summary.isLoading} asked={summary} />
         <SubscriptionHealth subscriptions={s?.subscriptions} loading={summary.isLoading} />
       </div>
+      </>
+      )}
 
       <div className="mb-4">
         <h3 className="font-semibold text-gray-800 dark:text-white/90">The ledger</h3>
@@ -482,7 +500,7 @@ function MoneyLate({
 }
 
 /** Who to ring today: in grace first, longest wait first. */
-function ChaseList({ rows, loading }: { rows: ChaseRow[] | undefined; loading: boolean }) {
+function ChaseList({ rows, loading, asked }: { rows: ChaseRow[] | undefined; loading: boolean; asked: Asked }) {
   return (
     <Panel title="Chase today" subtitle="In grace first — one call away from paying">
       {loading ? (
@@ -492,7 +510,9 @@ function ChaseList({ rows, loading }: { rows: ChaseRow[] | undefined; loading: b
           ))}
         </div>
       ) : (rows ?? []).length === 0 ? (
-        <PanelEmpty>Nobody is behind. Every shop is inside its subscription.</PanelEmpty>
+        <ListEmpty from={asked} what="the list of shops to chase">
+          <PanelEmpty>Nobody is behind. Every shop is inside its subscription.</PanelEmpty>
+        </ListEmpty>
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {(rows ?? []).map((row) => (

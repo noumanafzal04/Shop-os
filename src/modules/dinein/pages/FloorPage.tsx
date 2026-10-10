@@ -18,6 +18,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
 import WaiterReportModal from "../components/WaiterReportModal";
 import { FULL_SCREEN_PAGE_MIN } from "../../../layout/fullScreenPage";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /** A blank area is one section ("the floor"), not a section named "". */
 const areaOf = (t: FloorTable): string | null => t.area?.trim() || null;
@@ -516,15 +517,17 @@ export default function FloorPage() {
         ) : floor.isError ? (
           <p className="py-16 text-center text-error-500">Can't reach the floor. It will retry on its own.</p>
         ) : rows.length === 0 && takeaway.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-16 text-center dark:border-gray-700 dark:bg-white/[0.03]">
-            <p className="text-gray-600 dark:text-gray-300">No tables yet.</p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {canConfigure
-                ? "Add your first table to lay out the floor, or take a takeaway order."
-                : "Nobody has laid out the floor yet. Ask the owner to add the tables."}
-            </p>
-            {canConfigure && <div className="mt-4"><Button size="sm" onClick={addTable}>+ Add table</Button></div>}
-          </div>
+          <ListEmpty from={floor} what="the floor">
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-white py-16 text-center dark:border-gray-700 dark:bg-white/[0.03]">
+              <p className="text-gray-600 dark:text-gray-300">No tables yet.</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {canConfigure
+                  ? "Add your first table to lay out the floor, or take a takeaway order."
+                  : "Nobody has laid out the floor yet. Ask the owner to add the tables."}
+              </p>
+              {canConfigure && <div className="mt-4"><Button size="sm" onClick={addTable}>+ Add table</Button></div>}
+            </div>
+          </ListEmpty>
         ) : (
           <div className="space-y-6">
             {/* TAKEAWAY TABS. They have no table, so they had no tile: "+

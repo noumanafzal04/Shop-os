@@ -28,6 +28,7 @@ import {
 import Pager from "../../../components/ui/pager";
 import { CheckLineIcon, DollarLineIcon, PieChartIcon, TimeIcon, UserCircleIcon } from "../../../icons";
 import { Card, Empty, PageHeader, Person, Pill, StatTile } from "../components/kit";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * THE PLATFORM'S CUT.
@@ -388,9 +389,13 @@ export default function AdminCommissionPage() {
         {shops.isError ? (
           <Empty icon={<PieChartIcon />} title="The list could not be loaded" hint="Try again in a moment." action={<Button size="sm" variant="outline" onClick={() => shops.refetch()}>Try again</Button>} />
         ) : !shops.isLoading && list.length === 0 ? (
-          narrowed
-            ? <Empty icon={<PieChartIcon />} title="No shop matches" hint="Try fewer words, or clear the filters." />
-            : <Empty icon={<PieChartIcon />} title="No shops yet" hint="A shop appears here the day it is opened, and owes something the day an online order is completed." />
+          <ListEmpty from={shops} what="the commission list">
+            {
+              narrowed
+                ? <Empty icon={<PieChartIcon />} title="No shop matches" hint="Try fewer words, or clear the filters." />
+                : <Empty icon={<PieChartIcon />} title="No shops yet" hint="A shop appears here the day it is opened, and owes something the day an online order is completed." />
+            }
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] text-left text-theme-sm" data-testid="commission-table">

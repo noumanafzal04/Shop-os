@@ -17,6 +17,7 @@ import { Empty, PageHeader } from "../components/kit";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * WHO MAY RIDE.
@@ -299,17 +300,19 @@ export default function AdminRidersPage() {
         {rows.isLoading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : list.length === 0 ? (
-          <Empty
-            icon={<BoxIcon />}
-            title={search.trim() !== "" ? "No rider matches" : status === "pending" ? "Nobody is waiting" : "Nobody here"}
-            hint={
-              search.trim() !== ""
-                ? "Try the name, the phone number or the rider's id."
-                : status === "pending"
-                  ? "A rider appears here the moment they send their documents from the app."
-                  : undefined
-            }
-          />
+          <ListEmpty from={rows} what="the rider list">
+            <Empty
+              icon={<BoxIcon />}
+              title={search.trim() !== "" ? "No rider matches" : status === "pending" ? "Nobody is waiting" : "Nobody here"}
+              hint={
+                search.trim() !== ""
+                  ? "Try the name, the phone number or the rider's id."
+                  : status === "pending"
+                    ? "A rider appears here the moment they send their documents from the app."
+                    : undefined
+              }
+            />
+          </ListEmpty>
         ) : (
           <table className="w-full min-w-[46rem] text-left text-theme-sm">
             <thead>

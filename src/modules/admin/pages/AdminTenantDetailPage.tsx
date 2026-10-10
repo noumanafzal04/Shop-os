@@ -24,6 +24,7 @@ import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
 import type { LimitUsage, Tenant } from "../../auth/types";
 import { toIsoDate } from "../../../components/ui/filters";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -812,9 +813,11 @@ function CapacityCard({ tenant }: { tenant: Tenant }) {
       {rows.isPending ? (
         <div className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
       ) : list.length === 0 ? (
-        <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          Nothing bought or granted. The shop has exactly what its plan and its assigned limits give it.
-        </p>
+        <ListEmpty from={rows} what="this shop's grants">
+          <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+            Nothing bought or granted. The shop has exactly what its plan and its assigned limits give it.
+          </p>
+        </ListEmpty>
       ) : (
         <ul className="space-y-3">
           {list.map((r: Entitlement) => (
@@ -1425,7 +1428,9 @@ export default function AdminTenantDetailPage() {
             {payments.isLoading ? (
               <div className="h-16 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
             ) : paymentRows.length === 0 ? (
-              <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">No payments recorded yet.</p>
+              <ListEmpty from={payments} what="this shop's payments">
+                <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">No payments recorded yet.</p>
+              </ListEmpty>
             ) : (
               <table className="w-full text-left text-theme-sm">
                 <thead>

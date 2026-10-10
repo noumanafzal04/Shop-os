@@ -14,6 +14,7 @@ import { useDeliveries, useFuelMutations, useFuelTanks, usePriceChanges } from "
 import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { useAuthStore } from "../../../stores/authStore";
 import { isWaiting, nextMidnight, rateTiming } from "../rateTiming";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 })} L`;
 
@@ -182,7 +183,9 @@ export default function FuelDeliveriesPage() {
         </header>
         <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
           {(prices.data?.rows ?? []).length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-gray-400">No rate changes recorded.</p>
+            <ListEmpty from={prices} what="the rate changes">
+              <p className="px-4 py-10 text-center text-sm text-gray-400">No rate changes recorded.</p>
+            </ListEmpty>
           ) : (
             prices.data?.rows.map((c) => (
               <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">

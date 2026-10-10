@@ -1,5 +1,6 @@
 import Alert from "../../../components/ui/alert/Alert";
 import { useFailedReceipts, useReprintReport } from "../hooks/useReceipts";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Copies per cashier.
@@ -56,9 +57,11 @@ export function ReprintReportTab({ range }: { range: { from: string; to: string 
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-10 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-            No receipts printed in this period.
-          </p>
+          <ListEmpty from={report} what="the reprint report">
+            <p className="py-10 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+              No receipts printed in this period.
+            </p>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-theme-sm">

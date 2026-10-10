@@ -24,6 +24,7 @@ import type { CustomerGroup, PriceLevel } from "../services/customerGroupsServic
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 
 export default function CustomersPage() {
@@ -271,7 +272,9 @@ export default function CustomersPage() {
 
         <div className="mb-4 space-y-1.5">
           {(groups.data ?? []).length === 0 ? (
-            <p className="text-theme-sm text-gray-400">No groups yet.</p>
+            <ListEmpty from={groups} what="the customer groups">
+              <p className="text-theme-sm text-gray-400">No groups yet.</p>
+            </ListEmpty>
           ) : (groups.data ?? []).map((g) => (
             <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
               <div>

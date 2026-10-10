@@ -8,6 +8,7 @@ import { useBumpKot, useClearBoard, useKitchenBoard } from "../hooks/useKitchen"
 import { KotCardTile, formatAge, urgencyOf } from "../components/KotCard";
 import type { BoardView, KotCard } from "../services/kitchenService";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /** A screen bolted over the grill is the grill screen forever. */
 const STATION_KEY = "shopos-kitchen-station";
@@ -428,17 +429,19 @@ export default function KitchenPage() {
           </div>
         ) : working.length === 0 ? (
           // Not an error state — an empty pass is the goal.
-          <div className="flex h-full flex-col items-center justify-center px-6 py-24 text-center">
-            <span className="flex size-20 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <p className="mt-5 text-3xl font-bold text-gray-800 dark:text-white/90">Nothing waiting</p>
-            <p className="mt-2 text-lg text-gray-500 dark:text-gray-400">
-              {activeStation === "" ? "Every order is out." : `Nothing for ${activeStation} right now.`}
-            </p>
-          </div>
+          <ListEmpty from={board} what="the kitchen board">
+            <div className="flex h-full flex-col items-center justify-center px-6 py-24 text-center">
+              <span className="flex size-20 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <p className="mt-5 text-3xl font-bold text-gray-800 dark:text-white/90">Nothing waiting</p>
+              <p className="mt-2 text-lg text-gray-500 dark:text-gray-400">
+                {activeStation === "" ? "Every order is out." : `Nothing for ${activeStation} right now.`}
+              </p>
+            </div>
+          </ListEmpty>
         ) : (
           <>
             {/* Below `lg` there is no room for three queues side by side, so

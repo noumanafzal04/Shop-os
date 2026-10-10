@@ -19,6 +19,7 @@ import { reportTabs, reportTabAvailable, shopSells } from "../reportTabs";
 import { ReportWindow } from "../components/ReportWindow";
 import { useReportWindow } from "../hooks/useReportWindow";
 import type { ReportRange } from "../reportPeriod";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /** A bucket's key as a person reads a date. A month bucket ("2026-10") and anything else unknown is left as sent. */
 const axisLabel = (bucket: string): string => (/^\d{4}-\d{2}-\d{2}$/.test(bucket) ? formatDay(bucket) : bucket);
@@ -239,9 +240,11 @@ export default function ReportsPage() {
           {report.isLoading ? (
             <div className="h-40 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
           ) : (data?.top_products ?? []).length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              No sales in this period.
-            </p>
+            <ListEmpty from={report} what="the report">
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No sales in this period.
+              </p>
+            </ListEmpty>
           ) : (
             <table className="w-full text-left text-theme-sm">
               <thead>
@@ -273,9 +276,11 @@ export default function ReportsPage() {
           {report.isLoading ? (
             <div className="h-40 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
           ) : (data?.expenses_by_category ?? []).length === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              No expenses in this period.
-            </p>
+            <ListEmpty from={report} what="the report">
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                No expenses in this period.
+              </p>
+            </ListEmpty>
           ) : (
             <div className="space-y-3">
               {(data?.expenses_by_category ?? []).map((row) => {

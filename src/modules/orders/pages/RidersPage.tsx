@@ -14,6 +14,7 @@ import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useRiderStatement } from "../hooks/useOrders";
 import { useMoney } from "../../shop/hooks/useShop";
 import { PRODUCT } from "../../../common/brand";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * The shop's own delivery riders (Model A). Assign them to delivery orders on
@@ -250,9 +251,11 @@ export default function RidersPage() {
         {riders.isLoading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : rows.length === 0 ? (
-          <p className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            No riders yet — add your first rider above.
-          </p>
+          <ListEmpty from={riders} what="the riders">
+            <p className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+              No riders yet — add your first rider above.
+            </p>
+          </ListEmpty>
         ) : (
           <table className="w-full min-w-[38rem] text-left text-theme-sm">
             <thead>

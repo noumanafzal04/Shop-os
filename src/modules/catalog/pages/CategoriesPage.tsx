@@ -12,6 +12,7 @@ import { ApiError } from "../../../common/types/api";
 import { useCategories, useCategoryMutations } from "../hooks/useCatalog";
 import type { Category } from "../types";
 import { CategoryTree } from "../components/CategoryTree";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /** Depth-first flatten for the reassign picker and the counts. */
 function flatten(nodes: Category[], depth = 0): Array<{ node: Category; depth: number }> {
@@ -172,19 +173,23 @@ export default function CategoriesPage() {
               ))}
             </div>
           ) : roots.length === 0 ? (
-            <div className="py-10 text-center">
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                No categories yet
-              </p>
-              <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                Add your first one on the left — “Drinks”, “Bakery”, whatever your shelves are
-                called.
-              </p>
-            </div>
+            <ListEmpty from={categories} what="the categories">
+              <div className="py-10 text-center">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  No categories yet
+                </p>
+                <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
+                  Add your first one on the left — “Drinks”, “Bakery”, whatever your shelves are
+                  called.
+                </p>
+              </div>
+            </ListEmpty>
           ) : shown.length === 0 ? (
-            <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              Nothing matches “{search}”.
-            </p>
+            <ListEmpty from={categories} what="the categories">
+              <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nothing matches “{search}”.
+              </p>
+            </ListEmpty>
           ) : (
             <CategoryTree
               roots={shown}

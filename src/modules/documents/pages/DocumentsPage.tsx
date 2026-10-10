@@ -9,6 +9,7 @@ import type { DocumentKind, SaleDocument } from "../services/documentService";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords, hasJobBoard, type BoardWords } from "../../workshop/words";
 import { isPastDate } from "../../../common/shopDay";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * WHICH KINDS THIS SHOP ACTUALLY WRITES.
@@ -155,16 +156,18 @@ export default function DocumentsPage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <p className="py-14 text-center text-theme-sm text-gray-500 dark:text-gray-400">
-            {kind === "layaway"
-              ? "Nothing is being held right now. Take an advance from the till to start one."
-              : kind === "job_card"
-                /* Named by the status actually being looked at. "No job cards"
-                   under a filter set to Cancelled is a sentence that makes a
-                   shopkeeper doubt their own records. */
-                ? `No ${words.units.toLowerCase()} with this status.`
-                : "No quotations here. Write one from the till with a cart on screen."}
-          </p>
+          <ListEmpty from={list} what="the documents">
+            <p className="py-14 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+              {kind === "layaway"
+                ? "Nothing is being held right now. Take an advance from the till to start one."
+                : kind === "job_card"
+                  /* Named by the status actually being looked at. "No job cards"
+                     under a filter set to Cancelled is a sentence that makes a
+                     shopkeeper doubt their own records. */
+                  ? `No ${words.units.toLowerCase()} with this status.`
+                  : "No quotations here. Write one from the till with a cart on screen."}
+            </p>
+          </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-theme-sm">

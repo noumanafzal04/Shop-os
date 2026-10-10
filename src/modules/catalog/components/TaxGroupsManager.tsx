@@ -7,6 +7,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { useTaxGroups, useTaxGroupMutations } from "../hooks/useTaxGroups";
 import type { TaxGroup } from "../services/taxGroupsService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Manage reusable tax groups — named rates a product can point at instead of a
@@ -14,7 +15,8 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
  * inside Settings → Tax.
  */
 export default function TaxGroupsManager() {
-  const { data: groups, isLoading } = useTaxGroups();
+  const asked = useTaxGroups();
+  const { data: groups, isLoading } = asked;
   const { create, update, remove } = useTaxGroupMutations();
   const toast = useToast();
   const confirm = useConfirm();
@@ -52,7 +54,9 @@ export default function TaxGroupsManager() {
         {isLoading ? (
           <p className="text-theme-sm text-gray-400">Loading…</p>
         ) : (groups ?? []).length === 0 ? (
-          <p className="text-theme-sm text-gray-400">No tax groups yet.</p>
+          <ListEmpty from={asked} what="the tax groups">
+            <p className="text-theme-sm text-gray-400">No tax groups yet.</p>
+          </ListEmpty>
         ) : (groups ?? []).map((g) => (
           <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
             <div>

@@ -20,6 +20,7 @@ import type {
   HardwareDevice,
   HardwareType,
 } from "../services/hardwareService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const TYPE_LABEL: Record<HardwareType, string> = {
   receipt_printer: "Receipt printer",
@@ -92,7 +93,8 @@ function testPrint(d: HardwareDevice) {
 }
 
 export default function HardwareDevices() {
-  const { data: devices, isLoading } = useHardwareDevices();
+  const asked = useHardwareDevices();
+  const { data: devices, isLoading } = asked;
   const { create, update, remove } = useHardwareMutations();
   const modal = useModal();
   const confirm = useConfirm();
@@ -180,7 +182,9 @@ export default function HardwareDevices() {
       {isLoading ? (
         <div className="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
       ) : (devices ?? []).length === 0 ? (
-        <p className="text-theme-sm text-gray-400">No devices yet. Add your receipt printer, scanner, or cash drawer.</p>
+        <ListEmpty from={asked} what="the devices">
+          <p className="text-theme-sm text-gray-400">No devices yet. Add your receipt printer, scanner, or cash drawer.</p>
+        </ListEmpty>
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {(devices ?? []).map((d) => (

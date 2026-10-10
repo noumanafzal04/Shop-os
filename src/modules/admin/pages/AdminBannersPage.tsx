@@ -17,6 +17,7 @@ import { useAdminTenants, useBanners, useBannerMutations } from "../hooks/useAdm
 import type { Banner } from "../services/adminService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -184,14 +185,16 @@ export default function AdminBannersPage() {
       {banners.isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
       ) : rows.length === 0 ? (
-        <Card>
-          <Empty
-            icon={<BoxCubeIcon />}
-            title="No banners yet"
-            hint="A banner is a picture on the app's home that opens one shop. Make the first one for a shop that has paid for the space."
-            action={<Button size="sm" onClick={openCreate}>+ New banner</Button>}
-          />
-        </Card>
+        <ListEmpty from={banners} what="the banners">
+          <Card>
+            <Empty
+              icon={<BoxCubeIcon />}
+              title="No banners yet"
+              hint="A banner is a picture on the app's home that opens one shop. Make the first one for a shop that has paid for the space."
+              action={<Button size="sm" onClick={openCreate}>+ New banner</Button>}
+            />
+          </Card>
+        </ListEmpty>
       ) : (
         <div className="space-y-3">
           {rows.map((b) => (
@@ -284,7 +287,9 @@ export default function AdminBannersPage() {
                   {shopResults.isLoading ? (
                     <div className="px-3 py-2 text-sm text-gray-400">Searching…</div>
                   ) : (shopResults.data?.data ?? []).length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-gray-400">No shops found.</div>
+                    <ListEmpty from={shopResults} what="the shops">
+                      <div className="px-3 py-2 text-sm text-gray-400">No shops found.</div>
+                    </ListEmpty>
                   ) : (
                     (shopResults.data?.data ?? []).map((t) => (
                       <button

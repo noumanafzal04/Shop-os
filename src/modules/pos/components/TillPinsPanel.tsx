@@ -11,6 +11,7 @@ import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { tillService, type TillUser } from "../services/tillService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
  * Till PINs, managed where the owner already is.
@@ -93,7 +94,9 @@ export default function TillPinsPanel() {
       {roster.isLoading ? (
         <div className="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
       ) : users.length === 0 ? (
-        <p className="text-theme-sm text-gray-400">Nobody here can operate a till yet.</p>
+        <ListEmpty from={roster} what="the staff list">
+          <p className="text-theme-sm text-gray-400">Nobody here can operate a till yet.</p>
+        </ListEmpty>
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {users.map((u) => (

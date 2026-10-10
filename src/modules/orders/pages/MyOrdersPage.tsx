@@ -13,6 +13,7 @@ import { customerSays } from "../orderFlow";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
@@ -52,10 +53,12 @@ export default function MyOrdersPage() {
         {orders.isLoading ? (
           <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
         ) : rows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">No orders yet.</p>
-            <Link to="/shops"><Button size="sm" className="mt-3">Start shopping</Button></Link>
-          </div>
+          <ListEmpty from={orders} what="your orders">
+            <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
+              <p className="text-gray-500 dark:text-gray-400">No orders yet.</p>
+              <Link to="/shops"><Button size="sm" className="mt-3">Start shopping</Button></Link>
+            </div>
+          </ListEmpty>
         ) : (
           <div className="space-y-4">
             {rows.map((o) => (

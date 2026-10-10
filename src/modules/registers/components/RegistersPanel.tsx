@@ -13,6 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { useBranches } from "../../branches/hooks/useBranches";
 import { useRegisterMutations, useRegisters } from "../hooks/useRegisters";
 import type { Register } from "../services/registerService";
+import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 interface Draft {
   id?: string;
@@ -30,7 +31,8 @@ const blank: Draft = { name: "", code: "", branch_id: "", is_active: true };
  * "cashier × lane" so every drawer reconciles on its own.
  */
 export default function RegistersPanel() {
-  const { data: registers, isLoading } = useRegisters();
+  const asked = useRegisters();
+  const { data: registers, isLoading } = asked;
   const branches = useBranches();
   const { create, update, remove, forceClose } = useRegisterMutations();
   const modal = useModal();
@@ -106,9 +108,11 @@ export default function RegistersPanel() {
       {isLoading ? (
         <div className="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
       ) : (registers ?? []).length === 0 ? (
-        <p className="text-theme-sm text-gray-400">
-          No registers yet. One counter needs none — add a row per lane once you run more than one checkout.
-        </p>
+        <ListEmpty from={asked} what="the registers">
+          <p className="text-theme-sm text-gray-400">
+            No registers yet. One counter needs none — add a row per lane once you run more than one checkout.
+          </p>
+        </ListEmpty>
       ) : (
         <ul className="divide-y divide-gray-100 dark:divide-gray-800">
           {(registers ?? []).map((r) => (
