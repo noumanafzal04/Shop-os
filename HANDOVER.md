@@ -8745,3 +8745,24 @@ Decision: `docs/decisions/shopos-the-console-has-an-appearance.md`.
 - A shared mutation hook carries `onSuccess` only; the CALL SITE spells
   `{ onSuccess, onError }` (or `failed(toast, …)`) — two guards read the text.
 - No migration.
+
+## Every console screen says which it is — the A–Z walk, 2026-10-10
+
+Decision: `docs/decisions/shopos-every-console-screen-says-which-it-is.md`.
+
+- Every admin screen has ONE `h1` — `PageHeader` from `admin/components/kit`,
+  its rail icon in its own colour — and `Empty` for "nothing here".
+  `admin-console.spec` asserts it per screen (`SCREENS[].title`). A new console
+  screen: add it there, and use the kit.
+- `DashboardHero`'s title is an `h1` (both consoles).
+- `StaffPage` (shared) takes `header={(add) => ReactNode}`; the admin wrapper
+  passes the kit header. The shop side is unchanged.
+- **Tenant list: deleted shops are asked for.** `GET /admin/tenants` no longer
+  gets `with_deleted`; `?only_deleted=1` is the Deleted box (`?deleted=1` in
+  the address). `with_deleted` still answers.
+- `admin/paymentChip.ts`: a row on no plan says "not priced yet", never "paid".
+- A shop's page: `shop-line`, `shop-glance` (four tiles from
+  `admin/shopAtAGlance.ts`), and a sticky `nav[aria-label="On this page"]`
+  that scrolls to `#details #modules #limits #offline #people #payments`
+  (`scroll-mt-36` on each). NOT tabs — `journey/11` reads the whole page.
+- No migration.
