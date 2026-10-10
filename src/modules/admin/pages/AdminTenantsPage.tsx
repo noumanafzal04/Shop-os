@@ -20,6 +20,9 @@ import { useBusinessTypes, useCities } from "../../shop/hooks/useShop";
 import { useAdminTenants, usePlans } from "../hooks/useAdmin";
 import type { OriginCounts, PaymentCounts, TenantOrigin } from "../services/adminService";
 import type { PaymentStatus, Tenant } from "../../auth/types";
+import { GroupIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
+import { paymentChip } from "../paymentChip";
 
 /**
  * The four buckets, in the order an admin reads them: who is fine, who needs a
@@ -52,20 +55,9 @@ const SORTS = [
   { value: "converted", label: "Newest owner" },
 ];
 
-const CHIP: Record<PaymentStatus, { label: string; color: "success" | "warning" | "error" | "light" }> = {
-  paid: { label: "paid", color: "success" },
-  grace: { label: "in grace", color: "warning" },
-  unpaid: { label: "unpaid", color: "error" },
-  suspended: { label: "suspended", color: "light" },
-};
-
+/** The one word about a shop's money — see paymentChip.ts for why it is not simply the bucket. */
 function paymentBadge(t: Tenant) {
-  // A deleted business has no payment state worth showing — it is not being
-  // chased, and the row exists only so an admin can restore it.
-  if (t.deleted_at) return <Badge size="sm" color="light">deleted</Badge>;
-
-  const chip = t.payment_status ? CHIP[t.payment_status] : null;
-  if (!chip) return <Badge size="sm" color="light">—</Badge>;
+  const chip = paymentChip(t);
 
   return <Badge size="sm" color={chip.color}>{chip.label}</Badge>;
 }
@@ -140,6 +132,7 @@ export default function AdminTenantsPage() {
     plan_id: get("plan_id"),
     setup: (get("setup") || "") as "pending" | "done" | "",
     online_only: get("online") === "1",
+    only_deleted: get("deleted") === "1",
     sort: get("sort"),
     page,
   });
@@ -196,6 +189,12 @@ export default function AdminTenantsPage() {
       value: "Sells online",
       onRemove: () => patch({ online: "" }),
     },
+    get("deleted") === "1" && {
+      key: "deleted",
+      label: "",
+      value: "Deleted shops",
+      onRemove: () => patch({ deleted: "" }),
+    },
   ].filter(Boolean) as AppliedFilter[];
 
   const clearAll = () => {
@@ -212,15 +211,17 @@ export default function AdminTenantsPage() {
     <>
       <PageMeta title="Tenants" area="Admin" description="Manage businesses" />
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Tenants</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Every business on the platform</p>
-        </div>
-        <Link to="/admin/tenants/new">
-          <Button size="sm">+ Create Tenant</Button>
-        </Link>
-      </div>
+      <PageHeader
+        icon={<GroupIcon />}
+        tone="brand"
+        title="Tenants"
+        subtitle="Every business on the platform — what it pays, how big it is, and which door it came in by."
+        actions={
+          <Link to="/admin/tenants/new">
+            <Button size="sm">+ Create Tenant</Button>
+          </Link>
+        }
+      />
 
       {showNewOwnerCall && (
         // Not a badge buried in a row — a shop that was just kept has an owner
@@ -349,6 +350,20 @@ export default function AdminTenantsPage() {
             className="size-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
           />
           Sells online
+        </label>
+
+        {/* DELETED SHOPS ARE ASKED FOR. They used to be mixed into the list —
+            the ones closed down among the ones trading, and "All" counting
+            both. A deleted shop is kept so it can be put back, which makes it
+            something to go and find. */}
+        <label className="flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 px-3.5 text-theme-sm font-medium text-gray-600 transition hover:border-gray-300 dark:border-gray-800 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={get("deleted") === "1"}
+            onChange={(event) => patch({ deleted: event.target.checked ? "1" : "" })}
+            className="size-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+          />
+          Deleted
         </label>
 
         <FilterSelect

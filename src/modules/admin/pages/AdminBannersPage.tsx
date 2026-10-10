@@ -1,5 +1,7 @@
 import { useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
+import { BoxCubeIcon } from "../../../icons";
+import { Card, Empty, PageHeader } from "../components/kit";
 import BannerPreview from "../components/BannerPreview";
 import { bannerShapeProblem, measureImage } from "../bannerShape";
 import Button from "../../../components/ui/button/Button";
@@ -171,20 +173,25 @@ export default function AdminBannersPage() {
   return (
     <>
       <PageMeta title="Banners" area="Admin" description="Promo banners / paid ads" />
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Promo Banners</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Paid ads shown on the app home. A tap opens the advertiser's shop.</p>
-        </div>
-        <Button size="sm" onClick={openCreate}>+ New banner</Button>
-      </div>
+      <PageHeader
+        icon={<BoxCubeIcon />}
+        tone="purple"
+        title="Banners & Ads"
+        subtitle="Paid ads shown on the app's home. A tap opens the advertiser's shop."
+        actions={<Button size="sm" onClick={openCreate}>+ New banner</Button>}
+      />
 
       {banners.isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No banners yet.</p>
-        </div>
+        <Card>
+          <Empty
+            icon={<BoxCubeIcon />}
+            title="No banners yet"
+            hint="A banner is a picture on the app's home that opens one shop. Make the first one for a shop that has paid for the space."
+            action={<Button size="sm" onClick={openCreate}>+ New banner</Button>}
+          />
+        </Card>
       ) : (
         <div className="space-y-3">
           {rows.map((b) => (

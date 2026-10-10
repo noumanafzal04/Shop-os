@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * THE ADMIN KEEPS A DEMO SHOP FOR ITS OWNER — through the screen.
@@ -69,6 +69,12 @@ async function clearTheGround(request: APIRequestContext): Promise<void> {
 
 const row = (page: Page, name: string) => page.locator(`[data-demo="${name}"]`);
 
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
+
 test("a demo somebody is trying can be kept as a real shop from the admin side, with the sign-in its owner will use", async ({ page, request }) => {
   await clearTheGround(request);
   const demo = await openADemo(request);
@@ -131,7 +137,7 @@ test("a demo somebody is trying can be kept as a real shop from the admin side, 
 
   // ── it is the same shop, and it is real ───────────────────────────
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  await expect(page.getByRole("heading", { name: KEPT, level: 2 })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: KEPT, level: 1 })).toBeVisible({ timeout: 20_000 });
   await expect(banner, "a shop that was kept still says it is a demo").toHaveCount(0);
 
   const kept = await adminGet<Row & { users?: Array<{ email: string; name: string }> }>(request, `/admin/tenants/${demo.id}`);

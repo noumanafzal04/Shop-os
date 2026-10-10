@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
+import { roomToWork, tradeAuth } from "./api";
+
 /**
  * THE CONSOLE THAT PRICES EVERY SHOP.
  *
@@ -32,22 +34,22 @@ import { test, expect, type Page } from "@playwright/test";
  * check below is what makes a stale entry here fail loudly rather than
  * quietly test the dashboard six times.
  */
-const SCREENS: Array<{ path: string; name: string; budget?: number }> = [
-  { path: "/admin", name: "the console", budget: 8 },
-  { path: "/admin/tenants", name: "businesses" },
-  { path: "/admin/tenants/new", name: "create a business", budget: 8 },
-  { path: "/admin/shop-requests", name: "demo shops" },
-  { path: "/admin/enquiries", name: "enquiries" },
-  { path: "/admin/plans", name: "plans" },
-  { path: "/admin/payments", name: "payments" },
-  { path: "/admin/commission", name: "commission" },
-  { path: "/admin/riders", name: "riders" },
-  { path: "/admin/customers", name: "customers" },
-  { path: "/admin/banners", name: "banners & ads" },
-  { path: "/admin/announcements", name: "announcements" },
-  { path: "/admin/staff", name: "platform staff" },
-  { path: "/admin/config", name: "configuration" },
-  { path: "/admin/audit-logs", name: "audit trail" },
+const SCREENS: Array<{ path: string; name: string; title: string; budget?: number }> = [
+  { path: "/admin", name: "the console", title: "Platform Overview", budget: 8 },
+  { path: "/admin/tenants", name: "businesses", title: "Tenants" },
+  { path: "/admin/tenants/new", name: "create a business", title: "Create a business", budget: 8 },
+  { path: "/admin/shop-requests", name: "demo shops", title: "Demo shops" },
+  { path: "/admin/enquiries", name: "enquiries", title: "Enquiries" },
+  { path: "/admin/plans", name: "plans", title: "Plans" },
+  { path: "/admin/payments", name: "payments", title: "Billing & Payments" },
+  { path: "/admin/commission", name: "commission", title: "Commission" },
+  { path: "/admin/riders", name: "riders", title: "Riders" },
+  { path: "/admin/customers", name: "customers", title: "Customers" },
+  { path: "/admin/banners", name: "banners & ads", title: "Banners & Ads" },
+  { path: "/admin/announcements", name: "announcements", title: "Announcements" },
+  { path: "/admin/staff", name: "platform staff", title: "Platform Staff" },
+  { path: "/admin/config", name: "configuration", title: "Platform Configuration" },
+  { path: "/admin/audit-logs", name: "audit trail", title: "Audit Log" },
 ];
 
 async function open(page: Page, path: string): Promise<number> {
@@ -58,6 +60,12 @@ async function open(page: Page, path: string): Promise<number> {
   return (Date.now() - started) / 1000;
 }
 
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
+
 for (const screen of SCREENS) {
   test(`${screen.name} — arrives`, async ({ page }) => {
     const seconds = await open(page, screen.path);
@@ -66,6 +74,16 @@ for (const screen of SCREENS) {
     // dashboard instead — see four-doors.spec.ts for why this comes first.
     expect(new URL(page.url()).pathname, `${screen.name} was redirected`).toBe(screen.path);
     expect(seconds, `${screen.name} took ${seconds.toFixed(1)}s`).toBeLessThan(screen.budget ?? 6);
+
+    // IT SAYS WHICH SCREEN IT IS — once, at the top, as the page's heading.
+    //
+    // Eight of these fifteen had no h1 at all: their names were h2s, on pages
+    // with nothing above them. To somebody looking, that was a console whose
+    // screens opened three different ways; to a screen reader, a page with no
+    // top to its outline. One heading each, and it is the screen's own name.
+    const heading = page.getByRole("heading", { level: 1 });
+    await expect(heading, `${screen.name} does not have exactly one page heading`).toHaveCount(1);
+    await expect(heading).toHaveText(screen.title);
   });
 }
 
@@ -116,7 +134,7 @@ test("a tenant's limits read as capacity, usage and policy", async ({ page }) =>
    * failure said "the usage card has no Capacity section", which was a true
    * sentence about a page that had not rendered yet.
    */
-  await expect(page.getByText("Usage & limits")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Usage & limits" })).toBeVisible({ timeout: 20_000 });
 
   /**
    * LOWERCASED, BECAUSE `innerText` APPLIES `text-transform`.
@@ -157,7 +175,7 @@ test("Basic HR can be handed to a shop, and is not there by default", async ({ p
   await expect(firstShop).toBeVisible();
   await firstShop.click();
   await page.waitForURL(/\/admin\/tenants\/[^/]+$/, { timeout: 20_000 });
-  await expect(page.getByText("Usage & limits")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Usage & limits" })).toBeVisible({ timeout: 20_000 });
 
   /**
    * WAIT FOR THE PICKER, NOT FOR THE CARD ABOVE IT.

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { PlusIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -218,12 +220,15 @@ export default function AdminTenantCreatePage() {
   return (
     <>
       <PageMeta title="Create Business" area="Admin" description="New business" />
-      <div className="mb-6">
-        <Link to="/admin/tenants" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
-          ← Back to businesses
-        </Link>
-        <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">Create a business</h2>
-      </div>
+      <Link to="/admin/tenants" className="mb-3 inline-block text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
+        ← Back to businesses
+      </Link>
+      <PageHeader
+        icon={<PlusIcon />}
+        tone="brand"
+        title="Create a business"
+        subtitle="Who it is, what it can do, how big it is, and what it pays — in the order the decisions are made."
+      />
 
       {generalError && (
         <div className="mb-5">

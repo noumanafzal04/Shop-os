@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import TableEmpty from "../../components/ui/table/TableEmpty";
 import PageMeta from "../../components/common/PageMeta";
 import Button from "../../components/ui/button/Button";
@@ -25,6 +25,11 @@ interface Props {
   title: string;
   subtitle: string;
   basePath: string; // "/admin/staff" | "/staff"
+  /**
+   * The head of the page, drawn by whoever mounts it and handed the "Add"
+   * button to put in it. Absent, the page draws its own plain one.
+   */
+  header?: (add: ReactNode) => ReactNode;
 }
 
 const STAFF_STATUS = [
@@ -32,7 +37,7 @@ const STAFF_STATUS = [
   { value: "suspended", label: "Suspended" },
 ];
 
-export default function StaffPage({ title, subtitle, basePath }: Props) {
+export default function StaffPage({ title, subtitle, basePath, header }: Props) {
   const confirm = useConfirm();
   const staff = useStaffModule(basePath);
   const permissions = staff.usePermissionCatalog();
@@ -280,13 +285,19 @@ export default function StaffPage({ title, subtitle, basePath }: Props) {
     <>
       <PageMeta title={`${title}`} description={subtitle} />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">{title}</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
+      {/* The console draws its own head on this page — every console screen
+          has one, in its own colour — and is handed the button to put in it. */}
+      {header ? (
+        header(<Button size="sm" onClick={openCreate}>+ Add Staff</Button>)
+      ) : (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">{title}</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
+          </div>
+          <Button size="sm" onClick={openCreate}>+ Add Staff</Button>
         </div>
-        <Button size="sm" onClick={openCreate}>+ Add Staff</Button>
-      </div>
+      )}
 
       <FilterBar
         search={{

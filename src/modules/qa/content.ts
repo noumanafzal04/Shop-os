@@ -756,7 +756,12 @@ export const QA_SECTIONS: QaSection[] = [
         checks: [
           { do: "Create a business of each trade.", expect: "Its modules are proposed for that trade and can be adjusted before saving. What you saved is what the shop then has." },
           { do: "Change a shop's plan.", expect: "Its modules do not move. A plan change silently revoking a module would be a serious bug." },
-          { do: "Count the businesses on the console against the tenant list.", expect: "Demo shops are not counted as businesses. They were once, and it made the number wrong by more than half." },
+          { do: "Count the businesses on the console against the tenant list.", expect: "Demo shops are not counted as businesses. They were once, and it made the number wrong by more than half. The list's All is the dashboard's Total tenants plus the demos being tried — and no deleted shop is in it." },
+          { do: "Delete a shop, then look for it in the list.", expect: "It is gone from the list. Tick Deleted: it is there, marked deleted, with every other deleted shop and nothing else — and its page offers Restore. Untick and the live shops are back." },
+          { do: "Find a shop on no plan (Any plan → Not priced yet).", expect: "Its row says \"not priced yet\", not \"paid\" — it has paid nothing. A suspended shop says suspended whether or not it has a plan." },
+          { do: "Open any shop on a plan.", expect: "Under its name: what kind of shop, its city, since when. Then four figures before anything else — its plan and price, when it renews (amber in the last week; \"Today\" on the day), what it pays with its add-ons, how many branches, staff and checkout lanes it has." },
+          { do: "Press Payments in the row of buttons under those figures, then Modules.", expect: "The page goes to that part and the buttons come with it; the part you asked for starts below them, not underneath." },
+          { do: "Open every screen on the console's menu in turn.", expect: "Each has ONE heading at the top saying which screen it is, with its own icon. None opens on a bare table." },
         ],
       },
       {

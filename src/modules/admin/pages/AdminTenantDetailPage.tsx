@@ -5,6 +5,8 @@ import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import { ModulePicker } from "../components/ModulePicker";
 import { DemoBanner } from "../components/DemoBanner";
+import { StatTile } from "../components/kit";
+import { glanceAt } from "../shopAtAGlance";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -1280,23 +1282,71 @@ export default function AdminTenantDetailPage() {
       <div className="mb-6">
         <Link to="/admin/tenants" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">← Back to tenants</Link>
         <div className="mt-1 flex flex-wrap items-center gap-3">
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">{t.business_name}</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">{t.business_name}</h1>
           {t.deleted_at ? <Badge color="light">deleted</Badge>
             : t.status === "suspended" ? <Badge color="error">suspended</Badge>
             : <Badge color="success">active</Badge>}
           {t.online_shop_enabled && <Badge color="info">online shop</Badge>}
           {t.is_demo && <Badge color="light">demo</Badge>}
         </div>
+        {/* What kind of shop, where, and since when — the line somebody reads
+            to check they have opened the right one. */}
+        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400" data-testid="shop-line">
+          {[
+            (businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label ?? null,
+            t.city?.name ?? null,
+            t.created_at ? `since ${new Date(t.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : null,
+            t.origin === "converted" ? "kept from a demo" : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
       </div>
 
       {/* A demo says it is one, above everything else, with the one decision
           there is to make about it. */}
       {t.is_demo && !t.deleted_at && <DemoBanner tenant={t} />}
 
+      {/* THE FOUR THINGS THIS PAGE IS OPENED TO ASK, before the four screens
+          of everything else: what plan, when it renews, what it pays, how
+          big it is. They were a row in one card, the same card, the side
+          column and the third card down. */}
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="shop-glance">
+        {glanceAt(t).map((g) => (
+          <StatTile key={g.label} label={g.label} value={g.value} hint={g.hint} tone={g.tone} />
+        ))}
+      </div>
+
+      {/* …and the way down it. Everything about a shop is on this one page,
+          on purpose — so it needs a way to get to the part that is wanted
+          without scrolling past the parts that are not. It stays in sight. */}
+      <nav
+        aria-label="On this page"
+        className="sticky top-16 z-20 mb-5 overflow-x-auto rounded-2xl border border-gray-200 bg-white/95 p-1.5 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 lg:top-[72px]"
+      >
+        <div className="flex w-max gap-1">
+          {[
+            { id: "details", label: "Details" },
+            { id: "modules", label: "Modules" },
+            { id: "limits", label: "Usage & limits" },
+            { id: "offline", label: "Offline selling" },
+            ...(t.users && t.users.length > 0 ? [{ id: "people", label: "People" }] : []),
+            { id: "payments", label: "Payments" },
+          ].map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="whitespace-nowrap rounded-lg px-3.5 py-2 text-theme-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              {section.label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Info + actions */}
         <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div id="details" className="scroll-mt-36 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
             <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Business details</h3>
             <dl className="grid grid-cols-2 gap-4 text-sm">
               <div><dt className="text-gray-400">City</dt><dd className="text-gray-700 dark:text-gray-300">{t.city?.name ?? "—"}</dd></div>
@@ -1328,25 +1378,31 @@ export default function AdminTenantDetailPage() {
           <BusinessTypeCard tenantId={t.id} current={t.business_type ?? null} currentCategory={t.business_category ?? null} />
 
           {/* Module management */}
-          <ModulesCard
-            tenantId={t.id}
-            features={t.features ?? {}}
-            pkg={t.package}
-            planName={t.plan?.name ?? null}
-            tradeLabel={(businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label.toLowerCase() ?? null}
-          />
+          <div id="modules" className="scroll-mt-36">
+            <ModulesCard
+              tenantId={t.id}
+              features={t.features ?? {}}
+              pkg={t.package}
+              planName={t.plan?.name ?? null}
+              tradeLabel={(businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label.toLowerCase() ?? null}
+            />
+          </div>
 
           {/* Plan usage & per-tenant limit extension */}
-          <UsageLimitsCard tenant={t} plan={currentPlan} />
-          <CapacityCard tenant={t} />
+          <div id="limits" className="scroll-mt-36 space-y-6">
+            <UsageLimitsCard tenant={t} plan={currentPlan} />
+            <CapacityCard tenant={t} />
+          </div>
 
           {/* The one policy switch — a grant, not a ceiling, so it is not in
               the limits modal. It had no screen at all until now. */}
-          <OfflineSellingCard tenant={t} />
+          <div id="offline" className="scroll-mt-36">
+            <OfflineSellingCard tenant={t} />
+          </div>
 
           {/* Owner accounts */}
           {t.users && t.users.length > 0 && (
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+            <div id="people" className="scroll-mt-36 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
               <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Users</h3>
               <div className="space-y-2">
                 {t.users.map((u) => (
@@ -1360,7 +1416,7 @@ export default function AdminTenantDetailPage() {
           )}
 
           {/* Payment history */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
+          <div id="payments" className="scroll-mt-36 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
             <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">Payment history</h3>
             {payments.isLoading ? (
               <div className="h-16 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />

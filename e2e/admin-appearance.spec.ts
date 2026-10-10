@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * THE CONSOLE'S OWN APPEARANCE — through the screen.
@@ -48,6 +48,12 @@ const worn = (page: Page) =>
 
 const canvas = (page: Page) => page.getByRole("dialog", { name: "Appearance" });
 const launcher = (page: Page) => page.getByRole("button", { name: "Open appearance settings" });
+
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
 
 test("the console's colour and its menu can be changed from the console, for everybody on it", async ({ page, request }, info) => {
   test.skip((page.viewportSize()?.width ?? 0) < 1280, "the canvas is a sit-down job: its launcher is not drawn below a desktop's width");

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
+import { ChatIcon } from "../../../icons";
+import { Card, Empty, PageHeader } from "../components/kit";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
@@ -117,20 +119,25 @@ export default function AdminAnnouncementsPage() {
   return (
     <>
       <PageMeta title="Announcements" area="Admin" description="Broadcast push notifications" />
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Announcements</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Broadcast a push notification to shops or customers. Draft first, then send.</p>
-        </div>
-        <Button size="sm" onClick={openCreate}>+ New announcement</Button>
-      </div>
+      <PageHeader
+        icon={<ChatIcon />}
+        tone="sky"
+        title="Announcements"
+        subtitle="A message to every shop, every customer, or both. Draft it first, then send."
+        actions={<Button size="sm" onClick={openCreate}>+ New announcement</Button>}
+      />
 
       {announcements.isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)}</div>
       ) : rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-          <p className="text-gray-500 dark:text-gray-400">No announcements yet.</p>
-        </div>
+        <Card>
+          <Empty
+            icon={<ChatIcon />}
+            title="No announcements yet"
+            hint="Write one as a draft; nobody is told anything until you press Send."
+            action={<Button size="sm" onClick={openCreate}>+ New announcement</Button>}
+          />
+        </Card>
       ) : (
         <div className="space-y-3">
           {rows.map((a) => (

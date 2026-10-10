@@ -11,6 +11,8 @@ import Button from "../../../components/ui/button/Button";
 import { FilterChips } from "../../../components/ui/filters";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
+import { PaperPlaneIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
 
@@ -113,27 +115,28 @@ export default function AdminEnquiriesPage() {
     <>
       <PageMeta title="Enquiries" description="People asking for a walkthrough or with a question" />
 
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Enquiries</h1>
-          <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            {oldest
-              ? <>Somebody has been waiting <strong>{howLong(oldest.created_at)}</strong> for a reply.</>
-              : "Nobody is waiting."}
-          </p>
-        </div>
-
-        <FilterChips
-          options={QUEUES}
-          value={filter}
-          counts={{ open: unanswered }}
-          ariaLabel="Which enquiries to show"
-          // Back to page one with the tab. Staying on page three of the open
-          // queue while switching to answered ones shows an empty screen for a
-          // filter that has plenty.
-          onChange={(next) => { setFilter(next); setPage(1); }}
-        />
-      </div>
+      <PageHeader
+        icon={<PaperPlaneIcon />}
+        tone="sky"
+        title="Enquiries"
+        subtitle={
+          oldest
+            ? <>Somebody has been waiting <strong>{howLong(oldest.created_at)}</strong> for a reply.</>
+            : "Nobody is waiting for a reply."
+        }
+        actions={
+          <FilterChips
+            options={QUEUES}
+            value={filter}
+            counts={{ open: unanswered }}
+            ariaLabel="Which enquiries to show"
+            // Back to page one with the tab. Staying on page three of the open
+            // queue while switching to answered ones shows an empty screen for a
+            // filter that has plenty.
+            onChange={(next) => { setFilter(next); setPage(1); }}
+          />
+        }
+      />
 
       {rows.isLoading && <p className="text-theme-sm text-gray-500">Loading…</p>}
 

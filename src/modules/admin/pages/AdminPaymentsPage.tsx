@@ -11,6 +11,8 @@ import { Panel, PanelEmpty } from "../../dashboard/components/admin/Panel";
 import { RevenueTrendPanel } from "../../dashboard/components/admin/RevenueTrendPanel";
 import { money } from "../../dashboard/components/admin/format";
 import { useBillingSummary, usePayments } from "../hooks/useAdmin";
+import { DollarLineIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
 import type { ChaseRow, MethodSplit, OutstandingBucket, PaymentTotals } from "../services/adminService";
 
 const METHODS = [
@@ -112,12 +114,12 @@ export default function AdminPaymentsPage() {
     <>
       <PageMeta title="Billing" area="Admin" description="Subscription payments" />
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Billing &amp; Payments</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          What came in, what has not, and who to ring about it
-        </p>
-      </div>
+      <PageHeader
+        icon={<DollarLineIcon />}
+        tone="green"
+        title="Billing & Payments"
+        subtitle="What came in for plans, what has not, and who to ring about it."
+      />
 
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3 md:gap-6">
         <div className="lg:col-span-2">

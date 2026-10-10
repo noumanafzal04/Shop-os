@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * WHO OWES THE PLATFORM — through the screen.
@@ -67,6 +67,12 @@ const table = (page: Page) => page.getByTestId("commission-table");
 const names = async (page: Page): Promise<string[]> =>
   table(page).locator("tbody tr[data-shop]").evaluateAll((rows) => rows.map((r) => r.getAttribute("data-shop") ?? ""));
 const searchParams = (page: Page) => new URL(page.url()).searchParams;
+
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
 
 test("who owes the platform is a list that can be read, narrowed and acted on", async ({ page, request }) => {
   const whole = await listing(request);

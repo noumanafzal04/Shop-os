@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * A CUSTOMER THE PLATFORM MADE CAN BE FOUND AGAIN — through the screen.
@@ -35,6 +35,12 @@ async function clearTheGround(request: APIRequestContext): Promise<void> {
     expect(gone.ok(), `an earlier run's customer could not be removed (${gone.status()} ${await gone.text()})`).toBeTruthy();
   }
 }
+
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
 
 test("a customer made by staff is on the list, and can be corrected, switched off and taken away", async ({ page, request }) => {
   await clearTheGround(request);

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * THE PLATFORM'S DASHBOARD IS ASKED ABOUT A PERIOD — through the screen.
@@ -46,6 +46,12 @@ const tile = (within: Locator, label: string): Locator =>
 
 const printed = async (card: Locator): Promise<number> =>
   Number((await card.locator("p").first().innerText()).replace(/[^0-9.-]/g, ""));
+
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
 
 test("the platform dashboard is asked about a period — and what the platform is does not move with it", async ({ page, request }) => {
   await page.goto("/admin");

@@ -1,5 +1,7 @@
 import fs from "node:fs";
 
+import type { APIRequestContext } from "@playwright/test";
+
 export const API = process.env.E2E_API_URL ?? "http://localhost:8000/api/v1";
 const STATE = "e2e/.auth/owner.json";
 const FOOD_STATE = "e2e/.auth/food.json";
@@ -102,6 +104,37 @@ export function ownerAuth(): Record<string, string> {
  */
 export function foodAuth(): Record<string, string> {
   return authFrom(FOOD_STATE);
+}
+
+/**
+ * ROOM TO WORK — wait out the API's own limit rather than be refused by it.
+ *
+ * The API allows one signed-in person 240 requests a minute, and it is RIGHT
+ * to: that is the fence against an account being used to scrape or hammer.
+ * The console's browser specs all sign in as the same admin, each console
+ * screen asks five to eight things, and the specs ask the server what really
+ * happened besides. Three spec files never came near the limit. Nine do —
+ * and what that looked like was not "rate limited". It was one spec, a
+ * different one each time, finding "The list could not be loaded" where a
+ * list had been a moment before. It passed alone, and passed on the next run.
+ *
+ * The server says how much of the minute is left on every answer, so this
+ * asks one cheap thing before a test starts and, when there is not enough left
+ * for a whole test, waits for the minute to turn. A run that pauses for a
+ * minute is slower. A run that fails for a reason that is not about the
+ * product is worth nothing.
+ */
+export async function roomToWork(request: APIRequestContext, headers: Record<string, string>, need = 130): Promise<void> {
+  const res = await request.get(`${API}/admin/inbox`, { headers });
+  const left = Number(res.headers()["x-ratelimit-remaining"] ?? Number.NaN);
+
+  // Refused outright: the server says how long. Otherwise the minute began at
+  // some moment this cannot see, so it waits a whole one out.
+  if (res.status() === 429) {
+    await new Promise((turn) => setTimeout(turn, (Number(res.headers()["retry-after"] ?? 60) + 1) * 1000));
+  } else if (Number.isFinite(left) && left < need) {
+    await new Promise((turn) => setTimeout(turn, 61_000));
+  }
 }
 
 /**

@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { API, tradeAuth } from "./api";
+import { API, roomToWork, tradeAuth } from "./api";
 
 /**
  * A PLAN SAYS WHAT IT INCLUDES; AN ADD-ON IS ON THE SHOP, AND ON ITS BILL.
@@ -70,6 +70,12 @@ async function theShop(request: APIRequestContext, basic: Plan): Promise<string>
 
   return id;
 }
+
+// One signed-in admin, 240 requests a minute: wait for the minute to turn
+// rather than be refused half-way through a test. See roomToWork.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, tradeAuth("admin"));
+});
 
 test("a plan's modules are ticked on the plan, a mart is offered only a mart's, and an add-on is on the shop's bill", async ({ page, request }) => {
   const plans = await get<Plan[]>(request, "/admin/plans");

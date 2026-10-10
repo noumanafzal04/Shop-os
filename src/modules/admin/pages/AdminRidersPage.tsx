@@ -11,7 +11,9 @@ import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import Pager from "../../../components/ui/pager";
-import { FilterChips } from "../../../components/ui/filters";
+import { FilterBar, FilterChips } from "../../../components/ui/filters";
+import { BoxIcon } from "../../../icons";
+import { Empty, PageHeader } from "../components/kit";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION } from "../../../components/ui/table/rowAction";
@@ -229,15 +231,19 @@ export default function AdminRidersPage() {
     <>
       <PageMeta title="Riders" description="Rider applications waiting for review" />
 
-      <div className="mb-5">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Riders</h1>
-        <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-          People asking to carry deliveries. Check the photographs against the name before
-          approving — an approved rider stands at customers' doors holding their money.
-        </p>
-      </div>
+      <PageHeader
+        icon={<BoxIcon />}
+        tone="orange"
+        title="Riders"
+        subtitle="People asking to carry deliveries. Check the photographs against the name before approving — an approved rider stands at customers' doors holding their money."
+        actions={
+          <Button size="sm" onClick={() => setMaking(true)} className="whitespace-nowrap">
+            + New rider
+          </Button>
+        }
+      />
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4">
         <FilterChips
           ariaLabel="Rider queue"
           options={QUEUE}
@@ -247,22 +253,22 @@ export default function AdminRidersPage() {
             setPage(1);
           }}
         />
-        <div className="flex w-full items-center gap-3 sm:w-auto">
-          <div className="w-full sm:w-64">
-            <Input
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Name, phone or RDR-000123"
-            />
-          </div>
-          <Button size="sm" onClick={() => setMaking(true)} className="whitespace-nowrap">
-            + New rider
-          </Button>
-        </div>
       </div>
+
+      {/* The one filter bar every list on the console has — it was a bare
+          text box beside the button. */}
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => {
+            setSearch(value);
+            setPage(1);
+          },
+          placeholder: "Name, phone or RDR-000123",
+          label: "Search riders",
+        }}
+        results={{ count: rows.data?.meta?.pagination?.total, noun: "riders", loading: rows.isLoading }}
+      />
 
       {/*
         The id, the moment it exists. Staff read it out to the person in front
@@ -293,9 +299,17 @@ export default function AdminRidersPage() {
         {rows.isLoading ? (
           <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
         ) : list.length === 0 ? (
-          <p className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            {status === "pending" ? "Nobody is waiting." : "Nothing here."}
-          </p>
+          <Empty
+            icon={<BoxIcon />}
+            title={search.trim() !== "" ? "No rider matches" : status === "pending" ? "Nobody is waiting" : "Nobody here"}
+            hint={
+              search.trim() !== ""
+                ? "Try the name, the phone number or the rider's id."
+                : status === "pending"
+                  ? "A rider appears here the moment they send their documents from the app."
+                  : undefined
+            }
+          />
         ) : (
           <table className="w-full min-w-[46rem] text-left text-theme-sm">
             <thead>

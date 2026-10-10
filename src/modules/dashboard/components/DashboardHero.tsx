@@ -109,9 +109,11 @@ export function DashboardHero({
             <p className="text-theme-xs font-semibold uppercase tracking-[0.14em] text-white/60">
               {eyebrow}
             </p>
-            <h2 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-[1.75rem]">
+            {/* The page's own heading. It was an h2 on a page with no h1, so
+                the one screen everybody lands on had no top to its outline. */}
+            <h1 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-[1.75rem]">
               {title}
-            </h2>
+            </h1>
             {subtitle && <p className="mt-1 text-theme-sm text-white/65">{subtitle}</p>}
             {status && (
               <p className="mt-3 flex items-start gap-2.5 text-theme-sm font-medium leading-snug text-white sm:text-base" data-testid="hero-status">

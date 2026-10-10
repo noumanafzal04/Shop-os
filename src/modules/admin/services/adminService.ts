@@ -364,6 +364,8 @@ export interface TenantFilters {
   plan_id?: string;
   setup?: "pending" | "done" | "";
   online_only?: boolean;
+  /** Only the shops that were deleted — which can be put back. */
+  only_deleted?: boolean;
   sort?: string;
   page?: number;
 }
@@ -384,7 +386,9 @@ export const adminService = {
         // `$request->boolean()`, and sending "false" as a string is true.
         online_only: params.online_only ? true : undefined,
         sort: params.sort || undefined,
-        with_deleted: true,
+        // Deleted shops are asked for, never mixed in — see the note on the
+        // server. `undefined`, never `false`, for the same reason as above.
+        only_deleted: params.only_deleted ? true : undefined,
         page: params.page ?? 1,
       },
     }),

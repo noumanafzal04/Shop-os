@@ -2,6 +2,8 @@ import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
+import { FileIcon } from "../../../icons";
+import { PageHeader } from "../components/kit";
 import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
 import { apiGet } from "../../../common/api/client";
@@ -140,10 +142,12 @@ export default function AdminAuditPage() {
     <>
       <PageMeta title="Audit Log" area="Admin" description="Sensitive-action trail" />
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Audit Log</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Who changed what, across the platform</p>
-      </div>
+      <PageHeader
+        icon={<FileIcon />}
+        tone="slate"
+        title="Audit Log"
+        subtitle="Who changed what, across the platform — and in which shop."
+      />
 
       <FilterBar
         search={{
