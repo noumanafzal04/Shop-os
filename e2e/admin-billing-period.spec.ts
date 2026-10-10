@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 import { API, roomToWork, tradeAuth } from "./api";
@@ -186,6 +187,57 @@ test("billing is asked about a period — what came in follows it, what is late 
   await expect(note(page)).toHaveText("Every payment recorded, whatever the period above.");
   await expect(total(page)).toContainText("all time");
   await expect(name(page)).toHaveText("This month");
+});
+
+/** A CSV's rows, header first. Quoted cells with commas in them are one cell. */
+function csv(text: string): string[][] {
+  return text
+    .replace(/^\uFEFF/, "")
+    .split(/\r?\n/)
+    .filter((line) => line !== "")
+    .map((line) => line.match(/("([^"]|"")*"|[^,]*)(,|$)/g)!.slice(0, -1).map((cell) => cell.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, '"')));
+}
+
+test("the ledger's export is every payment the list holds — not the page that is on screen", async ({ page, request }) => {
+  // The button read "Export this page" and meant it: twenty rows. A month has
+  // more than twenty payments, and page one of three handed to an accountant
+  // is a wrong answer that looks complete.
+  await page.goto("/admin/payments");
+  await expect(name(page)).toHaveText("This month", { timeout: 20_000 });
+
+  // Every date, so there is certainly more than one page of it.
+  await page.getByRole("button", { name: "Remove filter Paid: This month" }).click();
+  await expect(note(page)).toHaveText("Every payment recorded, whatever the period above.");
+  const all = await ledger(request, "?per_page=20");
+  expect(all.meta.totals.payments, "this database has one page of payments or less — the case needs more than twenty").toBeGreaterThan(all.data.length);
+
+  const button = page.getByTestId("export-ledger");
+  await expect(button).toHaveText("Export CSV");
+  await expect(button).toHaveAttribute("title", new RegExp(`all ${all.meta.totals.payments.toLocaleString("en-US")}, not only this page`), { timeout: 15_000 });
+
+  const downloading = page.waitForEvent("download");
+  await button.click();
+  const file = await downloading;
+  expect(file.suggestedFilename()).toMatch(/^subscription-payments-\d{4}-\d{2}-\d{2}\.csv$/);
+  const rows = csv(fs.readFileSync(await file.path(), "utf8"));
+
+  expect(rows[0]).toEqual(["Paid", "Business", "Plan", "Period start", "Period end", "Method", "Reference", "Amount", "Currency"]);
+  // All of them, and they add up to the figure above the table.
+  expect(rows.length - 1, "the file holds the page, not the ledger").toBe(all.meta.totals.payments);
+  const sum = rows.slice(1).reduce((total, row) => total + Number(row[7]), 0);
+  expect(Math.abs(sum - all.meta.totals.amount), "the file does not add up to the ledger's own total").toBeLessThan(0.01);
+  await expect(button).toHaveText("Export CSV");
+
+  // ── narrowed, the file is narrowed the same way ───────────────────
+  const who = all.data.map((p) => p.tenant.business_name).find((n): n is string => n !== null)!;
+  await page.getByLabel("Search payments").fill(who);
+  const narrowed = await ledger(request, `?search=${encodeURIComponent(who)}&per_page=1`);
+  await expect(button).toHaveAttribute("title", new RegExp(`all ${narrowed.meta.totals.payments.toLocaleString("en-US")}, not only this page`), { timeout: 15_000 });
+  const again = page.waitForEvent("download");
+  await button.click();
+  const some = csv(fs.readFileSync(await (await again).path(), "utf8"));
+  expect(some.length - 1).toBe(narrowed.meta.totals.payments);
+  expect(some.slice(1).every((row) => row[1].toLowerCase().includes(who.toLowerCase()) || row[2].toLowerCase().includes(who.toLowerCase()) || row[6].toLowerCase().includes(who.toLowerCase())), "a row in the file is not one the search found").toBeTruthy();
 });
 
 test("on a phone the period and its figures fit, and the period menu opens inside the screen", async ({ page }) => {

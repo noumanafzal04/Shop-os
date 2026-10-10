@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeLines, show } from "./auditChanges";
+import { changeLines, settingLines, show } from "./auditChanges";
 
 /**
  * The admin switched one module off and the trail printed the shop's whole
@@ -102,3 +102,60 @@ describe("everything else", () => {
     expect(show(0)).toBe("0");
   });
 });
+
+/**
+ * The add-on price list was emptied on a development database and nothing
+ * could say by whom: platform settings were not in the trail. They are, and
+ * these hold their rows to reading the way the screens that set them do.
+ */
+describe("a platform setting's row", () => {
+  const MODULES = { products: "Products", bank_offers: "Bank Card Offers" };
+
+  it("a price added to the list is one line: which module, free before, the price now", () => {
+    const lines = settingLines(
+      "module_addon_prices", "updated",
+      { value: { products: 25000 } },
+      { value: { products: 25000, bank_offers: 350 } },
+      MODULES,
+    );
+
+    expect(lines).toEqual([{ field: "Add-on price · Bank Card Offers", from: "free", to: "Rs 350" }]);
+  });
+
+  it("a price taken off the list says what it was — the line that could not be found", () => {
+    const lines = settingLines("module_addon_prices", "updated", { value: { products: 25000, bank_offers: 350 } }, { value: { bank_offers: 350 } }, MODULES);
+
+    expect(lines).toEqual([{ field: "Add-on price · Products", from: "Rs 25,000", to: "free" }]);
+  });
+
+  it("the first price ever set is a row too, and so is a list emptied by being reset", () => {
+    expect(settingLines("module_addon_prices", "created", null, { key: "module_addon_prices", value: { products: 25000 } }, MODULES))
+      .toEqual([{ field: "Add-on price · Products", from: "free", to: "Rs 25,000" }]);
+    expect(settingLines("module_addon_prices", "deleted", { key: "module_addon_prices", value: { products: 25000 } }, null, MODULES))
+      .toEqual([{ field: "Add-on price · Products", from: "Rs 25,000", to: "free" }]);
+  });
+
+  it("an old row that filed the list as its own JSON text is read as the list", () => {
+    const lines = settingLines("module_addon_prices", "updated", { value: { products: 25000 } }, { value: '{"products":26000}' }, MODULES);
+
+    expect(lines).toEqual([{ field: "Add-on price · Products", from: "Rs 25,000", to: "Rs 26,000" }]);
+  });
+
+  it("commission is said the way its own screen says it", () => {
+    expect(settingLines("commission_enabled", "created", null, { value: true })).toEqual([{ field: "Commission", to: "on" }]);
+    expect(settingLines("commission_rate", "updated", { value: 3.5 }, { value: 5 })).toEqual([{ field: "Commission rate", from: "3.5%", to: "5%" }]);
+    expect(settingLines("commission_base", "updated", { value: "goods" }, { value: "total" }))
+      .toEqual([{ field: "Commission is charged on", from: "the goods only", to: "the whole order" }]);
+  });
+
+  it("a setting handed back to its default says so", () => {
+    expect(settingLines("console_theme_sidebar", "deleted", { value: "dark" }, null)).toEqual([{ field: "Console menu", from: "dark", to: "back to the default" }]);
+    expect(settingLines("console_theme_primary", "updated", { value: "#12b76a" }, { value: null }))
+      .toEqual([{ field: "Console colour", from: "#12b76a", to: "the house colour" }]);
+  });
+
+  it("a setting nobody has named here is shown under its own key rather than dropped", () => {
+    expect(settingLines("something_new", "updated", { value: 1 }, { value: 2 })).toEqual([{ field: "something_new", from: "1", to: "2" }]);
+  });
+});
+

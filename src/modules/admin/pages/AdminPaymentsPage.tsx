@@ -3,7 +3,8 @@ import { useMemo, useState } from "react";
 import TableEmpty, { emptyBecause, type Asked } from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
-import { downloadCsv } from "../../../common/api/download";
+import { downloadFile } from "../../../common/api/download";
+import { useToast } from "../../../components/ui/toast";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import { DateRangeFilter, FilterBar, FilterSelect, fromIsoDate, isSameRange, resolveRange, type DateRange } from "../../../components/ui/filters";
@@ -134,28 +135,32 @@ export default function AdminPaymentsPage() {
   ].filter(Boolean) as Array<{ key: string; label: string; value: string; onRemove: () => void }>;
 
   /**
-   * The CSV is built from the PAGE on screen, and says so on the button.
+   * THE WHOLE LEDGER THE FILTER LEAVES, from the server.
    *
-   * The alternative would be a server export endpoint; until there is one,
-   * quietly writing 20 rows into a file called "payments.csv" would be a
-   * export that lies about its own scope — the worst kind, because it looks
-   * complete when it is opened.
+   * This was "Export this page": twenty rows, built here from what was on
+   * screen, and honest about it on the button. Which made it the wrong tool
+   * for the one thing a ledger export is for — a month has more than twenty
+   * payments, and page one of three handed to an accountant is a wrong
+   * answer that looks complete. The server writes the file now, from the same
+   * query the list and its total are, so the file adds up to the figure
+   * above the table.
    */
-  const exportPage = () => {
-    downloadCsv(
-      `payments-page-${page}.csv`,
-      ["Paid", "Business", "Plan", "Period start", "Period end", "Method", "Reference", "Amount"],
-      rows.map((p) => [
-        new Date(p.paid_at).toLocaleDateString(),
-        p.tenant?.business_name ?? "",
-        p.plan_name,
-        p.period_start,
-        p.period_end,
-        p.method,
-        p.reference ?? "",
-        Number(p.amount),
-      ]),
-    );
+  const toast = useToast();
+  const [exporting, setExporting] = useState(false);
+  const exportLedger = async () => {
+    setExporting(true);
+    try {
+      await downloadFile(
+        "/admin/billing/payments/export",
+        { search: search || undefined, method: method || undefined, from: range.from ?? undefined, to: range.to ?? undefined },
+        "subscription-payments.csv",
+      );
+    } catch {
+      toast.error("The file could not be made. Try again in a moment.");
+    } finally {
+      // In `finally`, so a failed export does not leave the button spinning.
+      setExporting(false);
+    }
   };
 
   return (
@@ -280,11 +285,14 @@ export default function AdminPaymentsPage() {
         right={
           <button
             type="button"
-            onClick={exportPage}
-            disabled={rows.length === 0}
+            onClick={exportLedger}
+            disabled={exporting || (totals?.payments ?? 0) === 0}
+            // How much is in it, before it is pressed — the old one was the page.
+            title={totals ? `Every payment in this list — all ${totals.payments.toLocaleString()}, not only this page` : undefined}
+            data-testid="export-ledger"
             className="h-11 rounded-xl border border-gray-200 px-4 text-theme-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
           >
-            Export this page
+            {exporting ? "Exporting…" : "Export CSV"}
           </button>
         }
       >

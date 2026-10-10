@@ -9,7 +9,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
 import { apiGet } from "../../../common/api/client";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
-import { changeLines } from "../auditChanges";
+import { changeLines, settingLines } from "../auditChanges";
 import { useModuleCatalog } from "../hooks/useAdmin";
 import {
   DateRangeFilter,
@@ -39,7 +39,12 @@ interface AuditLog {
 const EVENT_COLOR = { created: "success", updated: "info", deleted: "error" } as const;
 
 function Changes({ log, labels }: { log: AuditLog; labels: Record<string, string> }) {
-  const lines = changeLines(log.event, log.old_values, log.new_values, labels);
+  // A platform setting is named by its key — the row's own id — and read in
+  // the words of the screen that sets it. See settingLines.
+  const lines =
+    log.entity === "PlatformSetting"
+      ? settingLines(log.entity_id, log.event, log.old_values, log.new_values, labels)
+      : changeLines(log.event, log.old_values, log.new_values, labels);
 
   if (lines.length === 0) return <span className="text-theme-xs text-gray-400">—</span>;
 
@@ -216,7 +221,9 @@ export default function AdminAuditPage() {
                         no name beside it records that something was suspended. */}
                     <td className="px-6 py-4">{log.business ?? <span className="text-gray-400">—</span>}</td>
                     <td className="px-6 py-4"><Badge size="sm" color={EVENT_COLOR[log.event]}>{log.event}</Badge></td>
-                    <td className="px-6 py-4">{log.entity}</td>
+                    {/* In words — "PlatformSetting" is a class, not something
+                        an admin has ever been shown a screen called. */}
+                    <td className="px-6 py-4">{log.entity === "PlatformSetting" ? "Platform setting" : log.entity}</td>
                     <td className="px-6 py-4"><Changes log={log} labels={labels} /></td>
                   </tr>
                 ))

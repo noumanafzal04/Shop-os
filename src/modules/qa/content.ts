@@ -849,6 +849,8 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Press the cross on the Paid chip.", expect: "The ledger shows every date and its total says all time. The period and its three figures have not changed." },
           { do: "Record a payment for a shop dated today, then come back.", expect: "Collected is up by it, Payments by one, and Shops that paid by one only if that shop had not already paid this month." },
           { do: "Open the screen on a phone.", expect: "Collected has the width to itself with the two counts side by side under it. The period menu opens inside the screen; nothing scrolls sideways." },
+          { do: "With more than twenty payments in the ledger, press Export CSV and open the file.", expect: "Every payment in the list is in it — not the twenty on screen — and the Amount column adds up to the figure above the table. The file is named subscription-payments with today's date, not export.csv. Narrow the ledger with a search and export again: only those rows." },
+          { do: "Change an add-on price on Plans, then open the Audit Log and choose Platform Setting under All entities.", expect: "The newest row says which module, what the price was and what it is — \"Add-on price · Bank Card Offers: free → Rs 350\" — and who did it. Take the price off: a row saying Rs 350 → free. Changing the commission rate, or switching commission on, is a row too." },
         ],
         wrong: [
           "A figure that changes with the period when it is a state — Money late for last month is not a thing.",
