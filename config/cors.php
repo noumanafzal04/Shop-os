@@ -39,7 +39,14 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper'],
+    /*
+     * Content-Disposition carries an export's NAME — "customers-2026-10-10.csv".
+     * It was not exposed, so the panel never saw it and saved every export in
+     * the product under the name it falls back to: `export.csv`, then
+     * `export (1).csv`, then `export (2).csv`. Nine screens' worth of files
+     * nobody could tell apart in a downloads folder.
+     */
+    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper', 'Content-Disposition'],
 
     'max_age' => 0,
 

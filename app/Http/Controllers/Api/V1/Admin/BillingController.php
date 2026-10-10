@@ -9,11 +9,14 @@ use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Services\DashboardService;
 use App\Support\ApiResponse;
+use App\Support\CsvExport;
 use App\Support\DashboardPeriod;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BillingController extends Controller
 {
@@ -36,21 +39,7 @@ class BillingController extends Controller
      */
     public function payments(Request $request): JsonResponse
     {
-        $filtered = fn () => SubscriptionPayment::query()
-            ->when($request->query('tenant_id'), fn ($q, $id) => $q->where('tenant_id', $id))
-            ->when($request->query('from'), fn ($q, $from) => $q->where('paid_at', '>=', $from))
-            ->when($request->query('to'), fn ($q, $to) => $q->where('paid_at', '<=', $to.' 23:59:59'))
-            ->when($request->query('method'), fn ($q, $method) => $q->where('method', $method))
-            ->when($request->query('search'), function ($q, $search): void {
-                // The shop's name, the plan it was on, or the reference typed
-                // on the receipt — the three things somebody has in hand when
-                // they come looking for one payment.
-                $q->where(function ($q) use ($search): void {
-                    $q->where('plan_name', 'like', "%{$search}%")
-                        ->orWhere('reference', 'like', "%{$search}%")
-                        ->orWhereHas('tenant', fn ($t) => $t->where('business_name', 'like', "%{$search}%"));
-                });
-            });
+        $filtered = fn () => $this->ledger($request);
 
         $payments = $filtered()
             ->with('tenant:id,business_name,slug')
@@ -99,6 +88,74 @@ class BillingController extends Controller
                 ->sortByDesc('amount')
                 ->values(),
         ]);
+    }
+
+    /**
+     * THE LEDGER AS A FILE — all of it that the filter leaves, not the page.
+     *
+     * The screen's button read "Export this page", and was honest about it:
+     * the file held the twenty rows on screen, built in the browser. Which
+     * made it the wrong tool for the one thing a ledger export is for — a
+     * month has more than twenty payments, and "what did we take in
+     * September" handed to an accountant as page one of three is a wrong
+     * answer that looks complete.
+     *
+     * Same query as the screen (`ledger()`), so what is in the file is what
+     * the figure above the table is the total of.
+     */
+    public function exportPayments(Request $request): StreamedResponse
+    {
+        $rows = $this->ledger($request)
+            ->with('tenant:id,business_name')
+            // The screen's own order, tie-break and all: the file is that list.
+            ->orderByDesc('paid_at')
+            ->stably()
+            ->get()
+            ->map(fn (SubscriptionPayment $p): array => [
+                $p->paid_at->toDateString(),
+                // The relation keeps a closed shop's name; a row whose shop is
+                // gone for good says so rather than leaving the cell empty.
+                $p->tenant?->business_name ?? 'Shop no longer on record',
+                $p->plan_name,
+                $p->period_start->toDateString(),
+                $p->period_end->toDateString(),
+                $p->method,
+                $p->reference,
+                $p->amount,
+                $p->currency,
+            ])
+            ->all();
+
+        return CsvExport::stream(
+            'subscription-payments-'.now()->format('Y-m-d').'.csv',
+            ['Paid', 'Business', 'Plan', 'Period start', 'Period end', 'Method', 'Reference', 'Amount', 'Currency'],
+            $rows,
+        );
+    }
+
+    /**
+     * The ledger, as the request narrows it. One copy: the list, its totals,
+     * what it was paid with, and the file are all this query.
+     *
+     * @return Builder<SubscriptionPayment>
+     */
+    private function ledger(Request $request): Builder
+    {
+        return SubscriptionPayment::query()
+            ->when($request->query('tenant_id'), fn ($q, $id) => $q->where('tenant_id', $id))
+            ->when($request->query('from'), fn ($q, $from) => $q->where('paid_at', '>=', $from))
+            ->when($request->query('to'), fn ($q, $to) => $q->where('paid_at', '<=', $to.' 23:59:59'))
+            ->when($request->query('method'), fn ($q, $method) => $q->where('method', $method))
+            ->when($request->query('search'), function ($q, $search): void {
+                // The shop's name, the plan it was on, or the reference typed
+                // on the receipt — the three things somebody has in hand when
+                // they come looking for one payment.
+                $q->where(function ($q) use ($search): void {
+                    $q->where('plan_name', 'like', "%{$search}%")
+                        ->orWhere('reference', 'like', "%{$search}%")
+                        ->orWhereHas('tenant', fn ($t) => $t->where('business_name', 'like', "%{$search}%"));
+                });
+            });
     }
 
     /**

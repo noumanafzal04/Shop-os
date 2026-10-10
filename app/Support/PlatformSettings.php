@@ -165,7 +165,13 @@ class PlatformSettings
      */
     public static function forget(array $keys): void
     {
-        PlatformSetting::query()->whereIn('key', array_intersect($keys, array_keys(self::defaults())))->delete();
+        // One at a time, through the model: a delete written as a query files
+        // nothing in the trail, and "the console went back to the house
+        // colour" is a decision somebody made.
+        PlatformSetting::query()
+            ->whereIn('key', array_intersect($keys, array_keys(self::defaults())))
+            ->get()
+            ->each(fn (PlatformSetting $setting) => $setting->delete());
 
         Cache::forget(self::CACHE_KEY);
     }

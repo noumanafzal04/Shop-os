@@ -1240,6 +1240,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::middleware('permission:billing.view')->group(function (): void {
                 Route::get('/billing/summary', [BillingController::class, 'summary']);
                 Route::get('/billing/payments', [BillingController::class, 'payments']);
+                // The whole filtered ledger as a file — the screen's own export
+                // was the page it happened to be showing.
+                Route::get('/billing/payments/export', [BillingController::class, 'exportPayments']);
             });
 
             // Platform staff management
