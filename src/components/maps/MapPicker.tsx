@@ -16,6 +16,12 @@ interface MapPickerProps {
   value: { lat: number; lng: number } | null;
   onChange: (loc: PickedLocation) => void;
   heightClass?: string;
+  /**
+   * What is being pinned — "shop" unless told otherwise. A bookkeeping office
+   * asked for "your shop address" twice on the first screen it ever sees has
+   * been told who the product was made for.
+   */
+  place?: string;
 }
 
 // Brand-coloured teardrop pin as inline SVG — a divIcon avoids Leaflet's
@@ -37,7 +43,7 @@ const geocoder = getGeocoder();
  * device GPS. Every move reverse-geocodes so the parent gets lat/lng AND a
  * resolved city/address in one callback. Provider-agnostic (see geocoding.ts).
  */
-export default function MapPicker({ value, onChange, heightClass = "h-72" }: MapPickerProps) {
+export default function MapPicker({ value, onChange, heightClass = "h-72", place = "shop" }: MapPickerProps) {
   // Hooks first — this component returns early when maps are unconfigured, and
   // an early return above a hook changes the hook order between renders.
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -202,12 +208,12 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
             // A raw input rather than the shared <Input>, so the automatic
             // label fallback never runs on it — and there is no visible label
             // either, only the placeholder.
-            aria-label="Search for your shop address"
+            aria-label={`Search for your ${place} address`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => results.length && setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder="Search your shop address…"
+            placeholder={`Search your ${place} address…`}
             className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
           />
           {searching && (
@@ -243,8 +249,12 @@ export default function MapPicker({ value, onChange, heightClass = "h-72" }: Map
       </div>
 
       {/* Map */}
-      <div ref={containerRef} className={`${heightClass} w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700`} />
-      <p className="text-theme-xs text-gray-400">Search, tap the map, or drag the pin to set your exact shop location.</p>
+      {/* `isolate`: Leaflet stacks its own layers at z-index 200 to 1000, and
+          without a stacking context of its own those numbers are compared
+          with the PAGE's. The map drew over the sticky Save bar on Settings —
+          whenever it was under the bar, the Save button was behind a map. */}
+      <div ref={containerRef} className={`${heightClass} isolate w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700`} />
+      <p className="text-theme-xs text-gray-400">Search, tap the map, or drag the pin to set your exact {place} location.</p>
     </div>
   );
 }

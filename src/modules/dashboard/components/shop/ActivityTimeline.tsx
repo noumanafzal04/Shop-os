@@ -1,6 +1,7 @@
 import { TimeIcon } from "../../../../icons";
 import type { ActivityRow } from "../../types";
-import { formatDateTime, humanizeEntity } from "./format";
+import { eventWord, thingCalled } from "../../../activity/words";
+import { formatDateTime } from "./format";
 import { EmptyPanel, SectionCard } from "./SectionCard";
 
 /** Audit events are created/updated/deleted; the marker colour carries the verb. */
@@ -10,14 +11,17 @@ const MARKER: Record<string, string> = {
   deleted: "border-error-500 bg-error-50 dark:bg-error-500/20",
 };
 
-function describe(row: ActivityRow): string {
-  const verb = row.event ?? row.action ?? "changed";
-  const entity = humanizeEntity(row.entity ?? row.subject);
-
-  return `${verb} a ${entity}`;
+/**
+ * "Staff member · added" — the Activity page's own words, in its own order.
+ *
+ * This card used to make a sentence out of the trail's raw model name and
+ * verb: "updated a tenant", "created a user". See activity/words.
+ */
+function describe(row: ActivityRow, noun: "shop" | "business"): string {
+  return `${thingCalled(row.entity ?? row.subject, noun)} · ${eventWord(row.event ?? row.action)}`;
 }
 
-export function ActivityTimeline({ rows }: { rows: ActivityRow[] }) {
+export function ActivityTimeline({ rows, noun = "shop" }: { rows: ActivityRow[]; noun?: "shop" | "business" }) {
   return (
     <SectionCard
       title="Recent activity"
@@ -26,8 +30,8 @@ export function ActivityTimeline({ rows }: { rows: ActivityRow[] }) {
     >
       {rows.length === 0 ? (
         <EmptyPanel
-          message="Nothing has happened in this shop yet."
-          hint="Every sale, edit and deletion lands here as it is made."
+          message={`Nothing has happened in this ${noun} yet.`}
+          hint={noun === "shop" ? "Every sale, edit and deletion lands here as it is made." : "Every entry, edit and deletion lands here as it is made."}
         />
       ) : (
         <ol className="relative space-y-4 pl-7">
@@ -42,12 +46,9 @@ export function ActivityTimeline({ rows }: { rows: ActivityRow[] }) {
                   "border-gray-300 bg-gray-50 dark:border-gray-600 dark:bg-white/[0.06]"
                 }`}
               />
-              <p className="text-theme-sm text-gray-800 dark:text-white/90">
-                <span className="font-medium">{row.actor}</span>{" "}
-                <span className="text-gray-600 dark:text-gray-300">{describe(row)}</span>
-              </p>
+              <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">{describe(row, noun)}</p>
               <p className="mt-0.5 text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
-                {formatDateTime(row.at)}
+                {row.actor} · {formatDateTime(row.at)}
               </p>
             </li>
           ))}

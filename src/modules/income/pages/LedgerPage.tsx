@@ -18,17 +18,8 @@ import { useMoney } from "../../shop/hooks/useShop";
 import { useIncomeCategories, useLedger } from "../hooks/useIncome";
 import { LEDGER_TYPES, type LedgerFilters, type LedgerType } from "../services/ledgerService";
 import { formatEntryDate } from "../../../components/ui/filters";
-
-const TYPE_FILTERS: Array<{ value: LedgerType; label: string }> = [
-  { value: "sale", label: "Sales" },
-  { value: "income", label: "Income" },
-  { value: "expense", label: "Expenses" },
-  { value: "refund", label: "Refunds" },
-  // The fifth money source. Paying the wholesaler is not an expense — a shop
-  // that files the wholesaler's bill AND records the payment would double-count
-  // it — so it is its own row type, and needs its own filter.
-  { value: "supplier_payment", label: "Supplier paid" },
-];
+import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { ledgerSays, ledgerTypes } from "../ledgerShape";
 
 const METHODS = [
   { value: "cash", label: "Cash" },
@@ -65,10 +56,18 @@ export default function LedgerPage() {
   const money = useMoney();
   const [params] = useSearchParams();
 
-  // Arriving from a cashbook day opens on that day; otherwise this month.
+  const kind = useKindOfBusiness();
+  // The kinds of line THIS business can have — see ledgerShape.
+  const TYPE_FILTERS = ledgerTypes(kind);
+
+  // Arriving from a cashbook day opens on that day; from the cashbook's own
+  // "Open ledger", on the window the cashbook was showing; otherwise this
+  // month.
   const day = params.get("date");
+  const from = params.get("from");
+  const to = params.get("to");
   const [filters, setFilters] = useState<LedgerFilters>(() => ({
-    ...(day ? { from: day, to: day } : monthRange()),
+    ...(day ? { from: day, to: day } : from && to ? { from, to } : monthRange()),
     page: 1,
   }));
 
@@ -102,9 +101,8 @@ export default function LedgerPage() {
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Ledger</h2>
-          <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-            Every movement of money, in the order it happened, with the balance carried down. Sales
-            and refunds are counted automatically — you never enter them here.
+          <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400" data-testid="ledger-says">
+            {ledgerSays(kind)}
           </p>
           <p className="mt-1 text-theme-xs text-gray-400">
             The opening balance is what the account stood at before this period. Filtering changes
@@ -128,7 +126,7 @@ export default function LedgerPage() {
       </div>
 
       {/* Type is the ledger's own axis — everything else is the shared bar. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="ledger-types">
         {TYPE_FILTERS.map((t) => {
           const on = (filters.type ?? []).includes(t.value);
 
@@ -161,7 +159,20 @@ export default function LedgerPage() {
 
       <MoneyFilterBar
         filters={filters as MoneyFilters}
-        onChange={(next) => setFilters({ ...filters, ...next })}
+        // REPLACED, not merged. `{ ...filters, ...next }` kept every key the
+        // bar had just dropped, so "Clear all" on this page cleared nothing:
+        // the chips vanished from nowhere and the rows stayed narrowed. What
+        // the bar does not own — the kind of line and the direction — is put
+        // back by hand; and a ledger with no period is this month's.
+        onChange={(next) =>
+          setFilters({
+            ...next,
+            ...(next.from && next.to ? {} : monthRange()),
+            type: filters.type,
+            direction: filters.direction,
+          })
+        }
+        periodIsGiven
         categories={categories}
         methods={METHODS}
         money={money}
@@ -227,7 +238,11 @@ export default function LedgerPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <TableEmpty colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {activeFilterCount(filters) > 0 || (filters.type ?? []).length > 0
+                    {/* The period is not a filter here: a ledger is always
+                        about one, so counting its two dates made every empty
+                        month read "Nothing matches these filters" — and the
+                        sentence for a quiet month could never be reached. */}
+                    {activeFilterCount(filters, true) > 0 || (filters.type ?? []).length > 0
                       ? "Nothing matches these filters."
                       : "Nothing moved in this period."}
                   </TableEmpty>

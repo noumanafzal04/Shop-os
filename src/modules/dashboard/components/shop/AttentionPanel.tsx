@@ -13,6 +13,7 @@ import {
   TimeIcon,
 } from "../../../../icons";
 import type { TenantDashboard } from "../../types";
+import { booksRows } from "./booksWaiting";
 import type { Capabilities } from "./capabilities";
 import { formatDate } from "./format";
 import { SectionCard } from "./SectionCard";
@@ -52,7 +53,11 @@ interface Item {
 interface Props {
   data: TenantDashboard;
   caps: Capabilities;
+  /** How this shop writes an amount. Only the books' rows carry one. */
+  money?: (amount: number) => string;
 }
+
+const rupees = (amount: number) => `Rs ${amount.toLocaleString()}`;
 
 /**
  * Every row here is derived from a real figure in the payload — nothing is
@@ -66,7 +71,7 @@ interface Props {
  * may open the screen the row leads to; the two rows that lead somewhere
  * ungated (subscription, setup) reach everyone, as they should.
  */
-export function AttentionPanel({ data, caps }: Props) {
+export function AttentionPanel({ data, caps, money = rupees }: Props) {
   const rows: Item[] = [];
 
   if (data.subscription_state === "read_only") {
@@ -215,6 +220,19 @@ export function AttentionPanel({ data, caps }: Props) {
     });
   }
 
+  // What the books are waiting on: bills and expected payments that have
+  // fallen due, categories past their ceiling. For a business that only keeps
+  // books these are the only alerts it can ever have — see booksWaiting.
+  if (caps.keepsBooks) {
+    for (const row of booksRows(data.books, money)) {
+      rows.push({
+        ...row,
+        severity: "warning",
+        icon: row.key === "over_budget" ? <AlertIcon className="size-5" /> : <CalenderIcon className="size-5" />,
+      });
+    }
+  }
+
   if (caps.keepsBooks && !caps.sells && data.recent_expenses.length === 0) {
     rows.push({
       key: "no_expenses",
@@ -229,7 +247,8 @@ export function AttentionPanel({ data, caps }: Props) {
   // A row leading somewhere this person cannot go is not their alert. The
   // rows without a destination (a phone-order shop's open orders) stay: they
   // are information, not an offer to navigate.
-  const items = rows.filter((row) => row.to === undefined || caps.visit(row.to));
+  // Asked of the SCREEN, not of the tab on it: a row may land on `?tab=…`.
+  const items = rows.filter((row) => row.to === undefined || caps.visit(row.to.split("?")[0]));
 
   return (
     <SectionCard
@@ -247,7 +266,10 @@ export function AttentionPanel({ data, caps }: Props) {
               Nothing needs your attention right now.
             </p>
             <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-              Stock, orders and the day are all where they should be.
+              {/* Said in terms of what THIS business has to go wrong. */}
+              {caps.sells
+                ? "Stock, orders and the day are all where they should be."
+                : "No bill has fallen due and no budget has been passed."}
             </p>
           </div>
         </div>

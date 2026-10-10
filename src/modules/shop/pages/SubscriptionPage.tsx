@@ -6,6 +6,9 @@ import Badge from "../../../components/ui/badge/Badge";
 import { CommissionOwed } from "../components/CommissionOwed";
 import { useSubscription } from "../hooks/useShop";
 import type { SubscriptionInfo } from "../services/shopService";
+import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { formatRange } from "../../../components/ui/filters";
+import { offlineRules, subscriptionWords, usageRows } from "../subscriptionRows";
 import { PRODUCT, productSlug } from "../../../common/brand";
 
 /**
@@ -73,6 +76,7 @@ function whenPhrase(iso: string): string {
 export default function SubscriptionPage() {
   const sub = useSubscription();
   const data = sub.data;
+  const words = subscriptionWords(useKindOfBusiness());
 
   if (sub.isLoading || !data) {
     return (
@@ -87,7 +91,10 @@ export default function SubscriptionPage() {
     );
   }
 
-  const metered = data.limits_usage.filter((u) => u.enforced || !u.unlimited);
+  // What this business is counted against, and the rules it works under —
+  // two different things the card used to draw as one. See subscriptionRows.
+  const metered = usageRows(data.limits_usage);
+  const offline = offlineRules(data.limits_usage);
   const modules = data.modules_on ?? [];
 
   return (
@@ -97,18 +104,17 @@ export default function SubscriptionPage() {
       <div className="mb-5">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Subscription</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Where your shop stands, what it can use, and what has been paid.
+          {words.lede}
         </p>
       </div>
 
-      <StandingBanner data={data} />
+      <StandingBanner data={data} words={words} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card title="Your plan">
           {data.plan === null ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              No plan on your shop yet — no catalogue ceiling and no billing period. Nothing is
-              limited in the meantime; the platform team will set one up.
+              {words.noPlan}
             </p>
           ) : (
             <>
@@ -140,8 +146,7 @@ export default function SubscriptionPage() {
                   </span>
                   {data.history_from && <> — back to {day(data.history_from)}</>}.{" "}
                   Older records are archived, never deleted: they stay out of lists and reports, and they
-                  come straight back if you move up a plan. Your stock levels and customer balances are
-                  never affected.
+                  come straight back if you move up a plan.{words.archivedReassurance}
                 </p>
               )}
               {data.plan.is_custom && (
@@ -170,7 +175,7 @@ export default function SubscriptionPage() {
             plan: putting it there implied the plan granted it. It does not,
             and no renewal can take one away. */}
         <Card
-          title="What your shop runs"
+          title={words.runs}
           subtitle="Set for your business by the platform team. Changing plan does not change these."
         >
           {modules.length === 0 ? (
@@ -197,7 +202,7 @@ export default function SubscriptionPage() {
         </Card>
 
         <Card title="Usage">
-          {metered.length === 0 ? (
+          {metered.length === 0 && offline.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Nothing on your plan is capped — add as much as you like.
             </p>
@@ -212,11 +217,20 @@ export default function SubscriptionPage() {
                 const pct = u.percent ?? 0;
                 const full = u.band === "reached";
                 const close = u.band === "nearing" || u.band === "critical";
+                // AT the ceiling is not PAST it. A business on a one-branch
+                // plan has one branch from its first minute, and was greeted
+                // on this page by a red bar reading "Full" — the colour of
+                // something having gone wrong, for a plan working exactly as
+                // sold. Red is for more than was allowed; exactly what was
+                // allowed is worth knowing, in amber.
+                const past = full && u.limit !== null && u.used > u.limit;
 
                 return (
                   <div key={u.key}>
                     <div className="mb-1 flex items-baseline justify-between gap-2 text-theme-sm">
-                      <span className="capitalize text-gray-700 dark:text-gray-300">{u.label}</span>
+                      {/* The first letter, not every word: `capitalize` wrote
+                          "MB Of Storage" and "Staff Members". */}
+                      <span className="text-gray-700 dark:text-gray-300">{capital(u.label)}</span>
                       <span className="tabular-nums text-gray-500 dark:text-gray-400">
                         {u.used.toLocaleString()}
                         {" / "}
@@ -230,7 +244,7 @@ export default function SubscriptionPage() {
                         <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                           <div
                             className={`h-full rounded-full transition-[width] ${
-                              full ? "bg-error-500" : close ? "bg-warning-500" : "bg-brand-500"
+                              past ? "bg-error-500" : full || close ? "bg-warning-500" : "bg-brand-500"
                             }`}
                             // A width is a number, not a class name — an
                             // interpolated Tailwind class does not exist at
@@ -242,7 +256,12 @@ export default function SubscriptionPage() {
                             and a bar at 96% look alike, and only one of them
                             means the next product will be refused. */}
                         {full ? (
-                          <p className="mt-1 text-theme-xs font-medium text-error-600 dark:text-error-400">
+                          <p
+                            data-testid={`usage-${u.key}-full`}
+                            className={`mt-1 text-theme-xs font-medium ${
+                              past ? "text-error-600 dark:text-error-400" : "text-warning-600 dark:text-warning-400"
+                            }`}
+                          >
                             {/* NOT EVERY CEILING STOPS SOMETHING. A product
                                 limit refuses the next product; the monthly
                                 transaction count does not refuse a sale —
@@ -252,7 +271,9 @@ export default function SubscriptionPage() {
                                 that can carry on selling is a lie that
                                 frightens them off their own counter. */}
                             {u.enforced
-                              ? "Full — ask support to extend this before adding more."
+                              ? past
+                                ? "Past the limit — ask support to extend this."
+                                : `All ${u.limit?.toLocaleString()} in use — ask support to extend this before adding more.`
                               : `Past what your plan includes (${pct}%). Nothing is blocked — ask support about the next plan up.`}
                           </p>
                         ) : close ? (
@@ -264,12 +285,25 @@ export default function SubscriptionPage() {
                     )}
                     {u.assigned && (
                       <p className="mt-1 text-theme-xs text-gray-400">
-                        Extended for your shop beyond the plan's {u.baseline?.toLocaleString()}.
+                        {words.extended} {u.baseline?.toLocaleString()}.
                       </p>
                     )}
                   </div>
                 );
               })}
+              {/* RULES, in words. They were bars — "Offline selling 0 / 0" —
+                  which is a quantity used out of a quantity allowed, and a
+                  switch that is off is neither. */}
+              {offline.length > 0 && (
+                <dl
+                  data-testid="offline-rules"
+                  className={`space-y-2 text-theme-sm ${metered.length > 0 ? "border-t border-gray-100 pt-4 dark:border-gray-800" : ""}`}
+                >
+                  {offline.map((rule) => (
+                    <Row key={rule.key} label={rule.label} value={rule.value} />
+                  ))}
+                </dl>
+              )}
             </div>
           )}
         </Card>
@@ -296,13 +330,12 @@ export default function SubscriptionPage() {
  * — that is the most consequential sentence the app ever says to an owner, and
  * it needs more than eleven pixels and a colour.
  */
-function StandingBanner({ data }: { data: SubscriptionInfo }) {
+function StandingBanner({ data, words }: { data: SubscriptionInfo; words: ReturnType<typeof subscriptionWords> }) {
   if (data.state === "read_only") {
     return (
       <Banner tone="error" title="Your subscription has run out">
         <p>
-          The shop is read-only: everything you have is here and nothing has been deleted, but new
-          sales, stock changes and expenses are paused until it is renewed.
+          {words.readOnly}
         </p>
         <p className="mt-1 font-medium">Contact support to renew and it comes straight back on.</p>
       </Banner>
@@ -313,11 +346,11 @@ function StandingBanner({ data }: { data: SubscriptionInfo }) {
     return (
       <Banner tone="warning" title="Payment is overdue">
         <p>
-          Your shop is working normally through its grace period.
+          {words.grace}
           {data.grace_ends_at && (
             <>
               {" "}Renew before <strong>{day(data.grace_ends_at)}</strong> ({whenPhrase(data.grace_ends_at)}) or
-              it becomes read-only — you would still see everything, but not be able to ring a sale.
+              {words.graceLoses}
             </>
           )}
         </p>
@@ -344,7 +377,7 @@ function StandingBanner({ data }: { data: SubscriptionInfo }) {
   return (
     <Banner tone="success" title="Everything is up to date">
       <p>
-        Your shop is active
+        {words.active}
         {data.subscription_ends_at && <> until <strong>{day(data.subscription_ends_at)}</strong></>}.
       </p>
     </Banner>
@@ -487,10 +520,11 @@ function Payments({ payments }: { payments: SubscriptionInfo["payments"] }) {
                 <td className="whitespace-nowrap px-5 py-3">{day(p.paid_at)}</td>
                 <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">{p.plan_name}</td>
                 <td className="whitespace-nowrap px-5 py-3 text-theme-xs text-gray-400">
-                  {p.period_start} → {p.period_end}
+                  {/* "10 Oct – 10 Nov 2026", not the two wire dates. */}
+                  {formatRange({ from: p.period_start.slice(0, 10), to: p.period_end.slice(0, 10) })}
                 </td>
                 <td className="px-5 py-3">
-                  <Badge size="sm" color="light">{p.method.replace(/_/g, " ")}</Badge>
+                  <Badge size="sm" color="light">{capital(p.method.replace(/_/g, " "))}</Badge>
                 </td>
                 <td className="px-5 py-3 text-theme-xs">{p.reference ?? "—"}</td>
                 <td className="whitespace-nowrap px-5 py-3 text-right font-medium tabular-nums">

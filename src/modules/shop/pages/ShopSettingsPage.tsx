@@ -32,6 +32,8 @@ import TillDevicesPanel from "../../offline/device/TillDevicesPanel";
 import PricingVariancesPanel from "../../offline/pricing/PricingVariancesPanel";
 import { PRODUCT } from "../../../common/brand";
 import { turnHourChoices } from "../../../common/shopDay";
+import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { settingsWords } from "../settingsWords";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -369,6 +371,8 @@ export default function ShopSettingsPage() {
   };
 
   const online = shop.data?.online_shop_enabled;
+  const kind = useKindOfBusiness();
+  const words = settingsWords(kind);
   const cityOptions = [{ value: "", label: "— Select city —" }, ...(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))];
 
   // Every preferences tab edits the one `prefs` object and shares this bar —
@@ -388,7 +392,7 @@ export default function ShopSettingsPage() {
       <PageMeta title="Settings" description="Shop settings" />
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Manage your shop profile, location and how the app works for you.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{words.lede}</p>
       </div>
 
       {/* Topics. The underline treatment is reserved for the second level of
@@ -409,7 +413,7 @@ export default function ShopSettingsPage() {
             <TwoCol
               left={
                 <>
-                  <SectionCard icon={<StoreGlyph />} title="Business profile" description="Your shop's name and contact — shown on invoices and your storefront.">
+                  <SectionCard icon={<StoreGlyph />} title="Business profile" description={words.profile}>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <Field label="Business name" error={errorFor("business_name")}>
                         <Input value={form.business_name} onChange={(e) => set("business_name", e.target.value)} />
@@ -444,12 +448,9 @@ export default function ShopSettingsPage() {
                     */}
                     <div className="mt-5">
                       <p className="mb-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                        Shop logo
+                        {words.logoTitle}
                       </p>
-                      <p className="mb-2 text-theme-xs text-gray-400">
-                        The small square beside your name — in the app, in search, and on your
-                        invoices.
-                      </p>
+                      <p className="mb-2 text-theme-xs text-gray-400">{words.logoWhere}</p>
                     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                       <input
                         ref={logoRef}
@@ -479,10 +480,7 @@ export default function ShopSettingsPage() {
                         <p className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
                           {shop.data?.logo_url ? "Logo uploaded" : "No logo uploaded yet"}
                         </p>
-                        <p className="text-theme-xs text-gray-400">
-                          Square works best. PNG, JPG or WebP. It prints at the top of your
-                          invoices only while “Show logo” is on, under Invoice / receipt.
-                        </p>
+                        <p className="text-theme-xs text-gray-400">{words.logoPrints}</p>
                         {uploadLogo.isError && (
                           <p className="mt-1 text-theme-xs text-error-500">
                             {uploadLogo.error instanceof ApiError ? uploadLogo.error.message : "Upload failed"}
@@ -501,6 +499,9 @@ export default function ShopSettingsPage() {
                     </div>
                   </SectionCard>
 
+                  {/* Not offered to a business with nothing to list on it —
+                      see settingsWords. */}
+                  {words.offersOnlineShop && (
                   <SectionCard icon={<GlobeGlyph />} title="Online shop" description="Your customer-facing storefront." badge={<Badge size="sm" color={online ? "success" : "light"}>{online ? "Enabled" : "Off"}</Badge>}>
                     {online ? (
                       <>
@@ -592,22 +593,24 @@ export default function ShopSettingsPage() {
                         </Field>
                       </>
                     ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Your plan is Expense Manager only. Contact the platform admin to enable online selling.</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{words.onlineOff}</p>
                     )}
                   </SectionCard>
+                  )}
                 </>
               }
               right={
-                <SectionCard icon={<PinGlyph />} title="Location" description="Search or drop a pin — sets your city and powers delivery + “shops near me”.">
+                <SectionCard icon={<PinGlyph />} title="Location" description={words.location}>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="City" error={errorFor("city_id")}>
                       <Select value={form.city_id} options={cityOptions} placeholder="— Select city —" onChange={(v) => set("city_id", v)} />
                     </Field>
                     <Field label="Address">
-                      <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder="Shop street address" />
+                      <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={`${capital(kind.noun)} street address`} />
                     </Field>
                   </div>
                   <MapPicker
+                    place={kind.noun}
                     value={form.latitude !== "" && form.longitude !== "" ? { lat: Number(form.latitude), lng: Number(form.longitude) } : null}
                     onChange={({ lat, lng, place }) => {
                       set("latitude", String(lat));

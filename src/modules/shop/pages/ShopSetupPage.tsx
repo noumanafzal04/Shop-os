@@ -140,7 +140,7 @@ export default function ShopSetupPage() {
 
             <div>
               <Label>{noun.Title} location</Label>
-              <MapPicker value={coords} onChange={onLocation} />
+              <MapPicker value={coords} onChange={onLocation} place={noun.lower} />
               {coords && (
                 <p className="mt-1 text-theme-xs text-success-600 dark:text-success-400">
                   Pinned at {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}

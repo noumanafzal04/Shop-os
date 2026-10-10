@@ -29,6 +29,9 @@ import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type M
 import { downloadFile, openAuthedFile } from "../../../common/api/download";
 import type { Income } from "../services/incomeService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { useTabInUrl } from "../../../common/routing/tabInUrl";
+import { booksWords, withCashCalled } from "../../expenses/booksWords";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
 
 const today = () => shopToday();
@@ -47,10 +50,11 @@ type TabKey = (typeof TABS)[number]["key"];
  * sentence over all of its tabs and so described the wrong screen on three of
  * them.
  */
-const BLURB: Record<TabKey, string> = {
-  entries: "Money in that isn't a sale — rent received, an owner putting money in, a refund from a supplier. Your sales revenue is counted automatically in the Cashbook.",
+const BLURB: Record<"recurring", string> = {
+  // The other two tabs' sentences depend on who is reading them: for a
+  // business that sells, this screen is the money in that is NOT a sale; for a
+  // books-only one it is ALL of its money in. See booksWords.
   recurring: "Money that arrives on a schedule, like a monthly sublet. Nothing posts on its own; you confirm the real figure.",
-  categories: "Where money in that isn't a sale gets filed. Yours to change — one with entries under it is turned off rather than deleted.",
 };
 
 /**
@@ -65,7 +69,8 @@ const BLURB: Record<TabKey, string> = {
  * to investigate. The picker is the missing half.
  */
 const INCOME_METHODS = [
-  { value: "cash", label: "Cash (to till)" },
+  // Called "Cash (to till)" only where there is a till — see booksWords.
+  { value: "cash", label: "Cash" },
   { value: "bank_transfer", label: "Bank transfer" },
   { value: "card", label: "Card" },
   { value: "wallet", label: "Mobile wallet" },
@@ -81,7 +86,12 @@ export default function IncomePage() {
   // The same filter shape as expenses and the ledger — three views of one
   // thing, so a person who learns the bar once has learnt it everywhere.
   const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
-  const [tab, setTab] = useState<TabKey>("entries");
+  // A dashboard row about an expected payment lands on the Recurring tab.
+  const [tab, setTab] = useTabInUrl<TabKey>(TABS.map((t) => t.key), "entries");
+  // What this screen IS depends on whether the business sells — see booksWords.
+  const kind = useKindOfBusiness();
+  const words = booksWords(kind);
+  const methods = withCashCalled(INCOME_METHODS, words.cashReceived);
   // Counted server-side, so the badge never re-derives "due" from a
   // timezone the panel may not share with the shop.
   const recurring = useRecurringIncomes();
@@ -227,7 +237,7 @@ export default function IncomePage() {
 
   return (
     <>
-      <PageMeta title="Income" description="Other income (non-sales)" />
+      <PageMeta title="Income" description={kind.sells ? "Other income (non-sales)" : "Money in"} />
 
       <input
         ref={fileRef}
@@ -239,7 +249,9 @@ export default function IncomePage() {
 
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Income</h2>
-        <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{BLURB[tab]}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400" data-testid="income-says">
+          {tab === "entries" ? words.income : tab === "categories" ? words.incomeCategories : BLURB[tab]}
+        </p>
       </div>
 
       {/* The same three tabs the Expenses page has, in the same order.
@@ -267,7 +279,7 @@ export default function IncomePage() {
       {tab === "categories" ? (
         <CategoryManager
           title="Income categories"
-          hint="Where money in that isn't a sale gets filed. Yours to change — one with entries under it is turned off rather than deleted."
+          hint={words.incomeCategories}
           noun="income entry"
           money={money}
           categories={categories.data ?? []}
@@ -291,7 +303,7 @@ export default function IncomePage() {
         // Retired categories stay filterable — that is how their history is
         // found. Only the ENTRY form drops them.
         categories={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name, retired: !c.is_active }))}
-        methods={INCOME_METHODS}
+        methods={methods}
         totals={totals}
         money={money}
         sorts={[
@@ -334,7 +346,7 @@ export default function IncomePage() {
             : {
                 filtered: false,
                 title: "No income recorded yet",
-                hint: "Money in that isn't a sale — rent received, an owner putting money in, a refund from a supplier.",
+                hint: words.noIncomeYet,
                 action: <Button size="sm" onClick={openAdd}>Add income</Button>,
               }
         }
@@ -372,7 +384,7 @@ export default function IncomePage() {
           </div>
           <div>
             <Label>Description <span className="text-error-500">*</span></Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Owner cash injection" />
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={words.incomeExample} />
             {errorFor("description") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("description")}</p>}
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -390,7 +402,7 @@ export default function IncomePage() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Received by</Label>
-              <Select options={INCOME_METHODS} value={method} onChange={setMethod} />
+              <Select options={methods} value={method} onChange={setMethod} />
               {errorFor("payment_method") && (
                 <p className="mt-1 text-theme-xs text-error-500">{errorFor("payment_method")}</p>
               )}
@@ -400,10 +412,8 @@ export default function IncomePage() {
               <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Slip or invoice no." />
             </div>
           </div>
-          {method === "cash" && (
-            <p className="text-theme-xs text-gray-400">
-              Cash goes into your open drawer, so the shift's expected cash rises by this amount.
-            </p>
+          {method === "cash" && words.cashReceivedHint && (
+            <p className="text-theme-xs text-gray-400">{words.cashReceivedHint}</p>
           )}
         </div>
 

@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useFitsItsBox } from "../../../components/charts/useFitsItsBox";
-import { DateRangeFilter, formatRange, type RangeKey } from "../../../components/ui/filters";
+import { formatDay, formatRange } from "../../../components/ui/filters";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { useMoney } from "../../shop/hooks/useShop";
 import Chart from "react-apexcharts";
@@ -16,18 +16,12 @@ import { FuelReportTab } from "../../fuel/components/FuelReportTab";
 import { DeadStockTab, MarginsTab, ValuationTab } from "../components/StockReportTabs";
 import { useAuthStore } from "../../../stores/authStore";
 import { reportTabs, reportTabAvailable, shopSells } from "../reportTabs";
-import { PERIODS, rangeError, resolveReportRange, type PeriodKey, type ReportRange } from "../reportPeriod";
+import { ReportWindow } from "../components/ReportWindow";
+import { useReportWindow } from "../hooks/useReportWindow";
+import type { ReportRange } from "../reportPeriod";
 
-/**
- * The rolling windows a report screen wants and the shop's own named periods
- * do not cover.
- *
- * `today`, `this_month`, `this_year` and `this_quarter` are left out because
- * PERIODS already names three of them and the fourth is close enough to read
- * as a duplicate — and a menu with two rows for one range cannot be trusted
- * about either.
- */
-const REPORT_PRESETS: readonly RangeKey[] = ["yesterday", "last_7", "last_14", "last_30", "last_month"];
+/** A bucket's key as a person reads a date. A month bucket ("2026-10") and anything else unknown is left as sent. */
+const axisLabel = (bucket: string): string => (/^\d{4}-\d{2}-\d{2}$/.test(bucket) ? formatDay(bucket) : bucket);
 
 export default function ReportsPage() {
   const money = useMoney();
@@ -54,11 +48,8 @@ export default function ReportsPage() {
    * can express it — they are just handed to the control rather than drawn as
    * a second row of buttons.
    */
-  const [range, setRange] = useState<{ from: string; to: string }>(() => {
-    const seed = resolveReportRange("monthly");
-
-    return { from: seed.from, to: seed.to };
-  });
+  const when = useReportWindow();
+  const { asked, invalid } = when;
   const [selectedTab, setTab] = useState<string>("overview");
   // A shop can lose a module while someone is sitting on the tab it fed.
   // Falling back beats rendering a tab whose every request now 403s.
@@ -68,37 +59,7 @@ export default function ReportsPage() {
   // became modules of their own both copies were wrong in different places.
   const tab = reportTabAvailable(features, selectedTab) ? selectedTab : "overview";
 
-  /**
-   * The shop's own named windows, resolved once, handed to the date control.
-   *
-   * "Custom range" is deliberately absent: the control has its own, and a row
-   * that opens the same dialog twice under two names is a menu nobody trusts.
-   */
-  const namedPeriods = useMemo(
-    () =>
-      PERIODS.filter(([key]) => key !== "custom").map(([key, label]) => {
-        const resolved = resolveReportRange(key);
-
-        return { key, label, range: { from: resolved.from, to: resolved.to } };
-      }),
-    [],
-  );
-
-  // Whichever named window this pair of dates IS, so the request still carries
-  // a period the server recognises — and "custom" when it is nobody's.
-  const period: PeriodKey =
-    (namedPeriods.find((p) => p.range.from === range.from && p.range.to === range.to)?.key as PeriodKey | undefined)
-    ?? "custom";
-
-  const asked: ReportRange = { period, from: range.from, to: range.to };
-  // Refused in the server's own words rather than after a round trip. The
-  // control cannot produce a backwards range — it orders the two ends itself —
-  // so this now only fires on a half-open one.
-  const invalid = rangeError(asked);
-
-  // A half-open range is never SENT, so the figures on screen never briefly
-  // answer a question nobody asked.
-  const report = useReport(invalid ? resolveReportRange("monthly") : asked);
+  const report = useReport(when.sent);
 
   const TABS = reportTabs(features);
 
@@ -111,12 +72,20 @@ export default function ReportsPage() {
     fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0 } },
     dataLabels: { enabled: false },
     xaxis: {
-      categories: (data?.series ?? []).map((b) => b.date),
-      labels: { style: { colors: "#98a2b3" } },
+      // "1 Oct", not "2026-10-01". The wire date, thirty-one times along an
+      // axis, tilted itself to fit and was still the widest thing on the
+      // chart — a year and a month repeated under every point of one month.
+      categories: (data?.series ?? []).map((b) => axisLabel(b.date)),
+      // Fewer ticks than points on a long window: the labels stay level and
+      // readable, and the tooltip still names every day.
+      tickAmount: Math.min(10, Math.max(1, (data?.series ?? []).length - 1)),
+      labels: { style: { colors: "#98a2b3" }, rotate: 0, hideOverlappingLabels: true },
       axisBorder: { show: false },
       axisTicks: { show: false },
     },
-    yaxis: { labels: { style: { colors: "#98a2b3" } } },
+    // "500,000", not "500000": six digits with nothing between them is a
+    // number the eye has to count.
+    yaxis: { labels: { style: { colors: "#98a2b3" }, formatter: (v: number) => Math.round(v).toLocaleString() } },
     grid: { borderColor: "#f2f4f7", strokeDashArray: 4 },
     legend: { labels: { colors: "#667085" } },
     tooltip: { y: { formatter: (v: number) => money(v) } },
@@ -149,23 +118,7 @@ export default function ReportsPage() {
             {invalid ? "Choose a range" : formatRange({ from: asked.from, to: asked.to })}
           </p>
         </div>
-        <DateRangeFilter
-          label="This month"
-          value={{ from: range.from, to: range.to }}
-          onChange={(next) => setRange({ from: next.from ?? "", to: next.to ?? "" })}
-          extra={namedPeriods}
-          // The generic list minus the four the shop's own periods already
-          // name. Offering "Today" twice, and "This Month" beside "This
-          // month", is a menu with two rows for one range and two ticks for
-          // one answer. What is left is what the report periods do NOT have:
-          // rolling windows, and the month before this one.
-          presets={REPORT_PRESETS}
-          // A report is ALWAYS about a window. There is no "all time" here:
-          // every figure on this screen is a sum over dates, and an unbounded
-          // one is a query nobody meant to run.
-          allowAll={false}
-          align="right"
-        />
+        <ReportWindow when={when} />
       </div>
 
       {invalid && (
@@ -174,12 +127,17 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <FilterTabs
-        tabs={TABS.map(([key, label]) => ({ key, label }))}
-        value={tab}
-        onChange={setTab}
-        className="mb-6"
-      />
+      {/* A row of tabs is a choice. A books-only business has one report, and
+          a single lit button labelled "Overview" above it is a control that
+          goes nowhere. */}
+      {TABS.length > 1 && (
+        <FilterTabs
+          tabs={TABS.map(([key, label]) => ({ key, label }))}
+          value={tab}
+          onChange={setTab}
+          className="mb-6"
+        />
+      )}
 
       {report.isError && (
         <div className="mb-6">

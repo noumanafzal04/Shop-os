@@ -4,6 +4,7 @@ export { FilterOption, FilterPopover } from "./FilterPopover";
 export { CalendarGlyph, FunnelGlyph, SearchGlyph } from "./FilterIcons";
 export {
   EMPTY_RANGE,
+  formatDay,
   formatEntryDate,
   formatRange,
   fromIsoDate,

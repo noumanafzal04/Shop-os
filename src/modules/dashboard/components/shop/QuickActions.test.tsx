@@ -42,7 +42,10 @@ describe("the row under the hero", () => {
     draw("top", { expenses: true });
 
     expect(hrefs(screen.getByRole("navigation", { name: "Quick actions" })))
-      .toEqual(["/tenant/expenses", "/tenant/reports", "/tenant/cashbook"]);
+      // Both halves of its books, money in first, then the two ways of
+      // reading them. "Record income" was missing: half of everything this
+      // business does here had no tile.
+      .toEqual(["/tenant/income", "/tenant/expenses", "/tenant/reports", "/tenant/cashbook"]);
   });
 
   it("offers nothing this person cannot open", () => {
@@ -56,6 +59,28 @@ describe("the row under the hero", () => {
     const { container } = draw("top", everything, () => false);
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("recording income", () => {
+  it("is one of a books-only business's four tiles, and says what it is", () => {
+    draw("top", { expenses: true });
+
+    const row = screen.getByRole("navigation", { name: "Quick actions" });
+    expect(within(row).getByText("Record income")).toBeInTheDocument();
+    expect(within(row).getByText("Money coming in")).toBeInTheDocument();
+  });
+
+  it("is not among a shop's tiles — its money in is its sales", () => {
+    draw("top", everything);
+
+    expect(hrefs(screen.getByRole("navigation", { name: "Quick actions" }))).not.toContain("/tenant/income");
+  });
+
+  it("…but is still offered to it, with the rest", () => {
+    draw("rest", everything);
+
+    expect(screen.getByText("Record income").closest("a")).toHaveAttribute("href", "/tenant/income");
   });
 });
 

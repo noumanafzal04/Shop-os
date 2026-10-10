@@ -36,7 +36,7 @@ function show(value: Record<string, boolean>, extra: Partial<Parameters<typeof M
       offer={BASIC_FOR_A_MART}
       prices={{ inventory: 400 }}
       planName="Basic"
-      tradeLabel="mart"
+      tradeLabel="a mart"
       {...extra}
     />,
   );
@@ -62,9 +62,9 @@ describe("three bands, by where a module comes from", () => {
     show({ products: true, pos: true });
 
     expect(screen.queryByRole("switch", { name: "Kitchen Tickets" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Not usual for a mart shop/)).toBeInTheDocument();
+    expect(screen.getByText(/Not usual for a mart/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /Not usual for a mart shop/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Not usual for a mart/ }));
     expect(band("modules-other").getByRole("switch", { name: "Kitchen Tickets" })).toBeInTheDocument();
   });
 
@@ -79,7 +79,7 @@ describe("three bands, by where a module comes from", () => {
   it("says which of the plan's modules the trade cannot do without, and which were switched off here", () => {
     show({ products: true, pos: false });
 
-    expect(band("modules-included").getByText("needed")).toHaveAttribute("title", "A mart shop cannot open without it");
+    expect(band("modules-included").getByText("needed")).toHaveAttribute("title", "A mart cannot open without it");
     expect(band("modules-included").getByText("off for this shop")).toBeInTheDocument();
     expect(screen.getByText("1 of 2 on")).toBeInTheDocument();
   });

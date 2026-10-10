@@ -1,3 +1,4 @@
+import { tradePhrase } from "../tradePhrase";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
@@ -1384,7 +1385,7 @@ export default function AdminTenantDetailPage() {
               features={t.features ?? {}}
               pkg={t.package}
               planName={t.plan?.name ?? null}
-              tradeLabel={(businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label.toLowerCase() ?? null}
+              tradeLabel={tradePhrase(t.business_type_primary ?? t.business_type, (businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label)}
             />
           </div>
 

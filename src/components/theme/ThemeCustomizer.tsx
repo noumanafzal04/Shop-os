@@ -1,3 +1,4 @@
+import { useKindOfBusiness } from "../../common/tenant/kindOfBusiness";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 
@@ -579,6 +580,7 @@ export default function ThemeCustomizer() {
    * one Esc away on the screen the owner sets it from.
    */
   const onTill = useLocation().pathname.startsWith("/tenant/pos");
+  const { noun } = useKindOfBusiness();
 
   return (
     <AppearanceCanvas
@@ -598,7 +600,8 @@ export default function ThemeCustomizer() {
             { theme_primary: look.primary, theme_tint: look.tint, theme_sidebar: look.sidebar } as never,
             { onSuccess: on.onSuccess, onError: on.onError },
           ),
-        savedFor: "your shop",
+        // What the look belongs to — a shop, or a business that is not one.
+        savedFor: `your ${noun}`,
       }}
     />
   );

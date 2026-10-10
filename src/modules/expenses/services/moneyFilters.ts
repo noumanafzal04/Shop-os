@@ -84,14 +84,23 @@ export function toParams(filters: MoneyFilters): Record<string, string | number>
   return params;
 }
 
-/** How many filters are actually narrowing the view — for the "clear" pill. */
-export function activeFilterCount(filters: MoneyFilters): number {
+/**
+ * How many filters are actually narrowing the view — for the "clear" pill.
+ *
+ * A date range is ONE filter. Its two ends were counted separately, so a
+ * person who had picked "this month" and nothing else was told "Filters 2"
+ * — beside one chip.
+ *
+ * `periodIsGiven` is for a screen that is ALWAYS about a period (the ledger):
+ * there the dates are the page's subject, not something narrowing it, and
+ * they count for nothing.
+ */
+export function activeFilterCount(filters: MoneyFilters, periodIsGiven = false): number {
   return [
     filters.search?.trim(),
     filters.category_id?.length,
     filters.payment_method?.length,
-    filters.from,
-    filters.to,
+    !periodIsGiven && (filters.from || filters.to),
     filters.min_amount?.trim(),
     filters.max_amount?.trim(),
     filters.source,

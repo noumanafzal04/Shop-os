@@ -62,6 +62,7 @@ export function ModulePicker({
   ownPrices?: Record<string, string>;
   onOwnPrices?: (next: Record<string, string>) => void;
   planName?: string | null;
+  /** What a business of this trade is called, article included — see tradePhrase. */
   tradeLabel?: string | null;
   emptyHint?: string;
 }) {
@@ -95,7 +96,7 @@ export function ModulePicker({
   const asPlanned = offer ? settle(catalog, Object.fromEntries(offer.included.map((k) => [k, true]))) : null;
   const differs = asPlanned !== null && catalog.some((m) => (value[m.key] ?? false) !== (asPlanned[m.key] ?? false));
   const plan = planName ?? "the plan";
-  const trade = tradeLabel ?? "this trade";
+  const trade = tradeLabel ?? "this kind of business";
 
   const priceOf = (key: string): number => {
     const own = ownPrices?.[key];
@@ -132,7 +133,7 @@ export function ModulePicker({
               {m.label}
               {band === "included" && essential && (
                 <span
-                  title={`A ${trade} shop cannot open without it`}
+                  title={`${trade.charAt(0).toUpperCase()}${trade.slice(1)} cannot open without it`}
                   className="rounded-full bg-success-100 px-1.5 py-px text-[11px] font-medium text-success-700 dark:bg-success-500/20 dark:text-success-400"
                 >
                   needed
@@ -248,7 +249,7 @@ export function ModulePicker({
           {head(
             `In ${plan}`,
             `${bands.included.filter((m) => value[m.key]).length} of ${bands.included.length} on`,
-            `What ${plan} gives a ${trade} shop. Nothing extra to pay.`,
+            `What ${plan} gives ${trade}. Nothing extra to pay.`,
           )}
           {bands.included.length === 0 ? (
             <p className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-theme-xs text-gray-400 dark:border-gray-800">
@@ -270,7 +271,7 @@ export function ModulePicker({
         )}
         {bands.addons.length === 0 ? (
           <p className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-theme-xs text-gray-400 dark:border-gray-800">
-            {plan} already includes everything a {trade} shop can use.
+            {plan} already includes everything {trade} can use.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-2 @[40rem]:grid-cols-2">{bands.addons.map((m) => tile(m, "addon"))}</div>
@@ -294,7 +295,7 @@ export function ModulePicker({
             className="flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-gray-300 px-3 py-2 text-left text-theme-xs text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-white/5"
           >
             <span>
-              <span className="font-medium text-gray-700 dark:text-gray-300">Not usual for a {trade} shop</span> · {bands.other.length} more
+              <span className="font-medium text-gray-700 dark:text-gray-300">Not usual for {trade}</span> · {bands.other.length} more
               module{bands.other.length === 1 ? "" : "s"}
             </span>
             <span aria-hidden="true">{unfolded ? "Hide" : "Show"}</span>

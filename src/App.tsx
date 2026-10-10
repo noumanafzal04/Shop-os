@@ -408,12 +408,22 @@ export default function App() {
                       <Route path="fuel/deliveries" element={<FuelDeliveriesPage />} />
                     </Route>
                   </Route>
-                  <Route element={<RequireTenantScreen />}>
-                    <Route path="sales" element={<SalesPage />} />
-                    {/* POST /sales needs `pos`. An online-only shop has Sales
-                        as HISTORY and was sent to a form that always refused. */}
-                    <Route element={<RequireFeature feature="pos" />}>
-                      <Route path="sales/new" element={<NewSalePage />} />
+                  {/* The sale history, behind the same ANY-of the server asks
+                      for (`feature:pos,marketplace,products,services`).
+                      The server was given this gate so a books-only business
+                      would not be handed a Sales screen answering "you have
+                      no sales" — and the door on THIS side was left open. The
+                      menu never offered it, so nobody pressed it; typed, or
+                      followed from an old bookmark, it drew the whole screen
+                      and every request behind it was refused. */}
+                  <Route element={<RequireFeature feature={["pos", "marketplace", "products", "services"]} />}>
+                    <Route element={<RequireTenantScreen />}>
+                      <Route path="sales" element={<SalesPage />} />
+                      {/* POST /sales needs `pos`. An online-only shop has Sales
+                          as HISTORY and was sent to a form that always refused. */}
+                      <Route element={<RequireFeature feature="pos" />}>
+                        <Route path="sales/new" element={<NewSalePage />} />
+                      </Route>
                     </Route>
                   </Route>
                   {/* Quotations & advance bookings — counter documents that end

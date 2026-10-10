@@ -90,6 +90,81 @@ describe("what each trade is shown", () => {
   });
 });
 
+describe("a block says who it is for", () => {
+  const body = (trade: string, id: string) =>
+    articlesFor(TRADES[trade], trade, owner).find((a) => a.id === id)!.body;
+  const said = (trade: string, id: string) =>
+    body(trade, id).map((b) => ("text" in b ? b.text : "items" in b ? b.items.flat().join(" ") : b.rows.flat().join(" "))).join("\n");
+  const MONEY = ["cashbook", "ledger", "expenses", "income"];
+
+  it("a books-only business is told nothing about a till, a drawer or sales it does not make", () => {
+    for (const id of MONEY) {
+      expect(said("finance", id), id).not.toMatch(/\btill\b|drawer|shift close|Sales are counted|Do not enter sales/i);
+    }
+  });
+
+  it("…and is told what IS true of it", () => {
+    expect(said("finance", "cashbook")).toMatch(/keeps books and sells nothing has two columns: Income/);
+    expect(said("finance", "income")).toMatch(/Everything your business takes in/);
+    expect(said("finance", "income")).toMatch(/Client Payments, Service Fees/);
+    expect(said("finance", "ledger")).toMatch(/There are two kinds of row: Income/);
+    expect(said("finance", "expenses")).toMatch(/Paid in cash is simply how it was paid/);
+    // No table of five kinds of row it cannot have.
+    expect(body("finance", "ledger").some((b) => b.type === "table")).toBe(false);
+  });
+
+  it("a shop with a till is told everything it was told before", () => {
+    expect(said("mart", "cashbook")).toMatch(/Sales are counted automatically/);
+    expect(said("mart", "cashbook")).toMatch(/It is not the cash drawer/);
+    expect(said("mart", "income")).toMatch(/without being a sale/);
+    expect(said("mart", "income")).toMatch(/Do not enter sales here/);
+    expect(said("mart", "income")).toMatch(/whatever drawer is open/);
+    expect(said("mart", "expenses")).toMatch(/Cash expenses move the drawer/);
+    expect(body("mart", "ledger").some((b) => b.type === "table")).toBe(true);
+    // …and none of what is only true of an office.
+    for (const id of MONEY) {
+      expect(said("mart", id), id).not.toMatch(/sells nothing|Everything your business takes in|two kinds of row|simply how it was paid/);
+    }
+  });
+
+  it("the dashboard article speaks for the books only where there are books", () => {
+    expect(said("finance", "dashboard")).toMatch(/a bill that has fallen due and not been posted/);
+    expect(said("finance", "dashboard")).toMatch(/only things the dashboard can ever need you for/);
+    expect(said("mart", "dashboard")).toMatch(/a bill that has fallen due and not been posted/);
+    expect(said("mart", "dashboard")).not.toMatch(/only things the dashboard can ever need you for/);
+    // A shop that was never given the books is told nothing about them.
+    const noBooks = articlesFor({ pos: true, products: true }, "mart", owner).find((a) => a.id === "dashboard")!;
+    expect(noBooks.body.some((b) => "text" in b && /fallen due/.test(b.text))).toBe(false);
+  });
+
+  it("offline rules are explained only to a business with a till", () => {
+    expect(said("mart", "subscription")).toMatch(/rules for working with no internet/);
+    expect(said("finance", "subscription")).not.toMatch(/rules for working with no internet/);
+    expect(said("finance", "subscription")).toMatch(/only counted against what your business can have/);
+  });
+
+  it("an article with nothing conditional in it is handed over untouched", () => {
+    const whole = HELP_ARTICLES.find((a) => a.id === "password")!;
+
+    expect(whole.body.every((b) => !b.needs && !b.lacks)).toBe(true);
+    expect(articlesFor(TRADES.finance, "finance", owner).find((a) => a.id === "password")).toBe(whole);
+  });
+
+  it("a heading never outlives the blocks under it", () => {
+    // A conditional block must not leave a heading standing over nothing.
+    for (const trade of Object.keys(TRADES)) {
+      for (const article of articlesFor(TRADES[trade], trade, owner)) {
+        article.body.forEach((block, i) => {
+          if (block.type !== "h") return;
+          const next = article.body[i + 1];
+
+          expect(next && next.type !== "h", `${trade} · ${article.id} · "${block.text}" has nothing under it`).toBeTruthy();
+        });
+      }
+    }
+  });
+});
+
 describe("what each person is shown", () => {
   const holding = (...permissions: string[]) => (p: string) => permissions.includes(p);
 

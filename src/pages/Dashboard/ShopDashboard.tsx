@@ -257,7 +257,7 @@ export default function ShopDashboard() {
             }`}
           >
             {hasInventoryTiles(caps) && <InventoryTiles data={data} caps={caps} />}
-            <AttentionPanel data={data} caps={caps} />
+            <AttentionPanel data={data} caps={caps} money={money} />
           </div>
 
           {!caps.sells && !caps.keepsBooks && (
@@ -317,7 +317,7 @@ export default function ShopDashboard() {
 
           {!basic && <HighlightsRow highlights={data.highlights} period={called} caps={caps} money={money} />}
 
-          {!basic && <ActivityTimeline rows={data.activity} />}
+          {!basic && <ActivityTimeline rows={data.activity} noun={caps.sells || caps.catalog ? "shop" : "business"} />}
 
           <QuickActions caps={caps} show="rest" />
         </div>

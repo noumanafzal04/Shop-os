@@ -1,4 +1,5 @@
 import type { TenantDashboard } from "../../types";
+import { booksSentence } from "./booksWaiting";
 import type { Capabilities } from "./capabilities";
 
 /**
@@ -75,11 +76,25 @@ export function shopStatus(data: TenantDashboard, caps: Capabilities): ShopStatu
     return { tone: "busy", text: `${n(data.low_stock_count, "item is", "items are")} running low.` };
   }
 
+  // The books, when they are waiting on somebody. After the trading alerts —
+  // a shop's customer comes before its landlord — and before anything calm:
+  // for a business that only keeps books this is the only thing the line can
+  // ever have to say. Same figures as the rows below it. See booksWaiting.
+  const books = caps.keepsBooks ? booksSentence(data.books) : null;
+  if (books) return books;
+
   if (caps.sells && data.today.sales_count > 0) {
     return {
       tone: "calm",
       text: `Everything is moving — ${n(data.today.sales_count, "sale", "sales")} so far today, and nothing needs you.`,
     };
+  }
+
+  // A business with books and nothing in them yet. The panel below says "No
+  // expenses recorded yet — 1 to look at"; a head that says nothing needs you
+  // directly above it is two lists disagreeing about one screen.
+  if (!caps.sells && caps.keepsBooks && data.recent_expenses.length === 0) {
+    return { tone: "calm", text: "Your books are empty — record your first income or expense to begin." };
   }
 
   // Said plainly. A shop that has sold nothing yet is not "moving smoothly".

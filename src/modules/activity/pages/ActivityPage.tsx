@@ -1,3 +1,5 @@
+import { EVENT_WORD, thingCalled } from "../words";
+import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -59,35 +61,6 @@ interface AuditLog {
 // day. One line: who, why, and — as the "before" — what the day had been
 // signed off at, because the day itself no longer carries those figures.
 const EVENT_COLOR = { created: "success", updated: "info", deleted: "error", imported: "warning", cleared: "warning", reopened: "warning" } as const;
-const EVENT_WORD = { created: "added", updated: "changed", deleted: "removed", imported: "imported", cleared: "cleared", reopened: "opened again" } as const;
-
-/** Model name → what a shopkeeper calls it. Anything unlisted keeps its own name. */
-const THING: Record<string, string> = {
-  KitchenTicket: "Kitchen board",
-  RestaurantTicket: "Dine-in tabs",
-  Tenant: "Shop settings",
-  User: "Staff member",
-  Customer: "Customer credit limit",
-  CustomerGroup: "Customer group",
-  TaxGroup: "Tax rate",
-  Coupon: "Coupon",
-  Sale: "Sale",
-  SaleDocument: "Quotation / layaway",
-  StockDisposal: "Stock written off",
-  StockCount: "Stocktake",
-  BusinessDay: "Trading day",
-  BankDeposit: "Banking",
-  RecurringExpense: "Recurring expense",
-  RecurringIncome: "Recurring income",
-  ExpenseBudget: "Budget",
-  FuelTank: "Fuel tank",
-  FuelPump: "Fuel pump",
-  FuelNozzle: "Nozzle",
-  FuelDelivery: "Fuel delivery",
-  ForecourtShift: "Forecourt shift",
-  Product: "Item price",
-};
-
 /** Column name → what it is called on the screen it was changed on. */
 const FIELD: Record<string, string> = {
   credit_limit: "Credit limit",
@@ -175,6 +148,7 @@ const EVENTS = [
 ];
 
 export default function ActivityPage() {
+  const kind = useKindOfBusiness();
   const [event, setEvent] = useState("");
   const [type, setType] = useState("");
   const [from, setFrom] = useState("");
@@ -342,7 +316,7 @@ export default function ActivityPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 whitespace-nowrap">
-                        <span>{THING[log.entity] ?? log.entity}</span>
+                        <span>{thingCalled(log.entity, kind.noun)}</span>
                         <Badge size="sm" color={EVENT_COLOR[log.event]}>{EVENT_WORD[log.event]}</Badge>
                       </div>
                       {/* The thing itself, under its kind. A row that says a

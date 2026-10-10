@@ -28,6 +28,8 @@ import Badge from "../../../components/ui/badge/Badge";
  */
 
 type Owed = {
+  /** Whether this business can take an online order at all. Absent on an older server. */
+  applies?: boolean;
   rate: number;
   rate_is_yours: boolean;
   outstanding: { orders: number; base: number; amount: number };
@@ -50,6 +52,23 @@ type Owed = {
 
 const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
+/**
+ * Is there anything about commission to tell this business?
+ *
+ * Nothing charged, nothing billed: nothing to explain. And nothing either for
+ * a business that cannot take an online order — the rate is the PLATFORM's and
+ * exists for everybody, so an office with no storefront was told it pays 4.5%
+ * "on each completed online order". What it once ran up and still owes is said
+ * whatever it can do today.
+ */
+export function commissionIsWorthSaying(d: Pick<Owed, "applies" | "rate" | "outstanding" | "invoices">): boolean {
+  const owesOrOwed = d.outstanding.orders > 0 || d.invoices.length > 0;
+
+  if (owesOrOwed) return true;
+
+  return d.applies !== false && d.rate !== 0;
+}
+
 export function CommissionOwed() {
   const owed = useQuery({
     queryKey: ["shop", "commission"],
@@ -61,8 +80,7 @@ export function CommissionOwed() {
 
   const d = owed.data;
 
-  // Nothing charged, nothing billed, nothing to explain.
-  if (d == null || (d.rate === 0 && d.outstanding.orders === 0 && d.invoices.length === 0)) {
+  if (d == null || !commissionIsWorthSaying(d)) {
     return null;
   }
 

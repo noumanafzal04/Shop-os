@@ -110,6 +110,13 @@ export interface SubscriptionInfo {
      * not spent.
      */
     band: "ok" | "nearing" | "critical" | "reached" | null;
+    /** A count of things owned, or a rule about behaviour — a rule is never a usage bar. */
+    kind?: "count" | "policy";
+    /** Whether this business has the module the row is about. */
+    applies?: boolean;
+    /** A yes/no rule: 1 is on, 0 is off. */
+    switch?: boolean;
+    zero_means?: string | null;
   }>;
   payments: Array<{
     id: string;

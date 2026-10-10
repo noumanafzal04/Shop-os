@@ -26,6 +26,9 @@ import {
   useRecurringExpenses,
 } from "../hooks/useExpenses";
 import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } from "../services/expensesService";
+import { booksWords, withCashCalled } from "../booksWords";
+import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { useTabInUrl } from "../../../common/routing/tabInUrl";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
 import { MoneyFilterBar } from "../components/MoneyFilterBar";
 import { MoneySummary } from "../components/MoneySummary";
@@ -64,8 +67,9 @@ const TABS = [
  * at, which is worse than no description: it is a wrong answer to "what does
  * this do?", printed in the place that question gets asked.
  */
-const BLURB: Record<TabKey, string> = {
-  expenses: "Every bill the shop has paid. File one and it lands in your reports, your profit and — if it was cash — your drawer.",
+const BLURB: Record<Exclude<TabKey, "expenses">, string> = {
+  // The Expenses tab's own sentence depends on who is reading it — a business
+  // with no till has no drawer for a cash bill to come out of. See booksWords.
   recurring: "The bills that come round again. Nothing posts on its own; you confirm the real figure each time.",
   budgets: "A monthly ceiling per category. It never blocks an entry — the bill arrived either way — it tells you the moment you file one.",
   categories: "The list your spending is filed under. Seeded from your trade on day one, yours to change after.",
@@ -95,7 +99,10 @@ const SORTS: Array<{ value: NonNullable<MoneyFilters["sort"]>; label: string }> 
 export default function ExpensesPage() {
   const money = useMoney();
   const toast = useToast();
-  const [tab, setTab] = useState<TabKey>("expenses");
+  // A dashboard row about a due bill or a passed budget lands on ITS tab.
+  const [tab, setTab] = useTabInUrl<TabKey>(TABS.map((t) => t.key), "expenses");
+
+  const words = booksWords(useKindOfBusiness());
 
   const recurring = useRecurringExpenses();
   const dueCount = recurring.data?.dueCount ?? 0;
@@ -106,7 +113,9 @@ export default function ExpensesPage() {
 
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Expense Manager</h2>
-        <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{BLURB[tab]}</p>
+        <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400" data-testid="expenses-says">
+          {tab === "expenses" ? words.expenses : BLURB[tab]}
+        </p>
       </div>
 
       {/* Bills that have fallen due are the only thing on this page that is
@@ -199,6 +208,8 @@ function MiniFilterBar({
 // ── Expenses ──────────────────────────────────────────────────────────
 
 function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
+  // What cash is called, and what there is to say about it — see booksWords.
+  const words = booksWords(useKindOfBusiness());
   const branchCol = useBranchColumn();
   const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
   // Typing must not fire a request per keystroke, but every other filter is a
@@ -414,7 +425,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
         // history, and hiding a switched-off category here is what made three
         // years of "Cooking Gas" unreachable the day it was retired.
         categories={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name, retired: !c.is_active }))}
-        methods={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+        methods={withCashCalled(PAYMENT_METHODS, words.cashPaid)}
         totals={totals}
         money={money}
         sorts={SORTS}
@@ -499,7 +510,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
             </div>
             <div>
               <Label>Description <span className="text-error-500">*</span></Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. July shop rent" />
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder={words.rentExample} />
               {errorFor("description") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("description")}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -518,7 +529,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
               <div>
                 <Label>Paid by</Label>
                 <Select
-                  options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+                  options={withCashCalled(PAYMENT_METHODS, words.cashPaid)}
                   value={form.method}
                   onChange={(v) => setForm((f) => ({ ...f, method: v }))}
                 />
@@ -561,10 +572,8 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                 placeholder="Anything you'll want to remember when you read this back"
               />
             </div>
-            {form.method === "cash" && (
-              <p className="text-theme-xs text-gray-400">
-                Cash comes out of your open drawer, so the shift's expected cash drops by this amount.
-              </p>
+            {form.method === "cash" && words.cashPaidHint && (
+              <p className="text-theme-xs text-gray-400">{words.cashPaidHint}</p>
             )}
           </div>
         </ModalForm>
@@ -576,6 +585,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 // ── Recurring ─────────────────────────────────────────────────────────
 
 function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
+  const words = booksWords(useKindOfBusiness());
   const list = useRecurringExpenses();
   const categories = useExpenseCategories();
   const { createRecurring, updateRecurring, removeRecurring, postRecurring } = useExpenseAdminMutations();
@@ -859,7 +869,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
                               removeRecurring.mutate(r.id, {
                                 onSuccess: () => toast.success("Removed"),
                                 // A recurring bill that did not stop keeps
-                                // posting itself every month.
+                                // falling due every month.
                                 ...failed(toast, "That recurring entry is still running."),
                               });
                             }
@@ -902,7 +912,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
             </div>
             <div>
               <Label>Description</Label>
-              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Shop rent" />
+              <Input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder={words.rentExample.replace("July ", "")} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -931,7 +941,7 @@ function RecurringTab({ money, toast }: { money: Money; toast: Toast }) {
               <div>
                 <Label>Paid by</Label>
                 <Select
-                  options={PAYMENT_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+                  options={withCashCalled(PAYMENT_METHODS, words.cashPaid)}
                   value={form.method}
                   onChange={(v) => setForm((f) => ({ ...f, method: v }))}
                 />

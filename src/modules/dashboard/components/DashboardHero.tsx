@@ -118,7 +118,7 @@ export function DashboardHero({
             {status && (
               <p className="mt-3 flex items-start gap-2.5 text-theme-sm font-medium leading-snug text-white sm:text-base" data-testid="hero-status">
                 <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ring-4 ${STATUS_DOT[status.tone]}`} aria-hidden />
-                <span className="min-w-0 text-pretty">{status.text}</span>
+                <span className="min-w-0 text-pretty" data-testid="shop-status">{status.text}</span>
               </p>
             )}
             {!status && loadingStatus && <span className="mt-3 block h-5 w-64 max-w-full animate-pulse rounded bg-white/15" />}

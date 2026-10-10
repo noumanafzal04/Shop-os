@@ -1,3 +1,4 @@
+import { tradePhrase } from "../tradePhrase";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
@@ -553,8 +554,8 @@ export default function AdminTenantCreatePage() {
           title="Modules"
           description={form.business_type
             ? selectedPlan
-              ? `What ${selectedPlan.name} gives a ${selectedType?.label.toLowerCase()} shop, and what can be added for this one. Only what this trade can use is shown.`
-              : `Only what a ${selectedType?.label.toLowerCase()} shop can use. Choose a plan to see what it includes.`
+              ? `What ${selectedPlan.name} gives ${tradePhrase(form.business_type, selectedType?.label)}, and what can be added for this one. Only what this trade can use is shown.`
+              : `Only what ${tradePhrase(form.business_type, selectedType?.label)} can use. Choose a plan to see what it includes.`
             : "Pick a business type and a plan — what the plan includes appears here."}
         >
           {!form.business_type ? (
@@ -567,7 +568,7 @@ export default function AdminTenantCreatePage() {
               offer={offer.data}
               prices={offer.data?.prices}
               planName={selectedPlan?.name ?? null}
-              tradeLabel={selectedType?.label.toLowerCase() ?? null}
+              tradeLabel={form.business_type ? tradePhrase(form.business_type, selectedType?.label) : null}
               emptyHint="Choose a business type first."
             />
           )}

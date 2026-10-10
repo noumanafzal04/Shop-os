@@ -37,10 +37,3 @@ export function formatDateTime(value: string | null | undefined): string {
   )}`;
 }
 
-
-/** CamelCase audit entity → readable noun ("ProductBatch" → "product batch"). */
-export function humanizeEntity(entity: string | undefined): string {
-  if (!entity) return "record";
-
-  return entity.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
-}

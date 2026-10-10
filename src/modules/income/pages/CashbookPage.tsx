@@ -1,25 +1,42 @@
-import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import { useCashbook } from "../hooks/useIncome";
-import { formatEntryDate } from "../../../components/ui/filters";
+import { formatEntryDate, formatRange } from "../../../components/ui/filters";
+import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
+import { ReportWindow } from "../../expenses/components/ReportWindow";
+import { useReportWindow } from "../../expenses/hooks/useReportWindow";
+import { rangeParams } from "../../expenses/reportPeriod";
+import { cashbookShape } from "../cashbookShape";
 
-const PERIODS = [
-  { value: "daily", label: "Today" },
-  { value: "weekly", label: "This week" },
-  { value: "monthly", label: "This month" },
-  { value: "yearly", label: "This year" },
-] as const;
-
+/**
+ * The cashbook: what each day came to.
+ *
+ * ── Two things it got wrong for the business that opens it most ──────
+ *
+ * A books-only business — a Finance Manager — has this as its front page, and
+ * it was drawn for a shop. Seven columns, of which Sales and Refunds could
+ * never hold a figure; a subtitle explaining that sales are counted
+ * automatically; and a footnote sending the reader to "the POS shift close"
+ * for their physical cash. Its shape is decided in `cashbookShape` now, from
+ * what the business HAS, and tested there.
+ *
+ * And it could only be asked about four windows — today, this week, this
+ * month, this year — on four buttons of its own, while the Reports tab beside
+ * it took any range and knew the tax year. Same control now (`ReportWindow`),
+ * so an accountant closing 1–15, last month or July-to-June can.
+ */
 export default function CashbookPage() {
   const money = useMoney();
-  const [period, setPeriod] = useState<string>("monthly");
-  const cashbook = useCashbook({ period });
+  const when = useReportWindow();
+  const cashbook = useCashbook(rangeParams(when.sent));
   const data = cashbook.data;
+  const shape = cashbookShape(useKindOfBusiness());
 
   const totals = data?.totals;
+  // The ledger opens on the same window this page is showing.
+  const ledger = `/tenant/ledger?from=${when.sent.from}&to=${when.sent.to}`;
 
   return (
     <>
@@ -28,48 +45,39 @@ export default function CashbookPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Cashbook</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Everything in and out — sales and other income against expenses and refunds. Sales are
-            counted automatically; you don't enter them here.
+          <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400" data-testid="cashbook-says">
+            {shape.says}
           </p>
-          <p className="mt-1 text-theme-xs text-gray-400">
-            This is money <span className="font-medium">booked</span> across all payment types (cash, card, credit) — not
-            the cash drawer. For physical cash at the counter, use the POS shift close.
+          {shape.footnote && (
+            <p className="mt-1 max-w-2xl text-theme-xs text-gray-400" data-testid="cashbook-footnote">
+              {shape.footnote}
+            </p>
+          )}
+          {/* The window in words: the control beside it can be on any range,
+              and "which days is this?" should not need it opened to answer. */}
+          <p className="mt-1 text-theme-xs font-medium text-gray-500 dark:text-gray-400" data-testid="cashbook-window">
+            {when.invalid ? "Choose a range" : formatRange({ from: when.asked.from, to: when.asked.to })}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-        <Link
-          to="/tenant/ledger"
-          className="rounded-lg border border-gray-300 px-3 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
-        >
-          Open ledger
-        </Link>
-        <div className="flex gap-1 rounded-lg border border-gray-200 p-1 dark:border-gray-800">
-          {PERIODS.map((p) => (
-            <button
-              key={p.value}
-              type="button"
-              aria-pressed={period === p.value}
-              onClick={() => setPeriod(p.value)}
-              className={`min-h-9 rounded-md px-3 py-1.5 text-theme-sm font-medium transition-colors ${
-                period === p.value
-                  ? "bg-brand-500 text-white"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
+          <Link
+            to={ledger}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-theme-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            Open ledger
+          </Link>
+          <ReportWindow when={when} />
         </div>
       </div>
 
       {/* Summary cards */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* The split under each figure is only worth printing when there is
+            more than one thing in it. */}
         <Card label="Money in" value={money(totals?.money_in ?? 0)} tone="in"
-          sub={`Sales ${money(totals?.sales_revenue ?? 0)} · Other ${money(totals?.other_income ?? 0)}`} />
+          sub={shape.splits ? `Sales ${money(totals?.sales_revenue ?? 0)} · Other ${money(totals?.other_income ?? 0)}` : undefined} />
         <Card label="Money out" value={money(totals?.money_out ?? 0)} tone="out"
-          sub={`Expenses ${money(totals?.expenses ?? 0)} · Refunds ${money(totals?.refunds ?? 0)}`} />
+          sub={shape.splits ? `Expenses ${money(totals?.expenses ?? 0)} · Refunds ${money(totals?.refunds ?? 0)}` : undefined} />
         <Card label="Net this period" value={money(totals?.net ?? 0)} tone={(totals?.net ?? 0) >= 0 ? "in" : "out"} />
         <Card label="Cumulative net" value={money(data?.closing_balance ?? 0)} tone="neutral"
           sub={`Since opening · was ${money(data?.opening_balance ?? 0)} before this period`} />
@@ -82,10 +90,9 @@ export default function CashbookPage() {
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-6 py-3 font-medium">Date</th>
-                <th className="px-6 py-3 font-medium text-right">Sales</th>
-                <th className="px-6 py-3 font-medium text-right">Other income</th>
-                <th className="px-6 py-3 font-medium text-right">Expenses</th>
-                <th className="px-6 py-3 font-medium text-right">Refunds</th>
+                {shape.columns.map((c) => (
+                  <th key={c.key} className="px-6 py-3 font-medium text-right">{c.label}</th>
+                ))}
                 <th className="px-6 py-3 font-medium text-right">Net</th>
                 <th className="px-6 py-3 font-medium text-right">Running net</th>
               </tr>
@@ -94,14 +101,14 @@ export default function CashbookPage() {
               {cashbook.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={7} className="px-6 py-4">
+                    <td colSpan={shape.columns.length + 3} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : (data?.days ?? []).every((d) => d.money_in === 0 && d.money_out === 0) ? (
                 <tr>
-                  <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty colSpan={shape.columns.length + 3} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No money movement in this period yet.
                   </TableEmpty>
                 </tr>
@@ -121,10 +128,9 @@ export default function CashbookPage() {
                           {formatEntryDate(d.date)}
                         </Link>
                       </td>
-                      <td className="px-6 py-4 text-right">{d.sales_revenue ? money(d.sales_revenue) : "—"}</td>
-                      <td className="px-6 py-4 text-right">{d.other_income ? money(d.other_income) : "—"}</td>
-                      <td className="px-6 py-4 text-right">{d.expenses ? money(d.expenses) : "—"}</td>
-                      <td className="px-6 py-4 text-right">{d.refunds ? money(d.refunds) : "—"}</td>
+                      {shape.columns.map((c) => (
+                        <td key={c.key} className="px-6 py-4 text-right">{d[c.key] ? money(d[c.key]) : "—"}</td>
+                      ))}
                       <td className={`px-6 py-4 text-right font-medium ${d.net >= 0 ? "text-success-600 dark:text-success-500" : "text-error-500"}`}>
                         {money(d.net)}
                       </td>

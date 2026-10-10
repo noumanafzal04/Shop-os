@@ -74,6 +74,12 @@ a check to run on an old shop.
   requests a minute. A walk of fifty screens has to be paced like a person.
 - The till keeps its cart across a reload. A case that leaves a line in it
   hands that line to the next case.
+- "What is on top here?" is not "what can be seen here". Map tiles take no
+  pointer events, so `elementFromPoint` answers "the button" under a map that
+  covers it completely. A thing painted over another is measured in pixels
+  (stage 28, Q12).
+- A check inside `if (not already done)` is not run on a resumed business. What
+  must hold on EVERY run goes outside it — or a mutation of it survives.
 - A clock on the wall is tested by the wall's clock: the idle-lock case waits
   three real minutes, because a faked clock never locked the till.
 
@@ -81,6 +87,33 @@ a check to run on an old shop.
 
 Stages 01–02 work for every business type as they are
 (`JOURNEY_TRADE=food|pharmacy|retail|automotive|petroleum|services|online|finance`).
-Stages 03 onwards stock and sell a MART's shelf; each other trade needs its
-own shelf and the extra cases listed in `CASES.md` before they mean anything
-for it.
+Stages 03 onwards stock and sell a MART's shelf; each other trade has its own
+stage, 20 onwards, listed in `CASES.md`:
+
+| File | Stage | Trade | Runs on |
+|---|---|---|---|
+| 20, 21 | H, J | food | the shop stages 01–02 made |
+| 22 | K | pharmacy | 〃 |
+| 23 | L | retail | 〃 |
+| 24 | M | automotive | 〃 |
+| 25 | N | petroleum | 〃 |
+| 26 | O | services | 〃 |
+| 27 | P | online | 〃 |
+| 28 | Q | finance | **its own business** — see below |
+
+**Stage 28 makes its own business.** Stage 01 switches on every module, and
+the whole subject of a Finance Manager is that it has only the books. So Q1 is
+the admin creating a books-only business (and calls `begin()`: every run of Q1
+is a NEW one), Q2 is the owner's first sign-in, and Q3–Q13 resume it:
+
+```sh
+# the whole stage, on a new business (about two minutes)
+JOURNEY_TRADE=finance E2E_BASE_URL=http://localhost:5177 npx playwright test --project=journey e2e/journey/28 --reporter=line
+
+# some cases, against the business the last run made — NOT Q1, and not Q2,
+# which is the first sign-in and can only happen once
+JOURNEY_TRADE=finance E2E_BASE_URL=http://localhost:5177 npx playwright test --project=journey e2e/journey/28 -g "Q9 ·|Q10 ·" --reporter=line
+```
+
+Its figures are two days — yesterday and today — so it runs on any date; on
+the 1st of a month it knows yesterday was last month's.

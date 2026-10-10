@@ -1,7 +1,42 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap")
-layer(base);
-
 @import "tailwindcss";
+
+/*
+ * OUTFIT, FROM THIS APP'S OWN FILES.
+ *
+ * It was `@import url("https://fonts.googleapis.com/…")` on the first line of
+ * this file. An @import is part of the stylesheet it sits in, and a stylesheet
+ * blocks the first paint — so EVERY screen of this app waited on Google before
+ * it drew anything. On a good line nobody notices. On a slow one the whole
+ * panel sat blank for as long as the font server took (measured: 5.3 seconds
+ * for the declaration, 3.4 more for the file), and on a router that is up
+ * with the line behind it down — which is what load-shedding looks like — the
+ * request neither succeeds nor fails, and a till that was reloaded stays
+ * white until it times out. That is the one moment the offline till exists
+ * for.
+ *
+ * Bundled, the two files are fingerprinted, served from the same place as the
+ * app, and precached by the service worker with everything else (`woff2` is
+ * in its glob). `swap` still lets text draw in the fallback first.
+ *
+ * The same two subsets, ranges and files Google serves (v15). SIL OFL 1.1 —
+ * the licence travels with them in assets/fonts/OFL.txt.
+ */
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./assets/fonts/outfit-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./assets/fonts/outfit-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 @custom-variant dark (&:is(.dark *));
 

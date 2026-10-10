@@ -13,7 +13,25 @@ import { PRODUCT } from "../../common/brand";
  * as `pharmacy` and still gets the chemist's articles.
  */
 
-export type HelpBlock =
+/**
+ * Who a block is for, when that is narrower than its article.
+ *
+ * An article is filtered whole — by module, trade and permission. That was
+ * enough until the one business that has the books and nothing else read the
+ * four articles about them: "Sales are counted automatically", "Cash expenses
+ * move the drawer", "Do not enter sales here". Every sentence true of a shop,
+ * and none of them about the reader. Forking four articles for one trade is
+ * four articles to keep in step, so a BLOCK may say who it is for instead.
+ *
+ *   needs  shown when ANY of these modules is on
+ *   lacks  shown only when NONE of these is on
+ */
+interface BlockFor {
+  needs?: readonly string[];
+  lacks?: readonly string[];
+}
+
+export type HelpBlock = (
   /** A section heading. These, and only these, become the "On this page" rail. */
   | { type: "h"; text: string }
   | { type: "p"; text: string }
@@ -22,7 +40,13 @@ export type HelpBlock =
   | { type: "keys"; items: Array<[string, string]> }
   | { type: "table"; head: string[]; rows: string[][] }
   | { type: "note"; text: string }
-  | { type: "warn"; text: string };
+  | { type: "warn"; text: string }
+) & BlockFor;
+
+/** The modules that mean a business SELLS — the same three the screens ask about. */
+const SELLS = ["pos", "marketplace", "dine_in"] as const;
+/** The module that brings a till, and so a drawer and a shift. */
+const TILL = ["pos"] as const;
 
 export interface HelpArticle {
   id: string;
@@ -1225,9 +1249,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/cashbook",
     keywords: ["cash book", "daily", "summary", "in and out", "profit"],
     body: [
-      { type: "p", text: "Money in against money out, by day, week, month or year. Sales are counted automatically — you never type a sale here." },
+      { type: "p", text: "Money in against money out, a line for each day, with the running total carried down." },
+      { type: "p", needs: SELLS, text: "Sales are counted automatically — you never type a sale here. The columns are Sales, Other income, Expenses and Refunds." },
+      { type: "p", lacks: SELLS, text: "A business that keeps books and sells nothing has two columns: Income, what you recorded coming in, and Expenses, what you recorded going out. Nothing is counted for you — the book is exactly what you entered." },
+      { type: "h", text: "Which days" },
+      { type: "p", text: "The date menu on the right decides which days you are reading: Today, This Week, This Month, This Year, the Tax Year (1 July to 30 June), yesterday, the last 7, 14 or 30 days, last month — or Custom range… for any two dates, which is how you close 1 to 15. The line under the heading says the window in words." },
+      { type: "p", text: "“Cumulative net” is everything since your books began, and says what it stood at before the window you are reading. Open ledger takes the same window with it." },
       {
         type: "warn",
+        needs: TILL,
         text: "The Cashbook is money BOOKED across every payment type — cash, card, credit. It is not the cash drawer. A shop that took Rs 50,000 on card has Rs 50,000 in the Cashbook and nothing extra in the till, and both numbers are correct. For physical cash at the counter, use the shift close on the POS.",
       },
     ],
@@ -1249,10 +1279,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "p",
         text: "The Cashbook tells you a day came to Rs 80,000. The Ledger tells you what made it up: every movement, in date order, with a running balance carried down the page — the way a paper book has always worked.",
       },
-      { type: "h", text: "The five kinds of row" },
-      { type: "p", text: "There are five kinds of row, and each is a genuinely different source of money:" },
+      { type: "h", text: "The kinds of row" },
+      { type: "p", needs: SELLS, text: "There are five kinds of row, and each is a genuinely different source of money. The buttons above the list narrow it to one kind — you are only shown the kinds your shop can have:" },
+      { type: "p", lacks: SELLS, text: "There are two kinds of row: Income, money you recorded coming in, and Expense, a bill you paid. The two buttons above the list narrow it to one of them." },
       {
         type: "table",
+        needs: SELLS,
         head: ["Row", "Direction", "What it is"],
         rows: [
           ["Sale", "in", "Something you sold"],
@@ -1262,7 +1294,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Supplier paid", "out", "Paying your wholesaler"],
         ],
       },
-      { type: "p", text: "Filter by kind, category, payment method, amount range or date — then export exactly what you filtered. What you hand your accountant is what you were looking at." },
+      { type: "h", text: "The period, and the filters" },
+      { type: "p", text: "The Ledger is always about a period — this month until you choose another — because its balance is carried from the day before the first one shown. So the dates are not a filter you can take off: there is no ✕ on them, and Clear all removes everything you narrowed by and leaves the period where it was." },
+      { type: "note", text: "A filter is a VIEW. Narrowing to one category or one kind of row never changes the opening balance: that is what the whole account stood at, whatever you choose to look at." },
+      { type: "p", text: "Filter by kind, category, payment method or amount range — then export exactly what you filtered. What you hand your accountant is what you were looking at." },
     ],
   },
   {
@@ -1281,10 +1316,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "list",
         items: [
           "Paid to takes a supplier where you have one, or a plain name where you do not — a landlord is not a supplier, and neither is the electricity board.",
-          "Cash expenses move the drawer. Every other payment method does not.",
           "Attach a photo of the bill. It is private, and is only ever served to someone who could already read the row.",
         ],
       },
+      { type: "note", needs: TILL, text: "Cash expenses move the drawer: the bill comes out of your open shift's expected cash. Every other payment method does not. With no shift open the bill is still recorded, and you are told the drawer was not adjusted." },
+      { type: "note", lacks: TILL, text: "Paid in cash is simply how it was paid. Nothing else moves because of it, and nothing more is said about it." },
       { type: "h", text: "The three figures above the list" },
       { type: "p", text: "They describe WHAT YOU HAVE FILTERED TO, not the whole book — narrow to \u201crent, this quarter\u201d and all three answer for that." },
       {
@@ -1317,21 +1353,25 @@ export const HELP_ARTICLES: HelpArticle[] = [
   {
     id: "income",
     title: "Income",
-    summary: "Money in that is not a sale.",
+    summary: "Money in that you record by hand.",
     group: "Money",
     modules: ["expenses"],
     permission: "expenses.manage",
     screen: "/tenant/income",
-    keywords: ["income", "rent received", "investment", "other income"],
+    keywords: ["income", "rent received", "investment", "other income", "client payment", "fee", "invoice", "grant", "donation"],
     body: [
-      { type: "p", text: "Rent received, owner investment, a refund from a supplier — anything that brought money in without being a sale. Income \u2192 Add income." },
+      { type: "p", needs: SELLS, text: "Rent received, owner investment, a refund from a supplier — anything that brought money in without being a sale. Income \u2192 Add income." },
+      { type: "p", lacks: SELLS, text: "Everything your business takes in — a client's invoice paid, a fee, a grant, money the owner put in. Nothing is counted for you, so this screen IS your income. Income \u2192 Add income." },
+      { type: "p", lacks: SELLS, text: "File each one under what it was. Client Payments, Service Fees, Sales, Commission, Donations & Grants and the usual odd ones are there to begin with; add your own on the Categories tab, named the way you would say it out loud." },
       { type: "p", text: "The list works exactly like Expenses: the same filter bar, the same three figures above it, and the same sortable Date and Amount headers. Learn one and you have learnt both." },
       {
         type: "warn",
+        needs: SELLS,
         text: "Do not enter sales here. They are already counted from the sales themselves, and typing them again doubles your month.",
       },
       {
         type: "warn",
+        needs: TILL,
         text: "Pick the payment method carefully. Cash income puts money into whatever drawer is open — so recording a bank transfer as cash hands that cashier an overage they cannot explain.",
       },
     ],
@@ -1348,6 +1388,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "The band at the top says ONE thing: the most pressing thing that is true right now. Food waiting on the pass comes first, then an order nobody has accepted, then a day left open, then the kitchen and the floor, then stock that has run out or is running low. \u201cEverything is moving\u201d is only said once something has actually been sold today \u2014 it is read off your figures, never a mood." },
       { type: "p", text: "The dot beside it is amber when something needs somebody, blue when the shop is simply busy, green when nothing needs you. If your shop has uploaded a logo (Settings \u2192 Shop), the band shows it; otherwise it shows your shop's initials." },
       { type: "p", text: "Under the band are the four things your shop does first \u2014 Open POS, the Dine-in floor, Online orders, Record expense, whichever of them you have and may open. They used to be small buttons at the very bottom of the page. The rest are still down there, under \u201cMore shortcuts\u201d." },
+      { type: "p", needs: ["expenses"], text: "If you keep books here, the band speaks for them too: a bill that has fallen due and not been posted, a category that has gone past its ceiling this month, a payment you were expecting that has fallen due. Each is also a row under Attention needed, and pressing it opens the TAB that deals with it — Recurring, or Budgets — rather than the first tab of that page. A recurring bill never posts itself and a budget never blocks a bill, so this is where you are told." },
+      { type: "note", lacks: SELLS, text: "For a business that only keeps books, those are the only things the dashboard can ever need you for. On a quiet day it says no bill has fallen due and no budget has been passed; before your first entry it says the books are empty. The four tiles under the band are Record income, Record expense, Reports and Cashbook, and the figures — Money In, Money Out and Net — open on This month." },
       { type: "h", text: "Choosing the period" },
       { type: "p", text: "The heading above the figures says which period you are reading — Today, when you open the page — and what it is being compared with. On its right are two arrows and a date menu." },
       {
@@ -1779,6 +1821,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "Where your shop stands is the first thing on the screen, in plain words: up to date, overdue, or run out \u2014 and how long you have, counted in days rather than left as a date to work out." },
       { type: "p", text: "Underneath: the plan and what it costs, everything your shop runs, and how close you are to any ceiling on it. A bar that has filled up says so in words too, because a bar at 96% and a bar at 100% look alike and only one of them means the next product will be refused." },
+      { type: "note", text: "You are only counted against what your business can have. A business with no till is not shown registers or offline selling, and one with no catalogue is not shown a product limit. A bar that is exactly full reads \u201cAll 3 in use\u201d in amber: that is the plan working as sold, and only adding another is refused. Red means more than the plan allows." },
+      { type: "p", needs: TILL, text: "Under the bars, the rules for working with no internet are written out in words — whether your tills may sell offline at all, how long one may stay out of contact, and whether it ever stops — rather than drawn as bars. A rule is not something you use up." },
       { type: "h", text: "How far back you can look" },
       { type: "p", text: "Your plan keeps a set amount of history online \u2014 two years, five, or everything \u2014 and the Subscription page prints the actual date it reaches back to, so you never have to count months. Lists and reports stop there, and each one says so underneath rather than just ending." },
       { type: "warn", text: "ARCHIVED IS NOT DELETED. Records older than your window are still yours and still on our system. They drop out of lists and reports, nothing else. Move up a plan and they are back the same minute \u2014 nothing has to be restored, because nothing was removed." },
@@ -2568,6 +2612,11 @@ export function articlesFor(
   trade: string | null | undefined,
   can: (permission: string) => boolean,
 ): HelpArticle[] {
+  const on = (module: string) => !!features?.[module];
+  // A block is for this reader unless it says otherwise.
+  const blockIsFor = (block: HelpBlock) =>
+    (!block.needs || block.needs.some(on)) && (!block.lacks || !block.lacks.some(on));
+
   return HELP_ARTICLES.filter((a) => {
     if (a.trades && (!trade || !a.trades.includes(trade))) return false;
 
@@ -2579,7 +2628,7 @@ export function articlesFor(
     if (a.permission && !can(a.permission)) return false;
 
     return true;
-  });
+  }).map((a) => (a.body.every(blockIsFor) ? a : { ...a, body: a.body.filter(blockIsFor) }));
 }
 
 /** Free-text search across title, summary and the extra keywords. */

@@ -188,3 +188,92 @@ describe("billing warnings outrank everything", () => {
     expect(screen.getByText("Shop setup is incomplete")).toBeInTheDocument();
   });
 });
+
+describe("what the books are waiting on", () => {
+  const none = { count: 0, amount: 0, oldest: null };
+  const office = caps({
+    pos: false, products: false, inventory: false, sells: false, catalog: false, tracksStock: false,
+    buysFromSuppliers: false, keepsCustomers: false, canSell: false, businessType: "finance",
+  });
+  const waiting = dashboard({
+    till: null,
+    recent_expenses: [{ id: "e1" }] as TenantDashboard["recent_expenses"],
+    books: {
+      bills_due: { count: 2, amount: 91500, oldest: "2026-10-01" },
+      income_due: { count: 1, amount: 150000, oldest: "2026-10-05" },
+      over_budget: { count: 1, over_by: 6500, categories: ["Marketing"] },
+    },
+  });
+
+  it("a books-only business is told about its due bills, its passed budget and its expected payment", () => {
+    draw(waiting, office);
+
+    expect(screen.getByText("2 bills have fallen due")).toBeInTheDocument();
+    expect(screen.getByText("Marketing is over its budget")).toBeInTheDocument();
+    expect(screen.getByText("1 expected payment has fallen due")).toBeInTheDocument();
+    expect(screen.getByText("3 to look at")).toBeInTheDocument();
+  });
+
+  it("each leads to the TAB that deals with it", () => {
+    draw(waiting, office);
+
+    expect(screen.getByText("2 bills have fallen due").closest("a")).toHaveAttribute("href", "/tenant/expenses?tab=recurring");
+    expect(screen.getByText("Marketing is over its budget").closest("a")).toHaveAttribute("href", "/tenant/expenses?tab=budgets");
+    expect(screen.getByText("1 expected payment has fallen due").closest("a")).toHaveAttribute("href", "/tenant/income?tab=recurring");
+  });
+
+  it("writes the amount the way the shop writes money", () => {
+    render(
+      <MemoryRouter>
+        <AttentionPanel data={waiting} caps={office} money={(n) => `PKR ${n.toLocaleString()}`} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/^PKR 91,500 in all, the oldest due/)).toBeInTheDocument();
+    expect(screen.getByText("PKR 6,500 past the ceiling set for this month.")).toBeInTheDocument();
+  });
+
+  it("is asked of the SCREEN, so a person who may not open Expenses is not shown its rows", () => {
+    // The row lands on `?tab=recurring`; the permission is the page's.
+    draw(waiting, { ...office, visit: (path) => path !== "/tenant/expenses" });
+
+    expect(screen.queryByText("2 bills have fallen due")).not.toBeInTheDocument();
+    expect(screen.queryByText("Marketing is over its budget")).not.toBeInTheDocument();
+    expect(screen.getByText("1 expected payment has fallen due")).toBeInTheDocument();
+  });
+
+  it("a shop that keeps books is told too, among its own alerts", () => {
+    draw(waiting.till === null ? { ...waiting, till: dashboard().till } : waiting);
+
+    expect(screen.getByText("2 bills have fallen due")).toBeInTheDocument();
+  });
+
+  it("a shop that keeps no books is told none of it", () => {
+    draw(waiting, caps({ keepsBooks: false, expenses: false }));
+
+    expect(screen.queryByText(/fallen due/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/over its budget/)).not.toBeInTheDocument();
+  });
+
+  it("with nothing waiting, a books-only business is told so in ITS terms", () => {
+    draw(
+      dashboard({
+        till: null,
+        recent_expenses: [{ id: "e1" }] as TenantDashboard["recent_expenses"],
+        books: { bills_due: none, income_due: none, over_budget: { count: 0, over_by: 0, categories: [] } },
+      }),
+      office,
+    );
+
+    expect(screen.getByText("Nothing needs your attention right now.")).toBeInTheDocument();
+    expect(screen.getByText("No bill has fallen due and no budget has been passed.")).toBeInTheDocument();
+    // Not a shop's reassurance: it has no stock, no orders and no day to close.
+    expect(screen.queryByText(/Stock, orders and the day/)).not.toBeInTheDocument();
+  });
+
+  it("…and a shop is told in a shop's", () => {
+    draw(dashboard({ recent_expenses: [{ id: "e1" }] as TenantDashboard["recent_expenses"] }));
+
+    expect(screen.getByText("Stock, orders and the day are all where they should be.")).toBeInTheDocument();
+  });
+});

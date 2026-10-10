@@ -54,6 +54,17 @@ interface Props {
    * schedules, so its bar passes nothing and shows no control.
    */
   showSource?: boolean;
+  /**
+   * For a screen that is ALWAYS about a period — the ledger, whose balance is
+   * carried from the day before the first one shown. The dates are then the
+   * page's subject rather than a filter on it: they cannot be removed, they
+   * are not counted, and clearing everything else leaves them alone.
+   *
+   * Without it the ledger offered a ✕ on its own period. Pressing it sent the
+   * server a custom period with no dates, which it refuses — and the screen
+   * that is a books-only business's whole product answered with an error.
+   */
+  periodIsGiven?: boolean;
 }
 
 /**
@@ -95,12 +106,21 @@ export function MoneyFilterBar({
   searchPlaceholder = "Search description, bill number or note…",
   sorts,
   showSource = false,
+  periodIsGiven = false,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const active = activeFilterCount(filters);
+  const active = activeFilterCount(filters, periodIsGiven);
 
   const set = (patch: Partial<MoneyFilters>) => onChange({ ...filters, ...patch, page: 1 });
-  const clearAll = () => onChange({ page: 1, sort: filters.sort, dir: filters.dir });
+  // Everything goes but the order the list is in — and, where the screen is
+  // always about a period, the period.
+  const clearAll = () =>
+    onChange({
+      page: 1,
+      sort: filters.sort,
+      dir: filters.dir,
+      ...(periodIsGiven ? { from: filters.from, to: filters.to } : {}),
+    });
 
   // Esc closes, matching every other overlay in the product.
   useEffect(() => {
@@ -121,7 +141,7 @@ export function MoneyFilterBar({
   if (filters.search?.trim()) {
     chips.push({ key: "search", label: `“${filters.search.trim()}”`, clear: () => set({ search: "" }) });
   }
-  if (filters.from || filters.to) {
+  if (!periodIsGiven && (filters.from || filters.to)) {
     chips.push({
       key: "dates",
       // "1 – 26 Aug", not "2026-08-01 → 2026-08-26". The chip is read at a
@@ -180,9 +200,11 @@ export function MoneyFilterBar({
               beside this button. The control now carries both: the NAME they
               think in, and the dates it resolves to. */}
           <DateRangeFilter
-            label="Any date"
+            label={periodIsGiven ? "This month" : "Any date"}
             value={{ from: filters.from || null, to: filters.to || null }}
             onChange={(range) => set({ from: range.from ?? "", to: range.to ?? "" })}
+            // "Any date" is not an answer a screen about a period can take.
+            allowAll={!periodIsGiven}
           />
 
           <button

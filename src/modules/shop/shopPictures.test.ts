@@ -1,3 +1,5 @@
+import { kindOfBusiness } from "../../common/tenant/kindOfBusiness";
+import { settingsWords } from "./settingsWords";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -102,7 +104,15 @@ describe("the two are named apart", () => {
 
   it("says on each one what the other is for", () => {
     // The confusion was the whole report; the copy is what resolves it.
-    expect(page).toMatch(/small square beside your name/);
+    // The logo's own sentence depends on who is reading it (a books-only
+    // business has no invoice for it to print on), so it lives in
+    // settingsWords and the page prints what comes back.
+    const shop = settingsWords(kindOfBusiness({ pos: true, products: true }));
+    const office = settingsWords(kindOfBusiness({ expenses: true }));
+
+    expect(shop.logoWhere).toMatch(/small square beside your name/);
+    expect(office.logoWhere).toMatch(/small square beside your name/);
+    expect(page).toContain("{words.logoWhere}");
     expect(page).toMatch(/Different from the logo above/);
   });
 });

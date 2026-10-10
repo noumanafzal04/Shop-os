@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDate, formatDateTime, humanizeEntity } from "./format";
+import { formatDate, formatDateTime } from "./format";
 // The percentage moved to `MetricTile`, which both consoles' strips render —
 // it used to live here while the platform console formatted the same number a
 // different way.
@@ -63,12 +63,5 @@ describe("a delta with no baseline is not a number", () => {
     // A fall cannot pass −100%, so nothing downward is ever a multiple.
     expect(formatDelta(-100)).toBe("−100%");
     expect(formatDelta(undefined)).toBeNull();
-  });
-});
-
-describe("audit entities read as nouns", () => {
-  it("splits CamelCase", () => {
-    expect(humanizeEntity("ProductBatch")).toBe("product batch");
-    expect(humanizeEntity(undefined)).toBe("record");
   });
 });

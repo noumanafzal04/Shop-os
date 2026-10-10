@@ -82,6 +82,11 @@ export function QuickActions({ caps, show = "all" }: { caps: Capabilities; show?
   // this button sent it to /tenant/purchases, which its own route guard then
   // refused. Adjusting stock by hand lives on the catalog, and is still there.
   if (caps.buysFromSuppliers) actions.push({ label: "Stock in", hint: "Raise a purchase order", to: "/tenant/purchases", icon: <BoxIconLine className="size-5" />, tone: "success", rank: 8 });
+  // The other half of the books. For a business that only keeps books it is
+  // half of everything it does here and belongs among the tiles, ahead of the
+  // expense; for a shop it is the odd rupee that was not a sale, and waits
+  // with the rest.
+  if (caps.keepsBooks) actions.push({ label: "Record income", hint: "Money coming in", to: "/tenant/income", icon: <DollarLineIcon className="size-5" />, tone: "success", rank: caps.sells ? 10 : 3.5 });
   if (caps.keepsBooks) actions.push({ label: "Record expense", hint: "Money going out", to: "/tenant/expenses", icon: <FileIcon className="size-5" />, tone: "warning", rank: 4 });
   if (caps.keepsBooks) actions.push({ label: "Cashbook", hint: "In and out, day by day", to: "/tenant/cashbook", icon: <ListIcon className="size-5" />, tone: "success", rank: 9 });
   if (caps.marketplace) actions.push({ label: "Online orders", hint: "Waiting to be packed", to: "/tenant/orders", icon: <PlugInIcon className="size-5" />, tone: "purple", rank: 3 });

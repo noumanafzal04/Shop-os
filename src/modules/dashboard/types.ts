@@ -1,3 +1,4 @@
+import type { BooksWaiting } from "./components/shop/booksWaiting";
 import type { PeriodTold } from "./period";
 
 /**
@@ -171,6 +172,12 @@ export interface TenantDashboard {
   };
   recent_sales: RecentSaleRow[];
   recent_expenses: RecentExpenseRow[];
+  /**
+   * What the books are waiting on NOW — bills and expected payments that have
+   * fallen due, categories past their ceiling this month. Null for a shop that
+   * keeps no books; absent from an older server.
+   */
+  books?: BooksWaiting | null;
   /** The period's leaders. Each entry is null when there is nothing to crown. */
   highlights: {
     top_product: { name: string; units: number; revenue: number } | null;

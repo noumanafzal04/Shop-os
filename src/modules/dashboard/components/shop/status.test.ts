@@ -129,3 +129,72 @@ describe("it never speaks for a module the shop does not have", () => {
     expect(status.text).not.toMatch(/run out|running low/);
   });
 });
+
+describe("what the books are waiting on", () => {
+  const none = { count: 0, amount: 0, oldest: null };
+  const books = (over: Record<string, unknown> = {}) => ({
+    bills_due: none,
+    income_due: none,
+    over_budget: { count: 0, over_by: 0, categories: [] },
+    ...over,
+  });
+  const office = caps({ sells: false, takesOrders: false, tracksStock: false, keepsBooks: true });
+  const entry = [{ id: "e1" }];
+
+  it("a books-only business with a bill overdue is told so — not that nothing needs it", () => {
+    // The only alert such a business can ever have, and the head of its
+    // dashboard said "Nothing needs you right now" over it every morning.
+    const status = shopStatus(
+      day({ recent_expenses: entry, books: books({ bills_due: { count: 2, amount: 91500, oldest: "2026-10-01" } }) }),
+      office,
+    );
+
+    expect(status).toEqual({ tone: "alert", text: "2 bills have fallen due and are waiting to be posted." });
+  });
+
+  it("a passed budget is said when no bill is due", () => {
+    const status = shopStatus(
+      day({ recent_expenses: entry, books: books({ over_budget: { count: 1, over_by: 6500, categories: ["Marketing"] } }) }),
+      office,
+    );
+
+    expect(status).toEqual({ tone: "busy", text: "Marketing has gone past its budget this month." });
+  });
+
+  it("with nothing waiting and books that have entries, nothing needs it", () => {
+    expect(shopStatus(day({ recent_expenses: entry, books: books() }), office)).toEqual({
+      tone: "calm",
+      text: "Nothing needs you right now.",
+    });
+  });
+
+  it("empty books say so, in step with the panel below that says the same", () => {
+    expect(shopStatus(day({ recent_expenses: [], books: books() }), office)).toEqual({
+      tone: "calm",
+      text: "Your books are empty — record your first income or expense to begin.",
+    });
+  });
+
+  it("a shop's customer comes before its landlord", () => {
+    const due = books({ bills_due: { count: 1, amount: 85000, oldest: "2026-10-01" } });
+    const shop = caps({ keepsBooks: true });
+
+    // An order nobody has accepted, and a shelf that has run out, come first…
+    expect(shopStatus(day({ pending_orders: 2, books: due, recent_expenses: entry }), shop).text).toMatch(/waiting for you to accept/);
+    expect(shopStatus(day({ inventory: { low_stock: 0, out_of_stock: 3, expiring_soon: 0, pending_pos: 0 }, books: due, recent_expenses: entry }), shop).text)
+      .toMatch(/run out/);
+    // …and the bill is still said ahead of "everything is moving".
+    expect(shopStatus(day({ today: { sales_count: 9 }, books: due, recent_expenses: entry }), shop).text)
+      .toBe("1 bill has fallen due and is waiting to be posted.");
+  });
+
+  it("a shop that keeps no books is never told about them", () => {
+    const due = books({ bills_due: { count: 1, amount: 1, oldest: null } });
+
+    expect(shopStatus(day({ books: due }), caps({ keepsBooks: false })).text).toBe("Nothing rung up yet today, and nothing needs you.");
+  });
+
+  it("an older server that sends no books block changes nothing", () => {
+    expect(shopStatus(day({ recent_expenses: entry }), office).text).toBe("Nothing needs you right now.");
+  });
+});

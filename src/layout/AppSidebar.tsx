@@ -38,6 +38,7 @@ import { canVisit } from "../common/routing/screenPermissions";
 import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { useAdminInbox } from "../modules/admin/hooks/useAdmin";
 import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
+import { kindOfBusiness } from "../common/tenant/kindOfBusiness";
 import { boardWords, hasJobBoard } from "../modules/workshop/words";
 import { DEFAULT_SIDEBAR } from "../common/theme/tenantTheme";
 
@@ -550,6 +551,8 @@ const AppSidebar: React.FC = () => {
   // the nav needs the business type alongside the flags — always the RESOLVED
   // one, or an older tenant loses screens its current type is entitled to.
   const businessType = usePrimaryBusinessType();
+  // What to call it — see kindOfBusiness.
+  const kind = kindOfBusiness(features);
   // What this person may do. The permission LIST is what we subscribe to —
   // the store's hasPermission is a stable closure, so selecting it alone would
   // leave the rail stale after a fresh /me changed what a staff member holds.
@@ -734,7 +737,10 @@ const AppSidebar: React.FC = () => {
           <li key={nav.name} data-rail-group={nav.subItems ? `${menuType}-${index}` : undefined}>
             {opens && (showLabels ? (
               <p className={`rail-heading px-3 pb-1.5 text-[11px] font-semibold uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500 ${index === 0 ? "" : "pt-4"}`}>
-                {nav.section}
+                {/* The third part of the rail is the business itself. Called
+                    "Your shop" for everything that is one, and not for an
+                    office that only keeps its books here. */}
+                {nav.section === SHOP ? `Your ${kind.noun}` : nav.section}
               </p>
             ) : (
               index > 0 && <div className="rail-rule mx-4 my-2 border-t border-gray-200 dark:border-white/10" aria-hidden />
@@ -1018,7 +1024,7 @@ const AppSidebar: React.FC = () => {
               <p className="rail-heading mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
                 {mode === "basic"
                   ? "The screens your day runs on. Switch to Full view for every module."
-                  : "Every module this shop has."}
+                  : `Every module this ${kind.noun} has.`}
               </p>
             </>
           ) : (
