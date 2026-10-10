@@ -61,11 +61,16 @@ test("at 320 pixels the header stays inside the screen, on every page it heads",
   await expect(home).toBeVisible();
   await expect(home.locator("img, svg").first(), "the brand mark went with the name").toBeVisible();
 
-  // And at 360 the full lock-up is back — it only gives way where it must.
+  // And where there is room the full lock-up is back — it only gives way
+  // where it must. On the shop side that is 480 now, not 360: a phone's
+  // header there also carries search and the branch (see header.spec), and
+  // the name is what made room for them.
   // Read from the link's own label, so a renamed product does not break this.
   const firstWord = ((await home.getAttribute("aria-label")) ?? "").replace(/ home$/, "").split(" ")[0];
   expect(firstWord.length, "the brand link has no name to read").toBeGreaterThan(0);
   await expect(home.getByText(firstWord).first(), "the name is drawn at 320px — the bar has no room for it").toBeHidden();
-  await page.setViewportSize({ width: 360, height: 640 });
-  await expect(home.getByText(firstWord).first(), "the name did not come back at 360px").toBeVisible();
+  await page.setViewportSize({ width: 390, height: 760 });
+  await expect(home.getByText(firstWord).first(), "the name is drawn at 390px, beside search and the branch — one of them is being squeezed").toBeHidden();
+  await page.setViewportSize({ width: 480, height: 760 });
+  await expect(home.getByText(firstWord).first(), "the name did not come back at 480px").toBeVisible();
 });

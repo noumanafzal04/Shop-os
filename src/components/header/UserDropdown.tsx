@@ -105,7 +105,10 @@ export default function UserDropdown() {
         onClick={() => setIsOpen((v) => !v)}
         className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
       >
-        <span className="mr-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-sm font-semibold text-white">
+        {/* On the narrowest phones the avatar is the whole control: the
+            header beside it now carries search and the branch, and at 320px
+            the caret and its margin were the 26 pixels there was not. */}
+        <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-brand-500 text-sm font-semibold text-white max-[359px]:mr-0 mr-1.5 sm:mr-3">
           {initials(user.name) || "U"}
         </span>
         {/* The avatar carries the identity; the name is the courtesy.
@@ -126,7 +129,7 @@ export default function UserDropdown() {
           viewBox="0 0 24 24"
           fill="none"
           aria-hidden="true"
-          className={`h-[18px] w-[18px] text-gray-500 transition-transform duration-200 dark:text-gray-400 ${
+          className={`h-[18px] w-[18px] text-gray-500 transition-transform duration-200 max-[359px]:hidden dark:text-gray-400 ${
             isOpen ? "rotate-180" : ""
           }`}
         >

@@ -3,14 +3,20 @@ import { useNavigate } from "react-router";
 import { BoxIcon, FileIcon, GroupIcon, ListIcon, UserIcon } from "../../../icons";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useMoney } from "../../shop/hooks/useShop";
+import { useShopNav } from "../../../layout/AppSidebar";
 import { useGlobalSearch } from "../hooks/useGlobalSearch";
+import { findScreens, screensOf, type Screen } from "../screens";
 import type { SearchHit, SearchType } from "../services/searchService";
 import { saleSubtitle } from "../saleSubtitle";
 
 /**
- * ⌘K command palette. One box that jumps to any product, customer, sale, order
- * or supplier. The backend returns typed groups (gated by the user's
- * permissions); this component owns the type→route mapping and keyboard flow.
+ * The search palette (⌘K / Ctrl K). One box that finds any product, customer,
+ * sale, order or supplier — and jumps to any screen the shop has.
+ *
+ * The backend returns typed groups (gated by the user's permissions); this
+ * component owns the type→route mapping and keyboard flow. The SCREENS are
+ * the rail's own list (see ../screens): the header has always said "Search or
+ * jump to…", and until now it could only do the first.
  */
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
@@ -22,16 +28,26 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   const [active, setActive] = useState(0);
 
   const groups = data?.groups ?? [];
+  const hasQuery = q.trim().length >= 2;
 
-  // A flat, index-addressable list of every hit across all groups — the unit
-  // the arrow keys walk over.
-  const flat = useMemo(
-    () => groups.flatMap((g) => (g.items ?? []).map((item) => ({ type: g.type, item }))),
-    [groups],
+  // Screens answer at once and to a single letter: they are a list this page
+  // already holds, not a request. With nothing typed they are the head of the
+  // menu — somewhere to go, instead of an instruction to type more.
+  const nav = useShopNav();
+  const screens = useMemo(() => findScreens(screensOf(nav), q, q.trim() === "" ? 8 : 5), [nav, q]);
+
+  // A flat, index-addressable list of everything on offer — screens first,
+  // then every hit across all groups. The unit the arrow keys walk over.
+  const flat = useMemo<Row[]>(
+    () => [
+      ...screens.map((screen): Row => ({ kind: "screen", screen })),
+      ...(hasQuery ? groups.flatMap((g) => (g.items ?? []).map((item): Row => ({ kind: "hit", type: g.type, item }))) : []),
+    ],
+    [screens, groups, hasQuery],
   );
 
-  // Reset the cursor whenever the result set changes.
-  useEffect(() => setActive(0), [debounced, data]);
+  // Reset the cursor whenever what is on offer changes.
+  useEffect(() => setActive(0), [q, data]);
 
   // Fresh box + focus each time it opens; clear the query when it closes.
   useEffect(() => {
@@ -48,6 +64,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     onClose();
     navigate(routeFor(type, item));
   };
+  const open_ = (row: Row) => {
+    if (row.kind === "hit") return go(row.type, row.item);
+    onClose();
+    navigate(row.screen.path);
+  };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
@@ -60,12 +81,10 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       setActive((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const hit = flat[active];
-      if (hit) go(hit.type, hit.item);
+      const row = flat[active];
+      if (row) open_(row);
     }
   };
-
-  const hasQuery = q.trim().length >= 2;
 
   return (
     <div className="fixed inset-0 z-[999999] flex items-start justify-center px-4 pt-[12dvh]">
@@ -86,7 +105,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search products, customers, sales, orders…"
+            placeholder="Search products, customers, sales — or a screen…"
+            aria-label="Search"
             className="h-14 w-full bg-transparent text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none dark:text-white/90 dark:placeholder:text-white/30"
           />
           {isFetching && hasQuery && (
@@ -99,8 +119,37 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
         {/* Results */}
         <div className="max-h-[52dvh] overflow-y-auto py-2">
+          {screens.length > 0 && (
+            <div className="mb-1" data-testid="search-screens">
+              <p className="px-4 pb-1 pt-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">
+                {q.trim() === "" ? "Go to" : "Screens"}
+              </p>
+              {screens.map((screen, idx) => (
+                <button
+                  key={screen.path}
+                  type="button"
+                  onMouseEnter={() => setActive(idx)}
+                  onClick={() => open_({ kind: "screen", screen })}
+                  className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                    idx === active ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                  }`}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400">
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M4 10h11m0 0l-4-4m4 4l-4 4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-gray-800 dark:text-white/90">{screen.name}</span>
+                    {screen.under && <span className="block truncate text-theme-xs text-gray-400">{screen.under}</span>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
           {!hasQuery ? (
-            <Hint>Type at least two characters to search across your shop.</Hint>
+            // Screens answer to one letter; records need two.
+            screens.length === 0 && <Hint>Type at least two characters to search across your shop.</Hint>
           ) : flat.length === 0 && !isFetching ? (
             <Hint>
               No matches for “<span className="font-medium text-gray-600 dark:text-gray-300">{q.trim()}</span>”.
@@ -112,7 +161,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                   {group.label}
                 </p>
                 {(group.items ?? []).map((item) => {
-                  const idx = flat.findIndex((f) => f.type === group.type && f.item.id === item.id);
+                  const idx = flat.findIndex((f) => f.kind === "hit" && f.type === group.type && f.item.id === item.id);
                   const view = present(group.type, item, money);
                   return (
                     <button
@@ -151,7 +200,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         </div>
 
         {/* Footer hint bar */}
-        <div className="flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-theme-xs text-gray-400 dark:border-gray-800">
+        {/* Keys, for a device that has them. On a phone this row was two
+            arrows and a return sign nobody could press. */}
+        <div className="hidden items-center gap-4 border-t border-gray-100 px-4 py-2 text-theme-xs text-gray-400 dark:border-gray-800 sm:flex">
           <span className="flex items-center gap-1">
             <Key>↑</Key>
             <Key>↓</Key>
@@ -161,9 +212,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             <Key>↵</Key>
             open
           </span>
-          {typeof data?.total === "number" && hasQuery && (
-            <span className="ml-auto">
-              {data.total} result{data.total === 1 ? "" : "s"}
+          {/* Everything on offer, screens with the rest: it said "0 results"
+              under four screens it had just found. */}
+          {q.trim() !== "" && !isFetching && (
+            <span className="ml-auto" data-testid="search-count">
+              {flat.length} result{flat.length === 1 ? "" : "s"}
             </span>
           )}
         </div>
@@ -171,6 +224,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     </div>
   );
 }
+
+/** One thing the palette offers: a screen to go to, or a record that was found. */
+type Row = { kind: "screen"; screen: Screen } | { kind: "hit"; type: SearchType; item: SearchHit };
 
 /** Type → frontend route. Products deep-link to their editor; the rest land on
  *  their list page pre-filtered by the matched term (see list-page `?q=`). */

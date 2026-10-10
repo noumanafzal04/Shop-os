@@ -71,13 +71,16 @@ export function UpdateButton({ place = "header", onDone }: { place?: Place; onDo
       <button
         type="button"
         onClick={apply}
-        className="flex h-11 items-center gap-2 rounded-full bg-brand-500 px-4 text-theme-sm font-semibold text-white shadow-sm transition hover:bg-brand-600"
+        // Named for the widths where it is only an arrow.
+        aria-label="Update ready"
+        className="flex h-11 min-w-11 items-center justify-center gap-2 rounded-full bg-brand-500 px-3 text-theme-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 min-[480px]:px-4"
       >
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-4 w-4">
           <path d="M10 15V5m0 0l-4 4m4-4l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <span className="hidden sm:inline">Update ready</span>
-        <span className="sm:hidden">Update</span>
+        {/* Below 480 the arrow alone: the row has search and the branch on it now. */}
+        <span className="hidden min-[480px]:inline sm:hidden">Update</span>
       </button>
     );
   }

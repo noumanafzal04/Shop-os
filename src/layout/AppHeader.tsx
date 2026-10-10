@@ -9,6 +9,17 @@ import CommandPalette from "../modules/search/components/CommandPalette";
 import BranchSwitcher from "../modules/branches/components/BranchSwitcher";
 import { Wordmark } from "../components/brand/Brand";
 import { PRODUCT } from "../common/brand";
+import { searchKeys } from "../common/platform/shortcut";
+
+/** One magnifying glass, drawn once: the icon button and the field wore two different ones. */
+function SearchGlyph({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M17 17l-3.4-3.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 const AppHeader: React.FC = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -67,7 +78,7 @@ const AppHeader: React.FC = () => {
     <header className="sticky top-0 z-99999 w-full border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
       <div className="flex h-16 items-center gap-2 px-3 sm:gap-3 lg:h-[72px] lg:px-6">
           <button
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 lg:h-11 lg:w-11 lg:border lg:border-gray-200 dark:text-gray-400 dark:hover:bg-white/5 dark:lg:border-gray-800"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 lg:h-11 lg:w-11 lg:border lg:border-gray-200 dark:text-gray-400 dark:hover:bg-white/5 dark:lg:border-gray-800"
             onClick={handleToggle}
             aria-label="Toggle Sidebar"
           >
@@ -111,27 +122,32 @@ const AppHeader: React.FC = () => {
               to 344: the bar ran 24px past the screen, and with it the whole
               page could be dragged sideways. The mark alone is the brand at
               that size; the link keeps its name for a screen reader. */}
+          {/* On the shop side the name gives way sooner — below 480 — because
+              a phone's header there also carries search and the branch, and
+              those are the two things somebody holding the phone came for. */}
           <Link to="/" aria-label={`${PRODUCT.name} home`} className="shrink-0 lg:hidden">
-            <Wordmark nameClassName="max-[359px]:hidden" />
+            <Wordmark nameClassName={isTenant ? "max-[479px]:hidden" : "max-[359px]:hidden"} />
           </Link>
 
-          {/* Search, as an icon between `sm` and `lg`.
+          {/* Search, as an icon below `lg` — a tablet and a phone alike.
               The full search box is `lg`-only, which left a tablet with no
               route to it at all: ⌘K is a keyboard shortcut, and a tablet has
               no keyboard. A shop of 4,000 products cannot be asked to walk the
-              menu because its screen is 900px wide. */}
+              menu because its screen is 900px wide.
+
+              It then stopped at `sm`, so a PHONE had no search either — the
+              device with the least room for a menu and the most need of a
+              way round it. */}
           {isTenant && (
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
               aria-label="Search"
-              title="Search or jump to…"
-              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 sm:flex lg:hidden dark:text-gray-400 dark:hover:bg-white/5"
+              title="Search or jump to a screen"
+              data-testid="header-search-icon"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 lg:hidden dark:text-gray-400 dark:hover:bg-white/5"
             >
-              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.7" />
-                <path d="M17 17l-3.4-3.4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-              </svg>
+              <SearchGlyph className="h-5 w-5" />
             </button>
           )}
 
@@ -144,33 +160,31 @@ const AppHeader: React.FC = () => {
               could not fit 1280 and the WHOLE PAGE scrolled sideways. A search
               box that narrows is fine; a page that scrolls sideways is not. */}
           {isTenant && (
-            <div className="hidden min-w-0 lg:block">
+            /* `flex-1` with a ceiling: it takes the room there is, up to the
+               width a search box is comfortable at, and gives it back first
+               when the row is short. It was sized to its own placeholder —
+               230px in a 1,076px bar — which read as an afterthought. */
+            <div className="hidden min-w-0 flex-1 lg:block">
               <button
                 type="button"
                 onClick={() => setPaletteOpen(true)}
-                className="relative flex h-11 w-full items-center gap-3 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-3 text-sm text-gray-400 shadow-theme-xs transition-colors hover:border-brand-300 dark:border-gray-800 dark:hover:border-brand-800 xl:max-w-[430px]"
+                data-testid="header-search"
+                className="group flex h-11 w-full max-w-[30rem] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 text-left text-theme-sm text-gray-500 transition-colors hover:border-gray-300 hover:bg-white focus-visible:border-brand-300 focus-visible:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/20 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400 dark:hover:border-gray-700"
               >
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2">
-                  <svg
-                    className="fill-gray-500 dark:fill-gray-400"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
-                      fill=""
-                    />
-                  </svg>
-                </span>
-                Search or jump to…
-                <span className="ml-auto inline-flex items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-[7px] py-[4.5px] text-xs -tracking-[0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
-                  <span> ⌘ </span>
-                  <span> K </span>
+                <SearchGlyph className="h-[18px] w-[18px] shrink-0 text-gray-400 transition-colors group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                {/* What it finds, and that it goes places — it does both now. */}
+                <span className="min-w-0 flex-1 truncate">Search products, customers, sales — or jump to a screen</span>
+                {/* The keys as THIS keyboard prints them: a shop's counter is a
+                    Windows PC, and "⌘ K" named a key it does not have. */}
+                <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
+                  {searchKeys().map((key) => (
+                    <kbd
+                      key={key}
+                      className="rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-sans text-[11px] font-medium leading-4 text-gray-500 dark:border-gray-700 dark:bg-white/[0.04] dark:text-gray-400"
+                    >
+                      {key}
+                    </kbd>
+                  ))}
                 </span>
               </button>
             </div>
@@ -188,7 +202,10 @@ const AppHeader: React.FC = () => {
               while the header says nothing about which branch is the one
               mistake this control exists to prevent. It renders nothing at all
               for a single-branch shop. */}
-          {isTenant && <div className="hidden sm:block"><BranchSwitcher /></div>}
+          {/* …and on a phone too. It was hidden below `sm`, where an owner
+              standing in the second branch could neither see nor change which
+              branch the figures in their hand belonged to. */}
+          {isTenant && <BranchSwitcher />}
 
           {/* A WAITING UPDATE, and only that. `place="header"` draws nothing
               while there is none — "go and look" moved into the account menu,

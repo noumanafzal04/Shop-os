@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import {
@@ -537,12 +537,14 @@ export function adminNav(
 /** Section roots would swallow every child route in a prefix match. */
 const SECTION_ROOTS = ["/tenant", "/admin"];
 
-const AppSidebar: React.FC = () => {
-  const {
-    isExpanded, isMobileOpen, railWide, setIsHovered, closeMobileSidebar,
-    isPeekHeld, holdPeek, releasePeek,
-  } = useSidebar();
-  const location = useLocation();
+/**
+ * WHAT DECIDES A MENU — gathered once, for everything that draws one.
+ *
+ * The rail read these inline. Then the header's search wanted to offer the
+ * shop's screens too, and the same six lines written a second time is how
+ * two menus come to disagree about the same cashier.
+ */
+function useNavInputs() {
   const role = useAuthStore((s) => s.user?.role);
   const features = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
@@ -551,8 +553,6 @@ const AppSidebar: React.FC = () => {
   // the nav needs the business type alongside the flags — always the RESOLVED
   // one, or an older tenant loses screens its current type is entitled to.
   const businessType = usePrimaryBusinessType();
-  // What to call it — see kindOfBusiness.
-  const kind = kindOfBusiness(features);
   // What this person may do. The permission LIST is what we subscribe to —
   // the store's hasPermission is a stable closure, so selecting it alone would
   // leave the rail stale after a fresh /me changed what a staff member holds.
@@ -568,6 +568,36 @@ const AppSidebar: React.FC = () => {
   // Multi-branch UI shows only when the plan allows more than one branch
   // (max_branches null = unlimited → true; 1 → false).
   const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+
+  return { role, features, businessType, permissions, can, mode, toggleMode, multiBranch };
+}
+
+/**
+ * The shop's own menu, for whatever else offers its screens. Search does.
+ *
+ * In full, whatever the rail is set to: a person who keeps the short menu
+ * and types "stocktake" is asking for a screen they have, not one the rail
+ * happens to be showing.
+ */
+export function useShopNav(): NavItem[] {
+  const { role, features, businessType, can, multiBranch } = useNavInputs();
+  const isShop = role === "shop_owner" || role === "staff";
+
+  return useMemo(
+    () => (isShop ? shopNav(features, businessType, "advanced", multiBranch, can) : []),
+    [isShop, features, businessType, multiBranch, can],
+  );
+}
+
+const AppSidebar: React.FC = () => {
+  const {
+    isExpanded, isMobileOpen, railWide, setIsHovered, closeMobileSidebar,
+    isPeekHeld, holdPeek, releasePeek,
+  } = useSidebar();
+  const location = useLocation();
+  const { role, features, businessType, permissions, can, mode, toggleMode, multiBranch } = useNavInputs();
+  // What to call it — see kindOfBusiness.
+  const kind = kindOfBusiness(features);
   const isAdmin = role === "super_admin" || role === "admin_staff";
   // Only asked for on the platform side, and only then — the shop rail has no
   // use for it and an enabled:false query is how a hook stays a hook.

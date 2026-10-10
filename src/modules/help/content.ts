@@ -256,7 +256,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: `How ${PRODUCT.name} fits together`,
     summary: "Why you see the screens you see, and not the ones you don't.",
     group: "Start here",
-    keywords: ["missing", "hidden", "why can't I see", "screen not showing", "empty", "could not be loaded", "try again", "no access"],
+    keywords: ["missing", "hidden", "why can't I see", "screen not showing", "empty", "could not be loaded", "try again", "no access", "search", "ctrl k", "branch", "all branches", "header"],
     body: [
       {
         type: "h", text: "The three gates",
@@ -317,6 +317,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "note",
         text: "On a tablet, touching an icon that has screens under it (Expense Manager, Catalog\u2026) opens the menu to show them. It used to do nothing at all on a strip of icons — a mouse never noticed, because hovering had already opened it. The till keeps no menu, on purpose: a sale is finished or parked before anything else is opened.",
+      },
+      { type: "h", text: "The bar across the top" },
+      {
+        type: "p",
+        text: "Search finds a product, a customer, a sale, an order or a supplier \u2014 and it also takes you to a screen. Type \u201cexp\u201d and Expenses is the first thing offered; open it with nothing typed and it lists where a day usually starts. Press Ctrl K (\u2318 K on a Mac) from anywhere, or the magnifying glass on a tablet or a phone.",
+      },
+      {
+        type: "p",
+        text: "If your shop has more than one branch, the control beside the bell says which one you are looking at. \u201cAll branches\u201d is the head-office view: every branch together. Choose one and the control turns your shop\u2019s colour \u2014 from then on what you see, sell and count is that branch\u2019s alone, until you change it back. It works from the keyboard: the arrow keys move, Enter chooses.",
+      },
+      {
+        type: "note",
+        text: "Staff do not get a choice here \u2014 they are shown the branch they work at. Which branch that is, is set by the owner on the Staff screen.",
       },
       { type: "h", text: "When a list shows nothing" },
       {
