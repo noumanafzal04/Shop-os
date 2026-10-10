@@ -8828,3 +8828,41 @@ Not done, on purpose: the plan's own description still reads as a shop's on a
 books-only business (it is the admin's text); the shop side's screens have no
 `h1`; the income form reports a warning as a toast while the expense form
 holds it in the form.
+
+## A pack carries more than one code — the packaging gap, 2026-10-10
+
+Decision: `docs/decisions/shopos-a-pack-carries-more-than-one-code.md`.
+
+**ONE MIGRATION: `2026_10_10_000001_a_pack_carries_more_than_one_code`** — a
+nullable `product_barcodes.product_unit_id`. No data change. Applied to the dev
+database. Deploy: backend (`php artisan migrate`), then panel.
+
+- A `product_barcodes` row is a piece's (neither column), one size's
+  (`variant_id`) or one PACK's (`product_unit_id`). `ProductUnit::codes()`.
+- **`SyncProductUnitsAction` no longer deletes and recreates.** A pack is
+  matched by `id`, then by name, and updated in place — its id survives an
+  edit. `units.*.id` and `units.*.barcodes` are validated; `barcodes` ABSENT
+  means "as it was", present (even `[]`) is the whole list.
+- `BarcodeNamespace::assertFreeForPack()`; `assertFree()` also refuses a code
+  that is on one of the item's own packs. `SyncProductBarcodesAction` replaces
+  only rows with neither column set.
+- `PosController@lookup` resolves a pack from a barcode row.
+- `PosProjection`: `barcodes` (plain) EXCLUDES pack codes on purpose — an older
+  till reads that list as pieces; `codes: [{code, variant_id, unit_id}]` is new.
+  Panel `offline/sync/barcodeIndex.ts` reads `codes` first.
+- Product endpoints load `units.codes:id,product_unit_id,barcode`; the form
+  reads `unit.codes[].barcode` and sends `units[].barcodes`
+  (`catalog/packCodes.ts`: `packRowsFrom`, `packPayload`, `pieceCodes`).
+- Import: a pack row's `Barcodes` cell is the pack's other codes; the export
+  writes them on the pack's row and never on the item's.
+- `ProductController@destroy` deletes the item's barcode rows and soft-deletes
+  its packs — a deleted item's codes are free again.
+- **The till says when its list failed.** `common/api/denied.ts` →
+  `loadFailure(error)`; `common/ui/CouldNotLoad.tsx`. "No products match." is
+  only for a search that found nothing.
+- `e2e/api.ts` → `roomToWork(request, headers, need, probe)` now takes a probe
+  path; shop-side specs pass `ownerAuth()` and `"/auth/me"`. Several API-heavy
+  shop specs run back to back DO reach the 240-a-minute limit.
+- Backend 3,519 tests exit 0 · vitest 211 files / 2,390 · build 0 ·
+  `pack-codes`, `till-list-failed`, `till-enter`, `item-form`, `labels-sheet`,
+  `import-catalog` green · mutations 54/54.
