@@ -122,7 +122,7 @@ export default function TransfersPage() {
                   <tr key={i}><td colSpan={4} className="px-6 py-4"><div className="h-5 animate-pulse rounded bg-gray-100 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><TableEmpty colSpan={4} className="px-6 py-12 text-center text-gray-400">No transfers yet.</TableEmpty></tr>
+                <tr><TableEmpty from={transfers} what="the transfers" colSpan={4} className="px-6 py-12 text-center text-gray-400">No transfers yet.</TableEmpty></tr>
               ) : (
                 rows.map((t) => (
                   <tr key={t.id}>

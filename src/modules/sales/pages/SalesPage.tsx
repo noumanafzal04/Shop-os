@@ -503,7 +503,7 @@ export default function SalesPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={cols} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={sales} what="the sales list" colSpan={cols} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {debounced || status ? "No sales match these filters." : "No sales yet — make your first sale!"}
                   </TableEmpty>
                 </tr>

@@ -108,7 +108,7 @@ export default function CashbookPage() {
                 ))
               ) : (data?.days ?? []).every((d) => d.money_in === 0 && d.money_out === 0) ? (
                 <tr>
-                  <TableEmpty colSpan={shape.columns.length + 3} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={cashbook} what="the cashbook" colSpan={shape.columns.length + 3} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No money movement in this period yet.
                   </TableEmpty>
                 </tr>

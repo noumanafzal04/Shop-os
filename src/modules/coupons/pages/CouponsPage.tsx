@@ -114,7 +114,7 @@ export default function CouponsPage() {
             {coupons.isLoading ? (
               Array.from({ length: 3 }).map((_, i) => <tr key={i}><td colSpan={6} className="px-5 py-4"><div className="h-5 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>)
             ) : rows.length === 0 ? (
-              <tr><TableEmpty colSpan={6} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No coupons yet.</TableEmpty></tr>
+              <tr><TableEmpty from={coupons} what="the coupons" colSpan={6} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No coupons yet.</TableEmpty></tr>
             ) : (
               rows.map((c) => (
                 <tr key={c.id} className="border-b border-gray-50 last:border-0 dark:border-gray-800/50">

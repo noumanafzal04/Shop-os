@@ -426,7 +426,7 @@ export default function InventoryPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={products} what="the stock list" colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No tracked products{debounced ? " match your search" : " yet"}.
                   </TableEmpty>
                 </tr>

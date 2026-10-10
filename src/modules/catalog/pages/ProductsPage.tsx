@@ -354,7 +354,7 @@ export default function ProductsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={colCount} className="px-6 py-16 text-center">
+                  <TableEmpty from={products} what="the product list" colSpan={colCount} className="px-6 py-16 text-center">
                     {debouncedSearch || type || categoryId || lowStock ? (
                       <p className="text-sm text-gray-500 dark:text-gray-400">Nothing matches these filters.</p>
                     ) : (

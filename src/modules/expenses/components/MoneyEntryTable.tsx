@@ -1,5 +1,5 @@
 import { formatEntryDate } from "../../../components/ui/filters";
-import TableEmpty from "../../../components/ui/table/TableEmpty";
+import TableEmpty, { type Asked } from "../../../components/ui/table/TableEmpty";
 import Pager from "../../../components/ui/pager";
 import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
@@ -34,6 +34,14 @@ export interface MoneyEntryView {
 interface Props {
   rows: MoneyEntryView[];
   loading: boolean;
+  /**
+   * The query the rows came from. This table is handed rows, not a query, so
+   * without it an entry list that was refused or failed drew "nothing
+   * recorded yet" — see TableEmpty.
+   */
+  asked: Asked;
+  /** What that query fetches, lower case: "the expenses". Not `noun` — that counts rows for the pager. */
+  what: string;
   money: (n: string | number) => string;
   /** `out` is a cost, `in` is a receipt — it decides how the amount is tinted. */
   direction: "in" | "out";
@@ -79,6 +87,8 @@ const MEDIUM = "hidden sm:table-cell";
 export function MoneyEntryTable({
   rows,
   loading,
+  asked,
+  what,
   money,
   direction,
   showBranch,
@@ -137,7 +147,7 @@ export function MoneyEntryTable({
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <TableEmpty colSpan={columns + 2} className="px-3 py-16 sm:px-5">
+                <TableEmpty from={asked} what={what} colSpan={columns + 2} className="px-3 py-16 sm:px-5">
                   <div className="mx-auto max-w-sm text-center">
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{empty.title}</p>
                     <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">{empty.hint}</p>

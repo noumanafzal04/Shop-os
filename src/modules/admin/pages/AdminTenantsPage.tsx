@@ -402,7 +402,7 @@ export default function AdminTenantsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={6} className="px-6 py-12 text-center">
+                  <TableEmpty from={tenants} what="the tenant list" colSpan={6} className="px-6 py-12 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {bucket === "unpaid"
                         ? "Nobody is overdue."

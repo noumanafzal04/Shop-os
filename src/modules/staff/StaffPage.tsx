@@ -380,7 +380,7 @@ export default function StaffPage({ title, subtitle, basePath, header }: Props) 
                   <tr key={i}><td colSpan={COLUMNS} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><TableEmpty colSpan={COLUMNS} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <tr><TableEmpty from={list} what="the staff list" colSpan={COLUMNS} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                   {applied.length > 0 || search
                     ? "Nobody matches these filters."
                     : "No staff yet — add your first team member."}

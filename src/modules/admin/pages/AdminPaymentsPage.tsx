@@ -344,7 +344,7 @@ export default function AdminPaymentsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={payments} what="the payments ledger" colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {/* An empty table under a filter reads as "there is
                         nothing here" unless it says otherwise — and under a
                         PERIOD, as "this shop never paid". */}

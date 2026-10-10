@@ -58,7 +58,8 @@ function scheduleLabel(p: Promotion): string {
 
 export default function PromotionsPage() {
   const money = useMoney();
-  const { data: promotions, isLoading } = usePromotions();
+  const asked = usePromotions();
+  const { data: promotions, isLoading } = asked;
   const { create, update, remove } = usePromotionMutations();
   const categories = useCategories();
   const modal = useModal();
@@ -177,7 +178,7 @@ export default function PromotionsPage() {
               {isLoading ? (
                 <tr><TableEmpty colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</TableEmpty></tr>
               ) : (promotions ?? []).length === 0 ? (
-                <tr><TableEmpty colSpan={6} className="px-4 py-8 text-center text-gray-400">No promotions yet.</TableEmpty></tr>
+                <tr><TableEmpty from={asked} what="the promotions" colSpan={6} className="px-4 py-8 text-center text-gray-400">No promotions yet.</TableEmpty></tr>
               ) : (
                 (promotions ?? []).map((p) => (
                   <tr key={p.id} className="text-gray-700 dark:text-gray-300">

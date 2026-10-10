@@ -321,7 +321,7 @@ export default function OwnerOrdersPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={ORDER_COLUMNS} className="px-4 py-14 text-center">
+                  <TableEmpty from={orders} what="the orders" colSpan={ORDER_COLUMNS} className="px-4 py-14 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {unassigned
                         ? "Every delivery has a rider on it."

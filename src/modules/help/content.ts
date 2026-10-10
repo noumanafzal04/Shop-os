@@ -256,7 +256,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     title: `How ${PRODUCT.name} fits together`,
     summary: "Why you see the screens you see, and not the ones you don't.",
     group: "Start here",
-    keywords: ["missing", "hidden", "why can't I see", "screen not showing"],
+    keywords: ["missing", "hidden", "why can't I see", "screen not showing", "empty", "could not be loaded", "try again", "no access"],
     body: [
       {
         type: "h", text: "The three gates",
@@ -317,6 +317,15 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "note",
         text: "On a tablet, touching an icon that has screens under it (Expense Manager, Catalog\u2026) opens the menu to show them. It used to do nothing at all on a strip of icons — a mouse never noticed, because hovering had already opened it. The till keeps no menu, on purpose: a sale is finished or parked before anything else is opened.",
+      },
+      { type: "h", text: "When a list shows nothing" },
+      {
+        type: "p",
+        text: "A list with nothing in it is telling you one of three things, and it says which. \u201cNo customers yet\u201d (or suppliers, sales, coupons\u2026) means exactly that: there are none. \u201cYou do not have access\u201d means your account has not been given that list — ask the owner. And \u201ccould not be loaded\u201d means the list did not arrive: the connection dropped, or the server was busy. Press Try again.",
+      },
+      {
+        type: "note",
+        text: "It used to say \u201cNo customers yet\u201d for all three. A list that fails to load is not an empty list — if you ever see an empty screen you do not believe, that is worth reporting.",
       },
     ],
   },

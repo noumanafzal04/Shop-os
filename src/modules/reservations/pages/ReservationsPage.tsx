@@ -144,7 +144,7 @@ export default function ReservationsPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={reservations} what="the reservations" colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {status ? "No reservations with this status." : "No reservations yet."}
                   </TableEmpty>
                 </tr>

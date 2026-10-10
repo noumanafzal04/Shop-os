@@ -74,6 +74,8 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Collapse the sidebar to icons.", expect: "No two visible icons are identical." },
           { do: "Open the panel on a phone-sized window (about 390 points wide).", expect: "The rail becomes a drawer, and no screen scrolls sideways. Sideways scroll on any screen is a bug — the page body must never move horizontally." },
           { do: "Narrow the window to 320 points — the smallest phone still in use.", expect: "The header keeps the menu button, the mark, the bell and the account button, and drops only the product's NAME. Nothing runs past the right edge and the page cannot be dragged sideways." },
+          { do: "Open any list — Customers, Suppliers, Sales, Purchases — with the network cut (DevTools → Network → Offline) and reload.", expect: "After a few seconds the list says it could not be loaded, with a Try again button. It does NOT say \"No customers yet\" — a list that did not arrive is not an empty list — and it does not say \"Counting…\". Put the network back and press Try again: the list is there." },
+          { do: "Sign in as staff with no permission for a list, and open it by its address.", expect: "It says you do not have access to that list — not that the list is empty, and not that it failed." },
         ],
       },
     ],

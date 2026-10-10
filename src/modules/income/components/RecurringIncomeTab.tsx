@@ -260,7 +260,7 @@ export function RecurringIncomeTab({ money }: { money: (n: number | string) => s
               ))
             ) : rows.length === 0 ? (
               <tr>
-                <TableEmpty colSpan={5} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
+                <TableEmpty from={list} what="the recurring income" colSpan={5} className="px-5 py-12 text-center text-gray-500 dark:text-gray-400">
                   Nothing recurring yet. Add the flat upstairs, a let shutter, or a monthly contract
                   and it will offer itself each time it comes round.
                 </TableEmpty>

@@ -203,7 +203,7 @@ export default function AdminAuditPage() {
                   <tr key={i}><td colSpan={6} className="px-6 py-4"><div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>
                 ))
               ) : rows.length === 0 ? (
-                <tr><TableEmpty colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No audit entries match.</TableEmpty></tr>
+                <tr><TableEmpty from={logs} what="the audit log" colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">No audit entries match.</TableEmpty></tr>
               ) : (
                 rows.map((log) => (
                   <tr key={log.id} className="align-top text-theme-sm text-gray-700 dark:text-gray-300">

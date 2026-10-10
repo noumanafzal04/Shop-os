@@ -237,7 +237,7 @@ export default function LedgerPage() {
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={ledger} what="the ledger" colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {/* The period is not a filter here: a ledger is always
                         about one, so counting its two dates made every empty
                         month read "Nothing matches these filters" — and the

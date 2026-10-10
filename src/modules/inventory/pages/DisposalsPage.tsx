@@ -147,7 +147,7 @@ export default function DisposalsPage() {
                 <tr><TableEmpty colSpan={branchCol.show ? 7 : 6} className="px-4 py-10 text-center text-sm text-gray-400">Loading…</TableEmpty></tr>
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty colSpan={branchCol.show ? 7 : 6} className="px-4 py-12 text-center">
+                  <TableEmpty from={q} what="the write-offs" colSpan={branchCol.show ? 7 : 6} className="px-4 py-12 text-center">
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       {tab === "claims" ? "Nothing waiting on a supplier." : "Nothing here."}
                     </p>

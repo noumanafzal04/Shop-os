@@ -138,7 +138,7 @@ export default function FuelDeliveriesPage() {
             </thead>
             <tbody>
               {(deliveries.data?.rows ?? []).length === 0 ? (
-                <tr><TableEmpty colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No deliveries yet.</TableEmpty></tr>
+                <tr><TableEmpty from={deliveries} what="the delivery list" colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No deliveries yet.</TableEmpty></tr>
               ) : (
                 deliveries.data?.rows.map((d) => {
                   const short = Number(d.shortage_litres);

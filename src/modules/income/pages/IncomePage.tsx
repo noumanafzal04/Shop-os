@@ -326,6 +326,8 @@ export default function IncomePage() {
       />
 
       <MoneyEntryTable
+        asked={incomes}
+        what="the income entries"
         rows={rows.map(asEntry)}
         loading={incomes.isLoading}
         money={money}

@@ -121,7 +121,11 @@ export function FilterBar({
             </button>
           )}
 
-          {results !== undefined && (
+          {/* "Counting…" only while something is being counted. A list whose
+              request was refused or failed has no count and is not waiting
+              for one — it said "Counting…" for ever, beside a message saying
+              the list had not loaded. */}
+          {results !== undefined && (results.loading || results.count !== undefined) && (
             <span className="ml-auto text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
               {results.loading || results.count === undefined
                 ? "Counting…"
