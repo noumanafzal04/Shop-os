@@ -33,6 +33,8 @@ import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { useTabInUrl } from "../../../common/routing/tabInUrl";
 import { booksWords, withCashCalled } from "../../expenses/booksWords";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
+import { SavedNotice } from "../../expenses/components/SavedNotice";
+import { savedNotes } from "../../expenses/savedNotes";
 
 const today = () => shopToday();
 const wallToday = () => shopWallToday();
@@ -118,6 +120,8 @@ export default function IncomePage() {
   const [formCategory, setFormCategory] = useState("");
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
+  // What the server said about an entry it has just saved — see savedNotes.
+  const [notes, setNotes] = useState<string[]>([]);
 
   const rows = incomes.data?.data ?? [];
   const pagination = incomes.data?.meta.pagination;
@@ -162,6 +166,7 @@ export default function IncomePage() {
     setFormCategory("");
     setMethod("cash");
     setReference("");
+    setNotes([]);
     create.reset();
     update.reset();
     modal.openModal();
@@ -175,6 +180,7 @@ export default function IncomePage() {
     setFormCategory(income.income_category_id ?? "");
     setMethod(income.payment_method ?? "cash");
     setReference(income.reference ?? "");
+    setNotes([]);
     create.reset();
     update.reset();
     modal.openModal();
@@ -191,15 +197,20 @@ export default function IncomePage() {
       income_date: date,
     };
     const done = (verb: string, meta?: unknown) => {
-      const w = (meta as { warnings?: string[] } | undefined)?.warnings?.[0];
-      if (w) toast.info(w);
-      else toast.success(`Income ${verb}`);
-      modal.closeModal();
+      // It saved, and it says so — the first warning used to be shown INSTEAD
+      // of this, so a save with a warning never said it had saved.
+      toast.success(`Income ${verb}`);
+      const said = savedNotes(meta);
+      // Every warning, on the form, until Done — not the first one in a toast
+      // that is gone in four seconds. Same as the expense form.
+      if (said.length) setNotes(said);
+      else modal.closeModal();
     };
     if (editing) {
       update.mutate(
         { id: editing.id, ...payload },
-        { onSuccess: () => done("updated"), onError: () => toast.error("Couldn't save the income.") },
+        // An edit can be warned about as well; it never looked.
+        { onSuccess: (res) => done("updated", res.meta), onError: () => toast.error("Couldn't save the income.") },
       );
     } else {
       create.mutate(payload, {
@@ -364,10 +375,12 @@ export default function IncomePage() {
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {editing ? "Edit income" : "Add income"}
+          {notes.length ? (editing ? "Income updated" : "Income recorded") : editing ? "Edit income" : "Add income"}
         </h3>
 
-        <div className="space-y-4">
+        <SavedNotice saved={editing ? "Your changes are saved." : "This income is recorded."} notes={notes} />
+        {/* Locked once saved: what is on it now is a record, not a form. */}
+        <fieldset disabled={notes.length > 0} className="space-y-4 disabled:opacity-60">
           <div>
             <Label>Category <span className="text-error-500">*</span></Label>
             <Select
@@ -418,17 +431,24 @@ export default function IncomePage() {
           {method === "cash" && words.cashReceivedHint && (
             <p className="text-theme-xs text-gray-400">{words.cashReceivedHint}</p>
           )}
-        </div>
+        </fieldset>
 
         <div className="mt-6 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
-          <Button
-            size="sm"
-            onClick={submit}
-            disabled={active.isPending || !formCategory || !description.trim() || !amount}
-          >
-            {active.isPending ? "Saving…" : editing ? "Save changes" : "Save income"}
-          </Button>
+          {notes.length ? (
+            // Saved: one button, and it is not Save.
+            <Button size="sm" onClick={modal.closeModal}>Done</Button>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+              <Button
+                size="sm"
+                onClick={submit}
+                disabled={active.isPending || !formCategory || !description.trim() || !amount}
+              >
+                {active.isPending ? "Saving…" : editing ? "Save changes" : "Save income"}
+              </Button>
+            </>
+          )}
         </div>
       </Modal>
     </>

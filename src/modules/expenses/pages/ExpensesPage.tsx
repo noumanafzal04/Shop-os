@@ -41,6 +41,8 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import { formatEntryDate } from "../../../components/ui/filters";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
+import { SavedNotice } from "../components/SavedNotice";
+import { savedNotes } from "../savedNotes";
 
 // The shop's business day for the date an entry opens on — tonight's gas
 // cylinder belongs on the same cashbook row as tonight's sales — and the date
@@ -325,10 +327,11 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
       ...(suppliersOffered ? { supplier_id: form.supplier || null } : {}),
     };
     const onSuccess = (response: { meta?: unknown }) => {
-      const w = (response.meta as { warnings?: string[] } | undefined)?.warnings ?? [];
+      const notes = savedNotes(response.meta);
       // Warnings are things the shop needs to hear — a budget passed, a
-      // cash payment with no drawer open — never reasons to hold the form.
-      if (w.length) setWarnings(w);
+      // cash payment with no drawer open. The entry IS saved: the form stays
+      // up to say so, locked, with one button. See savedNotes.
+      if (notes.length) setWarnings(notes);
       else modal.closeModal();
       toast.success(editing ? "Expense updated" : "Expense recorded");
     };
@@ -480,21 +483,27 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
 
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-md">
         <ModalForm
-          title={editing ? "Edit expense" : "Add expense"}
+          title={warnings.length ? (editing ? "Expense updated" : "Expense recorded") : editing ? "Edit expense" : "Add expense"}
           footer={
-            <>
-              <Button size="sm" variant="outline" onClick={modal.closeModal}>{warnings.length ? "Done" : "Cancel"}</Button>
-              <Button size="sm" onClick={submit} disabled={active.isPending || !form.category || !form.description.trim() || !form.amount}>
-                {active.isPending ? "Saving…" : editing ? "Save changes" : "Save expense"}
-              </Button>
-            </>
+            // SAVED: one button. "Save expense" used to stay live here, beside
+            // the word "Saved", over a form still full of the bill that had
+            // just been filed — one more press filed it twice.
+            warnings.length ? (
+              <Button size="sm" onClick={modal.closeModal}>Done</Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={modal.closeModal}>Cancel</Button>
+                <Button size="sm" onClick={submit} disabled={active.isPending || !form.category || !form.description.trim() || !form.amount}>
+                  {active.isPending ? "Saving…" : editing ? "Save changes" : "Save expense"}
+                </Button>
+              </>
+            )
           }
         >
           {generalError && <div className="mb-4"><Alert variant="error" title="Couldn't save" message={generalError} /></div>}
-          {warnings.map((w, i) => (
-            <div className="mb-3" key={i}><Alert variant="warning" title="Saved" message={w} /></div>
-          ))}
-          <div className="space-y-4">
+          <SavedNotice saved={editing ? "Your changes are saved." : "This expense is recorded."} notes={warnings} />
+          {/* Locked once saved: what is on it now is a record, not a form. */}
+          <fieldset disabled={warnings.length > 0} className="space-y-4 disabled:opacity-60">
             <div>
               <Label>Category <span className="text-error-500">*</span></Label>
               <Select
@@ -577,7 +586,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
             {form.method === "cash" && words.cashPaidHint && (
               <p className="text-theme-xs text-gray-400">{words.cashPaidHint}</p>
             )}
-          </div>
+          </fieldset>
         </ModalForm>
       </Modal>
     </>

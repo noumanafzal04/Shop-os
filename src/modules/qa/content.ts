@@ -82,6 +82,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Sign in as staff with no permission for a list, and open it by its address.", expect: "It says you do not have access to that list — not that the list is empty, and not that it failed." },
           { do: "With a screen reader (or the browser's accessibility tree), jump to the first heading on any screen.", expect: "There is exactly one, and it is the screen's own name — Customers, Sales, Expenses. The till has one that is read aloud and not drawn. The item form is a dialog over Products and is announced by its own title." },
           { do: "Sign in to a business that only keeps books (Expense Manager and nothing else) and open Subscription.", expect: "The plan is named with its price and how far back it keeps the books. It does NOT say \"One shop, one counter. Everything a single till needs\" — that is the plan's description for a shop. Sign in to a shop on the same plan: the sentence is there in full." },
+          { do: "Set a small budget on a category, then record an expense in it that goes over. Do the same with a cash income while no drawer is open.", expect: "The entry is saved once and the form says so: the title becomes Expense recorded (or Income recorded), every warning is listed under it, the fields are locked, and the only button is Done. There is no Save button to press a second time, and the toast says it was recorded — not the warning instead." },
         ],
       },
     ],
