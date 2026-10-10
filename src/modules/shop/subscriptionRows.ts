@@ -105,3 +105,42 @@ export function subscriptionWords(kind: Pick<KindOfBusiness, "sells" | "noun">) 
     extended: `Extended for your ${it} beyond the plan's`,
   };
 }
+
+/**
+ * Words that belong to selling: a till, a shelf, a counter, a catalogue.
+ * A sentence with one of them in it is a sentence about a shop.
+ */
+const ABOUT_SELLING = /\b(shops?|tills?|counters?|catalog(ue)?s?|sell(s|ing)?|sales?|trading|registers?|checkouts?|pos|stock|shel(f|ves)|products?|orders?|kitchen|tables?)\b/i;
+
+/**
+ * WHAT THE PLAN SAYS ABOUT ITSELF — to this business.
+ *
+ * A plan's description is one sentence or two that the platform wrote about
+ * it, and the platform wrote them about shops: "One shop, one counter.
+ * Everything a single till needs, and two years of history." Printed on the
+ * subscription page of an office that bought only the books, that is a
+ * sentence about somebody else — on the one page that says what it is paying
+ * for. The rest of that page already speaks to it in its own terms; this was
+ * the line that did not.
+ *
+ * A business that sells is told all of it, as written. One that does not is
+ * told the sentences that are not about selling, and nothing in place of the
+ * ones that are: what the plan gives it is in the figures underneath, which
+ * are its own. Nothing is reworded — a plan's description is the platform's
+ * to write, and a custom plan written for an office ("Sized to the
+ * organisation…") comes through whole.
+ */
+export function planSays(kind: Pick<KindOfBusiness, "sells">, description: string | null | undefined): string | null {
+  const written = (description ?? "").trim();
+  if (written === "") return null;
+  if (kind.sells) return written;
+
+  const kept = written
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => !ABOUT_SELLING.test(sentence))
+    .join(" ")
+    .trim();
+
+  return kept === "" ? null : kept;
+}
+

@@ -39,12 +39,25 @@ const BY_TRADE: Record<string, Array<{ path: string; name: string }>> = {
     // of those walks to the dashboard. Four device sizes, green, about the
     // dashboard. A retail shop has it.
     { path: "/tenant/documents", name: "quotes & invoices" },
-  ],
-  services: [
+    // Reservations was listed under `services`, and the services shop does
+    // not have the module — so this walk was redirected to the dashboard and,
+    // since the guard below, failed saying so. The retail shop has it.
     { path: "/tenant/reservations", name: "reservations" },
   ],
-  finance: [
+  services: [
+    // The portfolio is behind `services`. It was listed under `finance`,
+    // which is a business that keeps books and nothing else: same redirect.
     { path: "/tenant/portfolio", name: "the portfolio" },
+  ],
+  // An office that bought only the books has no screen of its own that the
+  // mart cannot reach — but it draws the SAME four differently: no till, no
+  // shelf, "your business" where the mart reads "your shop". Walked as itself.
+  finance: [
+    { path: "/tenant/expenses", name: "expenses, for an office" },
+    { path: "/tenant/income", name: "other income, for an office" },
+    { path: "/tenant/ledger", name: "the ledger, for an office" },
+    { path: "/tenant/cashbook", name: "the cashbook, for an office" },
+    { path: "/tenant/subscription", name: "the subscription, for an office" },
   ],
 };
 
@@ -72,6 +85,11 @@ for (const [trade, screens] of Object.entries(BY_TRADE)) {
           .toBeGreaterThan(40);
         expect(size.text, `${screen.name} (${screen.path}) rendered no words`)
           .toBeGreaterThan(60);
+
+        // One first heading, saying which screen this is — see chrome.spec.
+        const firsts = await page.locator("h1").evaluateAll((hs) => hs.map((h) => (h.textContent ?? "").trim()));
+        expect(firsts, `${screen.name} (${screen.path}) has ${firsts.length} first headings — a screen has one`).toHaveLength(1);
+        expect(firsts[0].length).toBeGreaterThan(1);
 
         // STILL ON THE SCREEN IT ASKED FOR. The size check above was written
         // for a redirect to an EMPTY page; a guard here redirects to the

@@ -77,6 +77,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Open any list — Customers, Suppliers, Sales, Purchases — with the network cut (DevTools → Network → Offline) and reload.", expect: "After a few seconds the list says it could not be loaded, with a Try again button. It does NOT say \"No customers yet\" — a list that did not arrive is not an empty list — and it does not say \"Counting…\". Put the network back and press Try again: the list is there." },
           { do: "Sign in as staff with no permission for a list, and open it by its address.", expect: "It says you do not have access to that list — not that the list is empty, and not that it failed." },
           { do: "With a screen reader (or the browser's accessibility tree), jump to the first heading on any screen.", expect: "There is exactly one, and it is the screen's own name — Customers, Sales, Expenses. The till has one that is read aloud and not drawn. The item form is a dialog over Products and is announced by its own title." },
+          { do: "Sign in to a business that only keeps books (Expense Manager and nothing else) and open Subscription.", expect: "The plan is named with its price and how far back it keeps the books. It does NOT say \"One shop, one counter. Everything a single till needs\" — that is the plan's description for a shop. Sign in to a shop on the same plan: the sentence is there in full." },
         ],
       },
     ],

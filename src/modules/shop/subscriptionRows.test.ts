@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { kindOfBusiness } from "../../common/tenant/kindOfBusiness";
 import { TRADE_FEATURES } from "../../test/tradeFeatures";
-import { offlineRules, subscriptionWords, usageRows, type LimitRow } from "./subscriptionRows";
+import { offlineRules, planSays, subscriptionWords, type LimitRow, usageRows } from "./subscriptionRows";
 
 /** The server's rows for a business, as `PlanLimits::snapshot` sends them. */
 function rows(applies: (key: string) => boolean, over: Partial<Record<string, Partial<LimitRow>>> = {}): LimitRow[] {
@@ -111,3 +111,46 @@ describe("what the subscription page says, by who it is talking to", () => {
     expect(shop.extended).toBe("Extended for your shop beyond the plan's");
   });
 });
+
+describe("what a plan says about itself, to the business reading it", () => {
+  const shop = { sells: true };
+  const office = { sells: false };
+  // The four the platform ships with.
+  const BASIC = "One shop, one counter. Everything a single till needs, and two years of history.";
+  const STANDARD = "A few branches and a team. Offline selling, and five years of history.";
+  const PRO = "A real chain: ten branches, no catalog ceiling, and a week of trading offline.";
+  const ENTERPRISE = "Sized to the organisation. Nothing is capped, history is kept for good, and the terms are whatever was agreed.";
+
+  it("a shop is told all of it, as written", () => {
+    for (const written of [BASIC, STANDARD, PRO, ENTERPRISE]) expect(planSays(shop, written)).toBe(written);
+  });
+
+  it("an office that bought only the books is not told about a till it does not have", () => {
+    // On the page that says what it is paying for.
+    expect(planSays(office, BASIC)).toBeNull();
+    expect(planSays(office, PRO)).toBeNull();
+  });
+
+  it("…but is told the sentences that are not about selling", () => {
+    expect(planSays(office, STANDARD)).toBe("A few branches and a team.");
+  });
+
+  it("a description written for an organisation comes through whole", () => {
+    expect(planSays(office, ENTERPRISE)).toBe(ENTERPRISE);
+    expect(planSays(office, "For accountants. Unlimited staff, and ten years of history.")).toBe("For accountants. Unlimited staff, and ten years of history.");
+  });
+
+  it("is not fooled by a word that only contains one — and is by any case of the real one", () => {
+    // "wholesale" has "sale" in it and "restock" has "stock"; neither is the word.
+    expect(planSays(office, "A wholesale-sized team.")).toBe("A wholesale-sized team.");
+    expect(planSays(office, "Everything a TILL needs.")).toBeNull();
+    expect(planSays(office, "No POS limit.")).toBeNull();
+  });
+
+  it("a plan with nothing written says nothing", () => {
+    expect(planSays(shop, null)).toBeNull();
+    expect(planSays(shop, "   ")).toBeNull();
+    expect(planSays(office, undefined)).toBeNull();
+  });
+});
+

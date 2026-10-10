@@ -8,7 +8,7 @@ import { useSubscription } from "../hooks/useShop";
 import type { SubscriptionInfo } from "../services/shopService";
 import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { formatRange } from "../../../components/ui/filters";
-import { offlineRules, subscriptionWords, usageRows } from "../subscriptionRows";
+import { offlineRules, planSays, subscriptionWords, usageRows } from "../subscriptionRows";
 import { PRODUCT, productSlug } from "../../../common/brand";
 
 /**
@@ -76,7 +76,9 @@ function whenPhrase(iso: string): string {
 export default function SubscriptionPage() {
   const sub = useSubscription();
   const data = sub.data;
-  const words = subscriptionWords(useKindOfBusiness());
+  const kind = useKindOfBusiness();
+  const words = subscriptionWords(kind);
+  const described = planSays(kind, data?.plan?.description);
 
   if (sub.isLoading || !data) {
     return (
@@ -125,8 +127,10 @@ export default function SubscriptionPage() {
                   ? "month"
                   : `${data.plan.billing_period_months} months`}
               </p>
-              {data.plan.description && (
-                <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300">{data.plan.description}</p>
+              {/* The platform wrote this about shops. A business with no till
+                  is told the part of it that is not about one — see planSays. */}
+              {described && (
+                <p className="mt-3 text-theme-sm text-gray-600 dark:text-gray-300" data-testid="plan-says">{described}</p>
               )}
               {/* HOW FAR BACK YOU CAN LOOK — and, because the window is
                   now enforced, the DATE as well.

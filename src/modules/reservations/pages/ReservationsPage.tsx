@@ -97,7 +97,11 @@ export default function ReservationsPage() {
           </p>
         </div>
         <div className="w-48">
+          {/* Named: it had none, and nothing had noticed — the browser walk
+              that checks for names was being redirected to the dashboard,
+              because it asked a shop without this module. */}
           <Select
+            aria-label="Reservation status"
             options={[
               { value: "", label: "All statuses" },
               { value: "pending", label: "Pending" },
