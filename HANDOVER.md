@@ -9002,3 +9002,21 @@ Decision: `docs/decisions/shopos-what-the-plan-says-to-an-office.md`. Panel only
   exactly one `h1`.
 - Reservations' status filter is named.
 
+## The bar across the top — 2026-10-10
+
+Decision: `docs/decisions/shopos-the-bar-across-the-top.md`. Panel only.
+
+- **Search jumps to screens.** `modules/search/screens.ts` (`screensOf`,
+  `findScreens`) over `useShopNav()` (exported from `layout/AppSidebar.tsx`;
+  `useNavInputs()` is the one place the rail's inputs are gathered). The
+  palette's rows are `{kind: "screen"} | {kind: "hit"}`; screens first.
+- **Keys by platform:** `common/platform/shortcut.ts` `searchKeys()`.
+- **`BranchSwitcher`:** rows from `branches/branchMenu.ts`; trigger
+  `data-testid="branch-switcher"`, `data-scope="all|branch"` (tinted when
+  one branch); `role="listbox"`; keyboard; find box from `FIND_FROM` (7);
+  panel `fixed inset-x-3` below `sm`. No longer wrapped in `hidden sm:block`.
+- **Phone budget:** shop-side `Wordmark nameClassName="max-[479px]:hidden"`
+  (console keeps 359); `UserDropdown` caret `max-[359px]:hidden`;
+  `UpdateButton` header text hidden below 480.
+- **e2e:** `e2e/header.spec.ts` (desktop project, `--no-deps`, reads only).
+
