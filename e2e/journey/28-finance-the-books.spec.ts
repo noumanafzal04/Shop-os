@@ -273,7 +273,11 @@ test.describe("inside the books", () => {
     await settled(page);
     const full = page.getByRole("button", { name: "Full view" });
     await full.click();
-    await expect(page.getByText("Every module this business has.")).toBeVisible();
+    // The switch itself says which view is on — the sentence that used to sit
+    // under it ("Every module this business has.") was taken off the rail.
+    await expect(full).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Simple", exact: true })).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByText(/Every module this \w+ has\./)).toHaveCount(0);
 
     const nav = page.getByRole("navigation").first();
     for (let pass = 0; pass < 3; pass++) {

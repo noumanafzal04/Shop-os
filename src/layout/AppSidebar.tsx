@@ -1041,6 +1041,10 @@ const AppSidebar: React.FC = () => {
                     key={m}
                     type="button"
                     onClick={() => mode !== m && toggleMode()}
+                    // Which of the two is on, said to a screen reader as well:
+                    // the fill was the only thing saying it, and the sentence
+                    // that used to sit underneath is gone.
+                    aria-pressed={mode === m}
                     className={`flex-1 rounded-lg py-2.5 text-theme-sm font-semibold transition-colors ${
                       mode === m
                         ? "rail-switch-on bg-brand-500 text-white shadow-theme-xs"
@@ -1051,11 +1055,11 @@ const AppSidebar: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <p className="rail-heading mt-2 px-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
-                {mode === "basic"
-                  ? "The screens your day runs on. Switch to Full view for every module."
-                  : `Every module this ${kind.noun} has.`}
-              </p>
+              {/* No caption under it. There was one — "Every module this shop
+                  has." / "The screens your day runs on…" — and the owner asked
+                  for it gone: the two buttons already say which is which, and
+                  a sentence at the foot of the rail was one more thing to read
+                  past on every screen. */}
             </>
           ) : (
             <button
