@@ -1,4 +1,7 @@
 import type { AddOnReach } from "../addOnReach";
+import type { DateRange } from "../../../components/ui/filters";
+import type { PeriodTold } from "../../dashboard/period";
+import type { Kpi } from "../../dashboard/types";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { PaymentStatus, Tenant, User } from "../../auth/types";
 
@@ -313,6 +316,10 @@ export interface ChaseRow {
 }
 
 export interface BillingSummary {
+  /** The period the server answered — this month so far when none was asked for. */
+  period: PeriodTold;
+  /** What came in over it: each figure, the one it is set against, and the change. */
+  in_period: { collected: Kpi; payments: Kpi; shops: Kpi };
   revenue: { this_month: number; this_year: number; all_time: number };
   subscriptions: { active: number; expiring_soon: number; expired: number; suspended: number };
   recent_payments: Array<{ tenant: string; plan_name: string; amount: string; paid_at: string }>;
@@ -496,7 +503,8 @@ export const adminService = {
       },
     }),
 
-  billingSummary: () => apiGet<BillingSummary>("/admin/billing/summary"),
+  billingSummary: (period: DateRange | null = null) =>
+    apiGet<BillingSummary>("/admin/billing/summary", period ? { params: { from: period.from, to: period.to } } : undefined),
 
   /** How many people are waiting on a reply, for the rail's badges. Absent
    *  keys mean "you may not read that queue" — never zero. */

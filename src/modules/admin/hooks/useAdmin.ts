@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { DateRange } from "../../../components/ui/filters";
 import {
   adminService,
   type BillingPeriodInput,
@@ -278,10 +279,16 @@ export function usePlanMutations() {
   return { create, update, remove };
 }
 
-export function useBillingSummary() {
+/**
+ * @param period The period pinned in the address, or null for the one the
+ *               screen opens on (this month so far — the server says which).
+ */
+export function useBillingSummary(period: DateRange | null = null) {
   return useQuery({
-    queryKey: ["admin", "billing", "summary"],
-    queryFn: async () => (await adminService.billingSummary()).data,
+    queryKey: ["admin", "billing", "summary", period?.from ?? null, period?.to ?? null],
+    queryFn: async () => (await adminService.billingSummary(period)).data,
+    // The last period's figures stay up, dimmed, until the new one answers.
+    placeholderData: keepPreviousData,
   });
 }
 

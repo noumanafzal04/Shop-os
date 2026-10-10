@@ -6,13 +6,18 @@ import { Link } from "react-router";
 import { downloadCsv } from "../../../common/api/download";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
-import { DateRangeFilter, FilterBar, FilterSelect, type DateRange } from "../../../components/ui/filters";
+import { DateRangeFilter, FilterBar, FilterSelect, fromIsoDate, isSameRange, resolveRange, type DateRange } from "../../../components/ui/filters";
 import Pager from "../../../components/ui/pager";
+import { PeriodBar } from "../../dashboard/components/PeriodBar";
+import { KpiTile, KpiTileSkeleton } from "../../dashboard/components/admin/KpiTile";
 import { Panel, PanelEmpty } from "../../dashboard/components/admin/Panel";
 import { RevenueTrendPanel } from "../../dashboard/components/admin/RevenueTrendPanel";
-import { money } from "../../dashboard/components/admin/format";
+import { count, money } from "../../dashboard/components/admin/format";
+import { useDashboardPeriod } from "../../dashboard/hooks/useDashboardPeriod";
+import { comparedWith } from "../../dashboard/period";
 import { useBillingSummary, usePayments } from "../hooks/useAdmin";
-import { DollarLineIcon } from "../../../icons";
+import { DollarLineIcon, GroupIcon, PieChartIcon } from "../../../icons";
+import { ANY_DATE, datesName, ledgerDates, ledgerEmpty, ledgerNote, ledgerTotalNote } from "../ledgerWords";
 import { PageHeader } from "../components/kit";
 import type { ChaseRow, MethodSplit, OutstandingBucket, PaymentTotals } from "../services/adminService";
 
@@ -41,30 +46,67 @@ const METHODS = [
  *
  * ── What it is now, in the order somebody reads it ─────────────────────
  *
- *   1. what came in           — the twelve-month trend, the same one the
+ *   0. over WHICH PERIOD      — one period at the head of the page, the same
+ *                               control both dashboards have. It opens on this
+ *                               month so far. What came in follows it; what is
+ *                               late and who to ring are today's, and do not.
+ *   1. what came in           — in that period, against the one before it;
+ *                               then the twelve-month trend, the same one the
  *                               platform dashboard draws, from the same method
  *   2. what has NOT come in   — money late, split by grace and overdue, with
  *                               the shops nobody has priced counted apart
  *   3. who to ring today      — names, how late, how much, and their number
- *   4. the ledger             — filterable, with the total of the FILTER
+ *   4. the ledger             — the payments the period's figure is made
+ *                               of, until it is given dates of its own;
+ *                               filterable, with the total of the FILTER
  *                               rather than of the page
+ *
+ * ── Why the date control moved ─────────────────────────────────────────
+ *
+ * There was one, at the bottom, on the ledger, called "Any date" — and
+ * everything above it was fixed at "this month", "this year", "all time". The
+ * owner, looking at the screen: "should Billing not have a date picker?" It
+ * could not be asked what came in last month without scrolling past four
+ * cards that would not change when it was.
  */
 export default function AdminPaymentsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState("");
-  const [range, setRange] = useState<DateRange>({ from: null, to: null });
 
-  const summary = useBillingSummary();
+  // THE PERIOD. With nothing pinned the SERVER says which it is — this month
+  // so far, by its own calendar — and the page shows what it said.
+  const { pinned, pin } = useDashboardPeriod();
+  const summary = useBillingSummary(pinned);
+  const s = summary.data;
+  const today = s ? fromIsoDate(s.period.today) : platformToday();
+  const opensOn = resolveRange("this_month", today);
+  const asked: DateRange = pinned ?? (s ? { from: s.period.from, to: s.period.to } : opensOn);
+
+  // The ledger shows the period's payments until it is given dates of its
+  // own (see ledgerWords). null = following; ANY_DATE = every date, chosen.
+  const [ledgerOwn, setLedgerOwn] = useState<DateRange | null>(null);
+  const range = ledgerDates(asked, ledgerOwn);
+
+  const ask = (next: DateRange) => {
+    pin(isSameRange(next, opensOn) ? null : next);
+    // A new period is a new question; the ledger answers it too.
+    setLedgerOwn(null);
+    setPage(1);
+  };
+
   const payments = usePayments({ search, method, from: range.from, to: range.to, page });
 
-  const s = summary.data;
+  const p = s?.in_period;
+  const against = s ? comparedWith(s.period) : "";
+  const basis = /\d/.test(against) ? `in ${against}` : against;
   const rows = payments.data?.data ?? [];
   const pagination = payments.data?.meta.pagination;
   const totals = payments.data?.meta.totals as PaymentTotals | undefined;
   const methods = (payments.data?.meta.methods ?? []) as MethodSplit[];
 
-  const filtered = search !== "" || method !== "" || range.from !== null || range.to !== null;
+  const narrowed = search !== "" || method !== "";
+  const empty = ledgerEmpty(range, narrowed, today);
 
   const reset = <T,>(setter: (value: T) => void, value: T) => () => {
     setter(value);
@@ -81,8 +123,9 @@ export default function AdminPaymentsPage() {
     (range.from !== null || range.to !== null) && {
       key: "range",
       label: "Paid",
-      value: [range.from, range.to].filter(Boolean).join(" → "),
-      onRemove: reset(setRange, { from: null, to: null } as DateRange),
+      value: datesName(range, today),
+      // Not back to the period: the cross means "no dates".
+      onRemove: reset(setLedgerOwn, ANY_DATE as DateRange | null),
     },
   ].filter(Boolean) as Array<{ key: string; label: string; value: string; onRemove: () => void }>;
 
@@ -122,6 +165,56 @@ export default function AdminPaymentsPage() {
         subtitle="What came in for plans, what has not, and who to ring about it."
       />
 
+      {/* WHAT CAME IN, over the period at its head — each figure beside the
+          same one for the period it is set against. */}
+      <div className="mb-6 space-y-4">
+        <PeriodBar range={asked} onChange={ask} today={today} told={s?.period} busy={summary.isPlaceholderData} />
+
+        <div
+          data-testid="billing-in-period"
+          aria-busy={summary.isPlaceholderData}
+          // On a phone the figure the row is for has the width to itself and
+          // the two counts share the row under it: three full-width tiles
+          // were a screen and a half before anything else on the page.
+          className={`grid grid-cols-2 gap-4 transition-opacity sm:grid-cols-3 md:gap-6 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1 ${summary.isPlaceholderData ? "opacity-60" : ""}`}
+        >
+          {!p ? (
+            Array.from({ length: 3 }).map((_, i) => <KpiTileSkeleton key={i} />)
+          ) : (
+            <>
+              <KpiTile
+                label="Collected"
+                value={money(p.collected.value)}
+                format={money}
+                basis={basis}
+                kpi={p.collected}
+                icon={<PieChartIcon className="size-5" />}
+                featured
+                caption={p.payments.value === 0 ? "No payments recorded" : undefined}
+              />
+              <KpiTile
+                label="Payments"
+                value={count(p.payments.value)}
+                format={count}
+                basis={basis}
+                kpi={p.payments}
+                icon={<DollarLineIcon className="size-5" />}
+              />
+              <KpiTile
+                label="Shops that paid"
+                value={count(p.shops.value)}
+                format={count}
+                basis={basis}
+                kpi={p.shops}
+                icon={<GroupIcon className="size-5" />}
+                // Two payments from one shop — a renewal and an add-on — are one shop.
+                caption={p.payments.value > p.shops.value ? "Some paid more than once" : undefined}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3 md:gap-6">
         <div className="lg:col-span-2">
           <RevenueTrendPanel series={s?.revenue_series} loading={summary.isLoading} />
@@ -129,7 +222,10 @@ export default function AdminPaymentsPage() {
 
         <div className="flex flex-col gap-4 md:gap-6">
           <RevenueSoFar summary={s} loading={summary.isLoading} />
-          <MoneyLate outstanding={s?.outstanding} loading={summary.isLoading} />
+          {/* What is late is late NOW, whichever period is being read. */}
+          <div data-testid="money-late">
+            <MoneyLate outstanding={s?.outstanding} loading={summary.isLoading} />
+          </div>
         </div>
       </div>
 
@@ -138,7 +234,12 @@ export default function AdminPaymentsPage() {
         <SubscriptionHealth subscriptions={s?.subscriptions} loading={summary.isLoading} />
       </div>
 
-      <h3 className="mb-4 font-semibold text-gray-800 dark:text-white/90">The ledger</h3>
+      <div className="mb-4">
+        <h3 className="font-semibold text-gray-800 dark:text-white/90">The ledger</h3>
+        <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400" data-testid="ledger-note">
+          {ledgerNote(asked, ledgerOwn, today)}
+        </p>
+      </div>
 
       <FilterBar
         search={{
@@ -154,7 +255,7 @@ export default function AdminPaymentsPage() {
         onClearAll={() => {
           setSearch("");
           setMethod("");
-          setRange({ from: null, to: null });
+          setLedgerOwn(ANY_DATE);
           setPage(1);
         }}
         results={{ count: totals?.payments, noun: "payments", loading: payments.isLoading }}
@@ -172,10 +273,10 @@ export default function AdminPaymentsPage() {
         <DateRangeFilter
           label="Any date"
           // The ledger is cut on the server's calendar; "Today" has to be its.
-          today={platformToday()}
+          today={today}
           value={range}
           onChange={(next) => {
-            setRange(next);
+            setLedgerOwn(next);
             setPage(1);
           }}
         />
@@ -194,10 +295,10 @@ export default function AdminPaymentsPage() {
           count above answers "how many"; nobody opens a ledger to ask that. */}
       {totals !== undefined && totals.payments > 0 && (
         <div className="mb-4 flex flex-wrap items-center gap-2.5">
-          <span className="rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2 text-theme-sm font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+          <span data-testid="ledger-total" className="rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2 text-theme-sm font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
             {money(totals.amount)}
             <span className="ml-1.5 font-normal opacity-70">
-              {filtered ? "in this filter" : "all time"}
+              {ledgerTotalNote(range, narrowed, today)}
             </span>
           </span>
           {methods.map((split) => (
@@ -244,11 +345,22 @@ export default function AdminPaymentsPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <TableEmpty colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {filtered
-                      // An empty table under a filter reads as "there is
-                      // nothing here" unless it says otherwise.
-                      ? "No payment matches these filters."
-                      : "No payments recorded yet."}
+                    {/* An empty table under a filter reads as "there is
+                        nothing here" unless it says otherwise — and under a
+                        PERIOD, as "this shop never paid". */}
+                    <p>{empty.says}</p>
+                    {empty.offerEveryDate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLedgerOwn(ANY_DATE);
+                          setPage(1);
+                        }}
+                        className="mt-3 inline-flex h-11 items-center rounded-xl border border-gray-200 px-4 text-theme-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-white/5"
+                      >
+                        {narrowed ? "Search every date" : "Show every date"}
+                      </button>
+                    )}
                   </TableEmpty>
                 </tr>
               ) : (
@@ -282,29 +394,29 @@ export default function AdminPaymentsPage() {
   );
 }
 
-/** What has come in — the month in full, the year and all time beneath it. */
+/**
+ * What has come in to date — the year and all time.
+ *
+ * It led with "this month" until the page had a period: the month so far is
+ * what the period opens on, and a second copy of it here would be the one
+ * figure on the screen that did not move when the period did.
+ */
 function RevenueSoFar({
   summary,
   loading,
 }: {
-  summary: { revenue: { this_month: number; this_year: number; all_time: number } } | undefined;
+  summary: { revenue: { this_year: number; all_time: number } } | undefined;
   loading: boolean;
 }) {
   return (
-    <Panel title="Revenue">
+    <Panel title="Revenue to date" subtitle="Whatever period is asked about">
       {loading || summary === undefined ? (
-        <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+        <div className="h-16 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
       ) : (
-        <>
-          <p className="text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {money(summary.revenue.this_month)}
-          </p>
-          <p className="text-theme-xs text-gray-400">this month</p>
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-            <Figure label="This year" value={money(summary.revenue.this_year)} />
-            <Figure label="All time" value={money(summary.revenue.all_time)} />
-          </div>
-        </>
+        <div className="grid grid-cols-2 gap-3" data-testid="revenue-to-date">
+          <Figure label="This year" value={money(summary.revenue.this_year)} />
+          <Figure label="All time" value={money(summary.revenue.all_time)} />
+        </div>
       )}
     </Panel>
   );
