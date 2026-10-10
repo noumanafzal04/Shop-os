@@ -9058,3 +9058,25 @@ Decision: `docs/decisions/shopos-saved-and-worth-knowing.md`. Panel only.
   unchanged — so write tests can run again. The other seven Sweep shops are
   still lapsed.
 
+## Bill please — 2026-10-10
+
+Decision: `docs/decisions/shopos-bill-please.md`. No migration.
+
+- **`GET /restaurant/tickets/{ticket}/bill`** → `restaurant/bill.blade.php`
+  (roll or sheet by the shop's `receipt_width`). A read; 409
+  `TICKET_NOT_OPEN`, 422 `NOTHING_TO_BILL`.
+- **`App\Support\TabBill::of($ticket, $defaultTaxRate)`** mirrors the tax
+  loop in `CreateSaleAction` (the untrusted-tax branch dine-in settlement
+  uses). **If you change how a sale is taxed, change `TabBill` too** —
+  `TheBillIsWhatTheTillWillAskForTest` fails if they part.
+- Panel: `dineInService.printBill()`; `TabPage` footer button
+  `data-testid="print-bill"` between Send and Settle.
+- e2e: `e2e/food.bill-please.spec.ts` (restaurant projects; opens and
+  settles a takeaway tab on the food shop).
+- Dev DB: *Sweep Food Restaurant* was also extended to 2026-11-10 with
+  `payment.amount: 0` (no payment row).
+- Two older phone walks were mended on the way (`food.kitchen-slip` counts
+  the cart line instead of seeing it; `e2e/tillOffers.ts` shows the Cart pane
+  before the customer chip). On a phone the till's cart is behind a tab —
+  a walk that reads the cart there must `showPane(page, "Cart")` or count.
+
