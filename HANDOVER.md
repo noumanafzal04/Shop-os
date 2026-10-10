@@ -8866,3 +8866,45 @@ database. Deploy: backend (`php artisan migrate`), then panel.
 - Backend 3,519 tests exit 0 · vitest 211 files / 2,390 · build 0 ·
   `pack-codes`, `till-list-failed`, `till-enter`, `item-form`, `labels-sheet`,
   `import-catalog` green · mutations 54/54.
+
+## What was left on the list — four known items and two they led to, 2026-10-10
+
+Decision: `docs/decisions/shopos-what-was-left-on-the-list.md`. No migration.
+
+- **Payment buckets are five.** `Tenant::PAYMENT_STATUSES` gains `no_plan` (on
+  no plan AND behind on nothing). `paid` now requires a plan. A shop on no plan
+  whose period ran out is still `grace`/`unpaid`. Panel: `PaymentStatus` type,
+  `paymentChip`, the Tenants list's "No plan yet" chip. A client or report
+  that assumed four buckets summing to "all" must add the fifth.
+- **Renew dialog:** `admin/renewalDue.ts` → the line under Amount
+  (`data-testid="renew-due"`) and a "Use Rs …" button; the amount is never
+  prefilled. Opening the dialog resets amount, reference, method and paid-on.
+- **Console dates are the server's.** `common/time/platformToday.ts`; every
+  `<DateRangeFilter>` under `modules/admin/pages` passes
+  `today={platformToday()}` — `datesAreThePlatforms.test.ts` fails otherwise.
+- **320px header:** `Wordmark nameClassName="max-[359px]:hidden"` in
+  `AppHeader`; `e2e/narrow-phone.spec.ts`.
+- **Where an add-on price is charged** (item 5 of the same note).
+  `ModulePackages::reach()` → `GET /admin/modules/reach`
+  (`permission:tenants.view`) → `{plans, shops, named}` per module →
+  `admin/addOnReach.ts` `reachSays()` → a line under every price on Plans
+  (`data-testid="addon-price-<key>"`, `data-reach="never|somewhere|anyway"`,
+  `data-odd="true"` when a price is typed where it reaches nobody or an
+  unexpected shop — `pricedOddly()`). A plan's price is typed, NEVER summed
+  from add-on prices. **`plans` empty is NOT "charged to nobody"**: a shop can
+  hold a module past its plan while every plan on offer includes it (a trade
+  it is not usual for, or a plan since switched off) — `anyway`. Only
+  `plans` empty AND `shops` 0 is `never`. The first version read `plans`
+  alone and said "charged to nobody" about Products while a books-only QA
+  business was billed Rs 25,000 for it. The box is never disabled.
+- **A save of the price list says only what was typed** (item 6).
+  `PUT /admin/modules/prices` takes `{changes: {key: number|null}}` — merged
+  into the stored list by `ModulePackages::reprice()` under a row lock; null
+  or 0 removes a price; an unnamed module is untouched. `{prices: {...}}`
+  (whole list, REPLACES) is kept only for the panel build already deployed —
+  backend goes out first. Neither/both → 422. Panel: `admin/priceChanges.ts`.
+  Before this a screen left open erased any price set since it loaded, and
+  the e2e "restore what I found" did the same. **Tests now price one module
+  and hand back that one — never write a shared list back whole.**
+  `PlatformSettings::reread()` drops the 5-minute settings cache.
+  NOT done: `PlatformSetting` is still outside the audit trail.
