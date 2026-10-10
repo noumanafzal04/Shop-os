@@ -63,6 +63,9 @@ export async function theTillOffersOnlyWhatTheShopHas(page: Page): Promise<void>
   await expect(discount).toBeHidden();
 
   // ── A customer at the counter (the lookup is the Customers module's) ─
+  // The customer is named on the cart, and a phone shows the cart behind its
+  // own tab: this walk waited five minutes for a button on the other pane.
+  await showPane(page, "Cart");
   await page.getByTitle(/No customer attached|Customer:/).first().click();
   const customer = page.getByRole("dialog").filter({ hasText: "Leave blank for a walk-in sale" });
   await customer.getByPlaceholder("03xx-xxxxxxx").fill("03001234567");

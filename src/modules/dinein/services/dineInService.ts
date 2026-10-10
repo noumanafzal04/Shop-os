@@ -236,6 +236,26 @@ export const dineInService = {
     }
   },
 
+  /**
+   * "Bill please": what the table owes, as print-ready HTML — before it pays.
+   *
+   * The server works the figures out the way the sale will, so the paper
+   * says what the till is about to ask for; the tab screen's own total is an
+   * estimate of the tax. Behind auth like the kitchen ticket.
+   */
+  billHtml: async (ticketId: string): Promise<string> => {
+    const { data } = await api.get<string>(`/restaurant/tickets/${ticketId}/bill`, {
+      responseType: "text",
+      headers: { Accept: "text/html" },
+      transformResponse: (r) => r,
+    });
+    return data;
+  },
+
+  printBill: async (ticketId: string): Promise<void> => {
+    await printHtmlDocument(await dineInService.billHtml(ticketId));
+  },
+
   move: (id: string, payload: { dining_table_id: string | null; guest_count?: number }) =>
     apiPost<Ticket>(`/restaurant/tickets/${id}/move`, payload),
 

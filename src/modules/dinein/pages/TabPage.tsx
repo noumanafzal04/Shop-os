@@ -324,6 +324,27 @@ export default function TabPage() {
     );
   };
 
+  /**
+   * "Bill please." Printed from the server's figures, not this screen's: the
+   * total above is the subtotal with an ESTIMATE of the tax ("+ tax at the
+   * bill"), and a slip a customer counts money out against cannot be one.
+   */
+  const [printingBill, setPrintingBill] = useState(false);
+  const onPrintBill = async () => {
+    if (!id || printingBill) return;
+    setPrintingBill(true);
+    try {
+      await dineInService.printBill(id);
+    } catch (e) {
+      // In the server's words when it refused — "Nothing on this tab is
+      // waiting to be paid" is more use than "didn't print".
+      toast.error(e instanceof ApiError ? e.message : "The bill didn't print — try again.");
+    } finally {
+      // In `finally`, so a failed print does not leave the button dead.
+      setPrintingBill(false);
+    }
+  };
+
   const openSettle = () => {
     // Default: every unsettled line at its full quantity = the whole bill.
     setSettleQty(Object.fromEntries(unsettled.map((i) => [i.id, Number(i.quantity)])));
@@ -837,7 +858,13 @@ export default function TabPage() {
                 sent, that is sending it; with nothing waiting, it is the bill.
                 The two were always the same size, side by side, and the one a
                 waiter forgets — sending — was the quieter of the two. */}
-            <div className={`grid gap-2 ${firable.length > 0 ? "grid-cols-[2fr_1fr]" : "grid-cols-[1fr_2fr]"}`}>
+            {/* …and between them, the bill on paper. "Bill please" is asked at
+                every table, every time, and the only paper with a total on it
+                was the invoice — which is printed after the money has changed
+                hands. It sits in this row rather than under it: the footer is
+                pinned on a phone, and a fourth line of it is a dish the
+                waiter cannot see. */}
+            <div className={`grid gap-2 ${firable.length > 0 ? "grid-cols-[2fr_auto_1fr]" : "grid-cols-[1fr_auto_2fr]"}`}>
               <button
                 type="button"
                 onClick={onFire}
@@ -849,6 +876,22 @@ export default function TabPage() {
                 }`}
               >
                 {fire.isPending ? "Sending…" : firable.length > 0 ? `Send to kitchen (${toSendCount})` : "Send to kitchen"}
+              </button>
+              <button
+                type="button"
+                onClick={onPrintBill}
+                // A read: whoever can see the tab may print what it owes —
+                // not only the waiter whose table it is.
+                disabled={unsettled.length === 0 || printingBill || lines.busy}
+                aria-label="Print bill"
+                title="Print the bill — what this table owes, before it pays"
+                data-testid="print-bill"
+                className="flex min-h-14 min-w-14 flex-col items-center justify-center gap-0.5 rounded-xl px-2 text-gray-700 ring-1 ring-inset ring-gray-200 transition hover:bg-gray-50 disabled:opacity-40 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-white/5"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M6 7V3.5h8V7M6 14H4.5A1.5 1.5 0 0 1 3 12.5v-4A1.5 1.5 0 0 1 4.5 7h11A1.5 1.5 0 0 1 17 8.5v4a1.5 1.5 0 0 1-1.5 1.5H14M6 11.5h8v5H6v-5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                </svg>
+                <span className="text-[11px] font-semibold leading-none">{printingBill ? "…" : "Bill"}</span>
               </button>
               <button
                 type="button"

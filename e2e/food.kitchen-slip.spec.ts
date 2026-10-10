@@ -82,7 +82,11 @@ async function ringDish(page: Page, nth: number): Promise<void> {
   await page.locator(PLAIN_ITEM).nth(nth).click();
 
   const add = page.getByRole("dialog").getByRole("button", { name: /^Add( to (cart|tab))?( ·|$)/ });
-  await expect(rows.nth(before).or(add).first()).toBeVisible({ timeout: 10_000 });
+  // The line is COUNTED, not seen: on a phone the cart is behind its own tab,
+  // and a dish that asks nothing lands there without ever being on screen.
+  await expect
+    .poll(async () => (await rows.count()) > before || (await add.isVisible().catch(() => false)), { timeout: 10_000, message: "the dish neither reached the cart nor asked its options" })
+    .toBe(true);
   // Required choices come pre-picked; the sheet's own button says what it costs.
   if (await add.isVisible().catch(() => false)) await add.click();
 

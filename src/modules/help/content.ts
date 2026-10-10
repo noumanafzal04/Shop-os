@@ -937,6 +937,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "Under \u201cNot sent yet\u201d each line has \u2212 and + and a Kitchen note button. Stepping a line down to nothing takes it off.",
           "Press Send to kitchen. The order appears on the Kitchen board immediately — nobody needs to refresh anything.",
           "The kitchen marks it ready, and the table's tile on your floor turns green: \u201cFood ready\u201d.",
+          "\u201cBill please\u201d: press Bill, between Send to kitchen and Settle. It prints what the table owes \u2014 every dish, the tax worked out the way the till will, and a total to pay \u2014 and says twice that it is not a receipt. The receipt is printed when the bill is paid.",
           "Settle: the whole bill, or part of it — lower any line on the sheet to leave it for later (that is how a bill is split by item). Each line says its size and what was chosen with it, so a Half and a Full are never two rows reading the same. A partial settlement leaves the rest open on the table.",
           "One bill can be paid two ways: press \u201c+ Pay with two methods\u201d on the sheet and type what goes on the second.",
         ],
