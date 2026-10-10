@@ -248,7 +248,7 @@ export default function IncomePage() {
       />
 
       <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Income</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Income</h1>
         <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400" data-testid="income-says">
           {tab === "entries" ? words.income : tab === "categories" ? words.incomeCategories : BLURB[tab]}
         </p>

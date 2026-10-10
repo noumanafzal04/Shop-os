@@ -92,7 +92,7 @@ export default function TransfersPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Stock Transfers</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Stock Transfers</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Move stock from one branch to another</p>
         </div>
         <Button size="sm" onClick={open} disabled={branchOptions.length < 2}>+ New transfer</Button>

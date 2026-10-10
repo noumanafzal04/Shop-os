@@ -70,7 +70,7 @@ export default function SecurityPage() {
       <PageMeta title="Security" description="Change your password" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Security</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Security</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Signed in as {user?.name}
           {user?.email || user?.phone ? ` (${user.email ?? user.phone})` : ""}

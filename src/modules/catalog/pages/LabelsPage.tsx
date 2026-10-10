@@ -252,7 +252,7 @@ export default function LabelsPage() {
       <div className="no-print mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link to="/tenant/products" className="text-theme-xs text-gray-500 hover:text-brand-500">← Products</Link>
-          <h2 className="mt-0.5 text-xl font-semibold text-gray-800 dark:text-white/90">Barcode labels</h2>
+          <h1 className="mt-0.5 text-xl font-semibold text-gray-800 dark:text-white/90">Barcode labels</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Say how many of each on the left. The paper on the right is what will print.</p>
         </div>
         <div className="flex items-center gap-2">

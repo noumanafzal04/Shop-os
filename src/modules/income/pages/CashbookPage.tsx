@@ -44,7 +44,7 @@ export default function CashbookPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Cashbook</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Cashbook</h1>
           <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400" data-testid="cashbook-says">
             {shape.says}
           </p>

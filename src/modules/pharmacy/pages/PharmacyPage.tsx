@@ -35,7 +35,7 @@ export default function PharmacyPage() {
       <PageMeta title="Pharmacy" description="Dispensing register and batch recall" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Pharmacy</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Pharmacy</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           What was dispensed and against whose prescription — and, when a batch is withdrawn, who took it home.
         </p>

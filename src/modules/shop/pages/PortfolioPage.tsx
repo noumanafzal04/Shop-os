@@ -28,7 +28,7 @@ export default function PortfolioPage() {
       <PageMeta title="Portfolio" description="Showcase gallery" />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Portfolio</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Portfolio</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Showcase photos shown on your storefront.</p>
         </div>
         <label className="cursor-pointer rounded-lg border border-brand-500 px-4 py-2 text-sm font-medium text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-500/10">

@@ -70,7 +70,7 @@ export default function BranchesPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Branches</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Branches</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Your shop locations · {count}
             {settings.data?.max_branches != null ? ` of ${maxBranches}` : ""} used

@@ -112,7 +112,7 @@ export default function ExpensesPage() {
       <PageMeta title="Expenses" description="Business expenses" />
 
       <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Expense Manager</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Expense Manager</h1>
         <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400" data-testid="expenses-says">
           {tab === "expenses" ? words.expenses : BLURB[tab]}
         </p>

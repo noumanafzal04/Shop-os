@@ -147,7 +147,7 @@ export default function NewSalePage() {
         <Link to="/tenant/sales" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400">
           ← Back to sales
         </Link>
-        <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">New Sale</h2>
+        <h1 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">New Sale</h1>
       </div>
 
       {errorMessage && (

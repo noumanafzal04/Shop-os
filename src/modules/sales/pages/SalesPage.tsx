@@ -419,7 +419,7 @@ export default function SalesPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Sales</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Sales</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Invoices and history</p>
         </div>
         <div className="flex gap-2">

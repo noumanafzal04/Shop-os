@@ -92,7 +92,7 @@ export default function CategoriesPage() {
       <PageMeta title="Categories" description="Organize your catalog" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Categories</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Categories</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Drag a row by its handle to change the order customers and your till see. Nest as deep as
           you like.

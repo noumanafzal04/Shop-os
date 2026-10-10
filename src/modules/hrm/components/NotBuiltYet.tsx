@@ -27,7 +27,7 @@ export default function NotBuiltYet({
       <PageMeta title={`${title}`} description={lead} />
 
       <div className="mb-5">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">{title}</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">{title}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">{lead}</p>
       </div>
 

@@ -169,9 +169,9 @@ export default function StockCountSheetPage() {
               Stocktake
             </Link>
             <span className="text-gray-300">/</span>
-            <h2 className="font-mono text-xl font-semibold text-gray-800 dark:text-white/90">
+            <h1 className="font-mono text-xl font-semibold text-gray-800 dark:text-white/90">
               {count?.reference ?? "…"}
-            </h2>
+            </h1>
             {count && (
               <Badge size="sm" color={count.status === "applied" ? "success" : count.status === "counting" ? "info" : "light"}>
                 {count.status === "counting" ? "Counting" : count.status === "applied" ? "Applied" : "Cancelled"}

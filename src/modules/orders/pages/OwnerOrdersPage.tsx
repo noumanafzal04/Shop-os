@@ -191,7 +191,7 @@ export default function OwnerOrdersPage() {
 
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Orders</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Orders</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Online checkouts and the ones you take yourself — one queue, stock held until you complete or cancel.
           </p>

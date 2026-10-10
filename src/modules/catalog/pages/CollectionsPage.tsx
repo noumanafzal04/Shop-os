@@ -108,7 +108,7 @@ export default function CollectionsPage() {
 
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Collections</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Collections</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Display sections like Popular, Deals, or New Arrivals — shown in your online shop.
           </p>

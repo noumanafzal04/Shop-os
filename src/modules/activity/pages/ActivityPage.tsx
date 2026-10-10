@@ -219,7 +219,7 @@ export default function ActivityPage() {
       <PageMeta title="Activity" description="Who changed what in your shop" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Activity</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Activity</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Who changed what, and when. Kept whether or not anyone ever asks.
         </p>

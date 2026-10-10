@@ -66,7 +66,7 @@ export default function ForecourtPage() {
 
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Forecourt</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Forecourt</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Read every meter, dip every tank, and the shift tells you where the fuel went.
           </p>

@@ -391,7 +391,7 @@ export default function ShopSettingsPage() {
     <>
       <PageMeta title="Settings" description="Shop settings" />
       <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Settings</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">{words.lede}</p>
       </div>
 

@@ -153,6 +153,19 @@ for (const screen of SCREENS) {
         `every rule below would describe a different screen`,
     ).toBe(screen.path);
 
+    /**
+     * ONE FIRST HEADING, AND IT SAYS WHICH SCREEN THIS IS.
+     *
+     * Every shop screen titled itself with an `h2` and had no `h1` at all —
+     * the right words, one level down, with nothing above them. "Jump to
+     * the first heading" is how somebody who cannot see the page finds out
+     * which page it is, and here it found nothing. The till has no title on
+     * it; its heading is read and not drawn, which still counts.
+     */
+    const firsts = await page.locator("h1").evaluateAll((hs) => hs.map((h) => (h.textContent ?? "").trim()));
+    expect(firsts, `${screen.name} (${screen.path}) has ${firsts.length} first headings — a screen has one`).toHaveLength(1);
+    expect(firsts[0].length, `${screen.name} (${screen.path}) has a first heading with nothing in it`).toBeGreaterThan(1);
+
     report(
       await everyRule(page),
       `${screen.name} (${screen.path}) · ${size.elements} elements, ${size.text} chars`,

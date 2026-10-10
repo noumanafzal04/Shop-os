@@ -110,7 +110,7 @@ export default function FuelDeliveriesPage() {
 
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Deliveries & rates</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Deliveries & rates</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             What arrived in the ground, and what it sells for.
           </p>

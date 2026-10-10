@@ -109,7 +109,7 @@ export default function ReportsPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Reports</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Reports</h1>
           {/* The window this screen is showing, resolved locally so it is
               right before the first response lands rather than a request
               behind the buttons above it. */}

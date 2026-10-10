@@ -191,7 +191,7 @@ export default function TakeOrderPage() {
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Take an order</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Take an order</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             It joins the same queue as an online order — confirm it, prepare it, give it to a rider.
           </p>

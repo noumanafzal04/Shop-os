@@ -145,7 +145,7 @@ export default function RidersPage() {
       <PageMeta title="Riders" description="Your delivery riders" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Delivery Riders</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Delivery Riders</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Your own riders for delivery orders. Assign them on the Online Orders screen — the customer sees the rider's name while tracking.
         </p>

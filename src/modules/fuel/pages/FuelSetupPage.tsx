@@ -119,7 +119,7 @@ export default function FuelSetupPage() {
       <PageMeta title="Tanks & Pumps" description="Forecourt equipment" />
 
       <div className="mb-5">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Tanks & pumps</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Tanks & pumps</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           The physical forecourt. Each nozzle draws from one tank — that link is what lets a shift
           take metered litres off the right tank.

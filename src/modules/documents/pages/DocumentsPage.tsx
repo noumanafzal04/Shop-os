@@ -79,7 +79,7 @@ export default function DocumentsPage() {
       <PageMeta title="Quotations & advances" description="Quotations and goods held on advance" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Quotations &amp; advances</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Quotations &amp; advances</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Prices you've promised, and goods you're holding until they're paid for.
         </p>

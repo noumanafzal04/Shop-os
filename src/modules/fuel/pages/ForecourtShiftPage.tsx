@@ -32,7 +32,7 @@ export default function ForecourtShiftPage() {
 
       <div className="mb-5">
         <Link to="/tenant/fuel" className="text-theme-xs text-gray-400 hover:text-gray-600">← Forecourt</Link>
-        <h2 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{s.number}</h2>
+        <h1 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{s.number}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {new Date(s.opened_at).toLocaleString()}
           {s.closed_at ? ` → ${new Date(s.closed_at).toLocaleString()}` : ""}

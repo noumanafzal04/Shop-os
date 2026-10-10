@@ -93,7 +93,7 @@ export default function StocktakePage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Stocktake</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Stocktake</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Count the shelves. What the count is worth is the number worth knowing.
           </p>

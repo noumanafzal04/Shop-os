@@ -100,7 +100,7 @@ export default function LedgerPage() {
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Ledger</h2>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Ledger</h1>
           <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400" data-testid="ledger-says">
             {ledgerSays(kind)}
           </p>

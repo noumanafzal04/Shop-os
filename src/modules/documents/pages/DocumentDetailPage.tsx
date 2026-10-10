@@ -92,7 +92,7 @@ export default function DocumentDetailPage() {
           <Link to={job ? "/tenant/workshop" : "/tenant/documents"} className="text-theme-xs text-gray-500 hover:text-brand-500">
             ← {job ? words.board : "Quotations & advances"}
           </Link>
-          <h2 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+          <h1 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-800 dark:text-white/90">
             {doc.number}
             <Badge size="sm" color={layaway || job ? "primary" : "light"}>
               {job ? "Job card" : layaway ? "On advance" : "Quotation"}
@@ -100,7 +100,7 @@ export default function DocumentDetailPage() {
             {doc.status === "converted" && <Badge size="sm" color="success">Collected</Badge>}
             {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
             {doc.has_lapsed && <Badge size="sm" color="warning">{layaway || job ? "Overdue" : "Expired"}</Badge>}
-          </h2>
+          </h1>
           <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
             {doc.customer_name ?? "Walk-in"}
             {doc.customer_phone && (

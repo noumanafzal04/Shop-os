@@ -661,15 +661,20 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     <div className="fixed inset-0 z-[100000] flex justify-end">
       <div className="absolute inset-0 bg-gray-900/30 dark:bg-black/50" onClick={onClose} aria-hidden="true" />
 
+      {/* A dialog over the product list, not a page of its own: the list
+          stays mounted beneath it and keeps the page's first heading. So this
+          title is the DIALOG's name — it had none, and a dialog announced as
+          "dialog" says nothing about what it is for. */}
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="item-form-title"
         className="relative flex h-full w-full max-w-3xl flex-col bg-white shadow-theme-lg dark:bg-gray-900"
       >
         {/* Header — what is being edited, what kind of thing it is, and whether it is still sold */}
         <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 className="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
+            <h2 id="item-form-title" className="truncate text-lg font-semibold text-gray-800 dark:text-white/90">
               {isEdit ? `Edit ${existing.data?.name ?? "item"}` : "Add item"}
             </h2>
             {isEdit && (

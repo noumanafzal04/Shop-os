@@ -232,7 +232,7 @@ export default function InventoryPage() {
       <PageMeta title="Inventory" description="Stock levels and movements" />
 
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">Inventory</h2>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Inventory</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Every stock change is recorded — nothing moves without a trace.
         </p>

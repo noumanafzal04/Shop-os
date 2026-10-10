@@ -2404,8 +2404,15 @@ export default function PosPage() {
        shop's words were the same as the last time: "sari screen white lag rahi
        hai". Fixing the cards alone could not fix it, because the ground was
        never the cards. */
-    <div className={`flex ${FULL_SCREEN_PAGE} flex-col bg-pos-ground dark:bg-gray-900`}>
+    // `relative`: the heading below is positioned out of sight, and a
+    // positioned element with no positioned ancestor is measured from the
+    // page — which is how a hidden span once widened a screen by 84px.
+    <div className={`relative flex ${FULL_SCREEN_PAGE} flex-col bg-pos-ground dark:bg-gray-900`}>
       <PageMeta title="POS" description="Point of sale terminal" />
+      {/* The till has no title on it — every pixel is the sale — but it is
+          still a page, and a page with no first heading is one a screen
+          reader lands on with nothing to say where it is. */}
+      <h1 className="sr-only">POS — point of sale</h1>
 
       {/* Covers the till, keeping the cart intact underneath: locking is not
           the end of a sale, it's the end of a person's turn at the counter. */}
