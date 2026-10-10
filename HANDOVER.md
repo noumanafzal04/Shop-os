@@ -9020,3 +9020,23 @@ Decision: `docs/decisions/shopos-the-bar-across-the-top.md`. Panel only.
   `UpdateButton` header text hidden below 480.
 - **e2e:** `e2e/header.spec.ts` (desktop project, `--no-deps`, reads only).
 
+## The trail and the file — 2026-10-10
+
+Decision: `docs/decisions/shopos-the-trail-and-the-file.md`. No migration.
+
+- **`PlatformSetting` is `Auditable`.** `entity_id` = the setting's key.
+  Values are decoded from their JSON text; `updated_by` is not recorded;
+  `PlatformSettings::forget()` deletes through the model so a reset is a row.
+  Panel: `settingLines()` in `admin/auditChanges.ts`, used by
+  `AdminAuditPage` when `log.entity === "PlatformSetting"`. A NEW platform
+  setting should get a name in `SETTING` there (it falls back to its key).
+- **`GET /admin/billing/payments/export`** (`permission:billing.view`) —
+  the whole filtered ledger as CSV. `BillingController::ledger()` is the one
+  copy of the filter (list, totals, methods, file). Panel: "Export CSV"
+  (`data-testid="export-ledger"`) via `downloadFile`.
+- **`CsvExport::text()`** neutralises spreadsheet formulas in EVERY export
+  (leading `= + - @`, numbers excepted).
+- **`config/cors.php`** exposes `Content-Disposition` — exports now arrive
+  under the server's filename instead of `export.csv`. Production: no env
+  change needed; the header list is in the config file.
+
