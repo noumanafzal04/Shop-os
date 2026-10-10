@@ -185,9 +185,12 @@ class WhichDoorTheyCameInTest extends TestCase
             ->assertOk()
             ->json('meta.payment_counts');
 
-        // One converted shop, owing nothing (no end date) — so `paid`. If the
-        // payment counts were computed platform-wide they would read 3 here.
-        $this->assertSame(1, $counts['paid']);
+        // One converted shop, owing nothing and on no plan yet — so `no_plan`
+        // (it was counted under `paid` until that bucket was told apart from
+        // "has paid"). If the payment counts were computed platform-wide they
+        // would read 3 here.
+        $this->assertSame(1, $counts['no_plan']);
+        $this->assertSame(0, $counts['paid']);
         $this->assertSame(1, $counts['all']);
     }
 

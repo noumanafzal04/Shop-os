@@ -147,6 +147,12 @@ class PlatformSettings
         Cache::forget(self::CACHE_KEY);
     }
 
+    /** Have the next read come from the table, not from what was remembered. */
+    public static function reread(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+    }
+
     /**
      * Hand a setting back to its default.
      *

@@ -143,6 +143,48 @@ class AdminBillingFiltersTest extends TestCase
         $this->assertSame([], $this->namesIn('unpaid'));
     }
 
+    // ── On no plan ──────────────────────────────────────────────────
+
+    public function test_a_shop_on_no_plan_has_paid_nothing_and_is_not_counted_as_paid(): void
+    {
+        // Kept from a demo an hour ago: real, on no plan, waiting to be priced.
+        Tenant::factory()->create(['business_name' => 'Kept From A Demo', 'plan_id' => null, 'subscription_ends_at' => null]);
+        $this->tenant('Paid Up', $this->basic, now()->addDays(20)->toDateTimeString());
+
+        $this->assertSame(['Kept From A Demo'], $this->namesIn('no_plan'));
+        // "Paid" is the shops that have paid.
+        $this->assertSame(['Paid Up'], $this->namesIn('paid'));
+
+        // And its own row says the same thing the filter does.
+        $row = collect($this->asAdmin()->getJson('/api/v1/admin/tenants')->json('data'))->firstWhere('business_name', 'Kept From A Demo');
+        $this->assertSame('no_plan', $row['payment_status']);
+    }
+
+    public function test_a_shop_on_no_plan_whose_period_ran_out_is_still_behind(): void
+    {
+        // It had a period, the period ended, and the plan was then taken off.
+        // "No plan yet" would file a shop that owes for a month under the
+        // heading for shops that have been asked for nothing.
+        Tenant::factory()->create([
+            'business_name' => 'Lapsed, Then Unplanned', 'plan_id' => null,
+            'subscription_ends_at' => now()->subDays(60),
+        ]);
+
+        $this->assertSame([], $this->namesIn('no_plan'));
+        $this->assertSame(['Lapsed, Then Unplanned'], $this->namesIn('unpaid'));
+    }
+
+    public function test_a_suspended_shop_on_no_plan_is_suspended(): void
+    {
+        Tenant::factory()->create([
+            'business_name' => 'Switched Off', 'plan_id' => null, 'subscription_ends_at' => null,
+            'status' => TenantStatus::Suspended,
+        ]);
+
+        $this->assertSame([], $this->namesIn('no_plan'));
+        $this->assertSame(['Switched Off'], $this->namesIn('suspended'));
+    }
+
     // ── The buckets as a set ────────────────────────────────────────
 
     public function test_every_shop_lands_in_exactly_one_bucket(): void
@@ -154,19 +196,21 @@ class AdminBillingFiltersTest extends TestCase
             'status' => TenantStatus::Suspended,
         ]);
         $this->tenant('E No Window', $this->basic, null);
+        Tenant::factory()->create(['business_name' => 'F No Plan', 'plan_id' => null, 'subscription_ends_at' => null]);
 
         $all = array_merge(
             $this->namesIn('paid'),
             $this->namesIn('grace'),
             $this->namesIn('unpaid'),
+            $this->namesIn('no_plan'),
             $this->namesIn('suspended'),
         );
 
         sort($all);
 
-        // Five shops, five slots. Overlapping buckets cannot be counted, and
+        // Six shops, six slots. Overlapping buckets cannot be counted, and
         // a shop in no bucket is a shop nobody ever chases.
-        $this->assertSame(['A Paid', 'B Grace', 'C Unpaid', 'D Suspended', 'E No Window'], $all);
+        $this->assertSame(['A Paid', 'B Grace', 'C Unpaid', 'D Suspended', 'E No Window', 'F No Plan'], $all);
     }
 
     public function test_the_counts_ride_along_on_every_response(): void
@@ -184,7 +228,22 @@ class AdminBillingFiltersTest extends TestCase
             ->assertJsonPath('meta.payment_counts.grace', 1)
             ->assertJsonPath('meta.payment_counts.unpaid', 2)
             ->assertJsonPath('meta.payment_counts.suspended', 0)
+            ->assertJsonPath('meta.payment_counts.no_plan', 0)
             ->assertJsonPath('meta.payment_counts.all', 4);
+    }
+
+    public function test_the_counts_tell_no_plan_apart_from_paid(): void
+    {
+        $this->tenant('A Paid', $this->basic, now()->addDay()->toDateTimeString());
+        Tenant::factory()->create(['business_name' => 'B No Plan', 'plan_id' => null, 'subscription_ends_at' => null]);
+        Tenant::factory()->create(['business_name' => 'C No Plan', 'plan_id' => null, 'subscription_ends_at' => null]);
+
+        // "Paid 1", not "Paid 3": two of these have been asked for nothing.
+        $this->asAdmin()->getJson('/api/v1/admin/tenants')
+            ->assertOk()
+            ->assertJsonPath('meta.payment_counts.paid', 1)
+            ->assertJsonPath('meta.payment_counts.no_plan', 2)
+            ->assertJsonPath('meta.payment_counts.all', 3);
     }
 
     public function test_the_all_count_survives_a_bucket_being_selected(): void

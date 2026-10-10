@@ -1257,6 +1257,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::get('/modules/offer', [TenantController::class, 'moduleOffer'])->middleware('permission:tenants.view');
             Route::get('/modules/prices', [TenantController::class, 'modulePrices'])->middleware('permission:tenants.view');
             Route::put('/modules/prices', [TenantController::class, 'updateModulePrices'])->middleware('role:super_admin');
+            Route::get('/modules/reach', [TenantController::class, 'moduleReach'])->middleware('permission:tenants.view');
 
             // Tenant management — permission-gated per action
             Route::prefix('tenants')->group(function (): void {

@@ -281,8 +281,22 @@ class Tenant extends BaseModel
      * `read_only` describes what the SOFTWARE does; "unpaid" describes why. And
      * suspension is a platform decision that outranks the calendar entirely — a
      * suspended shop is off whether or not its month is paid, so it is one
-     * bucket and never appears in the other three. That exclusivity is the
-     * whole point: four filters that overlap cannot be counted.
+     * bucket and never appears in the others. That exclusivity is the whole
+     * point: filters that overlap cannot be counted.
+     *
+     * ── `no_plan` is not `paid` ─────────────────────────────────────────
+     *
+     * "Paid" used to mean "not behind on anything", which is true of a shop
+     * that has never been given a plan — it cannot be behind on a bill it was
+     * never sent. As a BUCKET that made "Paid 40" the count of forty shops of
+     * which eleven had paid nothing and were waiting to be priced: the ones an
+     * admin most needs to act on, filed under the heading that says there is
+     * nothing to do. The row's own word was corrected first ("not priced
+     * yet"), which left the filter and the row disagreeing about the same
+     * shop. They are their own bucket now.
+     *
+     * Only while nothing is overdue. A shop whose period ran out and whose
+     * plan was then taken off is still behind on that period: grace or unpaid.
      */
     public function paymentStatus(): string
     {
@@ -291,7 +305,7 @@ class Tenant extends BaseModel
         }
 
         return match ($this->subscriptionState()) {
-            'active' => 'paid',
+            'active' => $this->plan_id === null ? 'no_plan' : 'paid',
             'grace' => 'grace',
             default => 'unpaid',
         };
@@ -326,12 +340,18 @@ class Tenant extends BaseModel
 
         $query->where('status', '!=', TenantStatus::Suspended);
 
-        if ($status === 'paid') {
+        if ($status === 'paid' || $status === 'no_plan') {
             // No end date = nothing is owed. A shop cannot be behind on a bill
             // it was never given.
-            return $query->where(fn ($q) => $q
+            $query->where(fn ($q) => $q
                 ->whereNull('subscription_ends_at')
                 ->orWhere('subscription_ends_at', '>=', now()));
+
+            // …and of those, the ones on a plan have paid for it; the ones on
+            // none have been asked for nothing. See paymentStatus().
+            return $status === 'paid'
+                ? $query->whereNotNull('plan_id')
+                : $query->whereNull('plan_id');
         }
 
         // Both remaining buckets are past the end date; grace is what separates
@@ -358,7 +378,7 @@ class Tenant extends BaseModel
     }
 
     /** The four buckets, in the order an admin reads them. */
-    public const PAYMENT_STATUSES = ['paid', 'grace', 'unpaid', 'suspended'];
+    public const PAYMENT_STATUSES = ['paid', 'grace', 'unpaid', 'no_plan', 'suspended'];
 
     /**
      * Whether this tenant participates in the marketplace / online selling.

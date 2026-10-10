@@ -27,7 +27,6 @@ use App\Support\ApiResponse;
 use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
-use App\Support\PlatformSettings;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -295,28 +294,61 @@ class TenantController extends Controller
         return ApiResponse::ok((object) ModulePackages::prices());
     }
 
+    /**
+     * Where each add-on price can ever apply, and who pays it today.
+     *
+     * Beside the price list, because a price nobody is ever charged looks
+     * exactly like one that is — see ModulePackages::reach().
+     */
+    public function moduleReach(): JsonResponse
+    {
+        return ApiResponse::ok((object) ModulePackages::reach());
+    }
+
+    /**
+     * Price the add-ons — the boxes that were CHANGED, not the list as one
+     * screen happened to be holding it.
+     *
+     * The list used to be saved whole: every box the screen had, as it had
+     * loaded them, replacing whatever was stored. So a price set from one
+     * screen was undone by a save from another that had been open since
+     * before it — silently, and on every shop's bill that carried that
+     * add-on. It was found the plain way: a price on this list changed
+     * under a browser test's feet, and the test's "put it back as I found
+     * it" would have erased it.
+     *
+     * `changes` is what was typed and nothing else: a number prices a
+     * module, null (or nought) makes it free to add, and a module that is not
+     * named is not touched. `prices` — the whole list, replacing — is still
+     * accepted, because the backend is deployed before the panel and the
+     * screen already out there sends that.
+     */
     public function updateModulePrices(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'prices' => ['present', 'array'],
+            'changes' => ['sometimes', 'array'],
+            'changes.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+            'prices' => ['sometimes', 'array'],
             'prices.*' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
         ]);
 
-        $unknown = array_diff(array_keys($data['prices']), Modules::keys());
-        if ($unknown !== []) {
-            return ApiResponse::error('There is no module called '.implode(', ', $unknown).'.', 422, [
-                'prices' => ['Only real modules can be priced.'],
+        $changed = array_key_exists('changes', $data);
+        if ($changed === array_key_exists('prices', $data)) {
+            return ApiResponse::error('Send the prices that were changed.', 422, [
+                'changes' => ['Send `changes` (the boxes that were changed) or `prices` (the whole list) — one of them.'],
             ], 'VALIDATION_ERROR');
         }
 
-        // A price of nought, or none, is "free to add" — kept off the list
-        // rather than stored as a zero that reads like a decision.
-        $prices = collect($data['prices'])
-            ->filter(fn ($price) => $price !== null && (float) $price > 0)
-            ->map(fn ($price) => round((float) $price, 2))
-            ->all();
+        $sent = $changed ? $data['changes'] : $data['prices'];
 
-        PlatformSettings::put(['module_addon_prices' => $prices], $request->user()->id);
+        $unknown = array_diff(array_keys($sent), Modules::keys());
+        if ($unknown !== []) {
+            return ApiResponse::error('There is no module called '.implode(', ', $unknown).'.', 422, [
+                $changed ? 'changes' : 'prices' => ['Only real modules can be priced.'],
+            ], 'VALIDATION_ERROR');
+        }
+
+        ModulePackages::reprice($sent, replace: ! $changed, by: $request->user()->id);
 
         return ApiResponse::ok((object) ModulePackages::prices(), 'Add-on prices saved');
     }
