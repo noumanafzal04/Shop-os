@@ -110,7 +110,19 @@ class TenantController extends Controller
             ->when($setup === 'pending', fn ($q) => $q->where('setup_completed', false))
             ->when($setup === 'done', fn ($q) => $q->where('setup_completed', true))
             ->when($request->boolean('online_only'), fn ($q) => $q->where('online_shop_enabled', true))
-            ->when($request->boolean('with_deleted'), fn ($q) => $q->withTrashed())
+            // DELETED SHOPS ARE ASKED FOR, never mixed in.
+            //
+            // The console sent `with_deleted` on every request, so the list an
+            // admin opened was every shop that had ever existed — the ones
+            // closed down sitting among the ones trading, "All 71" over a
+            // platform the dashboard beside it called 44. A deleted shop is
+            // kept so it can be put back; that makes it something to go and
+            // find, not something to read past every day.
+            //
+            // `only_deleted` is that list. `with_deleted` still answers, for
+            // anything that asks for both at once.
+            ->when($request->boolean('only_deleted'), fn ($q) => $q->onlyTrashed())
+            ->when($request->boolean('with_deleted') && ! $request->boolean('only_deleted'), fn ($q) => $q->withTrashed())
             ->when($except !== 'origin' && $origin, fn ($q) => $q->origin($origin))
             ->when($except !== 'payment_status' && $status, fn ($q) => $q->paymentStatus($status));
 

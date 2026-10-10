@@ -227,14 +227,50 @@ class AdminBillingFiltersTest extends TestCase
         $gone = $this->tenant('Closed Down', $this->basic, now()->subDays(40)->toDateTimeString());
         $gone->delete();
 
-        // The list is fetched with_deleted so an admin can restore it, and it
-        // still shows in "All" — but a chase list must not include a business
-        // that no longer exists.
+        // A chase list must not include a business that no longer exists —
+        // however long ago its subscription ran out.
         $this->assertSame([], $this->namesIn('unpaid'));
 
         $this->asAdmin()->getJson('/api/v1/admin/tenants')
             ->assertOk()
             ->assertJsonPath('meta.payment_counts.unpaid', 0);
+    }
+
+    public function test_deleted_shops_are_asked_for_never_mixed_in(): void
+    {
+        // The console used to ask for every shop that had ever existed, on
+        // every request: the ones closed down sat among the ones trading, and
+        // "All" counted both — over a platform the dashboard called smaller.
+        $this->tenant('Still Trading', $this->basic, now()->addMonth()->toDateTimeString());
+        $this->tenant('Closed Down', $this->basic, now()->addMonth()->toDateTimeString())->delete();
+        $this->tenant('Closed Last Year', $this->basic, now()->subYear()->toDateTimeString())->delete();
+
+        $list = fn (string $query = '') => $this->asAdmin()->getJson('/api/v1/admin/tenants?sort=name'.$query)->assertOk();
+
+        // The list an admin opens is the shops there ARE.
+        $open = $list();
+        $this->assertSame(['Still Trading'], array_column($open->json('data'), 'business_name'));
+        $this->assertSame(1, $open->json('meta.payment_counts.all'));
+        $this->assertSame(1, $open->json('meta.pagination.total'));
+
+        // Asked for: the ones that can be put back, and only those — each
+        // saying when it went.
+        $gone = $list('&only_deleted=1');
+        $this->assertSame(['Closed Down', 'Closed Last Year'], array_column($gone->json('data'), 'business_name'));
+        $this->assertSame(2, $gone->json('meta.payment_counts.all'));
+        foreach ($gone->json('data') as $row) {
+            $this->assertNotNull($row['deleted_at'], "{$row['business_name']} is listed as deleted and does not say when");
+        }
+        // Not one of them is owed by, in grace, or to be chased.
+        foreach (['paid', 'grace', 'unpaid', 'suspended'] as $bucket) {
+            $this->assertSame(0, $gone->json("meta.payment_counts.{$bucket}"));
+        }
+
+        // Both together is still there for anything that asks for it by name.
+        $this->assertSame(
+            ['Closed Down', 'Closed Last Year', 'Still Trading'],
+            array_column($list('&with_deleted=1')->json('data'), 'business_name'),
+        );
     }
 
     public function test_an_unknown_bucket_is_refused_rather_than_ignored(): void
