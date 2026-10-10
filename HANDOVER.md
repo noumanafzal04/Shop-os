@@ -9040,3 +9040,21 @@ Decision: `docs/decisions/shopos-the-trail-and-the-file.md`. No migration.
   under the server's filename instead of `export.csv`. Production: no env
   change needed; the header list is in the config file.
 
+## Saved — and worth knowing — 2026-10-10
+
+Decision: `docs/decisions/shopos-saved-and-worth-knowing.md`. Panel only.
+
+- `meta.warnings` on a successful expense/income save → `savedNotes(meta)`
+  → the form stays open LOCKED (`fieldset disabled`), titled
+  "Expense recorded" / "Income recorded", with `<SavedNotice>`
+  (`data-testid="saved-notice"`) listing every warning, and ONE button:
+  Done. The success toast always fires.
+- Any new form that can save-with-warnings should do the same; never leave
+  a live Save beside "Saved".
+- e2e: `e2e/saved-with-a-note.spec.ts` (desktop; WRITES one expense and one
+  income to the owner shop and deletes them).
+- Dev DB: *Sweep Mart*'s subscription was extended to 2026-11-10 through
+  `assign-plan` with `payment.amount: 0` — no payment row, ledger totals
+  unchanged — so write tests can run again. The other seven Sweep shops are
+  still lapsed.
+
