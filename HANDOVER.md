@@ -8974,3 +8974,17 @@ Decision: `docs/decisions/shopos-every-list-says-which-nothing.md`. Panel only.
   `shelf.setup.ts`. It needs a renewal recorded (Tenants → Sweep Mart →
   Renew); not done here because that puts a payment on the Billing screen.
 
+
+## Every screen has a first heading — 2026-10-10
+
+Decision: `docs/decisions/shopos-every-screen-has-a-first-heading.md`. Panel only.
+
+- A shop screen's title is an **`<h1>`** (was `<h2 className="text-xl
+  font-semibold">` on 42 screens). Same classes; no visual change.
+- The till: `<h1 className="sr-only">` inside a `relative` root.
+- The item form (`ProductFormPage`) is a DIALOG over the product list: its
+  title is `<h2 id="item-form-title">` and the dialog is `aria-labelledby`
+  it. Do not make it an h1 — the list under it has the page's.
+- Guards: `common/a11y/everyScreenHasAFirstHeading.test.ts` (source) and a
+  per-screen count in `e2e/chrome.spec.ts` (exactly one, non-empty).
+
