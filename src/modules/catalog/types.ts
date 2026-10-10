@@ -101,7 +101,8 @@ export interface Product {
    * barcodes box would have listed them and saved them back as the product's —
    * quietly cutting every size loose from its own label.
    */
-  barcodes?: Array<{ id: string; barcode: string; variant_id?: string | null }>;
+  /** Every extra code. A row with `variant_id` is one size's; with `product_unit_id`, one pack's; with neither, a piece's. */
+  barcodes?: Array<{ id: string; barcode: string; variant_id?: string | null; product_unit_id?: string | null }>;
   unit: string | null;
   /**
    * Free-form specs, plus one structured key this app writes itself.
@@ -234,6 +235,10 @@ export interface ProductUnit {
   factor: number | string;
   price?: number | string | null;
   barcode?: string | null;
+  /** Every OTHER code printed on the pack. Absent when the answer did not load them. */
+  codes?: Array<{ id?: string; barcode: string }> | null;
+  /** Sent, never received: the same codes as plain strings. */
+  barcodes?: string[];
 }
 
 export interface ModifierOption {

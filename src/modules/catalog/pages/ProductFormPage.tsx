@@ -1,3 +1,4 @@
+import { blankPack, packPayload, packRowsFrom, pieceCodes, type PackRow } from "../packCodes";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -170,7 +171,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [barcode, setBarcode] = useState("");
   const [pluCode, setPluCode] = useState("");
   const [extraBarcodes, setExtraBarcodes] = useState<string[]>([]);
-  const [units, setUnits] = useState<Array<{ name: string; factor: string; price: string; barcode: string }>>([]);
+  const [units, setUnits] = useState<PackRow[]>([]);
   const [comboRows, setComboRows] = useState<Array<{
     component_product_id: string;
     /** Which size — "" while unanswered, which the server refuses to save. */
@@ -414,8 +415,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       // Product-level only. A size's own code lives in the sizes grid, and
       // listing it here would save it straight back as the product's — cutting
       // that size loose from its own label without anybody touching it.
-      setExtraBarcodes((p.barcodes ?? []).filter((b) => !b.variant_id).map((b) => b.barcode));
-      setUnits((p.units ?? []).map((u) => ({ name: u.name, factor: String(u.factor), price: u.price != null ? String(u.price) : "", barcode: u.barcode ?? "" })));
+      // The piece's own codes only: a size's or a pack's is on the same list
+      // and is not one of these. See packCodes.
+      setExtraBarcodes(pieceCodes(p.barcodes));
+      setUnits(packRowsFrom(p.units));
       setComboRows((p.combo_items ?? []).map((c) => ({
         component_product_id: c.component_product_id,
         variant_id: c.variant_id ?? "",
@@ -511,9 +514,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       tracks_serial: isPhysical ? trackSerial : undefined,
       warranty_months: isPhysical && trackSerial && warrantyMonths ? Number(warrantyMonths) : isPhysical ? null : undefined,
       barcodes: posEnabled && isGood ? extraBarcodes.map((b) => b.trim()).filter(Boolean) : undefined,
-      units: posEnabled && isGood ? units
-        .filter((u) => u.name.trim() && Number(u.factor) > 0)
-        .map((u) => ({ name: u.name.trim(), factor: Number(u.factor), price: u.price ? Number(u.price) : null, barcode: u.barcode.trim() || null })) : undefined,
+      units: posEnabled && isGood ? packPayload(units) : undefined,
       combo_items: isCombo
         ? comboRows.filter((r) => r.component_product_id && Number(r.quantity) > 0)
             .map((r) => ({
@@ -1674,7 +1675,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   <>
                     <Section
                       title="Additional barcodes"
-                      hint="Beyond the primary barcode — e.g. a different supplier's pack of the same item."
+                      // It said "e.g. a different supplier's pack of the same
+                      // item" — which is exactly the code that must NOT go
+                      // here: every one of these rings a single piece.
+                      hint="Other codes printed on ONE of this item — an old label, a second supplier's. A code on a carton or a box goes on that pack, under Pack sizes."
                       action={
                         <button type="button" className={ROW_ACTION} onClick={() => setExtraBarcodes((b) => [...b, ""])}>
                           + Add barcode
@@ -1708,7 +1712,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       title="Pack sizes"
                       hint={`Sell in bigger packs while stock stays counted in ${unit.trim() || "the base unit"}. A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.`}
                       action={
-                        <button type="button" className={ROW_ACTION} onClick={() => setUnits((u) => [...u, { name: "", factor: "", price: "", barcode: "" }])}>
+                        <button type="button" className={ROW_ACTION} onClick={() => setUnits((u) => [...u, blankPack()])}>
                           + Add pack
                         </button>
                       }
@@ -1716,17 +1720,64 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       {units.length === 0 ? (
                         <p className="text-theme-xs text-gray-400">None — sold only in the base unit.</p>
                       ) : (
-                        units.map((u, i) => (
-                          <div key={i} className="mb-2 flex flex-wrap items-center gap-2">
-                            <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" aria-label={`Pack ${i + 1}: name`} className="max-w-40" />
-                            <span className="text-theme-xs text-gray-400">=</span>
-                            <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" aria-label={`Pack ${i + 1}: how many base units`} className="max-w-24" />
-                            <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
-                            <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" aria-label={`Pack ${i + 1}: price`} className="max-w-32" />
-                            <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" aria-label={`Pack ${i + 1}: barcode`} className="max-w-40" />
-                            <button type="button" className={ROW_ACTION_DANGER} onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
-                          </div>
-                        ))
+                        units.map((u, i) => {
+                          const called = u.name.trim() || `pack ${i + 1}`;
+                          const setCodes = (codes: string[]) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, codes } : x)));
+
+                          return (
+                            <div key={u.id ?? `new-${i}`} className="mb-3 rounded-xl border border-gray-200 p-3 dark:border-gray-800" data-testid={`pack-${i + 1}`}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Input value={u.name} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} placeholder="Pack name (Strip)" aria-label={`Pack ${i + 1}: name`} className="max-w-40" />
+                                <span className="text-theme-xs text-gray-400">=</span>
+                                <Input type="number" min="0" step={0.001} value={u.factor} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, factor: e.target.value } : x)))} placeholder="10" aria-label={`Pack ${i + 1}: how many base units`} className="max-w-24" />
+                                <span className="text-theme-xs text-gray-400">{unit.trim() || "base"}(s)</span>
+                                <Input type="number" min="0" step={0.01} value={u.price} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="price (optional)" aria-label={`Pack ${i + 1}: price`} className="max-w-32" />
+                                <Input value={u.barcode} onChange={(e) => setUnits((arr) => arr.map((x, j) => (j === i ? { ...x, barcode: e.target.value } : x)))} placeholder="pack barcode (optional)" aria-label={`Pack ${i + 1}: barcode`} className="max-w-40" />
+                                <button type="button" aria-label={`Remove ${called}`} className={ROW_ACTION_DANGER} onClick={() => setUnits((arr) => arr.filter((_, j) => j !== i))}>✕</button>
+                              </div>
+
+                              {/* EVERY OTHER CODE ON THE PACK.
+                                  A carton has the maker's code, and often a
+                                  distributor's sticker or last year's number
+                                  beside it. With room for one here, the rest
+                                  went under "Additional barcodes" above — and
+                                  each of THOSE rings a single piece.
+
+                                  Drawn only when the form was told them: a
+                                  list it never loaded is not a list it may
+                                  send back as empty. */}
+                              {u.codes !== undefined && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className="text-theme-xs text-gray-500 dark:text-gray-400">
+                                    {u.codes.length === 0 ? `Another code on the ${called}?` : `Also on the ${called}:`}
+                                  </span>
+                                  {u.codes.map((code, c) => (
+                                    <span key={c} className="flex items-center gap-1">
+                                      <Input
+                                        value={code}
+                                        onChange={(e) => setCodes(u.codes!.map((x, k) => (k === c ? e.target.value : x)))}
+                                        placeholder="Scan or type"
+                                        aria-label={`Pack ${i + 1}: another barcode ${c + 1}`}
+                                        className="max-w-44"
+                                      />
+                                      <button
+                                        type="button"
+                                        aria-label={`Remove barcode ${code || c + 1} from ${called}`}
+                                        className={ROW_ACTION_DANGER}
+                                        onClick={() => setCodes(u.codes!.filter((_, k) => k !== c))}
+                                      >
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <button type="button" className={ROW_ACTION} onClick={() => setCodes([...u.codes!, ""])}>
+                                    + Add a code
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
                       )}
                       {err("units") && <p className="mt-1 text-theme-xs text-error-500">{err("units")}</p>}
                     </Section>

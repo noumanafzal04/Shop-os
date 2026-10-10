@@ -124,8 +124,17 @@ export function foodAuth(): Record<string, string> {
  * minute is slower. A run that fails for a reason that is not about the
  * product is worth nothing.
  */
-export async function roomToWork(request: APIRequestContext, headers: Record<string, string>, need = 130): Promise<void> {
-  const res = await request.get(`${API}/admin/inbox`, { headers });
+export async function roomToWork(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  need = 130,
+  // One cheap thing this person may ask. An admin's inbox; for a shop's owner,
+  // `/auth/me` — the SAME limit, and the shop side meets it too: five
+  // API-heavy spec files run one after another as one owner spent the minute,
+  // and the till in the sixth drew "No products match." over a refused list.
+  probe = "/admin/inbox",
+): Promise<void> {
+  const res = await request.get(`${API}${probe}`, { headers });
   const left = Number(res.headers()["x-ratelimit-remaining"] ?? Number.NaN);
 
   // Refused outright: the server says how long. Otherwise the minute began at

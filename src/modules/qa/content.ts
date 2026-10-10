@@ -167,11 +167,16 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Add a plain product with a name, a price and a cost.", expect: "It appears in the list and, if the shop has a till, on the till within a few seconds." },
           { do: "Add a product with two sizes at different prices.", expect: "The till asks WHICH size when you tap it, and refuses to sell the parent on its own. Selling a sized product without choosing a size would be a bug." },
           { do: "Give one size its own barcode and scan it.", expect: "That size lands in the cart — not the other one, and not the parent." },
+          { do: "Add a pack (Carton = 24) with its own price and barcode, then press \u201c+ Add a code\u201d on it and type a second barcode. Save, and scan the SECOND code at the till.", expect: "A Carton lands on the bill at the carton's price. One piece at the piece's price is the bug: a carton would leave for the price of one." },
+          { do: "Note the pack's id (Network tab), change only the item's description, save, and look again.", expect: "The same id. A pack that gets a new id on every save breaks whatever was holding the old one — a till's bill, an offline tablet, a quotation." },
+          { do: "Type the item's own barcode as one of its carton's codes. Then try a code that is already on another item.", expect: "Both refused, in words that say why, and nothing saved. A code means one thing." },
+          { do: "Delete the item and add it again with exactly the same codes.", expect: "It saves. A deleted item's codes used to stay taken for ever." },
           { do: "Try to save a product with no name.", expect: "The field is named in an error next to it. A save that fails with nothing on screen is one of the defects this product has had before and must not have again." },
           { do: "Mark a product sold out (86) from the list.", expect: "It is refused at the TILL, on the dine-in tab and in an online order — all three. One of them still selling it is a bug." },
         ],
         wrong: [
           "A price the browser can change. Open the network tab, edit the price in the request, and send it: the sale must be priced by the server anyway.",
+          "A code printed on a pack ringing a single piece — online or with the internet off.",
         ],
       },
       {
@@ -279,6 +284,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Complete the sale.", expect: "A receipt number, a printable receipt, and the cart cleared ready for the next customer." },
         ],
         wrong: [
+          "\u201cNo products match.\u201d on a till whose product list failed to load. A failed list says it could not be loaded and offers Try again; only a search that found nothing says nothing matches.",
           "Any price the browser can dictate.",
           "A tender screen that lets you complete a sale for less than the total without it being a credit (khata) sale.",
         ],

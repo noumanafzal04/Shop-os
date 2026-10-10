@@ -14,9 +14,14 @@ import type { CatalogItem } from "./catalogService";
  *   · the product's own barcode          · the product's SKU
  *   · its PLU code (a scale's label)     · any alternate barcode
  *   · a VARIANT's SKU                    · a PACK's barcode (strip, box, carton)
+ *   · a size's OWN barcode               · every OTHER code printed on a pack
  *
  * Variant and pack codes carry which one was scanned, so a carton's barcode
  * lands a carton on the line rather than a single piece at a carton's price.
+ *
+ * The last two arrive in `codes`, with what each means. They used to arrive —
+ * a size's did — only in the plain `barcodes` list, which cannot say: offline,
+ * the code on the one-litre bottle found the drink and asked which size.
  */
 export interface BarcodeEntry {
   /** The code itself — this store's key. */
@@ -54,6 +59,17 @@ export function indexEntriesFor(item: CatalogItem): BarcodeEntry[] {
   // A scale prints the PLU inside a longer label; the parser hands back the
   // PLU, so it has to resolve like any other code.
   add(item.plu_code);
+
+  // What a code means NARROWLY comes before what it means broadly. A size's
+  // own code is in the plain list below as well (an older till reads only
+  // that), and first writer wins: here it lands on the size, there it would
+  // land on the item and the till would have to ask.
+  for (const one of item.codes ?? []) {
+    add(one.code, {
+      ...(one.variant_id ? { variantId: one.variant_id } : {}),
+      ...(one.unit_id ? { unitId: one.unit_id } : {}),
+    });
+  }
 
   for (const code of item.barcodes) add(code);
   // Same reason as browse.ts: a row cached before this field existed must not

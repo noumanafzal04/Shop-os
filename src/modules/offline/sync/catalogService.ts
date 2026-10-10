@@ -92,6 +92,11 @@ export interface CatalogItem {
   }>;
   units: Array<{ id: string; name: string; factor: number; price: number | null; barcode: string | null }>;
   barcodes: string[];
+  /**
+   * Extra codes that mean something NARROWER than the item — one size of it,
+   * or one pack of it. Absent on a row cached before the server sent them.
+   */
+  codes?: Array<{ code: string; variant_id: string | null; unit_id: string | null }>;
   modifier_groups: Array<{
     id: string;
     name: string;

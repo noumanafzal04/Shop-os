@@ -39,7 +39,8 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import { NoAccess } from "../../../common/ui/NoAccess";
-import { deniedReason } from "../../../common/api/denied";
+import { CouldNotLoad } from "../../../common/ui/CouldNotLoad";
+import { deniedReason, loadFailure } from "../../../common/api/denied";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { catalogService } from "../../catalog/services/catalogService";
@@ -620,6 +621,13 @@ export default function PosPage() {
   // A refused catalog and an empty catalog used to draw the same blank grid.
   // If the till cannot read the product list, say so on the till.
   const productsDenied = deniedReason(products.error);
+  // …and a list that FAILED to arrive used to draw as an empty one too. A
+  // request turned away for any other reason — the server slowing someone
+  // down, an error on its side — left the till saying "No products match."
+  // over a full catalogue, and nothing asked again until the cashier typed.
+  // Only while the till believes it is connected: with the line down it is
+  // reading its own copy, and a failed request is what it expects.
+  const productsFailed = connected ? loadFailure(products.error) : null;
 
   // Snap the highlight back to the top whenever the result set changes; keep
   // the highlighted tile scrolled into view as ↑/↓ move it.
@@ -2980,6 +2988,10 @@ export default function PosPage() {
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-white/70 xl:h-36 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
+              ) : productsFailed && tiles.length === 0 ? (
+                <div className="col-span-full">
+                  <CouldNotLoad what="the product list" why={productsFailed} onRetry={() => void products.refetch()} busy={products.isFetching} />
+                </div>
               ) : tiles.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-sm text-white/70">No products match.</p>
               ) : (
@@ -3187,6 +3199,10 @@ export default function PosPage() {
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <NoAccess reason={productsDenied} what="the product list" />
+              ) : productsFailed && tiles.length === 0 ? (
+                <div className="p-3">
+                  <CouldNotLoad what="the product list" why={productsFailed} onRetry={() => void products.refetch()} busy={products.isFetching} />
+                </div>
               ) : tiles.length === 0 ? (
                 <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No products match.</p>
               ) : (
