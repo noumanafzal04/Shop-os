@@ -22,6 +22,15 @@ describe("what a shop's row says about its money", () => {
     expect(paymentChip({ payment_status: "paid" }).label).toBe("not priced yet");
   });
 
+  it("says so in the server's own bucket for it, now that there is one", () => {
+    expect(paymentChip({ payment_status: "no_plan", plan: null })).toEqual({ label: "not priced yet", color: "warning" });
+  });
+
+  it("a shop on no plan that IS behind is behind — its period ran out before the plan was taken off", () => {
+    expect(paymentChip({ payment_status: "unpaid", plan: null })).toEqual({ label: "unpaid", color: "error" });
+    expect(paymentChip({ payment_status: "grace", plan: null }).label).toBe("in grace");
+  });
+
   it("says what is owed for a shop on a plan that is behind", () => {
     expect(paymentChip({ payment_status: "grace", plan: PLAN }).label).toBe("in grace");
     expect(paymentChip({ payment_status: "unpaid", plan: PLAN })).toEqual({ label: "unpaid", color: "error" });

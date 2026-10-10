@@ -76,7 +76,8 @@ export interface LimitUsage {
  * the platform has switched off. Mutually exclusive — a suspended shop is only
  * ever "suspended", whatever its dates say.
  */
-export type PaymentStatus = "paid" | "grace" | "unpaid" | "suspended";
+/** `no_plan`: on no plan and behind on nothing — it has been asked for nothing, so it has paid nothing. */
+export type PaymentStatus = "paid" | "grace" | "unpaid" | "no_plan" | "suspended";
 
 export interface Tenant {
   id: string;

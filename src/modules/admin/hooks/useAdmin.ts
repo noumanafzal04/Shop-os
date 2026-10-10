@@ -133,10 +133,21 @@ export function useModulePrices() {
   });
 }
 
+/**
+ * Where each add-on price can apply. Keyed under `plans`, because what a plan
+ * includes is what decides it: saving a plan asks again.
+ */
+export function useModuleReach() {
+  return useQuery({
+    queryKey: ["admin", "plans", "reach"],
+    queryFn: async () => (await adminService.moduleReach()).data,
+  });
+}
+
 export function useSaveModulePrices() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (prices: Record<string, number>) => adminService.saveModulePrices(prices),
+    mutationFn: (changes: Record<string, number | null>) => adminService.saveModulePrices(changes),
     // A price is read by the offer, by every shop's bill and by the list.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin"] }),
   });

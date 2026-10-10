@@ -1,3 +1,4 @@
+import { renewalDue } from "../renewalDue";
 import { tradePhrase } from "../tradePhrase";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -1196,6 +1197,8 @@ export default function AdminTenantDetailPage() {
   // What picking this plan would do to this shop — asked while the admin is
   // still deciding, and never fetched for the plan they are already on.
   const planPreview = usePlanChangePreview(id, planId, t?.plan?.id ?? null);
+  // What to suggest in the Amount box — see renewalDue.
+  const due = renewalDue(t?.package?.bill, t?.plan?.id ?? null, (plans.data ?? []).find((p) => p.id === planId));
   const paymentRows = payments.data?.data ?? [];
   const currentPlan = plans.data?.find((p) => p.id === t?.plan?.id);
 
@@ -1473,7 +1476,22 @@ export default function AdminTenantDetailPage() {
           }}>
             Edit details
           </Button>
-          <Button size="sm" className="w-full" onClick={() => { setPlanId(t.plan?.id ?? ""); planModal.openModal(); }}>
+          <Button
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              setPlanId(t.plan?.id ?? "");
+              // A fresh sheet every time. The amount and the reference of
+              // the LAST payment used to still be in their boxes when the
+              // dialog was opened again — one press from recording the same
+              // payment twice, under the same receipt number.
+              setAmount("");
+              setReference("");
+              setMethod("cash");
+              setPaidAt("");
+              planModal.openModal();
+            }}
+          >
             Assign / renew plan
           </Button>
           {/* Account recovery. Until this existed, a shop owner who lost their
@@ -1652,11 +1670,12 @@ export default function AdminTenantDetailPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Amount</Label>
-                  <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+                  <Input type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={due ? String(due.amount) : "0"} />
                 </div>
                 <div>
                   <Label>Method</Label>
                   <Select
+                    value={method}
                     options={[
                       { value: "cash", label: "Cash" },
                       { value: "bank_transfer", label: "Bank transfer" },
@@ -1668,6 +1687,23 @@ export default function AdminTenantDetailPage() {
                   />
                 </div>
               </div>
+              {/* What it would be paying — the plan AND its add-ons — said
+                  where the figure is typed, and one press to use it. Never
+                  typed in for them: blank is how a free assignment is made. */}
+              {due && (
+                <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400" data-testid="renew-due">
+                  {due.says}{" "}
+                  {amount !== String(due.amount) && (
+                    <button
+                      type="button"
+                      onClick={() => setAmount(String(due.amount))}
+                      className="font-semibold text-brand-600 underline decoration-dotted underline-offset-4 hover:text-brand-700 dark:text-brand-400"
+                    >
+                      Use {money(due.amount)}
+                    </button>
+                  )}
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <div>
                   <Label>Reference (optional)</Label>

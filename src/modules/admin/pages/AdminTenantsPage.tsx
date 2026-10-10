@@ -34,6 +34,9 @@ const BUCKETS: ReadonlyArray<{ value: PaymentStatus | ""; label: string }> = [
   { value: "paid", label: "Paid" },
   { value: "grace", label: "In grace" },
   { value: "unpaid", label: "Unpaid" },
+  // Not behind, and not paid either: on no plan, waiting to be given one.
+  // They were counted under Paid.
+  { value: "no_plan", label: "No plan yet" },
   { value: "suspended", label: "Suspended" },
 ];
 

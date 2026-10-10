@@ -1,3 +1,4 @@
+import type { AddOnReach } from "../addOnReach";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { PaymentStatus, Tenant, User } from "../../auth/types";
 
@@ -441,7 +442,10 @@ export const adminService = {
   moduleOffer: (businessType: string, planId?: string) =>
     apiGet<ModuleOffer>("/admin/modules/offer", { params: { business_type: businessType, plan_id: planId || undefined } }),
   modulePrices: () => apiGet<Record<string, number>>("/admin/modules/prices"),
-  saveModulePrices: (prices: Record<string, number>) => apiPut<Record<string, number>>("/admin/modules/prices", { prices }),
+  /** Only the boxes that were changed — see priceChanges. A null takes a price off. */
+  saveModulePrices: (changes: Record<string, number | null>) => apiPut<Record<string, number>>("/admin/modules/prices", { changes }),
+  /** Where each add-on price can ever apply, and how many shops pay it today. */
+  moduleReach: () => apiGet<Record<string, AddOnReach>>("/admin/modules/reach"),
 
   /**
    * Set (or clear, via null) one shop's ceilings — branches and staff it was

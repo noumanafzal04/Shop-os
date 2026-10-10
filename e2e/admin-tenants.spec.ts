@@ -82,7 +82,7 @@ test("the list is the shops there are — deleted ones are asked for, and a shop
   await expect(page.getByText(`${open.meta.pagination.total} tenants`, { exact: true })).toBeVisible({ timeout: 15_000 });
 
   // ── a shop on no plan has paid nothing, and its row says so ───────
-  const unpriced = (await listing(request, "&plan_id=none")).data.find((r) => r.payment_status !== "suspended");
+  const unpriced = (await listing(request, "&plan_id=none")).data.find((r) => r.payment_status === "no_plan");
   if (unpriced) {
     await page.getByPlaceholder("Search name, email, phone…").fill(unpriced.business_name);
     const row = rows(page).filter({ has: page.getByRole("link", { name: unpriced.business_name, exact: true }) }).first();
@@ -90,6 +90,30 @@ test("the list is the shops there are — deleted ones are asked for, and a shop
     await expect(row.getByText("not priced yet", { exact: true }), "a shop on no plan is not said to be waiting for one").toBeVisible();
     await expect(row.getByText("paid", { exact: true }), "a shop on no plan is called paid").toHaveCount(0);
     await page.getByPlaceholder("Search name, email, phone…").fill("");
+  }
+
+  // ── …and the FILTER says the same as the row ──────────────────────
+  // "Paid 40" used to be forty shops of which the ones on no plan had paid
+  // nothing: the heading for "nothing to do" held the shops most in need of it.
+  const buckets = page.getByRole("group", { name: /payment/i });
+  const counts = open.meta.payment_counts;
+  await expect(buckets.getByRole("button", { name: /^No plan yet/ })).toContainText(String(counts.no_plan));
+  await expect(buckets.getByRole("button", { name: /^Paid/ })).toContainText(String(counts.paid));
+  // Every shop is in exactly one of them.
+  expect(counts.paid + counts.grace + counts.unpaid + counts.no_plan + counts.suspended, "the buckets do not add up to the shops there are").toBe(counts.all);
+
+  if (counts.no_plan > 0) {
+    await buckets.getByRole("button", { name: /^No plan yet/ }).click();
+    await expect(page).toHaveURL(/payment_status=no_plan/);
+    await expect(page.getByText(`${counts.no_plan} tenants`, { exact: true })).toBeVisible({ timeout: 15_000 });
+    const listed = await rows(page).locator("td:first-child a").count();
+    await expect(rows(page).getByText("not priced yet", { exact: true }), "a row under No plan yet does not say so").toHaveCount(listed);
+  }
+  if (counts.paid > 0) {
+    await buckets.getByRole("button", { name: /^Paid/ }).click();
+    await expect(page).toHaveURL(/payment_status=paid/);
+    await expect(page.getByText(`${counts.paid} tenants`, { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(rows(page).getByText("not priced yet", { exact: true }), "a shop that has paid nothing is listed under Paid").toHaveCount(0);
   }
 });
 
@@ -136,4 +160,45 @@ test("a shop's page answers the four questions first, and has a way down it", as
   await expect.poll(async () => { const a = await top(); await page.waitForTimeout(250); return a === (await top()); }, { message: "the page never came to rest" }).toBe(true);
   const bar = (await nav.boundingBox())!;
   expect(await top(), "the section jumped to rests underneath the menu").toBeGreaterThanOrEqual(Math.round(bar.y + bar.height) - 1);
+});
+
+test("renewing a plan says what the shop would be paying — offered, never typed in — and starts clean each time", async ({ page, request }) => {
+  const shop = (await listing(request)).data.find((r) => r.plan !== null && r.payment_status !== "suspended");
+  test.skip(shop === undefined, "no shop on a plan to renew");
+
+  // What the server says this shop's bill comes to: its plan AND its add-ons.
+  const res = await request.get(`${API}/admin/tenants/${shop!.id}`, { headers: admin() });
+  const bill = ((await res.json()) as { data: { package: { bill: { total: number; addons_total: number } } } }).data.package.bill;
+  test.skip(!(bill.total > 0), "this shop's plan is free — there is no figure to offer");
+
+  await page.goto(`/admin/tenants/${shop!.id}`);
+  await expect(page.getByRole("heading", { name: shop!.business_name, level: 1 })).toBeVisible({ timeout: 20_000 });
+
+  const open = () => page.getByRole("button", { name: "Assign / renew plan" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Assign / renew plan" });
+  const amount = dialog.getByLabel("Amount", { exact: true });
+  const figure = `Rs ${Math.round(bill.total).toLocaleString("en-US")}`;
+
+  await open();
+  await expect(dialog).toBeVisible();
+  // Its own plan is already chosen, and the figure is said under the box…
+  await expect(dialog.getByTestId("renew-due")).toContainText(figure, { timeout: 15_000 });
+  if (bill.addons_total > 0) await expect(dialog.getByTestId("renew-due")).toContainText("add-on");
+  // …but the box is EMPTY: blank is how a free assignment is recorded, and a
+  // figure that arrived already typed would be a payment nobody took.
+  await expect(amount).toHaveValue("");
+
+  // One press uses it.
+  await dialog.getByRole("button", { name: `Use ${figure}` }).click();
+  await expect(amount).toHaveValue(String(Math.round(bill.total)));
+  await dialog.getByLabel("Reference (optional)", { exact: true }).fill("E2E-NOT-SAVED");
+
+  // Closed without saving, and opened again: a fresh sheet. The last amount
+  // and receipt number used to still be in their boxes.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await open();
+  await expect(amount).toHaveValue("");
+  await expect(dialog.getByLabel("Reference (optional)", { exact: true })).toHaveValue("");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
 });

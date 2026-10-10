@@ -105,8 +105,12 @@ test("the console's colour and its menu can be changed from the console, for eve
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect.poll(() => worn(page), { timeout: 3_000, message: "the console opened in the house colour and waited for a request" })
       .toEqual({ sidebar: "dark", brand: EMERALD });
-    await page.unroute("**/admin/appearance");
+    // The hold is lifted once the page is up, not before. Lifted while the
+    // page was still fetching its own files, two of them (issued 2ms before)
+    // were never answered and the console never drew — a fault of this test's
+    // timing, read off the failed run's trace, not of the console.
     await expect(page.getByRole("heading", { name: "Platform Overview" })).toBeVisible({ timeout: 20_000 });
+    await page.unrouteAll({ behavior: "wait" });
 
     // Another screen of the console wears it too.
     await page.goto("/admin/plans");

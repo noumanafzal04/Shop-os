@@ -82,8 +82,14 @@ export function BrandMark({ size = 32, tone = "auto" }: {
  * The two-tone split is the artwork's own: the first word in the reading
  * colour, the second in the brand.
  */
-export function Wordmark({ className = "", tone = "auto", size = 32 }: {
+export function Wordmark({ className = "", tone = "auto", size = 32, nameClassName = "" }: {
   className?: string;
+  /**
+   * Extra classes for the NAME alone — so a bar with no room can drop the
+   * word and keep the mark (`max-[359px]:hidden`). Whoever hides it owes the
+   * link an `aria-label`: a hidden name is hidden from a screen reader too.
+   */
+  nameClassName?: string;
   /**
    * `onDark` for a surface that is dark in BOTH themes — the sign-in panel is
    * dark whatever the viewer has chosen, so the theme-following colours would
@@ -121,7 +127,7 @@ export function Wordmark({ className = "", tone = "auto", size = 32 }: {
       {/* A brand ground is a dark ground as far as the mark is concerned. */}
       <BrandMark size={size} tone={tone === "auto" ? "auto" : "onDark"} />
       <span
-        className={`font-bold italic tracking-tight ${name}`}
+        className={`font-bold italic tracking-tight ${name} ${nameClassName}`}
         style={{ fontSize: size * 0.66, lineHeight: 1.1 }}
       >
         {first}

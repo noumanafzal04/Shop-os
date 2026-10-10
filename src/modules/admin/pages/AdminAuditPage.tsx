@@ -1,3 +1,4 @@
+import { platformToday } from "../../../common/time/platformToday";
 import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -125,7 +126,7 @@ export default function AdminAuditPage() {
     (range.from !== null || range.to !== null) && {
       key: "range",
       label: "When",
-      value: formatRange(range),
+      value: formatRange(range, platformToday()),
       onRemove: () => { setRange(EMPTY_RANGE); setPage(1); },
     },
   ].filter(Boolean) as AppliedFilter[];
@@ -164,6 +165,8 @@ export default function AdminAuditPage() {
             could not be asked: what happened on a particular day. */}
         <DateRangeFilter
           label="Any time"
+          // The trail is dated by the server; "Today" has to be its day.
+          today={platformToday()}
           value={range}
           onChange={(next) => { setRange(next); setPage(1); }}
         />

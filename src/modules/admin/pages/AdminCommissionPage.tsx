@@ -1,3 +1,4 @@
+import { platformToday } from "../../../common/time/platformToday";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
@@ -167,7 +168,8 @@ export default function AdminCommissionPage() {
 
   const [open, setOpen] = useState<string | null>(null);
   // The window a new invoice is raised over. This month, until somebody says otherwise.
-  const [period, setPeriod] = useState<DateRange>(() => resolveRange("this_month", new Date()));
+  // The server's month, not the laptop's: charges are dated on its calendar.
+  const [period, setPeriod] = useState<DateRange>(() => resolveRange("this_month", platformToday()));
   const [rateDraft, setRateDraft] = useState("");
   const [shopRate, setShopRate] = useState("");
 
@@ -612,6 +614,7 @@ export default function AdminCommissionPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <DateRangeFilter
                       label="Period"
+                      today={platformToday()}
                       value={period}
                       onChange={setPeriod}
                       presets={INVOICE_PERIODS}
@@ -632,7 +635,7 @@ export default function AdminCommissionPage() {
                   {detail.data.charges.length === 0
                     ? "Nothing has been earned that is not already on an invoice."
                     : toBill.length === 0
-                      ? `Nothing was earned in ${formatRange(period)}. Pick the period the orders below fall in.`
+                      ? `Nothing was earned in ${formatRange(period, platformToday())}. Pick the period the orders below fall in.`
                       : `${toBill.length} of ${detail.data.charges.length} ${detail.data.charges.length === 1 ? "order" : "orders"} fall in ${formatRange(period)} — an invoice for ${money(toBill.reduce((sum, ch) => sum + ch.amount, 0))}.`}
                 </p>
                 <div className="max-h-56 divide-y divide-gray-100 overflow-y-auto rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">

@@ -1,3 +1,4 @@
+import { platformToday } from "../../common/time/platformToday";
 import PageMeta from "../../components/common/PageMeta";
 import { DashboardHero } from "../../modules/dashboard/components/DashboardHero";
 import { PeriodBar } from "../../modules/dashboard/components/PeriodBar";
@@ -40,20 +41,6 @@ const ICON = "size-5";
  * design also carried "Support Overview" and "System Health" blocks; the API
  * exposes neither, so they are absent rather than mocked.
  */
-/**
- * The platform's own date, before the server has said what it is.
- *
- * Platform figures are cut on the server's calendar (UTC), not the laptop's —
- * in Pakistan the two are different dates for the first five hours of every
- * day. Only used until the first answer arrives; after that `period.today` is
- * the server's own word for it.
- */
-function platformToday(): Date {
-  const now = new Date();
-
-  return new Date(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-}
-
 export default function AdminDashboard() {
   // THE PERIOD. With nothing pinned the SERVER says which it is — the seven
   // days ending today, by its own clock — and this page shows what it said.

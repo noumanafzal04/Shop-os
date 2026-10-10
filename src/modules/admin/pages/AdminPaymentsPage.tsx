@@ -1,3 +1,4 @@
+import { platformToday } from "../../../common/time/platformToday";
 import { useMemo, useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
@@ -170,6 +171,8 @@ export default function AdminPaymentsPage() {
       >
         <DateRangeFilter
           label="Any date"
+          // The ledger is cut on the server's calendar; "Today" has to be its.
+          today={platformToday()}
           value={range}
           onChange={(next) => {
             setRange(next);

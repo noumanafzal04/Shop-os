@@ -1,3 +1,5 @@
+import { pricedOddly, reachSays } from "../addOnReach";
+import { priceChanges, priceTyped } from "../priceChanges";
 import { useEffect, useState } from "react";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -9,7 +11,7 @@ import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useModuleCatalog, useModulePrices, usePlanMutations, usePlans, useSaveModulePrices } from "../hooks/useAdmin";
+import { useModuleCatalog, useModulePrices, useModuleReach, usePlanMutations, usePlans, useSaveModulePrices } from "../hooks/useAdmin";
 import type { ModuleInfo, Plan } from "../services/adminService";
 import { ListIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
@@ -737,6 +739,7 @@ export default function AdminPlansPage() {
 function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
   const toast = useToast();
   const prices = useModulePrices();
+  const reach = useModuleReach();
   const save = useSaveModulePrices();
   const [typed, setTyped] = useState<Record<string, string>>({});
 
@@ -744,16 +747,11 @@ function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
     if (prices.data) setTyped(Object.fromEntries(Object.entries(prices.data).map(([k, v]) => [k, String(v)])));
   }, [prices.data]);
 
-  const numbers = (from: Record<string, string>) =>
-    Object.fromEntries(
-      Object.entries(from)
-        .filter(([, v]) => v.trim() !== "" && Number(v) > 0)
-        .map(([k, v]) => [k, Number(v)]),
-    );
-  const saved = prices.data ?? {};
-  const now = numbers(typed);
-  const dirty = Object.keys({ ...saved, ...now }).some((k) => (saved[k] ?? 0) !== (now[k] ?? 0));
-  const priced = Object.keys(now).length;
+  // What is saved is what was typed, and only that: this screen's other
+  // boxes are how the list looked when it loaded, not a statement about it.
+  const changes = priceChanges(prices.data ?? {}, typed);
+  const dirty = Object.keys(changes).length > 0;
+  const priced = Object.values(typed).filter((box) => priceTyped(box) > 0).length;
 
   if (modules.length === 0) return null;
 
@@ -767,6 +765,12 @@ function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
             added to that shop&rsquo;s bill for as long as the module is switched on. Leave a box blank and the module is
             free to add.
           </p>
+          {/* The two questions this card was asked in so many words: "do I
+              set these first?" and "is the plan's price added up from them?" */}
+          <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+            A plan&rsquo;s own price is the one typed on the plan — it is <span className="font-medium text-gray-700 dark:text-gray-300">never added up from these</span>,
+            and a module a plan includes costs nothing extra. Each line below says where its price can apply.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-theme-xs text-gray-400">{priced} priced</span>
@@ -774,7 +778,7 @@ function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
             size="sm"
             disabled={!dirty || save.isPending}
             onClick={() =>
-              save.mutate(now, {
+              save.mutate(changes, {
                 onSuccess: () => toast.success("Add-on prices saved"),
                 onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "The prices did not save."),
               })
@@ -786,9 +790,17 @@ function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
       </div>
 
       <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((m) => (
-          <label key={m.key} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
-            <span className="min-w-0 truncate text-theme-sm text-gray-700 dark:text-gray-300" title={m.description}>{m.label}</span>
+        {modules.map((m) => {
+          const said = reachSays(reach.data?.[m.key]);
+          // As it is typed, not as it was saved: the line answers the figure in the box.
+          const odd = pricedOddly(said, priceTyped(typed[m.key]));
+
+          return (
+          <div key={m.key} data-testid={`addon-price-${m.key}`} className="rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
+          <label className="flex items-center justify-between gap-3">
+            {/* Wraps rather than truncates: "Suppliers & Purcha…" and "Kitchen
+                Tickets (KO…" are names nobody can price from. */}
+            <span className="min-w-0 text-theme-sm leading-5 text-gray-700 dark:text-gray-300" title={m.description}>{m.label}</span>
             <span className="flex shrink-0 items-center gap-1.5 text-theme-xs text-gray-400">
               Rs
               <input
@@ -804,7 +816,24 @@ function AddOnPrices({ modules }: { modules: ModuleInfo[] }) {
               / mo
             </span>
           </label>
-        ))}
+          {/* WHERE THIS PRICE CAN EVER BE CHARGED. Every module had the same
+              box and nothing to tell them apart: one priced for fifteen
+              shops, one for nobody, and one — Products at Rs 25,000 — that
+              every plan includes and a single books-only business was being
+              billed for all the same. A price in either of the last two is
+              the one drawn loud. */}
+          {said && (
+            <p
+              data-reach={said.kind}
+              data-odd={odd ? "true" : undefined}
+              className={`mt-1 text-[11px] leading-4 ${odd ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-400 dark:text-gray-500"}`}
+            >
+              {said.says}
+            </p>
+          )}
+          </div>
+          );
+        })}
       </div>
     </section>
   );

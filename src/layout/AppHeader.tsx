@@ -8,6 +8,7 @@ import { UpdateButton } from "../modules/offline/pwa/UpdateButton";
 import CommandPalette from "../modules/search/components/CommandPalette";
 import BranchSwitcher from "../modules/branches/components/BranchSwitcher";
 import { Wordmark } from "../components/brand/Brand";
+import { PRODUCT } from "../common/brand";
 
 const AppHeader: React.FC = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -105,8 +106,13 @@ const AppHeader: React.FC = () => {
           </button>
 
           {/* The wordmark, only where the rail isn't showing one. */}
-          <Link to="/" className="shrink-0 lg:hidden">
-            <Wordmark />
+          {/* On the narrowest phones the NAME gives way and the mark stays.
+              At 320px the full lock-up, the bell and the account button came
+              to 344: the bar ran 24px past the screen, and with it the whole
+              page could be dragged sideways. The mark alone is the brand at
+              that size; the link keeps its name for a screen reader. */}
+          <Link to="/" aria-label={`${PRODUCT.name} home`} className="shrink-0 lg:hidden">
+            <Wordmark nameClassName="max-[359px]:hidden" />
           </Link>
 
           {/* Search, as an icon between `sm` and `lg`.
