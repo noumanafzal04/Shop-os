@@ -8938,3 +8938,29 @@ Decision: `docs/decisions/shopos-billing-is-asked-about-a-period.md`. No migrati
   paid this month and not last for the search case — fails loudly if the
   database has none).
 
+## Every list says which "nothing" it is — 2026-10-10
+
+Decision: `docs/decisions/shopos-every-list-says-which-nothing.md`. Panel only.
+
+- **`<TableEmpty from={query} what="the … list">`** — the shared empty cell
+  now draws `<NoAccess>` (403), `<CouldNotLoad>` + Try again (any other
+  failure), or its children (really empty). Only when `query.data ===
+  undefined`. `Asked = {error, data, isFetching, refetch}` — any react-query
+  result. `emptyBecause()` is exported for a caller with no table.
+- **A NEW LIST MUST PASS `from` AND `what`.**
+  `components/ui/table/emptyIsNotFailed.test.ts` fails otherwise, and fails
+  if `from` names a different query from the `x.isLoading ?` above the cell.
+  A cell that only says `Loading…` is exempt.
+- `MoneyEntryTable` takes `asked` + `what` (it is handed rows, not a query).
+- The failure box is clamped `max-w-[calc(100cqi_-_2.5rem)]` so it stays
+  inside the card on a phone. `FilterBar` says "Counting…" only while
+  `results.loading`.
+- **e2e:** `e2e/list-failed.spec.ts` — 14 shop lists, reads only, runs with
+  `--no-deps`.
+- **NOT DONE:** ~30 card/tile/panel lists that do not use `<TableEmpty>`.
+- **Dev database:** the e2e owner's shop, *Sweep Mart*, ran out of
+  subscription + grace on 2026-10-10 (~17:40 PKT). Every shop-side e2e that
+  WRITES now gets 403 `SUBSCRIPTION_EXPIRED`, starting with
+  `shelf.setup.ts`. It needs a renewal recorded (Tenants → Sweep Mart →
+  Renew); not done here because that puts a payment on the Billing screen.
+
