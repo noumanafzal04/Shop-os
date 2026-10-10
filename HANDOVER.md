@@ -8988,3 +8988,17 @@ Decision: `docs/decisions/shopos-every-screen-has-a-first-heading.md`. Panel onl
 - Guards: `common/a11y/everyScreenHasAFirstHeading.test.ts` (source) and a
   per-screen count in `e2e/chrome.spec.ts` (exactly one, non-empty).
 
+## What the plan says, to an office — 2026-10-10
+
+Decision: `docs/decisions/shopos-what-the-plan-says-to-an-office.md`. Panel only.
+
+- `planSays(kind, description)` (`shop/subscriptionRows.ts`) — the
+  Subscription page shows a non-selling business only the description's
+  sentences that are not about selling (`data-testid="plan-says"`).
+- `e2e/trade.plan-words.spec.ts` (trade-retail: as written; trade-finance:
+  no till sentence).
+- `e2e/trade.chrome.spec.ts`: reservations → retail, portfolio → services,
+  finance walks its books screens as an office; each screen also checked for
+  exactly one `h1`.
+- Reservations' status filter is named.
+
