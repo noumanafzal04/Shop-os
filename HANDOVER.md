@@ -8908,3 +8908,33 @@ Decision: `docs/decisions/shopos-what-was-left-on-the-list.md`. No migration.
   and hand back that one — never write a shared list back whole.**
   `PlatformSettings::reread()` drops the 5-minute settings cache.
   NOT done: `PlatformSetting` is still outside the audit trail.
+
+## Billing is asked about a period — 2026-10-10
+
+Decision: `docs/decisions/shopos-billing-is-asked-about-a-period.md`. No migration.
+
+- **`GET /admin/billing/summary?from&to`** — `period` (a `DashboardPeriod`,
+  opening on `'month'`: the 1st up to today) and `in_period: {collected,
+  payments, shops}`, each `{value, previous, delta_pct}` via
+  `DashboardService::kpi()` (now public). `revenue.this_month` is still sent
+  for the panel build already deployed.
+- **Flows follow the period, states do not**: Money late, Chase today,
+  Subscription health, Revenue to date and the 12-month trend are the same
+  whatever is asked.
+- **Collected == the ledger's total for the same dates.** Both cut `paid_at`
+  from the start of `from` to the end of `to`. Change one, change the other;
+  `BillingIsAskedAboutAPeriodTest` fails if they part.
+- **Panel:** `AdminPaymentsPage` — `PeriodBar` + `useDashboardPeriod()`
+  (`?from&to`; none = the opening period) + three `KpiTile`s
+  (`data-testid="billing-in-period"`). The ledger follows the period until
+  it is given its own dates: `ledgerOwn: DateRange | null` — `null` =
+  following, `ANY_DATE` = every date, chosen. Wording in
+  `admin/ledgerWords.ts` (`ledgerNote`, `ledgerTotalNote`, `ledgerEmpty`).
+  A new period resets `ledgerOwn`.
+- **Guard:** `admin/datesAreThePlatforms.test.ts` checks `<PeriodBar>` as
+  well as `<DateRangeFilter>`; `today={today}` passes only if the page's
+  `const today = …` contains `platformToday()` and no `new Date(`.
+- **e2e:** `e2e/admin-billing-period.spec.ts` (reads only; picks a shop that
+  paid this month and not last for the search case — fails loudly if the
+  database has none).
+
