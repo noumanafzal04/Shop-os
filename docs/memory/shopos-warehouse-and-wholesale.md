@@ -1,0 +1,47 @@
+---
+name: shopos-warehouse-and-wholesale
+description: USER DECISION 2026-10-10 — build a real Warehouse (a kind of location, not a selling branch) NOW, add a Wholesale business type, THEN QA of mart/pharmacy/restaurant/cafe/clothing/wholesale; ChatGPT's paste is suggestion only
+metadata:
+  type: project
+---
+
+**2026-10-10 (~23:45), the user, after deploying to live (panel.cartze.shop):** asked how wholesale and a warehouse are handled, said "real time dekho … market level", pasted a ChatGPT answer (branch vs warehouse as separate concepts, transfer Draft→…→Received with shortages, destination chosen at receive) and then: **"lazmi ni humne totally chatgpt ko follow krna lkn suggestion ly skty"**.
+
+**Their decision (their words):** "warehouse abhi phr QA or wholse ki business type add hogi agr kisi ka only busines sirf whole sale ka wo sirf maal bnatt hon agy differnent shops ko sell krty haon or kuch lcothign brand jsie unk apne warehouse hoty".
+
+**What that means (my reading):**
+1. Warehouse now: a location KIND on the existing `branches` table (Shop / Warehouse) — NOT a second `warehouses` table (my call; stock is already per location in `branch_stock`). Receive-into chosen at PO receive; transfer = send → receive with short/damaged recorded + slip; stock-by-location screen; reorder list says "the godown has it".
+2. A real, pickable **Wholesale** business type (today `wholesale` is a hidden legacy code mapped to retail, and a category of Retail). For makers/importers/distributors who sell on to shops.
+3. Clothing brands have their own warehouses — the warehouse must serve them too (their online orders ship FROM the warehouse).
+4. Then QA through the real UI — mart, pharmacy, restaurant, cafe, clothing, wholesale — as a QA and as a shopkeeper: receipts, validation, data shown, calculations; fix what it finds. They chose: **local full + a live check**.
+5. A modules guide as a local **HTML file** (they chose the file over a claude.ai Artifact / an in-panel screen): every module, what it is for, what it links to, each screen's tabs, the flows per trade, and whether Expense Manager is needed by a POS shop.
+
+**Not asked for (listed to the user as later):** order booking → delivery challan → invoice; per-dealer rates / more than two price lists; area/route + recovery sheet.
+
+**How to apply:** HR stays out ([[shopos-hrm-is-a-module]]). Live is the user's to deploy; a new migration means they deploy again — say so.
+
+**THE QUEUE AS OF 2026-10-11 ~01:00 (user's asks, in the order I am doing them):**
+1. Warehouse (in progress — backend written: `branches.kind` + `fills_orders`, `plans.max_warehouses`, `StockPlace` + permission `inventory.any_place`, send/receive/settle/cancel transfer actions, `TransferLots` (batch+expiry travel), slip view, `StockByPlace`, `Branch::mustSell`, `SellsAtACounter` rule; migration `2026_10_10_000002`). Then panel screens, tests, seeders (`PlanSeeder` done; `demo:shops` to give shops a warehouse).
+2. Wholesale business type.
+3. **Sidebar (user, their words): "sidebar k label b achy krna ksi ko catalog ka pta b ni hota … menu sub menu … simple view main daily base py use hony waly menus according to permissions … ya wo khud add kr skty — simple menu setting icon on sidebar with toggle to add menu or sub menu in simple view".** = plainer labels (nobody knows "Catalog"), related things grouped, Simple view = daily-use items by permission, AND a settings icon on the sidebar where the person toggles which menus/sub-menus are in THEIR Simple view. Menu view (Simple/Full) itself STAYS.
+4. QA through the real UI — mart, pharmacy, restaurant, cafe, clothing, wholesale (local full + live check).
+5. Modules guide as a local HTML file.
+6. Audit the database for genuinely duplicated columns and report before moving any ("jo duplicate hain unko b unke tables main columns ya fields ko le jate ho").
+
+**Standing words from the user this night:** "aik proper or achy way main leke chalna database ko b — project slow work ni krna chahye — codebase acha hona chahye"; "ab jo b krna hai achy sy krna hai test b or kaam b — near to launch hai product"; tables may change — "dobara fresh migrate kr lyn gy abhi development main hai"; "fresh migrate or seed kryn gy live py — plans or seeder b update kr dena"; "jaise branch k checks lgy thy warehouse k jahan jahan lgny ho achy sy lgana — kahin break na ho flow or code".
+
+**2026-10-11 ~01:15 — the user is USING the local dev UI while I build, and steering:** (a) "after select item not closing" (transfer picker) → fixed; (b) "Delete branch? agr branch main data huwa? stock? kya condition?" → delete/close refuse while anything live is there (stock, open transfers, open till/table, unfinished online orders, assigned staff); history always stays; (c) **"on delete branch … give option to transfer your items or stock to this branch, select branch … if say i dont want to move just delete ask before this option also"** → `EmptyPlaceAction` (move | discard stock, move staff), `GET /branches/{id}/leaving`, `DELETE` takes `stock`, `stock_to`, `people_to`; panel dialog still TO BUILD; (d) "stock sirf main py kaise aya?" → opening stock always went to Main; now `OpeningShelf` puts it where the maker stands; (e) "kya pta main branch main b saman kisi warehouse sy aye? / kya pta warehouse na b ho direct branch ho / isko kaise deal krna perfect way main tumpe hai / market level strategy hai search krlo" → researched (Shopify/Odoo/Loyverse/Oracle/Bepoz): the DESTINATION belongs on the purchase order; direct-store-delivery vs central warehouse both exist; transfer = request → dispatch → in transit → receive, discrepancy recorded.
+**So I am adding (told the user):** `purchase_orders.deliver_to_branch_id` ("Deliver to" on every PO, default = where you stand), `branches.takes_deliveries` (one place a business may mark "deliveries come here"), and a transfer that starts as a REQUEST ("Ask for stock": status `requested`, `quantity_requested`, `sent_by`).
+**Also found, real bug, fixed:** inactive products were listed on the till, the exchange picker and Take Order (server refused at the sale; New Sale sieved them client-side after fetching — I first said all four, which was wrong) → `ProductFilters.for_sale` + guard `sellingScreensListWhatSells.test.ts`. And `e2e/controls-fit.spec.ts` till-bar tests fail on a stale anchor (`title` "parked ticket" no longer in PosPage) — pre-existing, TO FIX.
+
+**DO NOT PUSH (user, 2026-10-11 ~01:40, their words): "is code ko push ni krna complete test krna hai then push kryn gy jb main kahun ga".** This OVERRIDES the older standing "push after each module" for everything from the warehouse work onward: commit locally at most, and push only when the user says so. Nothing of the warehouse / deliver-to / ask-for-stock / delete-with-move work is committed or pushed yet.
+
+**STATE 2026-10-11 ~05:30 — warehouse work is BUILT and TESTED, UNCOMMITTED, NOT PUSHED.** Backend 3,6xx tests exit 0 (run again before any push); backend mutations 61/61 caught (`scratchpad/mut/wh40.py`, on the private copy `bk`); browser mutations `mut/wh41.py` (21) running/ran; vitest 231 files; desktop e2e 174/179 on the full run, the four failures read and explained (rate-limit 429 on till-lines → passes alone; `item-form` needed the lapsed Services shop; `staff-branch` was pushed to page two by my new staff fixture → spec now searches by name; `offline-shift` cannot run against `vite dev` — the service worker is off there, it needs `npm run build` + preview on 4173). Decision doc `docs/decisions/shopos-a-warehouse-is-a-place.md`; HANDOVER section written.
+**Still to do before calling the warehouse work finished:** `npm run build`; whole vitest; whole phpunit; offline specs against the preview build; phone project for the changed screens. Then: wholesale business type → sidebar → QA of 6 trades → modules guide (HTML) → DB duplicate audit → multi-currency note.
+**A QA finding parked for the mart till pass:** when a product search FAILS (429), the till keeps showing the previous, unsearched page ("20 results") under a box that says what was typed — `keepPreviousData` + an errored query. Seen in the till-lines trace.
+**Command slip to not repeat:** `grep -n pat $(ls glob | head -1)` — when the glob matches nothing, grep reads STDIN and hangs until the 5-minute timeout. Resolve the file first and test it is non-empty.
+
+**Mutation harness lesson (2026-10-11):** a browser mutation "survived" in a full run and was caught alone — the dev server had not picked the edit up when the test started. `mut/wh41.py` now fingerprints what vite SERVES for the file and waits for it to change before running, and to change back after restoring. Any new browser mutation runner must do the same; a sleep is not proof.
+
+**2026-10-11 ~06:30 — WHOLESALE TYPE BUILT (uncommitted, not pushed).** `wholesale` is a real type: `BusinessTypes` entry (marketplace/delivery/reservations OFF), `ModulePackages` FOR_TRADE + ESSENTIAL `[products, pos, inventory, customers]`, units, demo shelf, `demo:shops` shop10 "Akbari Traders" (godown takes deliveries), panel helpers + landing ("Nine trades") + Help "Selling wholesale". Tests: `WholesaleIsItsOwnTradeTest` (a distributor's day in figures), backend 3,614/3,592 exit 0, vitest 2,564. Decision doc `docs/decisions/shopos-wholesale-is-its-own-trade.md`. **Checklist for adding a trade is in HANDOVER.** NEXT = sidebar (labels, grouping, Simple view by permission + per-person toggles), then QA.
+

@@ -8,6 +8,8 @@ metadata:
   modified: 2026-08-06T09:15:43.675Z
 ---
 
+**2026-10-09: a plan ALSO carries a module list now — as a starting point and a label, still never the gate. See [[shopos-plan-packages]]. Everything below about why plans must not GATE modules still holds.**
+
 **2026-08-06 REBUILD — this supersedes every earlier billing design in this file, including the 2026-07-23 "flexible admin-configurable limit-based plans".**
 
 The split the user chose:

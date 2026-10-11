@@ -9,7 +9,7 @@ metadata:
 
 **What it is now:**
 - `DEFAULT_SIDEBAR = "primary"` and `SIDEBAR_CHOICES` (Primary, White, Tinted, Dark) in `panel/src/common/theme/tenantTheme.ts`; `'theme_sidebar' => 'primary'` in `ShopSettings::defaults()`.
-- The platform console has NO Appearance and never calls applyTenantTheme — it is drawn entirely from `AppSidebar`'s own fallback. That fallback is the admin's sidebar.
+- ~~The platform console has NO Appearance~~ — CHANGED 2026-10-10 on the user's word: the console has the same canvas now, kept in PlatformSettings, default still primary. See [[shopos-console-appearance]].
 - A demo stores no theme; it follows the default (test in `DemoShopTest`).
 
 **How to apply:**

@@ -9080,3 +9080,199 @@ Decision: `docs/decisions/shopos-bill-please.md`. No migration.
   before the customer chip). On a phone the till's cart is behind a tab —
   a walk that reads the cart there must `showPane(page, "Cart")` or count.
 
+## A warehouse is a place — 2026-10-11 (NOT PUSHED — the user says when)
+
+Decision: `docs/decisions/shopos-a-warehouse-is-a-place.md`. **Two
+migrations** (`2026_10_10_000002`, `2026_10_11_000001`), both additive.
+
+- **A place has a kind**: `branches.kind` shop | warehouse — not a second
+  table. `Branch::mustSell()` is the one rule that a warehouse has no counter;
+  `App\Rules\SellsAtACounter` where a place is named in a request. Main is
+  always a shop.
+- **Limits**: `branches` counts shops; `warehouses` is its own key
+  (`plans.max_warehouses`, default 1).
+- **Who moves stock where**: `App\Support\StockPlace` + permission
+  `inventory.any_place`. Staff act at their own place only. **Any new door
+  that names a place in the body must ask `StockPlace`.**
+- **An order is addressed**: `purchase_orders.deliver_to_branch_id`,
+  `Branch::newOrdersGoTo()`, `branches.takes_deliveries` (one per business).
+  Receive goes into: the receipt's place → the order's → where you stand.
+- **Opening stock** goes where its maker stands: `App\Support\OpeningShelf`
+  (it also writes a nought at Main — read why before touching it).
+- **Transfers**: requested → in_transit → short → completed | cancelled.
+  Actions in `app/Actions/Inventory`. `TransferStockAction` (one step) is send
+  + receive. Lots travel: `App\Support\TransferLots`; `adjust()` takes
+  `lots_placed`. Stock on the road is on no shelf and in no total.
+- **Deleting / closing a place**: refused while anything live is there;
+  `EmptyPlaceAction` moves or writes off its stock and moves its staff when
+  the request says (`stock`, `stock_to`, `people_to`); `GET
+  /branches/{id}/leaving` tells the dialog what is there.
+- **Screens**: Branches & warehouses (`BranchesPage`, `DeletePlaceDialog`),
+  Transfers (rewritten; cards on a phone), Stock by place (new,
+  `/tenant/stock-by-place`), `SellsHere` round the till and dine-in,
+  `DeliverTo` / `ReceiveInto` on purchase orders, "bring it" on the reorder
+  list, `GoesOnShelf` on the item form.
+- **Shared rules in the panel**: `branches/places.ts` (`mayHaveMorePlaces` vs
+  `mayHaveMoreShops` — they are different questions), `transfers/transferWords.ts`,
+  `transfers/stockWords.ts`, `branches/placeGoing.ts`.
+- **Also fixed**: retired products were offered on the till, the exchange
+  picker and Take Order (`ProductFilters.for_sale`; guard
+  `sellingScreensListWhatSells.test.ts`; New Sale used to sieve them on the client);
+  `controls-fit.spec` till tests were red on stale titles.
+- e2e: `e2e/warehouse.spec.ts` (WRITES to the owner shop: a warehouse "E2E
+  Godown", two fixture products kept OFF sale, a keeper `e2e.shop.keeper@qa.test`,
+  purchase orders and transfers each run), `e2e/retired-item.spec.ts`.
+- Dev DB: both migrations applied with `php artisan migrate` (not fresh).
+
+## Wholesale is its own trade — 2026-10-11 (NOT PUSHED)
+
+Decision: `docs/decisions/shopos-wholesale-is-its-own-trade.md`. No migration.
+
+- `wholesale` is a real, pickable business type (was a category of Retail and
+  a legacy code → retail). Not on the marketplace by default; essentials on
+  ANY plan are products, till, stock and customers.
+- Nothing new to sell with: dealer rate = Price, carton = pack unit, quantity
+  breaks, credit limit, quotation → invoice on account.
+  `WholesaleIsItsOwnTradeTest` walks it in figures.
+- Adding a trade touched: `BusinessTypes`, `ModulePackages`, `ProductCsv`,
+  `CreateDemoShopAction`, `SeedDemoShops` / `TradeLists`; panel
+  `SERIAL_TRADES`, `dashboard/.../trade.ts`, `tradePhrase`, `productExamples`,
+  `test/tradeFeatures`, marketplace label, and six landing files. **That list
+  is the checklist for the next trade.**
+- `demo:shops` now builds TEN: `shop10@johartown.demo` = Akbari Traders
+  (wholesale, with a godown marked "deliveries come here").
+- Help: *Selling wholesale*. Landing: "Nine trades".
+
+
+## A menu in a shopkeeper's words — 2026-10-11 (NOT PUSHED)
+
+Decision: `docs/decisions/shopos-a-menu-in-a-shopkeepers-words.md`. No
+migration, no API change — panel only.
+
+- **The shop's menu is its own file**: `panel/src/layout/shopNav.tsx`
+  (`shopMenuInFull` builds it, `shopNav` is what the rail draws). `AppSidebar`
+  only draws. Tests import from `./shopNav`.
+- **Regrouped, one job to a group.** "Catalog" → Products (the word follows
+  what the business sells, `catalog/itemsWord.ts`); "More" is gone — Reports is
+  one press, Staff + Activity log are under Your shop; Purchases and Offers &
+  discounts are their own groups; Stock by place / Stock transfers are under
+  Inventory and Branches & warehouses is one link under Your shop;
+  Reservations is daily work; a books-only business has Expense Manager as its
+  day.
+- **A group with one screen is a link** (`tidy()`), in every menu.
+- **Simple view = the same menu with rows left out** (`usual` rows), no longer
+  a second hand-written list. Adding a screen: put it in `shopMenuInFull`, and
+  mark it `usual` only if a day needs it.
+- **The gear** (beside the Simple / Full switch): a person's own Simple menu.
+  Stored as `{add, drop}` differences under `shopos-simple-menu:<user id>` on
+  the device (`simpleMenu.ts`, `simpleMenuStore.ts`, `SimpleMenuDialog.tsx`).
+  It can only narrow what modules + permissions already allow.
+- The word "catalog" is out of everything a shop reads (Help group is now
+  "Products & stock"; placeholders say "Search products…").
+- Adding a storage key: it must be listed in `common/brandName.test.ts`
+  (`ADDRESSES`) or that guard fails.
+
+## Three months of paying — 2026-10-11 (NOT PUSHED)
+
+Decision: `docs/decisions/shopos-three-months-of-paying.md`. No migration.
+One new route: `GET /admin/tenants/{tenant}/plan-window`.
+
+- **`AssignPlanAction::window()` is the one place a billing period is worked
+  out.** The save uses it and so does the dialog (`/plan-window`). Same plan,
+  running or in grace → carries on from the end date; grace spent, or another
+  plan → today; typed dates win. Months are added without overflow.
+- **A payment row is written only when an amount is given.** Blank = a free
+  period (dates move, ledger does not). Anything that wants a ledger row must
+  pass `payment.amount` — the demo seeder does.
+- **Plans keep** `max_offline_selling`, `max_offline_days`,
+  `grace_orders_month` (request rules + `PlanResource`); they were silently
+  dropped before, so check any plan edited through the panel on a live
+  database — its offline switch never saved.
+- `/shop/subscription` returns `bill` (plan + add-ons, no list prices); the
+  owner's screen shows "You pay" (`shop/whatYouPay.ts`), and its Payments are
+  two-line rows on a phone.
+- Tests: `AShopPaysForThreeMonthsTest` (the quarter, clock moved);
+  `planWindowWords.test`, `whatYouPay.test`; journey stage R —
+  `JOURNEY_TRADE=billing … e2e/journey/29` — makes its OWN plan and shop each
+  run and removes the plan at the end (the shop stays, on Standard).
+- Open questions for the owner are at the foot of the decision note
+  (pro-rating; "bills a month" on a yearly plan).
+
+## A second place is the switch; a failed search is said — 2026-10-11 (NOT PUSHED)
+
+Decisions: `docs/decisions/shopos-a-warehouse-is-a-place.md` (last section),
+`docs/qa/journey/RUNS.md` (today's runs), `docs/qa/2026-10-11-duplicate-columns-audit.md`.
+
+- **A warehouse is optional, and a one-place business is shown nothing about
+  places.** `/shop/settings` sends `places: {shops, warehouses}` (open ones).
+  Panel: `hasSecondPlace()` / `hasSecondShop()` in `branches/places.ts` decide
+  the menu (Stock by place, Stock transfers), the Sales Branch column, the
+  product-row buttons and whether `/branches` is fetched at all. The
+  `mayHaveMore…` pair answers only "may another be ADDED". Rule of thumb for
+  any new screen about places: ask what the business HAS.
+- **The till says when a search failed** (`pos/shelfAnswer.ts`): the tiles on
+  screen must be the answer to what is in the box; otherwise "The product
+  list could not be loaded" + Try again. It used to leave the previous list
+  up under the new word.
+- **One additive migration:** `2026_10_11_000002_two_links_that_are_searched_by`
+  — indexes on `product_serials (tenant_id, sale_id)` and
+  `expenses (tenant_id, recurring_expense_id)`. Run `php artisan migrate`.
+- **Duplicate-columns audit is a REPORT; nothing was moved.** Four real
+  duplicates (`products.type` vs `item_type`; two counter tables; `note` vs
+  `notes`; an unread `gallery_images.caption`) wait for a yes.
+- **Journey:** two new stages — R (`JOURNEY_TRADE=billing`, stage 29: makes
+  its own plan and shop) and S (`JOURNEY_TRADE=wholesale`, stages 01, 02, 30).
+  The kit now waits for room under the API's 240-a-minute limit before each
+  case. Stage 10 was still pressing the old one-step import button; it uses
+  the three-step dialog now.
+- **Modules guide** for staff: `docs/guide/true-serve-modules-guide.html`
+  (open in a browser; local file, nothing published).
+- Live: the server's `APP_NAME` still says "ShopOS" (`/api/v1/health`) — set
+  it to the product's name in the live `.env`.
+
+---
+
+## 2026-10-11, evening — the mart from the top, a clothing shop, a café, the live box
+
+**Pushed that night** at the user's word (*"code push krdo"*): backend
+`4b42792`, panel `6871883`, docs with them. Until then nothing had been
+committed: *"is code ko push ni krna — complete test krna hai, then push kryn
+gy jb main kahun ga."*
+
+**The mart journey, lived from the top in one sitting** (stages 01–13, stage
+10's two thousand products included): 110 cases, all green — 103 in order,
+7 after two stale harness lines. F1 is closed.
+
+**A clothing shop's day (stage T, 9 cases) and a café's (stage U, 9 cases)**
+were the two trades of the six asked for that nobody had lived. What they
+found is in `docs/decisions/shopos-a-size-is-said-everywhere.md`:
+
+- an exchange could not name a SIZE — refused every time, with nowhere to answer
+- the exchange and refund sheets worked money out without the tax; the figure
+  is now the server's own, asked before the press (`POST /sales/{id}/returns/worth`)
+- sizes came back alphabetical (L, M, S); they keep the order typed
+  (`product_variants.sort_order` — **a third migration today**)
+- an order rung "for here" at a counter with no floor never reached the kitchen
+- a short cash tender read "Change due Rs 0"
+
+**The live box, read from outside** — `docs/decisions/shopos-live-check-oct11.md`.
+It works. It also sends JavaScript and CSS uncompressed (824 KB where 225 KB
+would do), sets no cache headers, allows every origin, and calls itself by the
+product's old name — all four are the server's to put right, and the exact
+lines are in that file. `cartze.shop/` showed the framework's welcome page;
+that one is fixed in code (`routes/web.php`, `App\Support\FrontDoor`).
+
+**`shopos:readiness`** now also refuses a live box that still has
+`admin@trueserve.app / Admin@123`, warns when `APP_NAME` is not the name the
+repository ships, and warns when the install does not know where its panel
+is. **`SuperAdminSeeder`** no longer writes `password` back onto
+`admin@shopos.test` on a production box.
+
+**Harness.** A journey case now waits for the network before it starts: the
+laptop was carried out of the house mid-run, the browser said "offline", and
+the till — rightly — kept the next sale on the device.
+
+**Migrations waiting for the server** (a fresh migrate takes all of them):
+`2026_10_10_000002_a_warehouse_is_a_place`, `2026_10_11_000001…`,
+`…000002_two_links_that_are_searched_by`, `…000003_sizes_keep_the_order_they_were_typed_in`.
+

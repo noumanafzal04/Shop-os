@@ -1,9 +1,13 @@
 ---
 name: shopos-hrm-is-a-module
-description: Basic HR has a module key (`hrm`), off for every trade; registered before being built so the area is optional
+description: Basic HR (`hrm`) is NOT in this version — user decision 2026-10-10; 9 placeholder screens stay off for every trade; do not build it or count it as remaining work
 metadata:
   type: project
 ---
+
+**USER DECISION 2026-10-10 (their words): "HR ko chor do abhi ni kryn is versioin main ni kryn gy".** Basic HR is out of this version. Do not build it, do not propose it, and do not count it in "what is left" or in a completion percentage for the panel.
+
+**How to apply:** leave the nine placeholders and the `hrm` key exactly as they are (off by default; every trade CAN be handed it by the admin, whose module list says "still being built"). Hiding it from the admin's module list for this version was my suggestion only — not asked for, not done.
 
 **2026-10-04.** `hrm` is in `Modules::all()`, group **People**, `depends: []`.
 

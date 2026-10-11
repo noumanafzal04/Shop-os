@@ -446,3 +446,125 @@ twice. Each was fixed and then caught.
 
 **Every trade has now been lived once.** Next: the packaging gap (several
 barcodes for one pack).
+
+## Stages R and S, and every trade lived again under the new menu (2026-10-11)
+
+Asked for before a three-hour absence: *"test everything with real data on UI
+and also on backend side — create plans, create tenant, uska plan 2–3 month
+chalao, update karo, check karo process sahi chal raha, or pricing — or sath
+business type jo abhi banai, or baki b flow wise."*
+
+| Run | Trade | Stages | Cases | Result |
+|---|---|---|---|---|
+| R | billing (own plan + own shop) | 29 | 19 | 19 / 19, lived three times from a clean start |
+| S | wholesale | 01, 02, 30 | 17 | 17 / 17 |
+| — | mart | 01–09, 11–13 | 97 | 96 / 97 — F1 expects stage 10's 2,000 products; see below |
+| — | food | 01, 02, 20, 21 | 26 | 26 / 26 |
+| — | pharmacy | 01, 02, 22 | 16 | 16 / 16 |
+| — | retail | 01, 02, 23 | 20 | 20 / 20 |
+
+Stage B2 — "every entry in the menu opens its own screen, and nothing is
+refused" — passed for all five trades on the regrouped sidebar.
+
+### Found by stage R (and by `AShopPaysForThreeMonthsTest`, which turns the calendar)
+
+| # | Case | What was wrong | Now |
+|---|---|---|---|
+| 121 | R5 | **A blank amount was booked as the plan's full price** — both forms say "leave the amount blank if nothing was taken / for a free assignment", and the server wrote a payment for the plan's price anyway | a ledger row only for money that was typed |
+| 122 | R1 | **Three boxes on the Plans form saved nothing**: selling offline, its days, bills allowed over — dropped by the request rules, never returned by the resource; every plan's card read "Selling offline: No" | accepted, kept, shown |
+| 123 | server | **Paying during grace moved the month and gave the late days away** — the renewal date crept later with every late payment | grace is part of the month that follows; only a shop that went read-only starts again today |
+| 124 | server | **A month added to the 31st ran into the month after** (31 Jan → 3 Mar; 31 Aug → 1 Oct), and disagreed with the bills meter | added without overflow |
+| 125 | R4 | The renewal dialog explained a rule and left the admin to work out the dates | "This buys 11 Nov 2026 → 11 Dec 2026", and why, before the save — from the method the save uses |
+| 126 | R16 | **The owner was shown the plan's price as what it pays**, with an add-on on its bill | "You pay every month", plan + add-ons |
+| 127 | R6 | On a phone the owner's payments showed date, plan and period — the AMOUNT was a sideways scroll away | two-line rows, amount first |
+| 128 | R1 | "Days a till may sell offline" had no accessible name (two controls in one cell) | tied by hand |
+| 129 | R2 | A plan's price reopened as "3000.00" | as typed |
+
+### Found by living the trades again
+
+| # | Where | What was wrong | Now |
+|---|---|---|---|
+| 130 | chemist's till (K7), under load | **A search that was turned away left the previous list on the till**, under the new word, with "20+ results · Enter to add" — the failure was only ever drawn over an EMPTY shelf | the tiles on screen must be the answer to what is in the box; otherwise "could not be loaded", Try again |
+| 131 | owner, after a question about warehouses | **A one-shop business was shown Stock by place, Stock transfers, a Branch column and branch buttons** — drawn from what its plan ALLOWS (every plan allows a godown) | drawn from the places it HAS; the server sends the count with the settings; a one-place shop no longer fetches its branch list on every page |
+| 132 | harness | **The journey met the API's own limit** (240 a minute per person): a full reload at every step is a dozen requests, and three trades ended on a 429 mid-stage | the kit waits for room before a case, and does not count the wait against the case |
+| 133 | harness | C4 read the bill the instant a held ticket came back, before the server had priced it again (the promotion is not in the parked cart) | asked until it has settled |
+| 134 | harness | A stage resumed after a failure rang stage G's sales before stage C's drawer was counted | a journey is lived in order, from the top |
+
+Right first time: every bill figure across the quarter (plan, add-on, own
+price, price rise, yearly ×12); grace and read-only on both sides; ceilings
+moving with the plan; a distributor's carton, quantity break and credit limit
+to the rupee; every trade's own day.
+
+Mutations for the billing work: 28 run, 28 caught.
+
+## The mart from the top, a clothing shop, a café — and the live box (2026-10-11, evening)
+
+Carried on while nobody was at the keyboard: *"keep doing ur work and complete
+everything."*
+
+| Run | Trade | Stages | Cases | Result |
+|---|---|---|---|---|
+| — | mart, **from the top, in order** | 01–13 (stage 10 included) | 110 | 103 in the one sitting; the other 7 after two stale harness lines were put right. F1 closed: 2,006 products, 2 branches, 1 member of staff |
+| T | clothing (retail) | 01, 02, 32 | 9 | 9 / 9 from a clean start |
+| U | café (food, no floor) | 01, 02, 31 | 9 | 9 / 9 |
+| — | offline shift (built preview) | — | 12 | 12 / 12 |
+
+### Found by living a clothing shop's day
+
+| # | Case | What was wrong | Now |
+|---|---|---|---|
+| 135 | T7 | **An exchange could not name a size.** The sheet offered "Lawn Kurta · Rs 2,500"; the server answered "this item is sold in sizes — say which size"; the sheet had nowhere to say it. The commonest thing a clothing shop does after a sale could not be done | each size is its own row, with how many are left; the size is sent |
+| 136 | T7 | **The exchange added the money up itself, without the tax**: a Medium bought for 2,625 was a "credit (est.)" of 2,500, the Large "2,700", "collect 200" — and the sale wanted 210 and refused | the credit is the server's own sum (`returns/worth`), the replacement the till's own bill |
+| 137 | T6 | The refund sheet named no figure before the press | "Goes back to the customer Rs 2,835 · incl. Rs 135 tax" |
+| 138 | T6 | Two sizes of one design were two boxes with one name | each says its size |
+| 139 | T1 | **Sizes came back alphabetical** — carded S, M, L, read L, M, S: on the till's sheet, the edit grid, the labels, the stock screen | they keep the order typed (`sort_order`); a new size added in an edit is where it was put |
+
+### Found by living a café's day
+
+| # | Case | What was wrong | Now |
+|---|---|---|---|
+| 140 | U7 | **An order rung "for here" at a counter never reached the kitchen.** A food shop with no floor is offered Dine-in at the till, with a table number to type; the rule that keeps a settled TAB from firing twice asked "is it a takeaway?" instead of "does it settle a tab?" — and a test asserted the empty board | sent to the pass like any counter order, headed by its table, on the slip too; only a sale that settles a tab is skipped |
+| 141 | U8 | A note too small for the bill read "Change due Rs 0", in green, over a button that would not press | "Still to pay Rs 182.50" |
+| 142 | server | `shopos:readiness` asked twice in one process carried the first answer's findings into the second | cleared each time |
+
+### Harness
+
+| # | Where | What | Now |
+|---|---|---|---|
+| 143 | every stage | **The laptop's Wi-Fi dropped and the till went offline** — rightly; the journey's second sale was kept on the device ("OFF-TILL-…") and every stage after it failed for the want of it | a case waits for the network before it starts, and says so if it never comes |
+| 144 | D5 | Forty-five whole reloads in one case met the API's limit, now that the shop has a second branch | the walk waits for room every ten screens, as stage E's does |
+| 145 | F2 | Asked for a sentence the module picker stopped using on 9 Oct; unseen because every run since had resumed with the switch already off | asks for what the line SAYS |
+| 146 | F3 | Re-run after stage 13, it missed that stage's two sales | counted when the record says they were rung |
+
+### The regression after it, and what that found
+
+| Group | Result |
+|---|---|
+| desktop | 179 passed; 3 failed — offline shift (cannot run against the dev server; 12 / 12 on the built preview), a blank till on the run's first load (57 / 57 alone), and the one below |
+| phone | 118 passed; 1 failed (an item not on the till once; 14 / 14 alone) |
+| six trade projects · three restaurant layouts | 50 / 50 · 38 / 38 |
+| retail (phones) journey · food journey | 20 / 20 · 26 / 26 — the returns and exchange sheets with serial numbers, and a settled tab not fired twice |
+
+| # | Where | What was wrong | Now |
+|---|---|---|---|
+| 147 | header search | **Ctrl K, then Esc, left the palette open.** It heard Escape only inside its own box, and the box takes the focus 20 ms after it opens — so a key pressed at once, or after a click elsewhere, went to the page behind | Escape closes it from anywhere |
+| 148 | harness | A mutated Blade view, restored by copy, kept its old timestamp — Laravel went on serving the compiled mutant, and the "after" run was red with identical sources | `view:clear` after a view is mutated |
+
+Gates at the end: backend 3,647 tests (exit 0), panel 239 files / 2,655,
+`npm run build` 0, `eslint .` 0 errors. Mutations: 11 / 11 (front door,
+readiness, seeder), 20 / 20 (refund figure, size order, kitchen), 11 / 11
+(exchange module, short tender, palette).
+
+Right first time: a tag scanned twice is one line of two; a discount comes off
+before the tax; the till will not sell a size with none on the rail; the
+labels page prints a sticker per size; a takeaway's slips go to the right
+station with the size and the extras and no prices.
+
+### The live box
+
+Read from outside — see `docs/decisions/shopos-live-check-oct11.md`. Works:
+landing, sign-in, Try demo (a shop in 2.1 s), the API. Wrong, and the
+server's to put right: no compression on JS/CSS/JSON (824 KB where 225 KB
+would do), no cache headers, CORS `*`, `APP_NAME` still the old name. Wrong,
+and fixed in code: `cartze.shop/` was the framework's welcome page.
+

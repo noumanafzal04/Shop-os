@@ -356,6 +356,88 @@ plumbing between the two things it is about.
 Stage G's two drawer cases no longer stand aside on the day stage C closes
 the shop: the day is opened again, as a shop would.
 
+## Stage R — a plan is made, a shop is put on it, and three months go by (`29-three-months-of-paying.spec.ts`, `JOURNEY_TRADE=billing`)
+
+Makes its OWN plan and its own shop every run, and removes the plan at the
+end. A browser cannot turn a calendar and nothing touches the database: the
+shop is CREATED in the past through the billing window the admin can already
+state, and brought forward one payment at a time. (The calendar itself is
+turned on the server, in `AShopPaysForThreeMonthsTest`.)
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| R1 | Admin → Plans | A plan is made | every figure typed is on the server and on the card — including selling offline, its days, and bills allowed over |
+| R2 | Admin → Plans | Opened again | the form holds what was typed; the price as typed, not "3000.00" |
+| R3 | Admin → Create a business | A shop joins, ten weeks ago | exactly the plan's modules; no add-on; one payment, for the month it bought, dated when it was paid; already unpaid today |
+| R4 | Admin → shop → Renew | The second month | the dialog says what a payment would buy BEFORE it is saved (lapsed → today); typed dates are said to be typed; the amount is offered, one press |
+| R5 | Admin → shop → Renew | A stretch given free | amount left blank: the dates move, the ledger does not |
+| R6 | Owner → Subscription | The owner's first morning | plan, price, "Renews in 3 days", days of grace, and the two payments — nothing for the free stretch |
+| R7 | Owner → Products | The plan's ceiling | three products go in; the fourth is refused at three, in words |
+| R8 | Admin → Tenants | Two days past the end | grace on the server and on the list; restating the window took no money |
+| R9 | Owner → Subscription → Categories | In grace | "Payment is overdue", by when, and the shop still writes |
+| R10 | Admin → Tenants | Ten days past | unpaid |
+| R11 | Owner | Read-only | "Your subscription has run out"; the shelf is all there; a write is refused with the reason; nothing was written |
+| R12 | Admin → shop → Renew | It pays, late | the dialog says when grace ran out and that the month starts today; active at once |
+| R13 | Admin → shop → Modules | An add-on at its own price | on the "What it pays" card at once; still on its plan; nothing charged yet |
+| R14 | Admin → shop → Renew | Next month, paid early | "plan + add-on = total", offered; carries on from the end of the paid month |
+| R15 | Admin → Plans | The price goes up | the next bill moves; what was paid does not |
+| R16 | Owner → Subscription | What it actually pays | the plan AND the add-on, and their sum; four payments; the customer book opens; it can write again |
+| R17 | Admin → shop → Renew | Moved to Standard | what changes (the ceiling), and what is given up ("not carried over"); modules untouched |
+| R18 | Admin → Billing & Payments | The ledger | this month's three, then all five under All time; the total is their sum |
+| R19 | Admin → Plans | The plan nobody is on | removed; the ledger still names it |
+
+## Stage S — a distributor's own day (`30-wholesale-the-distributors-day.spec.ts`, `JOURNEY_TRADE=wholesale`)
+
+After stages A and B for that trade. Every figure worked out by hand.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| S1 | — | It is a distributor | business type wholesale; products, till, stock and the dealers' book are on |
+| S2 | Products → Add item | Dealer's rate, a carton, a break | price 575; Carton = 12 at 6,600; 60 and over at 560 — read back as typed |
+| S3 | Customers | A dealer's account | credit limit Rs 50,000, and the till is told it |
+| S4 | Till | The counter is opened | a shift with a float |
+| S5 | Till | Three cartons on account | 19,800 on the dealer's book; thirty-six bottles off the shelf |
+| S6 | Till | Sixty bottles would pass the limit | the break applies (33,600); refused, in words; nothing moves |
+| S7 | Till | Forty-eight on account | 27,600 at the full rate; the book says 47,400 |
+| S8 | Till | The break, in cash | sixty at 560; change of 400 |
+| S9 | Customers | The dealer's book | 47,400 of 50,000; 456 on the shelf |
+
+## Stage T — a clothing shop's own day (`32-clothing-sizes-and-colours.spec.ts`, `JOURNEY_TRADE=retail`)
+
+After stages A and B for that trade. A boutique is a "Retail Store" like the
+phone shop of stage L, with nothing sold by its number and everything sold by
+its SIZE. Every figure worked out by hand.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| T1 | Products → Add item | One design as a grid | two colours × three sizes = six rows, each with a price, a barcode and a count; read back **in the order typed** (S, M, L) |
+| T2 | Till | The counter is opened | a shift with a float |
+| T3 | Till | The till asks which | every size at its own price and how many are left, in rail order; the one that never came cannot be pressed; 2,500 + 5% = 2,625, 375 back; the receipt says the size |
+| T4 | Till | A tag is scanned | that size is on the bill with nothing asked; twice is one line of two; a discount comes off before the tax (5,250) |
+| T5 | Till | The tag of a size that never came | refused in words; nothing on the bill |
+| T6 | Sales | Two sizes on one bill, the Large comes back | each box says WHICH size; the sheet says 2,835 will go back before it is pressed; only the Large is restocked |
+| T7 | Sales → Exchange | The Medium for a Large | the replacement is offered by size, with what is left; credit 2,625, out 2,835, **210** to collect; stock moves on the two sizes |
+| T8 | Barcode labels | A sticker for every size | its own code, its own price |
+| T9 | Inventory | The rail at the end of the day | 3, 5, 2, 2, 0, 4 — counted by hand, and what the screen says |
+
+## Stage U — a café's own day (`31-cafe-the-counter.spec.ts`, `JOURNEY_TRADE=food`)
+
+After stages A and B for that trade. A café is a "Food & Restaurant" business
+with nobody sitting down at a table the shop keeps: a counter, a pass, no
+floor.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| U1 | Admin → the shop; then the owner | The tables are taken away | Dine-in off, the kitchen pass left on; the owner's menu and the till lose the floor; the address does not get round it |
+| U2 | Settings | Bar and Kitchen; 5% | two stations and the default tax, saved |
+| U3 | Products | A latte in two sizes, a milk question, extras; a sandwich | sizes read back Small then Large; Milk is choose-one, Extras up to two, each at its price |
+| U4 | Till | The counter is opened | a shift with a float |
+| U5 | Till | Large oat latte with an extra shot + a club sandwich | the button says 720 before it is added; 1,370 + 68.50 = 1,438.50, 61.50 back; **each station is sent its own slip**, with the size and extras and no prices; the receipt says what the cup is |
+| U6 | Kitchen | The pass | two tickets under the receipt number, each at its station, worked off |
+| U7 | Till → Kitchen | The next cup is for here, at table 2 | paid at the counter (472.50); **the bar is told**, on paper and on the screen, headed "Table 2" |
+| U8 | Till | A note too small | "Still to pay Rs 182.50", not "Change due Rs 0"; nothing is sold |
+| U9 | Reports | The books | two sales, 1,911 taken, 91 of tax that is not the shop's |
+
 ## Results
 
 Recorded per run in `docs/qa/journey/RUNS.md`: date, type, cases passed,

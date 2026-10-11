@@ -1,10 +1,41 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-07 17:30: ALL PUSHED incl. stages L (retail) + M (auto); next = 4 workshop mutations, petroleum, services, online, finance
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-11 night: EVERYTHING PUSHED (backend 4b42792, panel 6871883); 4 migrations for the server; next = user deploys + server settings
+- [A Size Is Said Everywhere](shopos-a-size-is-said-everywhere.md) — PUSHED 2026-10-11: clothing (T) + café (U) lived; exchange by size, refund figure before the press, sizes keep typed order, "for here" reaches the kitchen; 3 traps
+- [Live Check Oct-11](shopos-live-check-oct11.md) — live works; JS/CSS uncompressed (824→225 KB), no cache headers, CORS *, APP_NAME old — nginx lines in docs; root welcome page fixed in code
+- [Warehouse & Wholesale](shopos-warehouse-and-wholesale.md) — USER 2026-10-10: warehouse = a KIND of location (build now), Wholesale business type, then QA (local full + live check); ChatGPT paste = ideas only
+- [Multi-Currency — LATER](shopos-multi-currency-later.md) — USER 2026-10-11: look at it later; symbol is already a setting (useMoney), ~70 literal "Rs"/"PKR" left, no currency code on money
+- [HR Not In This Version](shopos-hrm-is-a-module.md) — USER 2026-10-10: Basic HR is out of this version (do not build or count it); Menu view Simple/Full STAYS, only its caption was removed
+- [Second Place Is The Switch](shopos-second-place-is-the-switch.md) — STANDING: warehouse optional; draw "which place" UI from places the shop HAS (settings.places), never the plan allowance
+- [Three Months Of Paying](shopos-three-months-of-paying.md) — NOT pushed: billing walked a quarter (server + UI stage R); blank amount booked as price, 3 plan fields never saved, grace rule, 31st overflow; window() = one rule
+- [Menu In Shopkeeper Words](shopos-menu-in-shopkeepers-words.md) — BUILT not pushed: no Catalog/More; Simple = full menu filtered; gear = own Simple menu {add,drop} per user per device
+- [E2E Owner Shops Lapsed](shopos-e2e-owner-shop-lapsed.md) — DEV DB: Sweep Mart + Sweep Food Restaurant extended to 2026-11-10 (no payment row); other 6 Sweep shops still lapsed → their WRITE e2e get 403
+- [Billing Period](shopos-billing-period.md) — BUILT: PeriodBar on Billing (opens This month); flows follow, states don't; ledger follows until given own dates; Collected == ledger total
+- [Where A Price Is Charged](shopos-where-a-price-is-charged.md) — add-on price process; reach line (3 answers); `plans` empty ≠ nobody; list Save sends only `changes`
+- [Restored File, Stale View](shopos-restored-file-stale-view.md) — STANDING: after mutating a Blade view run `view:clear`; a copy-restore keeps the old mtime and Laravel serves the compiled mutant
+- [Somebody Is Working](shopos-somebody-is-working.md) — STANDING: dev data changing = the USER, do not "restore"; tests hand back one key; write-rule mutations on a COPY; baseline first
+- [Queue Oct-09](shopos-queue-oct09.md) — USER'S ORDER + state table: ALL DONE except DO audit (needs the server); KEEP WORKING, no check-ins
+- [Failed Is Not Empty](shopos-failed-is-not-empty.md) — STANDING: refused / FAILED / empty; ALL lists fixed: <TableEmpty from what> + <ListEmpty from what>; guard fails a new list that forgets
+- [Books-Only Business](shopos-books-only-business.md) — STANDING: ask what the business HAS (kindOfBusiness), never its trade; wording in tested modules; stage 28 makes its OWN business
+- [First Paint Asks Nobody](shopos-first-paint-asks-nobody.md) — STANDING: fonts LOCAL (Google @import blocked every paint); read the failed trace BEFORE re-running
+- [Check Measured The Wrong Thing](shopos-check-measured-the-wrong-thing.md) — STANDING: elementFromPoint ≠ painted; a check inside "if not done" skips on resume; form closed ≠ confirmed
+- [Console A–Z](shopos-console-a-to-z.md) — every admin screen one h1 (kit PageHeader); deleted shops asked for; "not priced yet"; shop page = 4 tiles + jump-menu, NOT tabs
+- [One Admin, 240 A Minute](shopos-one-admin-240-a-minute.md) — STANDING: admin e2e specs share one user vs the API limit; every admin spec carries the roomToWork beforeEach
+- [Dashboard Period](shopos-dashboard-period.md) — BUILT: both dashboards take ?from&to; flows follow, states are NOW; like-for-like compare; opening period = no params
+- [Admin Keeps A Demo](shopos-admin-keeps-a-demo.md) — BUILT: Demo shops screen (asked · trying), keep with owner's sign-in, Tenant::becomeABusiness(), demo on NO plan
+- [Who Owes The Platform](shopos-who-owes-the-platform.md) — BUILT: commission list paged + both piles as money + tiles as filters + invoice period preview
+- [Console Appearance](shopos-console-appearance.md) — BUILT: admin console has the shop's canvas; platform-wide look, super admin only; AppearanceCanvas + sources
+- [Plan Packages](shopos-plan-packages.md) — plan carries a module list (start + label, NEVER the gate); add-on = module past the plan, billed off the shop; no custom plan for an add-on
+- [Demo Shops & Admin](shopos-demo-shops-and-admin.md) — BUILT: `php artisan demo:shops` → shop1…9@johartown.demo/password, one per trade; --no-dev safe; last step of db:seed; admin@trueserve.app
+- [Product & Labels UI](shopos-product-and-labels-ui.md) — BOTH DONE: labels page + item form (photo on Details, Online tab by module, refusals said across tabs)
+- [DO VPS Audit](shopos-do-vps-audit.md) — PENDING user ask: 2GB/1vCPU DigitalOcean + DB audit for 5 shops; audit first, report A–H, no blind changes
+- [Import Engine v2](shopos-import-engine-v2.md) — BUILT + PUSHED 2026-10-09: one engine, xlsx+csv, columns by trade+modules, preview, categories never invented, mapping; own zip/xlsx (no library)
+- [Price Before The Order](shopos-price-before-the-order.md) — stage P online 7/7; checkout hid delivery/minimum/free threshold; new contexts inherit storageState
+- [Work Taken In](shopos-work-taken-in.md) — stage O services 9/9; job had no advance button; slip was a Quotation; cashier could refund a job advance; 8 shirts only as 1
 - [Fuel Shelf Is The Dips](shopos-fuel-shelf-is-the-dips.md) — stage N petroleum 6/6; tank dip never reached stock; tanker never moved cost; by-rupees was keypad-only; rate had no "from when"
 - [A Job Grows](shopos-job-grows.md) — stage M auto 10/10; job card could not take lines after booking; till vehicle box unreachable; 5pm stored as 10pm
 - [Unit Sold By Its Number](shopos-unit-sold-by-number.md) — stage L retail 12/12; refunded phones stuck "sold" + data repair; Enter rang first tile for fast codes
-- [Sidebar Default Primary](shopos-sidebar-default-primary.md) — USER: sidebar default PRIMARY (shop/demo/admin); canvas order Primary·White·Tinted·Dark; one constant
+- [Sidebar Default Primary](shopos-sidebar-default-primary.md) — USER: sidebar default PRIMARY (shop/demo/admin); console now HAS Appearance (changed 2026-10-10)
 - [Journey Stages J & K](shopos-journey-stages-j-k.md) — food menu+bill 10/10, chemist 8/8; same-salt sheet was keyboard-only; split sheet named lines by dish
 - [Shop Day](shopos-shop-day.md) — STANDING: day turns at ONE hour (05:00, setting 0–8); moments → ShopDay, box dates → wall date; no today()/whereDate on a moment
 - [Food Journey Stage H](shopos-food-journey-stage-h.md) — 8 restaurant cases green; found Add-item opening as Physical product in food/pharmacy; a journey is lived once
@@ -175,7 +206,7 @@
 - [The Sync That Lied](shopos-sync-that-lied.md) — FIXED: "Up to date" beside a badge reading 4; a press obeyed the 10-min
 - [Stranded Sales](shopos-stranded-sales.md) — FIXED: rows stamped with NO tenant were counted for ever and never sent
 - [POS Trade Coverage](shopos-pos-trade-coverage.md) — REFERENCE: 27-trade audit; core complete
-- [Packaging Units](shopos-packaging-units.md) — single/pack/box ALREADY BUILT (ProductUnit); only gap = a label per pack
+- [Packaging Units](shopos-packaging-units.md) — CLOSED 2026-10-10: a pack carries several codes (was a MONEY bug), packs keep their id across an edit; one migration
 - [Arti / Mandi](shopos-arti-mandi.md) — BACKLOG vertical: grain commission agent
 - [Half The Sync](shopos-half-the-sync.md) — FIXED: shift queue never got the sale queue's force+stranded fixes
 - [One Device, One Shop](shopos-one-device-one-shop.md) — FIXED CRITICAL: offline catalog had no tenant fence

@@ -37,3 +37,14 @@ project and failed on the next, minutes apart.
   run's trace is destroyed by the next run — copy it out first. And
   `--timeout=60000` on the CLI breaks `auth.setup.ts`, which deliberately waits
   65s out for `throttle:auth`; set a timeout inside the spec instead.
+
+**2026-10-11 — the same thing, by the network instead of the lid.** The laptop
+was carried out of the house mid-journey; the browser said `navigator.onLine =
+false`; the till — rightly — rang the next sale OFFLINE ("the till said
+OFF-TILL-… and the server has no such sale") and 66 cases after it never ran.
+The dev server is on localhost and never went away; the browser does not know
+that. `e2e/journey/kit.ts` → `aNetworkForACase()` now waits (up to 10 min) for
+the network before a case STARTS, and says so if it never comes. A case that
+loses it halfway still fails, as it should. Check `ifconfig` / the "Offline"
+pill in the failure screenshot before reading such a run as a product bug.
+

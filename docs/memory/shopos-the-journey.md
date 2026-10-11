@@ -18,3 +18,5 @@ The user's 2026-10-05 ask: "test cases banao, jis flow mein system kaam karta ha
 - Never run it beside phpunit/vitest/builds ([[shopos-suite-vs-itself]]).
 - Stage 10 is resumable (idempotency keys `qa-<stamp>-<k>`); stage 11 revokes the owner's session on purpose.
 - Bugs it found that 3,000 backend tests had not: profit included sales tax, sale lost its customer's name, returns NaN, cashier 403 on device roster, close-shift 409, unstable paging ([[shopos-pages-hold-still]]).
+
+**2026-10-10: every trade has been lived once.** Stages 20–27 run on the everything-on shop stage 01 makes; **stage 28 (finance) makes its OWN books-only business** — see [[shopos-books-only-business]]. Harness lessons from it: [[shopos-check-measured-the-wrong-thing]].
