@@ -23,7 +23,7 @@ import { round2 } from "../../offline/pricing/money";
 import { formatMoney } from "../../../common/format/money";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine } from "../lineMath";
-import { followLevel, tillBill, type BillGroup } from "../tillBill";
+import { followLevel, shortBy, tillBill, type BillGroup } from "../tillBill";
 import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
 import { billKey, serverDueFrom } from "../tenderRecovery";
@@ -71,6 +71,7 @@ import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal"
 import { parkCart, readParkedCart } from "../cartStorage";
 import { nextLineKey, rekeyed } from "../lineKeys";
 import { enterMeans } from "../enterKey";
+import { shelfCouldNotLoad, type Asked } from "../shelfAnswer";
 import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
 import { NumPad } from "../components/NumPad";
@@ -566,8 +567,10 @@ export default function PosPage() {
   // 1366 laptop, so a cashier browsing by category usually finds the item
   // without paging at all.
   const POS_PAGE_SIZE = 20;
-  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, page, per_page: POS_PAGE_SIZE });
+  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE });
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
+  // Which question those tiles are the answer to — see shelfAnswer.
+  const [tilesAnswer, setTilesAnswer] = useState<Asked>({ search: "", categoryId: "" });
   /**
    * DOES THIS SHOP ACTUALLY HAVE PHOTOS?
    *
@@ -604,6 +607,11 @@ export default function PosPage() {
       const seen = new Set(prev.map((p) => p.id));
       return [...prev, ...rows.filter((r) => !seen.has(r.id))];
     });
+    // The list just given is the answer to what is in the box now. (While the
+    // NEXT one is being fetched this effect does not run: the placeholder is
+    // the same object it already saw.)
+    if (!products.isPlaceholderData) setTilesAnswer({ search, categoryId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products.data]);
   // Offline, the shelf comes from the till's own copy and there is no paging:
   // the whole catalog is already here, so "load more" would be a button that
@@ -613,7 +621,12 @@ export default function PosPage() {
     [offlineShelf.data, search, categoryId],
   );
   useEffect(() => {
-    if (!connected) setTiles(offlineRows);
+    if (!connected) {
+      setTiles(offlineRows);
+      // The till's own copy answers whatever is in the box, at once.
+      setTilesAnswer({ search, categoryId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, offlineRows]);
 
   const pagination = products.data?.meta?.pagination;
@@ -628,6 +641,11 @@ export default function PosPage() {
   // Only while the till believes it is connected: with the line down it is
   // reading its own copy, and a failed request is what it expects.
   const productsFailed = connected ? loadFailure(products.error) : null;
+  // …and that was only ever drawn over an EMPTY shelf. A search turned away
+  // while the till still held the list from before it went on showing that
+  // list, under the new word, with "20+ results" beneath it. The failure is
+  // shown whenever the tiles on screen are not the answer to this question.
+  const shelfFailed = shelfCouldNotLoad(productsFailed, tiles.length, tilesAnswer, { search, categoryId });
 
   // Snap the highlight back to the top whenever the result set changes; keep
   // the highlighted tile scrolled into view as ↑/↓ move it.
@@ -1117,6 +1135,8 @@ export default function PosPage() {
   const rounding = bill.rounding;
   const change = method === "cash" ? Math.max(0, (Number(tendered) || 0) - payable)
     : method === "split" ? Math.max(0, splitPaid - payable) : 0;
+  /** What a cash tender that has been typed is short by. Nothing typed is not "short" — it is not typed yet. */
+  const cashShort = method === "cash" ? shortBy(tendered, payable) : 0;
 
   // Validate a code against a given subtotal and store the resulting discount.
   // Shared by manual apply, resume, and the auto-revalidate effect below.
@@ -2846,7 +2866,7 @@ export default function PosPage() {
                 // The one control on the till that has no visible label — the
                 // magnifier beside it is decorative. A placeholder is not a
                 // name: it goes the moment the cashier starts typing.
-                aria-label="Scan a barcode or search the catalog"
+                aria-label="Scan a barcode or search products"
                 placeholder="Scan barcode or search…"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setScanError(null); }}
@@ -2931,8 +2951,11 @@ export default function PosPage() {
             </div>
             {/* Live hint: how many results + how to add with the keyboard. */}
             {search.trim() && !scanError && (
-              <p className="mt-1.5 px-1 text-theme-xs text-white/60">
-                {tiles.length === 0 ? "No matches — check the spelling or scan the barcode."
+              <p className="mt-1.5 px-1 text-theme-xs text-white/60" data-testid="search-hint">
+                {/* A count of the LAST list under a search that never came
+                    back is a count of something else. */}
+                {shelfFailed ? "That search did not go through — press Try again below."
+                  : tiles.length === 0 ? "No matches — check the spelling or scan the barcode."
                   : `${tiles.length}${hasMore ? "+" : ""} result${tiles.length === 1 ? "" : "s"} · ↑ ↓ to move · Enter to add`}
               </p>
             )}
@@ -2995,7 +3018,7 @@ export default function PosPage() {
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-32 animate-pulse rounded-xl bg-white/70 xl:h-36 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <div className="col-span-full"><NoAccess reason={productsDenied} what="the product list" /></div>
-              ) : productsFailed && tiles.length === 0 ? (
+              ) : shelfFailed && productsFailed ? (
                 <div className="col-span-full">
                   <CouldNotLoad what="the product list" why={productsFailed} onRetry={() => void products.refetch()} busy={products.isFetching} />
                 </div>
@@ -3206,7 +3229,7 @@ export default function PosPage() {
                 Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />)
               ) : productsDenied ? (
                 <NoAccess reason={productsDenied} what="the product list" />
-              ) : productsFailed && tiles.length === 0 ? (
+              ) : shelfFailed && productsFailed ? (
                 <div className="p-3">
                   <CouldNotLoad what="the product list" why={productsFailed} onRetry={() => void products.refetch()} busy={products.isFetching} />
                 </div>
@@ -3394,10 +3417,14 @@ export default function PosPage() {
              * shop with the `dine_in` module has real tables, running tabs, a
              * kitchen board and split bills on the Floor screen
              * (/tenant/dine-in), all keyed to a `dining_table_id`. This control
-             * writes a free-text `table_no` onto the sale and nothing else: no
-             * tab, no KOT, and the floor board never learns the table is
-             * occupied. A waiter who reached for it would leave the kitchen
-             * with nothing to cook and the board showing an empty room.
+             * writes a free-text `table_no` onto the sale: no tab, and the
+             * floor board never learns the table is occupied. A waiter who
+             * reached for it would leave the board showing an empty room.
+             *
+             * The kitchen IS told — it was not, and a cup paid for "for here"
+             * never reached the pass. An order rung at the counter goes to
+             * the kitchen with the table that was typed, to take away or not
+             * (SendCounterOrderToKitchen, RestaurantTicket::goesTo).
              *
              * "5", "Table 5" and "T5" are also three different tables here,
              * none of which is the table the shop actually named 5.
@@ -4482,9 +4509,13 @@ export default function PosPage() {
                     allowDecimal={false}
                   />
                 )}
-                <div className="flex items-baseline justify-between border-t border-dashed border-gray-200 pt-3 dark:border-gray-700">
-                  <span className="font-medium text-gray-500 dark:text-gray-400">Change due</span>
-                  <span className="text-2xl font-extrabold tabular-nums text-success-600">{money(change)}</span>
+                {/* A NOTE THAT IS TOO SMALL IS SAID. Five hundred typed against a
+                    bill of 682.50 left the button dead and this line reading
+                    "Change due Rs 0", in green — a true figure about the wrong
+                    thing, and nothing that said why the sale would not go. */}
+                <div className="flex items-baseline justify-between border-t border-dashed border-gray-200 pt-3 dark:border-gray-700" data-testid="cash-outcome">
+                  <span className="font-medium text-gray-500 dark:text-gray-400">{cashShort > 0 ? "Still to pay" : "Change due"}</span>
+                  <span className={`text-2xl font-extrabold tabular-nums ${cashShort > 0 ? "text-warning-500" : "text-success-600"}`}>{money(cashShort > 0 ? cashShort : change)}</span>
                 </div>
               </div>
             )}

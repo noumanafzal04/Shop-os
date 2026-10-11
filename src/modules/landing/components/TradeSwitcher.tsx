@@ -5,7 +5,7 @@ import { TRADE_CART } from "./tradeCarts";
 import { TRADE_ICON, type TradeCode } from "./tradeIcon";
 
 const ORDER: TradeCode[] = [
-  "food", "mart", "pharmacy", "retail",
+  "food", "mart", "pharmacy", "retail", "wholesale",
   "services", "automotive", "petroleum", "finance",
 ];
 

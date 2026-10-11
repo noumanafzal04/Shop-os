@@ -6,6 +6,7 @@ import { useBranchStore } from "../../../stores/branchStore";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { useBranches } from "../hooks/useBranches";
 import { branchRows, findBranches, FIND_FROM, step, type BranchRow } from "../branchMenu";
+import { hasSecondPlace, isWarehouse } from "../places";
 
 /** One building, seen from a corner: a single branch. */
 function BranchGlyph({ className = "h-4 w-4" }: { className?: string }) {
@@ -13,6 +14,16 @@ function BranchGlyph({ className = "h-4 w-4" }: { className?: string }) {
     <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
       <path d="M3 7l7-4 7 4-7 4-7-4z" strokeLinejoin="round" />
       <path d="M3 7v6l7 4 7-4V7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** A store room: a roof, a roller door. Nothing is sold from it. */
+function WarehouseGlyph({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <path d="M2.5 8l7.5-4.5L17.5 8v8.5h-15V8z" strokeLinejoin="round" />
+      <path d="M6.5 16.5v-5.5h7v5.5M6.5 13.5h7" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -67,7 +78,15 @@ export default function BranchSwitcher() {
   const role = useAuthStore((s) => s.user?.role);
   const myBranchId = useAuthStore((s) => s.user?.branch_id);
   const settings = useShopSettings();
-  const multiBranchSetting = settings.data ? settings.data.max_branches !== 1 : false;
+  // Drawn wherever there could be a second place to stand in — which a shop
+  // with one counter and a godown has. The warehouse's shelf is looked at,
+  // counted and corrected from here like any other.
+  //
+  // "Could be" was read off the plan, and every plan allows a godown — so
+  // every page of every one-shop business asked for its list of branches, to
+  // draw nothing. It is read off the places there are: with one, there is
+  // nowhere else to stand and nothing to ask.
+  const multiBranchSetting = hasSecondPlace(settings.data);
   // Owners need the list to CHOOSE from. Staff need it to read one name off —
   // their own — and they may not be allowed it at all: `/branches` takes any of
   // seven permissions and a kitchen hand holds none of them. An unresolved name
@@ -136,7 +155,7 @@ export default function BranchSwitcher() {
         title={`You work at ${mine.name}`}
         data-testid="branch-pinned"
       >
-        <BranchGlyph className="h-4 w-4 shrink-0 text-gray-400" />
+        {isWarehouse(mine) ? <WarehouseGlyph className="h-4 w-4 shrink-0 text-gray-400" /> : <BranchGlyph className="h-4 w-4 shrink-0 text-gray-400" />}
         {/* On a phone the name is what there is room for, and it is the point. */}
         <span className="max-w-[6.5rem] truncate font-medium sm:max-w-[10rem]">{mine.name}</span>
       </div>
@@ -150,6 +169,7 @@ export default function BranchSwitcher() {
   const active = activeBranchId ? list.find((b) => b.id === activeBranchId) : null;
   const label = active?.name ?? "All branches";
   const scoped = active != null;
+  const inWarehouse = isWarehouse(active);
 
   const choose = (id: string | null) => {
     setActiveBranch(id);
@@ -209,10 +229,11 @@ export default function BranchSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`Operating branch: ${label}`}
-        title={scoped ? `Showing ${label} only` : "Showing every branch together"}
+        aria-label={`Operating ${inWarehouse ? "warehouse" : "branch"}: ${label}`}
+        title={scoped ? `Showing ${label} only${inWarehouse ? " — a warehouse, nothing is sold here" : ""}` : "Showing every branch together"}
         data-testid="branch-switcher"
         data-scope={scoped ? "branch" : "all"}
+        data-kind={inWarehouse ? "warehouse" : "shop"}
         className={`flex h-11 items-center gap-2.5 rounded-xl border px-2.5 text-left transition-colors sm:px-3 ${
           scoped
             ? // ONE branch: the figures on screen are not the shop's. Said in colour.
@@ -225,13 +246,13 @@ export default function BranchSwitcher() {
             scoped ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"
           }`}
         >
-          {scoped ? <BranchGlyph className="h-3.5 w-3.5" /> : <AllGlyph className="h-3.5 w-3.5" />}
+          {inWarehouse ? <WarehouseGlyph className="h-3.5 w-3.5" /> : scoped ? <BranchGlyph className="h-3.5 w-3.5" /> : <AllGlyph className="h-3.5 w-3.5" />}
         </span>
         {/* The name from `sm` up. On a phone the mark is the control and the
             tint is the news; the name is one tap away, at the head of the menu. */}
         <span className="hidden min-w-0 sm:block">
           <span className={`block text-[10px] font-medium uppercase leading-3 tracking-wide ${scoped ? "text-brand-600/80 dark:text-brand-300/80" : "text-gray-400"}`}>
-            Branch
+            {inWarehouse ? "Warehouse" : "Branch"}
           </span>
           <span className="block max-w-[9rem] truncate text-theme-sm font-semibold leading-4 lg:max-w-[11rem]">{label}</span>
         </span>
@@ -245,7 +266,7 @@ export default function BranchSwitcher() {
           <div className="border-b border-gray-100 px-4 pb-3 pt-3.5 dark:border-gray-800">
             <p className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">Operating branch</p>
             <p className="mt-0.5 text-theme-xs leading-4 text-gray-500 dark:text-gray-400">
-              What you see, sell and count is this branch&rsquo;s.
+              What you see, sell and count is this place&rsquo;s. A warehouse holds stock; nothing is sold from it.
             </p>
             {canFind && (
               <input
@@ -301,7 +322,7 @@ export default function BranchSwitcher() {
                           : "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400"
                       }`}
                     >
-                      {row.id === null ? <AllGlyph /> : <BranchGlyph />}
+                      {row.id === null ? <AllGlyph /> : row.warehouse ? <WarehouseGlyph /> : <BranchGlyph />}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-2">
@@ -341,7 +362,7 @@ export default function BranchSwitcher() {
               onClick={() => setOpen(false)}
               className="ml-auto whitespace-nowrap text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
             >
-              Manage branches
+              Manage places
             </Link>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { expect, test as base, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import fs from "node:fs";
-import { API } from "../api";
+import { API, roomToWork } from "../api";
 
 /**
  * THE JOURNEY'S KIT.
@@ -39,6 +39,9 @@ export const TRADE_LABEL: Record<string, string> = {
   automotive: "Auto & Tyre",
   finance: "Finance Manager",
   petroleum: "Petroleum & Energy",
+  wholesale: "Wholesale & Distribution",
+  // Stage R makes its own shop — a grocer — to put on the plan it makes.
+  billing: "Mart & Grocery",
 };
 
 // ── the record ───────────────────────────────────────────────────────
@@ -241,13 +244,99 @@ export class Watch {
 }
 
 /**
+ * ROOM FOR A CASE — the journey waits out the API's limit rather than be
+ * refused by it.
+ *
+ * One signed-in person may ask the API 240 things a minute, and it is right
+ * to hold them to it. A person never comes near that: they open a screen and
+ * move about inside it. The journey reloads the whole app at every step —
+ * each load asks a dozen things before the screen has asked its own — and
+ * three trades in a row ended on "429 Too many requests" in the middle of a
+ * stage: a product that "was not on the list", a dish that "could not be
+ * read", a till that "found nothing". None of them was about the product.
+ *
+ * So before a case starts, whoever is signed in is asked one cheap thing, and
+ * if there is not most of a minute's allowance left the case waits for the
+ * minute to turn. A watched case still FAILS on a 429 it meets halfway — the
+ * limit is not excused, it is given room.
+ */
+export async function roomForACase(request: APIRequestContext): Promise<void> {
+  for (const who of ["owner", "admin"] as const) {
+    if (!fs.existsSync(stateFile(who))) continue;
+
+    let token: string;
+    try {
+      token = tokenOf(who);
+    } catch {
+      continue;
+    }
+
+    // Room for a case of nine or ten screens. Asking for more than this made
+    // nearly every case wait a minute, and the journey took the morning.
+    await roomToWork(request, { Accept: "application/json", Authorization: `Bearer ${token}` }, 110, "/auth/me");
+  }
+}
+
+/** How long a case will wait for the machine to find a network again. */
+export const NETWORK_PATIENCE = 10 * 60_000;
+
+/**
+ * A NETWORK FOR A CASE — the journey's till is an online till.
+ *
+ * The server is on this machine, so it answers whatever the Wi-Fi does. The
+ * browser does not know that: when the laptop loses its network the browser
+ * says it is offline, and the till — rightly, for a shop whose server is
+ * across the internet — stops asking and keeps the sale on the device. A
+ * whole journey ended that way at its second sale ("the till said
+ * OFF-TILL-… and the server has no such sale") the minute the laptop was
+ * carried out of the house, and every stage after it failed for the want of
+ * that sale.
+ *
+ * So a case does not START while the browser says it is offline: it waits
+ * for the network, and says plainly when it never came. A case that loses
+ * the network halfway still fails — it was not an online sale, and it should
+ * not be passed as one.
+ *
+ * Returns how long it waited.
+ */
+export async function aNetworkForACase(page: Page, patience = NETWORK_PATIENCE, every = 5_000): Promise<number> {
+  const online = () => page.evaluate(() => navigator.onLine).catch(() => true);
+  const began = Date.now();
+
+  while (!(await online())) {
+    if (Date.now() - began >= patience) {
+      throw new Error(
+        `This machine has had no network for ${Math.round(patience / 60_000)} minutes. The browser says it is offline, so the till would keep every sale on the device — the journey needs an online till.`,
+      );
+    }
+    await page.waitForTimeout(every);
+  }
+
+  return Date.now() - began;
+}
+
+/**
  * Every journey case is watched, without asking.
  *
  * `auto` — a case that forgets to look is still looked at.
  */
 export const test = base.extend<{ watch: Watch }>({
   watch: [
-    async ({ page }, use) => {
+    async ({ page, request }, use, testInfo) => {
+      // Waiting for the minute to turn is not time the case took. Two people
+      // signed in can mean two minutes of it, which is a whole case's
+      // allowance — and a case that timed out before its first press said so
+      // as "Target page has been closed".
+      const began = Date.now();
+      // The allowance is lengthened BEFORE the wait: a case that ran out of
+      // time while waiting for the Wi-Fi would say so as a closed page.
+      const offline = !(await page.evaluate(() => navigator.onLine).catch(() => true));
+      if (offline) testInfo.setTimeout(testInfo.timeout + NETWORK_PATIENCE);
+      const wifi = await aNetworkForACase(page);
+      await roomForACase(request);
+      const waited = Date.now() - began - (offline ? wifi : 0);
+      if (waited > 5_000) testInfo.setTimeout(testInfo.timeout + waited);
+
       const watch = new Watch(page);
       await use(watch);
       // Let the last requests land before judging.

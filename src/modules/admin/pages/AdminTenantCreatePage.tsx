@@ -24,6 +24,7 @@ const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
  */
 const SIZE_FIELDS = [
   { key: "branches", label: "Branches", hint: "The Main branch counts as one." },
+  { key: "warehouses", label: "Warehouses", hint: "Hold stock, no till. Counted apart from branches." },
   { key: "staff", label: "Staff accounts", hint: "The owner isn't counted." },
   { key: "registers", label: "Checkout lanes", hint: "A single-counter shop needs none." },
 ] as const;
@@ -93,6 +94,7 @@ export default function AdminTenantCreatePage() {
     // Blank = whatever the chosen plan includes. Typing in one of these is
     // a deliberate exception for THIS shop, and the form says so.
     branches: "",
+    warehouses: "",
     staff: "",
     registers: "",
     owner_name: "",
@@ -190,7 +192,7 @@ export default function AdminTenantCreatePage() {
          * plan", for ever, including after an upgrade.
          */
         limits: Object.fromEntries(
-          (["branches", "staff", "registers"] as const)
+          (["branches", "warehouses", "staff", "registers"] as const)
             .map((k) => [k, form[k].trim()])
             .filter(([, v]) => v !== "")
             .map(([k, v]) => [k, Number(v)]),
@@ -323,6 +325,7 @@ export default function AdminTenantCreatePage() {
                     nobody has ever rung up about. */}
                 <p className="mt-1 text-gray-500 dark:text-gray-400">
                   {selectedPlan.limits?.branches ?? selectedPlan.defaults?.branches ?? 1} branches ·{" "}
+                  {selectedPlan.limits?.warehouses ?? selectedPlan.defaults?.warehouses ?? 1} warehouses ·{" "}
                   {selectedPlan.limits?.staff ?? selectedPlan.defaults?.staff ?? 5} staff ·{" "}
                   {selectedPlan.limits?.registers ?? selectedPlan.defaults?.registers ?? 2} lanes
                 </p>
@@ -452,7 +455,7 @@ export default function AdminTenantCreatePage() {
               Blanking them fixed the sending and left the invitation. Now
               the plan simply states its answer, and typing over it is a
               separate, deliberate act below. */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {SIZE_FIELDS.map(({ key, label }) => {
               const included = selectedPlan?.limits?.[key] ?? selectedPlan?.defaults?.[key] ?? null;
               const typed = form[key].trim();
@@ -487,7 +490,7 @@ export default function AdminTenantCreatePage() {
                 // changed their mind must not leave a number behind that no
                 // longer appears anywhere on the form.
                 if (!e.target.checked) {
-                  setForm((f) => ({ ...f, branches: "", staff: "", registers: "" }));
+                  setForm((f) => ({ ...f, branches: "", warehouses: "", staff: "", registers: "" }));
                 }
               }}
             />
@@ -501,7 +504,7 @@ export default function AdminTenantCreatePage() {
           </label>
 
           {negotiated && (
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {SIZE_FIELDS.map(({ key, label, hint }) => {
                 const included = selectedPlan?.limits?.[key] ?? selectedPlan?.defaults?.[key] ?? null;
 

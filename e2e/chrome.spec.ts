@@ -74,6 +74,7 @@ const SCREENS: Array<{ path: string; name: string }> = [
   { path: "/tenant/products/new", name: "a new item" },
   { path: "/tenant/stocktake", name: "stock counts" },
   { path: "/tenant/transfers", name: "branch transfers" },
+  { path: "/tenant/stock-by-place", name: "stock by place" },
   { path: "/tenant/disposals", name: "written-off stock" },
   { path: "/tenant/branches", name: "branches" },
   { path: "/tenant/orders", name: "online orders" },

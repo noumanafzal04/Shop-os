@@ -107,6 +107,23 @@ export const TRADE_CART: Record<TradeCode, TradeCart> = {
       "Returns and exchanges that put the right size back on the shelf",
     ],
   },
+  wholesale: {
+    label: "Wholesale & distribution",
+    where: "in a wholesale market",
+    register: "Counter 1",
+    lines: [
+      { name: "Cooking Oil 1L — carton", qty: "5 ctn", price: 33000 },
+      { name: "Tea 950g — carton", qty: "2 ctn", price: 43200 },
+      { name: "Basmati Rice 25kg", qty: "10 sacks", price: 82000 },
+    ],
+    note: "On Madina Store's account — limit Rs 500,000",
+    does: [
+      "A carton has its own price and its own barcode, and counts as twelve on the shelf",
+      "Buy more, pay less: quantity breaks apply themselves",
+      "Every dealer has an account, a limit, and a statement you can hand over",
+      "Stock comes into the warehouse and goes out to where it is sold",
+    ],
+  },
   services: {
     label: "Salon & services",
     where: "in a salon",

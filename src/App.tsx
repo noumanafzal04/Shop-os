@@ -16,6 +16,7 @@ import {
   RequireSetupComplete,
   TenantThemed,
 } from "./common/routing/guards";
+import { SellsHere } from "./modules/branches/components/SellsHere";
 
 // Route-level code-splitting: each page ships in its own chunk and loads on
 // demand, so the initial bundle stays small (ApexCharts, dropzone, etc. only
@@ -65,6 +66,7 @@ const ShopSettingsPage = lazy(() => import("./modules/shop/pages/ShopSettingsPag
 const ActivityPage = lazy(() => import("./modules/activity/pages/ActivityPage"));
 const BranchesPage = lazy(() => import("./modules/branches/pages/BranchesPage"));
 const TransfersPage = lazy(() => import("./modules/transfers/pages/TransfersPage"));
+const StockByPlacePage = lazy(() => import("./modules/transfers/pages/StockByPlacePage"));
 const WarrantyLookupPage = lazy(() => import("./modules/warranty/pages/WarrantyLookupPage"));
 const VehiclesPage = lazy(() => import("./modules/vehicles/pages/VehiclesPage"));
 const DayPage = lazy(() => import("./modules/day/pages/DayPage"));
@@ -265,7 +267,10 @@ export default function App() {
                     gets the whole viewport. It has its own in-page top bar. */}
                 <Route element={<RequireFeature feature="pos" />}>
                   <Route element={<RequireTenantScreen />}>
-                    <Route path="/tenant/pos" element={<PosPage />} />
+                    {/* A warehouse has no counter: see SellsHere. */}
+                    <Route element={<SellsHere />}>
+                      <Route path="/tenant/pos" element={<PosPage />} />
+                    </Route>
                   </Route>
                 </Route>
 
@@ -290,8 +295,10 @@ export default function App() {
                 <Route element={<WorkScreenLayout />}>
                 <Route element={<RequireFeature feature="dine_in" />}>
                   <Route element={<RequireTenantScreen />}>
-                    <Route path="/tenant/dine-in" element={<FloorPage />} />
-                    <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                    <Route element={<SellsHere />}>
+                      <Route path="/tenant/dine-in" element={<FloorPage />} />
+                      <Route path="/tenant/dine-in/tickets/:id" element={<TabPage />} />
+                    </Route>
                   </Route>
                 </Route>
                 {/* The pass is its own module and sits OUTSIDE the dine-in
@@ -534,6 +541,7 @@ export default function App() {
                   <Route element={<RequireFeature feature="inventory" />}>
                     <Route element={<RequireTenantScreen />}>
                       <Route path="transfers" element={<TransfersPage />} />
+                      <Route path="stock-by-place" element={<StockByPlacePage />} />
                     </Route>
                     {/* A counter lookup — the person holding the phone is the
                         person on the till. */}

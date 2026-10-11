@@ -20,9 +20,11 @@ import type { User } from "../auth/types";
  * screen. A switch the server ignores would be worse than silence.
  */
 
+// A shop that HAS two branches — which is what the control reads now, not
+// what its plan would allow. The two below are the two it has.
 const shop = (maxBranches: number) => ({
   success: true, message: "", errors: {}, meta: {},
-  data: { max_branches: maxBranches },
+  data: { max_branches: maxBranches, places: { shops: 2, warehouses: 0 } },
 });
 
 const branches = {

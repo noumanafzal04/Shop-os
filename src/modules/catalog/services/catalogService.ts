@@ -48,6 +48,7 @@ export const catalogService = {
         type: filters.type || undefined,
         category_id: filters.category_id || undefined,
         low_stock: filters.low_stock ? 1 : undefined,
+        is_active: filters.for_sale ? 1 : undefined,
         page: filters.page ?? 1,
         per_page: filters.per_page || undefined,
       },

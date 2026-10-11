@@ -167,6 +167,14 @@ export interface Product {
   last_supplier_id?: string | null;
   last_supplier_name?: string | null;
   last_unit_cost?: number | null;
+  /**
+   * Who else holds it — every OTHER place with some, the fullest first.
+   *
+   * Only on the reorder list, and only when it is asked about one place. It
+   * is what tells "buy more" from "bring it from the back": a shelf that has
+   * run down while the godown holds forty is not a purchase order.
+   */
+  held_elsewhere?: Array<{ branch_id: string; name: string; kind: "shop" | "warehouse"; quantity: number }>;
   duration_minutes: number | null;
   is_active: boolean;
   visible_in_marketplace: boolean;
@@ -352,6 +360,19 @@ export interface ProductFilters {
   type?: ItemType | "";
   category_id?: string;
   low_stock?: boolean;
+  /**
+   * Only what is ON SALE — a product switched off is left out.
+   *
+   * Every screen that sells asks for this. A retired product was listed on
+   * the till, the exchange picker and Take Order, and the server — rightly —
+   * refused it at the last press: "An item in this sale is no longer
+   * available", with the customer waiting and nothing on screen to say which
+   * item. (The New Sale form hid them itself, after the page had arrived —
+   * which left a page of fifteen holding fewer.) The catalogue's own list
+   * does NOT ask for it: that is where a retired product is found and
+   * switched back on.
+   */
+  for_sale?: boolean;
   page?: number;
   /** Server caps this at 100; omitted means the API's own default of 15. */
   per_page?: number;

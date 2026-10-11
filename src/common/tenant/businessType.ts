@@ -43,7 +43,7 @@ export function usePrimaryBusinessType(): string | null {
  * One list, read by the product form and the sidebar, so the place you turn it
  * on and the place you look it up can never disagree again.
  */
-export const SERIAL_TRADES = ["retail", "automotive", "petroleum"];
+export const SERIAL_TRADES = ["retail", "wholesale", "automotive", "petroleum"];
 
 /** Does this trade sell serial-tracked, warrantied units? */
 export function tracksSerials(businessType: string | null | undefined): boolean {

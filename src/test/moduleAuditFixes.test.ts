@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shopNav } from "../layout/AppSidebar";
+import { shopNav } from "../layout/shopNav";
 import { HELP_ARTICLES, articlesFor, canOpenScreen } from "../modules/help/content";
 
 /**

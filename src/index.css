@@ -1245,3 +1245,12 @@ span.flatpickr-weekday,
   background-color: rgb(255 255 255 / 0.14);
   color: #fff;
 }
+/* The gear beside the switch. Sidebar grey on the shop's own colour is a
+   control nobody can see — and this one has to be found to be used. */
+.rail-primary .rail-gear {
+  color: rgb(255 255 255 / 0.82);
+}
+.rail-primary .rail-gear:hover {
+  background-color: rgb(255 255 255 / 0.14);
+  color: #fff;
+}

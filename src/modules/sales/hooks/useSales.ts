@@ -23,6 +23,32 @@ export function useSale(id: string | null) {
   });
 }
 
+/**
+ * What the lines being handed back are worth — asked of the server before
+ * anything is pressed.
+ *
+ * `asked` is the selection as TEXT (the lines, as JSON): a list built on every
+ * render is a new list every time, and a query keyed on one never settles.
+ *
+ * NOT kept under "sales", on purpose. A return that goes through invalidates
+ * everything under that key at once — and this would ask again, for the lines
+ * that had just gone back, and be told "only 0 left to return" while the
+ * sheet was still closing. `already` (how many returns the sale has had) is
+ * in the key instead: the next time the same lines are chosen it is a new
+ * question, and is answered afresh.
+ */
+export function useReturnWorth(saleId: string | null, asked: string, already: number, open: boolean) {
+  const items = JSON.parse(asked) as Array<{ sale_item_id: string; quantity: number }>;
+
+  return useQuery({
+    queryKey: ["return-worth", saleId, already, asked],
+    queryFn: async () => (await salesService.returnWorth(saleId!, items)).data,
+    enabled: open && !!saleId && items.length > 0,
+    retry: false,
+    gcTime: 0,
+  });
+}
+
 export function useSaleMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {
@@ -61,7 +87,7 @@ export function useSaleMutations() {
     mutationFn: ({ id, ...payload }: {
       id: string;
       return_items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>;
-      items: Array<{ product_id: string; quantity: number; serials?: string[] }>;
+      items: Array<{ product_id: string; variant_id?: string; quantity: number; serials?: string[] }>;
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
     }) => salesService.exchange(id, payload),

@@ -3,7 +3,7 @@ import { effectiveTaxRate } from "../offline/pricing/priceCart";
 import { round2 } from "../offline/pricing/money";
 import fixtures from "./fixtures/till-bill.json";
 import { lineNet, lineUnit } from "./lineMath";
-import { followLevel, settleInCoins, tillBill, type BillGroup, type BillLine, type PriceLevel } from "./tillBill";
+import { followLevel, settleInCoins, tillBill, type BillGroup, type BillLine, type PriceLevel, shortBy } from "./tillBill";
 
 /**
  * EVERY BILL THE SERVER WAS ASKED TO MAKE, made again by the counter screen.
@@ -169,5 +169,27 @@ describe("coins", () => {
 
     expect(tillBill({ ...base, tenders: ["cash", "cash"] }).payable).toBe(1230);
     expect(tillBill({ ...base, tenders: ["cash", "card"] }).payable).toBe(1234);
+  });
+});
+
+describe("a cash tender that is too small", () => {
+  it("is short by the difference, to the paisa", () => {
+    // Five hundred against 682.50 — the café's club sandwich with its tax.
+    expect(shortBy("500", 682.5)).toBe(182.5);
+    expect(shortBy("0", 682.5)).toBe(682.5);
+  });
+
+  it("the exact money, or more, is not short", () => {
+    expect(shortBy("682.5", 682.5)).toBe(0);
+    expect(shortBy("1000", 682.5)).toBe(0);
+  });
+
+  it("nothing typed is not short — it has not been typed yet", () => {
+    expect(shortBy("", 682.5)).toBe(0);
+    expect(shortBy("  ", 682.5)).toBe(0);
+  });
+
+  it("something that is not a number has paid nothing", () => {
+    expect(shortBy("abc", 100)).toBe(100);
   });
 });

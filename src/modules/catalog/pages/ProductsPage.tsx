@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import BranchStockModal from "../../transfers/components/BranchStockModal";
 import BranchPriceModal from "../../branches/components/BranchPriceModal";
+import { hasSecondPlace, hasSecondShop } from "../../branches/places";
 import { Link, Outlet, useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -14,6 +15,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useAuthStore } from "../../../stores/authStore";
+import { itemsWord } from "../itemsWord";
 import { useCategories, useProductMutations, useProducts, useSoldOut, useVariantSoldOut } from "../hooks/useCatalog";
 import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
@@ -149,7 +151,13 @@ export default function ProductsPage() {
 
   // Multi-branch: offer a "check other branches" lookup on each item.
   const shopSettings = useShopSettings();
-  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+  // Two different questions. Where ELSE is this held — which a shop with a
+  // godown asks — and does another shop charge differently for it.
+  // "Where is it" and "what does each branch charge" are questions only a
+  // business with a second place has. On the plan's allowance alone, a shop
+  // with one counter got both buttons on every row.
+  const morePlaces = hasSecondPlace(shopSettings.data);
+  const moreShops = hasSecondShop(shopSettings.data);
   const [lookup, setLookup] = useState<Product | null>(null);
   const [priceEdit, setPriceEdit] = useState<Product | null>(null);
   const soldOut = useSoldOut();
@@ -219,11 +227,14 @@ export default function ProductsPage() {
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
+          {/* The same word the menu used to get here — see itemsWord. It
+              said "Products & Services" to a grocer who sells no service, and
+              "your catalog" to people who call it their products. */}
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">
-            Products & Services
+            {itemsWord(features)}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Your catalog — everything you sell
+            Everything you sell
           </p>
         </div>
         <div className="flex gap-2">
@@ -274,7 +285,7 @@ export default function ProductsPage() {
             setPage(1);
           },
           placeholder: "Search name or SKU…",
-          label: "Search the catalogue",
+          label: "Search products",
         }}
         applied={applied}
         onClearAll={clearAll}
@@ -436,12 +447,12 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        {multiBranch && p.track_inventory && (
+                        {morePlaces && p.track_inventory && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setLookup(p); }}
                             className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"
-                            aria-label={`Stock by branch for ${p.name}`}
-                            title="Stock by branch"
+                            aria-label={`Stock by place for ${p.name}`}
+                            title="Stock by place"
                           >
                             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
                               <path d="M3 7l7-4 7 4-7 4-7-4z" strokeLinejoin="round" />
@@ -449,7 +460,7 @@ export default function ProductsPage() {
                             </svg>
                           </button>
                         )}
-                        {multiBranch && (
+                        {moreShops && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setPriceEdit(p); }}
                             className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/[0.06]"

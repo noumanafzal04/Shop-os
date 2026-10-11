@@ -5,461 +5,40 @@ import {
   BoltIcon,
   BoxCubeIcon,
   BoxIcon,
-  CalenderIcon,
   ChatIcon,
   ChevronDownIcon,
-  CopyIcon,
-  DocsIcon,
   DollarLineIcon,
   FileIcon,
-  FolderIcon,
+  GearIcon,
   GridIcon,
   GroupIcon,
   InfoIcon,
   ListIcon,
-  MoreDotIcon,
   PaperPlaneIcon,
   PieChartIcon,
-  PlugInIcon,
-  ShootingStarIcon,
-  TableIcon,
   TaskIcon,
-  TimeIcon,
   UserCircleIcon,
   UserIcon,
 } from "../icons";
 import { BrandMark, Wordmark } from "../components/brand/Brand";
 import { useSidebar } from "../context/SidebarContext";
-import { useUiMode, type UiMode } from "../context/UiModeContext";
+import { useUiMode } from "../context/UiModeContext";
 import { useShopSettings } from "../modules/shop/hooks/useShop";
+import { hasSecondPlace, mayHaveMorePlaces } from "../modules/branches/places";
 import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
-import { canVisit } from "../common/routing/screenPermissions";
 import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { useAdminInbox } from "../modules/admin/hooks/useAdmin";
-import { tracksSerials, usePrimaryBusinessType } from "../common/tenant/businessType";
+import { usePrimaryBusinessType } from "../common/tenant/businessType";
 import { kindOfBusiness } from "../common/tenant/kindOfBusiness";
-import { boardWords, hasJobBoard } from "../modules/workshop/words";
 import { DEFAULT_SIDEBAR } from "../common/theme/tenantTheme";
+import type { NavItem } from "./navItem";
+import { SHOP, shopMenuInFull, shopNav } from "./shopNav";
+import { useSimpleChoice } from "./simpleMenuStore";
+import SimpleMenuDialog from "./SimpleMenuDialog";
 
-type SubItem = { name: string; path: string; pro?: boolean; new?: boolean };
-
-export type NavItem = {
-  name: string;
-  icon: React.ReactNode;
-  path?: string;
-  subItems?: SubItem[];
-  /**
-   * HOW MANY PEOPLE ARE WAITING BEHIND THIS ITEM.
-   *
-   * Only ever a count of things a person is waiting on — never a total, never
-   * a "new since you last looked". Two queues on this platform hold a human
-   * being rather than a record, both sort oldest-first because a slow reply
-   * costs the customer nothing, and neither of them nags. So the number moves
-   * to where the admin already is.
-   *
-   * Zero and undefined both draw nothing. A badge showing "0" is a permanent
-   * mark on the rail that doing the job cannot clear.
-   */
-  badge?: number;
-  /**
-   * Which part of the rail this row belongs to. Rows that share one are drawn
-   * together under its heading; a change of section is a heading (or, on a
-   * rail of icons, a hairline).
-   *
-   * The shop's menu was one unbroken column — sixteen rows in Full view with
-   * nothing to say where "what I do all day" stops and "what I set up once"
-   * begins. Three parts, in the order a day uses them.
-   */
-  section?: string;
-};
-
-/** Put a run of rows under one heading. */
-const under = (section: string, items: NavItem[]): NavItem[] => items.map((i) => ({ ...i, section }));
-
-/** The shop rail's three parts, in the order a day uses them. */
-const DAILY = "Daily work";
-const MANAGE = "Manage";
-const SHOP = "Your shop";
-
-/**
- * Tenant nav for first-time users: the five daily-use modules are direct
- * links on top; everything specialised folds into DROPDOWN parents below
- * (tap to expand — the section with the active page auto-opens). Items only
- * appear when the business has the matching feature enabled (no marketplace
- * feature → no Collections; no reservations feature → no Reservations).
- *
- * Three axes decide what a person sees, and all three have to agree:
- *
- *   MODULE  — what the shop bought (`features`)
- *   TRADE   — what the shop is (`businessType`, already resolved to a current
- *             code, so an old `clinic` still gets the chemist's register)
- *   PERSON  — what this user may do (`can`)
- *
- * The third was missing: a cashier with only sales.manage was offered Staff,
- * Reports and Suppliers and got a 403 from each. Which permission each screen
- * needs is NOT written here — it lives in screenPermissions, the one map the
- * dashboard tiles read as well, because two lists of the same rule is how the
- * menu and the dashboard end up disagreeing about the same cashier.
- */
-export function shopNav(
-  features: Record<string, boolean> | undefined,
-  businessType: string | null | undefined,
-  mode: UiMode,
-  multiBranch: boolean,
-  can: (permission: string) => boolean = () => true,
-): NavItem[] {
-  const branchItem: NavItem = {
-    // Two of the same thing, which is what a branch IS. It wore the cube that
-    // Products wears — different components, near-identical pictures, and the
-    // icon-uniqueness test cannot see that because it compares names. Some of
-    // this only a pair of eyes finds.
-    icon: <CopyIcon />,
-    name: "Branches",
-    subItems: [
-      // Adding a location is configuration; moving stock between them is
-      // stock work — two different people in a bigger shop.
-      { name: "Locations", path: "/tenant/branches" },
-      { name: "Transfers", path: "/tenant/transfers" },
-    ],
-  };
-  // A capability shows only when its flag is explicitly on. Types that don't
-  // offer a feature omit its key entirely (e.g. pharmacy has no `dine_in`), so
-  // a missing key must read as OFF — never default to true, or a pharmacy ends
-  // up with a Dine-in link.
-  const has = (key: string) => features?.[key] ?? false;
-
-  // Transfers move STOCK between branches, and the screen and its API are the
-  // Inventory module's. The entry followed the plan alone, so a two-branch
-  // restaurant or online shop that counts nothing was offered a link that
-  // dropped it on the dashboard.
-  if (!has("inventory")) {
-    branchItem.subItems = branchItem.subItems?.filter((s) => s.path !== "/tenant/transfers");
-  }
-
-  // A books-only tenant (Finance Manager) sells nothing and has no till, so it
-  // must not see a Sales ledger or a Catalog it can never fill. Derive both
-  // from capability, not business type — a shop that later buys the POS module
-  // gets them back automatically.
-  const canSell = has("pos") || has("marketplace");
-  const hasCatalog = has("products") || has("services");
-
-  /**
-   * The one screen this trade's day actually runs on, beside the till.
-   *
-   * A restaurant's is the kitchen pass; a workshop's is the board of cars in
-   * the bay; a chemist's is the dispensing register; a station's is the shift.
-   * These used to live in "More" — a dropdown — while Simple mode dropped them
-   * altogether, so a workshop's calm view offered Products and withheld the
-   * board its whole day is spent on. Simple mode is meant to be the daily
-   * essentials, and for these trades this IS the daily essential.
-   */
-  const tradeDaily: NavItem[] = [
-    // The pass lives on a different wall from the till: same shop, two people,
-    // two displays. Its own module now — a takeaway counter needs a slip to the
-    // kitchen and does not need a floor of tables, and used to have to switch
-    // on the whole restaurant to get one.
-    ...(has("kitchen") ? [{ icon: <TaskIcon />, name: "Kitchen", path: "/tenant/kitchen" }] : []),
-    // The board of work TAKEN IN — every car in the bay, or every job on the
-    // rail. A laundry, a tailor and a repair counter all run exactly this.
-    ...(has("pos") && hasJobBoard(businessType)
-      ? [{ icon: <TaskIcon />, name: boardWords(businessType).board, path: "/tenant/workshop" }]
-      : []),
-    // The chemist's paperwork: the dispensing register and batch recall.
-    // Pharmacy-only — a mart that happens to stock paracetamol keeps no
-    // register, and the page would be an empty table forever.
-    ...(has("inventory") && businessType === "pharmacy"
-      ? [{ icon: <ListIcon />, name: "Dispensary", path: "/tenant/pharmacy" }]
-      : []),
-  ];
-
-  // The forecourt. A station runs its day off the shift, so it sits with the
-  // daily screens rather than buried in setup — the equipment page is its
-  // sub-item because it's touched once and then left alone.
-  const forecourt: NavItem[] = has("fuel")
-    ? [{
-        icon: <BoltIcon />,
-        name: "Forecourt",
-        subItems: [
-          // A forecourt shift ends by setting fuel stock to the dip, so it is a
-          // stock correction; a tanker is goods received; the plant is
-          // configuration. Three screens, three different people.
-          { name: "Shifts", path: "/tenant/fuel" },
-          { name: "Deliveries & rates", path: "/tenant/fuel/deliveries" },
-          { name: "Tanks & pumps", path: "/tenant/fuel/setup" },
-        ],
-      }]
-    : [];
-
-  // The Expense & Income module — one home for all money in/out.
-  const expenseManager: NavItem = {
-    icon: <PieChartIcon />,
-    name: "Expense Manager",
-    subItems: [
-      { name: "Cashbook", path: "/tenant/cashbook" },
-      // The book itself: every movement, balance carried down. Sits beside the
-      // day summary because they answer the same question at two depths.
-      { name: "Ledger", path: "/tenant/ledger" },
-      { name: "Income", path: "/tenant/income" },
-      { name: "Expenses", path: "/tenant/expenses" },
-    ],
-  };
-
-  // Basic mode: the daily essentials only — the calm view for a new merchant.
-  //
-  // "Essential" is read per TRADE, not per module. It used to be one list for
-  // everybody, so a restaurant's calm view had Dine-in and no Kitchen, a
-  // workshop had Products and no board, and a filling station had no forecourt
-  // at all — the screens those shops spend the whole day on.
-  if (mode === "basic") {
-    return filterByPermission([
-      ...under(DAILY, [
-      { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
-      ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-      ...(has("dine_in") ? [{ icon: <TableIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-      ...tradeDaily,
-      ...forecourt,
-      ...(canSell ? [{ icon: <FileIcon />, name: "Sales", path: "/tenant/sales" }] : []),
-      // End of day. Even the calm view needs it — without it a shop can never
-      // close a day off or record what went to the bank.
-      ...(has("pos") ? [{ icon: <CalenderIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
-      ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-      ]),
-      ...under(MANAGE, [
-      ...(hasCatalog ? [{ icon: <BoxIcon />, name: "Products", path: "/tenant/products" }] : []),
-      ...(has("expenses") ? [expenseManager] : []),
-      ...(multiBranch ? [branchItem] : []),
-      ]),
-      ...under(SHOP, [
-      { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
-    // Last, and never gated: anyone in the shop can get stuck, and what
-    // the Help Centre SHOWS is already filtered to this shop's modules
-    // and to what the reader can open.
-    { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
-      ]),
-    ], can);
-  }
-
-  return filterByPermission([
-    ...under(DAILY, [
-    // ── Daily essentials ──────────────────────────────────────────
-    { icon: <GridIcon />, name: "Dashboard", path: "/tenant" },
-    // POS till is only for shops on a plan that includes it (not online-only).
-    ...(has("pos") ? [{ icon: <DollarLineIcon />, name: "POS", path: "/tenant/pos" }] : []),
-    ...(has("dine_in") ? [{ icon: <TableIcon />, name: "Dine-in", path: "/tenant/dine-in" }] : []),
-    // The kitchen pass, the bay board, the dispensing register — whichever of
-    // them this trade runs its day on. Same list Simple mode uses, so the two
-    // views cannot disagree about what this shop's daily work IS.
-    ...tradeDaily,
-    ...(canSell ? [{ icon: <FileIcon />, name: "Sales", path: "/tenant/sales" }] : []),
-    // The 10pm question: what did the shop take today across every drawer, and
-    // how much of it went to the bank. No shift answers it, however well
-    // counted — so it sits with the daily screens, not in a reports folder.
-    // A cashier is entitled to the record of their own drawer, so it carries
-    // the same permission as ringing a sale; the day CLOSE is manager-only,
-    // checked on the server.
-    ...(has("pos") ? [{ icon: <CalenderIcon />, name: "Day & banking", path: "/tenant/day" }] : []),
-    // Promises outstanding: prices quoted, and goods held on advance. Sits
-    // beside Sales because it is the same ledger one step earlier — and a
-    // shopkeeper holding customers' money needs it where they'll see it daily.
-    ...(has("documents") ? [{ icon: <DocsIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
-    ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-    ...(has("delivery") ? [{ icon: <UserIcon />, name: "Riders", path: "/tenant/riders" }] : []),
-    ...forecourt,
-    ]),
-    ...under(MANAGE, [
-    // Expense & Income module — one home for all money in/out.
-    ...(has("expenses") ? [expenseManager] : []),
-    // Multi-branch: a locations manager appears only when the plan allows >1.
-    ...(multiBranch ? [branchItem] : []),
-
-    // ── Grouped dropdowns ─────────────────────────────────────────
-    // Basic mode already hid these from a books-only shop; Full view was
-    // showing a Catalog it can never fill and coupons for sales it never
-    // makes. The rule is the same in both modes or the switch changes what
-    // the business IS, not just how much of it is on screen.
-    ...(hasCatalog
-      ? [{
-          icon: <BoxIcon />,
-          name: "Catalog",
-          subItems: [
-            { name: "Products & Services", path: "/tenant/products" },
-            { name: "Categories", path: "/tenant/categories" },
-            // Collections merchandise the ONLINE storefront — pointless without it.
-            ...(has("marketplace") ? [{ name: "Collections", path: "/tenant/collections" }] : []),
-          ],
-        }]
-      : []),
-    ...(has("inventory")
-      ? [
-          {
-            icon: <FolderIcon />,
-            name: "Inventory",
-            // Stock itself is the module; everything under it is a TOOL a
-            // shop can decline. They used to arrive as passengers — switch
-            // inventory on for a chemist and it was handed all five, whether or
-            // not it had ever disposed of anything.
-            subItems: [
-              { name: "Stock", path: "/tenant/inventory" },
-              // Where stock went when it left without being sold — and what a
-              // distributor still owes for the part that went back.
-              ...(has("disposals") ? [{ name: "Disposals", path: "/tenant/disposals" }] : []),
-              // Counting the shelves against the books. The only way a shop
-              // finds out what it is actually losing.
-              ...(has("stocktake") ? [{ name: "Stocktake", path: "/tenant/stocktake" }] : []),
-              // A label is printed from the catalog record, not the shelf —
-              // and it is worth nothing without a label printer.
-              ...(has("labels") ? [{ name: "Barcode Labels", path: "/tenant/labels" }] : []),
-              ...(has("purchasing")
-                ? [
-                    { name: "Suppliers", path: "/tenant/suppliers" },
-                    { name: "Purchases", path: "/tenant/purchases" },
-                  ]
-                : []),
-            ],
-          },
-        ]
-      : []),
-    // The whole folder used to open for anything that could sell, so a
-    // cash-only takeaway counter was handed a customer book, coupons,
-    // promotions AND bank card offers on the strength of having a till. Each is
-    // its own module now, and the folder appears only if one of them is on.
-    ...((canSell || hasCatalog)
-      && (has("customers") || has("promotions") || has("bank_offers") || has("marketplace") || has("reservations"))
-      ? [{
-          icon: <GroupIcon />,
-          name: "Customers",
-          subItems: [
-            ...(has("customers") ? [{ name: "Customer List", path: "/tenant/customers" }] : []),
-            ...(has("promotions")
-              ? [
-                  { name: "Coupons", path: "/tenant/coupons" },
-                  { name: "Promotions", path: "/tenant/promotions" },
-                ]
-              : []),
-            // A bank funding a discount on its own cards. Beside Promotions
-            // because it is the same kind of thing and the same permission —
-            // and because a shop looking for "our offers" looks here.
-            ...(has("bank_offers") ? [{ name: "Bank offers", path: "/tenant/bank-offers" }] : []),
-            // Replying is the only thing anyone does on the reviews screen,
-            // and the server asks for settings.manage to do it.
-            ...(has("marketplace") ? [{ name: "Reviews", path: "/tenant/reviews" }] : []),
-            ...(has("reservations") ? [{ name: "Reservations", path: "/tenant/reservations" }] : []),
-          ],
-        }]
-      : []),
-    /**
-     * BASIC HR — shown, not yet built.
-     *
-     * Every screen behind these links renders a "not built yet" notice and
-     * talks to nothing. It is here so the module's shape can be reviewed on a
-     * real sidebar before any of it exists.
-     *
-     * Full view only: this is back-office work, and Simple mode is the daily
-     * board. `staff.manage` keeps a cashier out of the wage bill, and
-     * filterByPermission below applies it.
-     *
-     * ── Gated now, and the gate was the missing half ───────────────────
-     *
-     * This used to be ungated "because there is no `hrm` key on the server
-     * yet" — true when it was written, still true months later, which is how
-     * a placeholder becomes furniture. Every shop on the platform carried a
-     * nine-screen HR department in its sidebar: a one-person accountancy
-     * office, a filling station, a tyre shop. Eight of those screens say
-     * "Not built yet" and the ninth is a dashboard of them.
-     *
-     * There is an `hrm` key now and no trade gets it by default, so the area
-     * appears only where somebody decided it should.
-     */
-    ...(has("hrm") ? [{
-      icon: <TimeIcon />,
-      name: "HRM",
-      subItems: [
-        { name: "Dashboard", path: "/tenant/hrm" },
-        { name: "Attendance", path: "/tenant/hrm/attendance" },
-        { name: "Leaves", path: "/tenant/hrm/leaves" },
-        { name: "Shifts & roster", path: "/tenant/hrm/shifts" },
-        { name: "Advances", path: "/tenant/hrm/advances" },
-        { name: "Commission", path: "/tenant/hrm/commission" },
-        { name: "Payroll", path: "/tenant/hrm/payroll" },
-        { name: "Reports", path: "/tenant/hrm/reports" },
-        // Last, the way the module's own settings should sit — inside it,
-        // not buried among the shop's.
-        { name: "HR settings", path: "/tenant/hrm/settings" },
-      ],
-    }] : []),
-    {
-      // The back office, plus the counter LOOKUPS a trade reaches for when a
-      // customer is standing there — not its daily board, which is above.
-      //
-      // "More" used to hold both, so a workshop's whole day's work sat inside a
-      // dropdown named after nothing in particular.
-      icon: <MoreDotIcon />,
-      name: "More",
-      subItems: [
-        { name: "Reports", path: "/tenant/reports" },
-        { name: "Staff", path: "/tenant/staff" },
-        // Who changed what. Beside Staff because it answers the question Staff
-        // raises — you granted somebody a permission, and later you want to
-        // know what they did with it.
-        { name: "Activity", path: "/tenant/activity" },
-        // A tyre or auto shop's real customer key: the plate, what the car
-        // takes, and what was fitted last time. Only the trades that work on
-        // vehicles — a grocery would never open it twice. A vehicle IS
-        // customer data, so it carries the CRM permission.
-        //
-        // Narrower than the bay board above on purpose: a fuel station keeps
-        // vehicle records for its account customers but has no bay.
-        ...(has("products") && (businessType === "automotive" || businessType === "petroleum")
-          ? [{ name: "Vehicles", path: "/tenant/vehicles" }]
-          : []),
-        // Serialized goods (phones, electronics, batteries) — look up a
-        // serial's warranty. The trades that sell a unit somebody brings back;
-        // a grocery or pharmacy never does. Same list the product form gates
-        // the serial toggle on, so where you turn it on and where you look it
-        // up cannot disagree.
-        ...(has("pos") && has("inventory") && tracksSerials(businessType)
-          ? [{ name: "Warranty lookup", path: "/tenant/warranty" }]
-          : []),
-        // The public service menu belongs to service businesses — petroleum has
-        // the `services` flag for pump labour, but no portfolio to show off.
-        // It is what the shop shows the world, hence the settings permission.
-        ...(has("services") && businessType === "services"
-          ? [{ name: "Portfolio", path: "/tenant/portfolio" }]
-          : []),
-      ],
-    },
-
-    // Settings + subscription stand alone at the bottom — one click away.
-    // Subscription carries no permission because the server asks for none:
-    // what the shop pays is not a secret from the people who work in it.
-    ]),
-    ...under(SHOP, [
-    { icon: <ShootingStarIcon />, name: "Subscription", path: "/tenant/subscription" },
-    { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings" },
-    // Last, and never gated: anyone in the shop can get stuck, and what
-    // the Help Centre SHOWS is already filtered to this shop's modules
-    // and to what the reader can open.
-    { icon: <InfoIcon />, name: "Help Centre", path: "/tenant/help" },
-    ]),
-  ], can);
-}
-
-/**
- * Drops the screens this person may not open, per screenPermissions.
- *
- * A dropdown whose every child was dropped goes with them — an empty "More"
- * that opens onto nothing is worse than no More at all. A parent with its own
- * path keeps it (nothing today has both).
- */
-function filterByPermission(items: NavItem[], can: (permission: string) => boolean): NavItem[] {
-  return items
-    .filter((item) => item.path === undefined || canVisit(item.path, can))
-    .map((item) => (item.subItems
-      ? { ...item, subItems: item.subItems.filter((sub) => canVisit(sub.path, can)) }
-      : item))
-    .filter((item) => item.path !== undefined || (item.subItems?.length ?? 0) > 0);
-}
+// The admin rail's tests name a row by this type.
+export type { NavItem } from "./navItem";
 
 // Admin nav is split into two groups for a clean, scannable sidebar:
 // day-to-day platform operations first, then the configuration and oversight
@@ -546,6 +125,7 @@ const SECTION_ROOTS = ["/tenant", "/admin"];
  */
 function useNavInputs() {
   const role = useAuthStore((s) => s.user?.role);
+  const userId = useAuthStore((s) => s.user?.id);
   const features = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features,
   );
@@ -565,11 +145,16 @@ function useNavInputs() {
 
   const { mode, toggleMode } = useUiMode();
   const shopSettings = useShopSettings();
-  // Multi-branch UI shows only when the plan allows more than one branch
-  // (max_branches null = unlimited → true; 1 → false).
-  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+  // The places screens show when stock could be anywhere but the one shop:
+  // a second branch, or a warehouse behind the only one. See `places.ts`.
+  // Two questions, and they are not the same one. May another place be ADDED
+  // (or is there already more than one to look after) — which is who gets the
+  // Branches & warehouses screen. And is there a second place TODAY — which is
+  // the only time the screens about what each place holds are worth showing.
+  const secondPlace = hasSecondPlace(shopSettings.data);
+  const multiBranch = mayHaveMorePlaces(shopSettings.data) || secondPlace;
 
-  return { role, features, businessType, permissions, can, mode, toggleMode, multiBranch };
+  return { role, userId, features, businessType, permissions, can, mode, toggleMode, multiBranch, secondPlace };
 }
 
 /**
@@ -580,12 +165,12 @@ function useNavInputs() {
  * happens to be showing.
  */
 export function useShopNav(): NavItem[] {
-  const { role, features, businessType, can, multiBranch } = useNavInputs();
+  const { role, features, businessType, can, multiBranch, secondPlace } = useNavInputs();
   const isShop = role === "shop_owner" || role === "staff";
 
   return useMemo(
-    () => (isShop ? shopNav(features, businessType, "advanced", multiBranch, can) : []),
-    [isShop, features, businessType, multiBranch, can],
+    () => (isShop ? shopNav(features, businessType, "advanced", multiBranch, can, undefined, secondPlace) : []),
+    [isShop, features, businessType, multiBranch, can, secondPlace],
   );
 }
 
@@ -595,16 +180,25 @@ const AppSidebar: React.FC = () => {
     isPeekHeld, holdPeek, releasePeek,
   } = useSidebar();
   const location = useLocation();
-  const { role, features, businessType, permissions, can, mode, toggleMode, multiBranch } = useNavInputs();
+  const { role, userId, features, businessType, permissions, can, mode, toggleMode, multiBranch, secondPlace } = useNavInputs();
   // What to call it — see kindOfBusiness.
   const kind = kindOfBusiness(features);
   const isAdmin = role === "super_admin" || role === "admin_staff";
+  // What this person has put on their own Simple view, and the screen that
+  // lets them. The dialog is given the menu IN FULL — a row has to be listed
+  // to be switched on.
+  const [mine, setMine] = useSimpleChoice(userId);
+  const [choosing, setChoosing] = useState(false);
+  const menuInFull = useMemo(
+    () => (isAdmin ? [] : shopMenuInFull(features, businessType, multiBranch, can, secondPlace)),
+    [isAdmin, features, businessType, multiBranch, can, secondPlace],
+  );
   // Only asked for on the platform side, and only then — the shop rail has no
   // use for it and an enabled:false query is how a hook stays a hook.
   const inbox = useAdminInbox(isAdmin);
   const navItems = isAdmin
     ? adminNav(adminMainItems, role === "super_admin", permissions, inbox.data)
-    : shopNav(features, businessType, mode, multiBranch, can);
+    : shopNav(features, businessType, mode, multiBranch, can, mine, secondPlace);
   // Second group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin
     ? adminNav(adminPlatformItems, role === "super_admin", permissions)
@@ -725,6 +319,13 @@ const AppSidebar: React.FC = () => {
     return () => window.clearTimeout(t);
   }, [openSubmenu]);
 
+  // On a phone the rail is a drawer drawn above everything, the dialog
+  // included — so it steps aside for the thing it just opened.
+  const openChooser = () => {
+    closeMobileSidebar();
+    setChoosing(true);
+  };
+
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     // ON A RAIL OF ICONS, A GROUP HAS NOWHERE TO OPEN.
     //
@@ -764,7 +365,9 @@ const AppSidebar: React.FC = () => {
         const opens = nav.section !== undefined && nav.section !== items[index - 1]?.section;
 
         return (
-          <li key={nav.name} data-rail-group={nav.subItems ? `${menuType}-${index}` : undefined}>
+          // By where it goes, not what it is called: a group shortened to
+          // one screen takes that screen's name, and HR has a "Reports" too.
+          <li key={nav.path ?? nav.name} data-rail-group={nav.subItems ? `${menuType}-${index}` : undefined}>
             {opens && (showLabels ? (
               <p className={`rail-heading px-3 pb-1.5 text-[11px] font-semibold uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500 ${index === 0 ? "" : "pt-4"}`}>
                 {/* The third part of the rail is the business itself. Called
@@ -1032,9 +635,24 @@ const AppSidebar: React.FC = () => {
         <div className="rail-rule shrink-0 border-t border-gray-100 px-4 py-4 dark:border-gray-800">
           {showLabels ? (
             <>
-              <p className="rail-heading mb-2 px-1 text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
-                Menu view
-              </p>
+              <div className="mb-2 flex items-center justify-between gap-2 px-1">
+                <p className="rail-heading text-[11px] font-medium uppercase leading-5 tracking-wider text-gray-400 dark:text-gray-500">
+                  Menu view
+                </p>
+                {/* What is ON the Simple view is this person's to decide, and
+                    the way to decide it sits beside the switch it belongs to —
+                    in either view, so somebody who finds Full too long learns
+                    the short one can be made to fit before they give up on it. */}
+                <button
+                  type="button"
+                  onClick={openChooser}
+                  aria-label="Choose what Simple view shows"
+                  title="Choose what Simple view shows"
+                  className="rail-gear -my-1.5 flex size-9 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200"
+                >
+                  <GearIcon className="size-5" />
+                </button>
+              </div>
               <div className="rail-switch flex items-center gap-1 rounded-xl border border-brand-100 bg-brand-50 p-1.5 dark:border-brand-500/25 dark:bg-brand-500/10">
                 {(["basic", "advanced"] as const).map((m) => (
                   <button
@@ -1062,18 +680,44 @@ const AppSidebar: React.FC = () => {
                   past on every screen. */}
             </>
           ) : (
-            <button
-              type="button"
-              onClick={toggleMode}
-              title={mode === "basic" ? "Switch to full view" : "Switch to simple menu"}
-              className="rail-switch-off mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:hover:bg-brand-500/25"
-            >
-              {mode === "basic" ? <ListIcon className="size-5" /> : <GridIcon className="size-5" />}
-            </button>
+            <div className="flex flex-col items-center gap-2">
+              {/* On a strip of icons the gear keeps its place above the
+                  switch: a tablet never hovers the rail open, so a control
+                  that lived only on the wide rail was one a tablet never had. */}
+              <button
+                type="button"
+                onClick={openChooser}
+                aria-label="Choose what Simple view shows"
+                title="Choose what Simple view shows"
+                className="rail-gear flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200"
+              >
+                <GearIcon className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={toggleMode}
+                title={mode === "basic" ? "Switch to full view" : "Switch to simple menu"}
+                className="rail-switch-off mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-400 dark:hover:bg-brand-500/25"
+              >
+                {mode === "basic" ? <ListIcon className="size-5" /> : <GridIcon className="size-5" />}
+              </button>
+            </div>
           )}
         </div>
       )}
     </aside>
+    {!isAdmin && (
+      <SimpleMenuDialog
+        isOpen={choosing}
+        onClose={() => setChoosing(false)}
+        menu={menuInFull}
+        choice={mine}
+        onChange={setMine}
+        shopHeading={`Your ${kind.noun}`}
+        showingSimple={mode === "basic"}
+        onShowSimple={() => mode !== "basic" && toggleMode()}
+      />
+    )}
     </>
   );
 };

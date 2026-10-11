@@ -9,6 +9,7 @@ import type { SubscriptionInfo } from "../services/shopService";
 import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { formatRange } from "../../../components/ui/filters";
 import { offlineRules, planSays, subscriptionWords, usageRows } from "../subscriptionRows";
+import { everyPeriod, whatYouPay } from "../whatYouPay";
 import { PRODUCT, productSlug } from "../../../common/brand";
 
 /**
@@ -98,6 +99,7 @@ export default function SubscriptionPage() {
   const metered = usageRows(data.limits_usage);
   const offline = offlineRules(data.limits_usage);
   const modules = data.modules_on ?? [];
+  const pays = whatYouPay(data.bill, (n) => money(n));
 
   return (
     <>
@@ -122,11 +124,30 @@ export default function SubscriptionPage() {
             <>
               <p className="text-title-sm font-bold text-gray-800 dark:text-white/90">{data.plan.name}</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                {money(data.plan.price)} every{" "}
-                {data.plan.billing_period_months === 1
-                  ? "month"
-                  : `${data.plan.billing_period_months} months`}
+                {money(data.plan.price)} {everyPeriod(data.plan.billing_period_months)}
               </p>
+              {/* …and what was added for this shop, when anything was. The
+                  line above is the PLAN's price; a shop with an add-on pays
+                  more than that, and this was the screen that did not say so. */}
+              {pays && (
+                <dl
+                  className="mt-3 space-y-1.5 rounded-xl bg-gray-50 p-3 text-theme-sm dark:bg-white/[0.04]"
+                  data-testid="what-you-pay"
+                >
+                  <Row label="Your plan" value={pays.plan} />
+                  {pays.lines.map((line) => (
+                    <Row
+                      key={line.key}
+                      label={`${line.label} — added for your ${kind.noun}`}
+                      value={line.note ? `${line.amount} (${line.note})` : line.amount}
+                    />
+                  ))}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 border-t border-gray-200 pt-1.5 dark:border-gray-700">
+                    <dt className="font-medium text-gray-800 dark:text-white/90">You pay {pays.every}</dt>
+                    <dd className="text-base font-bold tabular-nums text-gray-900 dark:text-white">{pays.total}</dd>
+                  </div>
+                </dl>
+              )}
               {/* The platform wrote this about shops. A business with no till
                   is told the part of it that is not about one — see planSays. */}
               {described && (
@@ -506,7 +527,29 @@ function Payments({ payments }: { payments: SubscriptionInfo["payments"] }) {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* ON A PHONE, A PAYMENT IS TWO LINES — and the amount is on the first.
+          The table has six columns and a phone has room for three; the three
+          it drew were the date, the plan and the period. What was PAID — the
+          one figure a record of payments exists for — was a sideways scroll
+          away, with nothing on the screen to say there was more to the right. */}
+      <ul className="divide-y divide-gray-100 dark:divide-gray-800 sm:hidden" data-testid="payments-on-a-phone">
+        {payments.map((p) => (
+          <li key={p.id} className="px-5 py-3 text-theme-sm">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-gray-700 dark:text-gray-300">{day(p.paid_at)}</span>
+              <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{money(p.amount)}</span>
+            </div>
+            <p className="mt-0.5 font-medium text-gray-800 dark:text-white/90">{p.plan_name}</p>
+            <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
+              Covers {formatRange({ from: p.period_start.slice(0, 10), to: p.period_end.slice(0, 10) })}
+              {" · "}{capital(p.method.replace(/_/g, " "))}
+              {p.reference ? ` · ${p.reference}` : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-gray-100 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">

@@ -41,8 +41,13 @@ const everySale = (): number | null => {
   const r = record();
   const before = r.before as { sales_count: number } | undefined;
 
-  // …including the ones stage G rings while it tries each setting at the till.
-  return before ? before.sales_count + Number(r.volumeSales ?? 0) + rung() + Number(r.settingsStageSales ?? 0) : null;
+  // …including the ones stage G rings while it tries each setting at the till,
+  // and — when this stage is run again after the journey's last one — the
+  // morning's and the afternoon's sale of the day closed by mistake. Lived in
+  // order those are not rung yet and count for nothing.
+  const closedByMistake = (r.mistakeMorning !== undefined ? 1 : 0) + (r.mistakeAfternoon !== undefined ? 1 : 0);
+
+  return before ? before.sales_count + Number(r.volumeSales ?? 0) + rung() + Number(r.settingsStageSales ?? 0) + closedByMistake : null;
 };
 
 /** The owner's browser, watched like every other page in the journey. */
@@ -101,7 +106,11 @@ const setModule = async (page: Page, on: boolean) => {
   if (!on) {
     // The screen says what ELSE goes with it, before the press: bank card
     // offers stand on promotions, and are taken down with them.
-    await expect(page.getByText(/Switching this off also switches off .*Bank Card Offers/i).first()).toBeVisible();
+    //
+    // By what it SAYS, not by the sentence: the picker was rebuilt and the
+    // words changed, and this line went on asking for the old ones — unseen,
+    // because every run since had resumed with the switch already off.
+    await expect(page.getByText(/Bank Card Offers needs? this/i).first(), "the switch does not say what else it takes with it").toBeVisible();
   }
   await toggle.click();
   await expect(toggle).toHaveAttribute("aria-checked", String(on));
@@ -278,7 +287,7 @@ test("F3 · activated: the owner is back in, and the shop is as it was", async (
   await asOwner(browser, [], async (owner) => {
     await owner.goto("/tenant/sales");
     await settled(owner);
-    const count = rupees(await owner.getByText(/[0-9,]+ sales/).first().innerText());
+    const count = rupees(await owner.getByText(/\d[0-9,]* sales/).first().innerText());
     // Nothing was lost by being switched off for a minute: every sale of the
     // journey, and the ones rung in this stage.
     const all = everySale();

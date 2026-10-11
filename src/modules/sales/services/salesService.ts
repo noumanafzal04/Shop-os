@@ -1,5 +1,5 @@
 import { apiGet, apiPost } from "../../../common/api/client";
-import type { Sale, SaleInput, SaleReturn } from "../types";
+import type { ReturnWorth, Sale, SaleInput, SaleReturn } from "../types";
 
 /** Mirrors Sale::VOID_REASONS on the server. */
 export const VOID_REASONS = [
@@ -78,6 +78,13 @@ export const salesService = {
       idempotency_key?: string;
     },
   ) => apiPost<SaleReturn>(`/sales/${id}/returns`, payload),
+
+  /**
+   * What handing these lines back is worth. Nothing is written: it is the
+   * figure a return or an exchange will pay out, from the method that pays it.
+   */
+  returnWorth: (id: string, items: Array<{ sale_item_id: string; quantity: number }>) =>
+    apiPost<ReturnWorth>(`/sales/${id}/returns/worth`, { items }),
 
   exchange: (
     id: string,

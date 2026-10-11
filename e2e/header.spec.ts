@@ -173,7 +173,7 @@ test("the branch control says when ONE branch is chosen, works from the keyboard
 
   // ── and the way to the branches themselves ────────────────────────
   await branch(page).click();
-  await page.getByRole("link", { name: "Manage branches" }).click();
+  await page.getByRole("link", { name: "Manage places" }).click();
   await expect(page).toHaveURL(/\/tenant\/branches$/);
   await expect(menu(page)).toHaveCount(0);
 });

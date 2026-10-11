@@ -33,6 +33,13 @@ export const TRADE_FEATURES: Record<string, Record<string, boolean>> = {
     customers: true, purchasing: true, stocktake: true, disposals: true,
     labels: true, promotions: true, documents: true,
   },
+  // A wholesaler: what a retailer has, less everything that is only for the
+  // public — no marketplace, no delivery, no reservations.
+  wholesale: {
+    expenses: true, pos: true, products: true, inventory: true,
+    customers: true, purchasing: true, stocktake: true, disposals: true,
+    labels: true, promotions: true, documents: true,
+  },
   services: {
     expenses: true, pos: true, services: true,
     customers: true, documents: true,

@@ -42,6 +42,7 @@ const BY_TRADE: Record<string, string> = {
   mart: "Cooking oil 5 litre",
   pharmacy: "Cough syrup 120ml",
   retail: "Cotton shirt",
+  wholesale: "Cooking oil 1 litre — carton of 12",
   services: "Haircut",
   automotive: "Tyre 185/65 R15",
   petroleum: "Engine oil 4 litre",

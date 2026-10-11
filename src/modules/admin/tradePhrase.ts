@@ -18,6 +18,7 @@ const PHRASE: Record<string, string> = {
   mart: "a mart",
   pharmacy: "a pharmacy",
   retail: "a retail shop",
+  wholesale: "a wholesale business",
   services: "a service business",
   automotive: "an auto workshop",
   petroleum: "a fuel station",

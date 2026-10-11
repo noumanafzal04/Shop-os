@@ -42,6 +42,7 @@ const SCREENS: Screen[] = [
   { path: "/tenant/disposals", name: "write-offs", rows: true },
   { path: "/tenant/stocktake", name: "stock counts", rows: true },
   { path: "/tenant/transfers", name: "branch transfers", rows: true },
+  { path: "/tenant/stock-by-place", name: "stock by place", rows: true },
   { path: "/tenant/coupons", name: "coupons", rows: true },
   // A real screen no browser had ever opened. It is behind `bank_offers`,
   // which only two load-test shops have, so it fell through every list.
@@ -215,12 +216,14 @@ for (const screen of LIST[WHICH] ?? SCREENS) walk(screen);
 test("the sidebar offers HR to exactly the shop that was given it", async ({ page }) => {
   /**
    * IN FULL VIEW, which is the only view that could show it: HRM is
-   * back-office work and the sidebar hides it in Simple mode. Set before the
-   * reload, because the mode is read from localStorage once, on mount.
+   * back-office work and the sidebar hides it in Simple mode.
    */
+  // Before the page's own scripts, not after them: set from the outside once
+  // the app had loaded, the write could land between the menu-view provider
+  // reading the old value and writing it back — and the reload then opened in
+  // Simple, where the shop that WAS given HR is not shown it.
+  await page.addInitScript(() => localStorage.setItem("ui_mode", "advanced"));
   await page.goto("/tenant");
-  await page.evaluate(() => localStorage.setItem("ui_mode", "advanced"));
-  await page.reload();
   await page.waitForLoadState("networkidle").catch(() => {});
 
   const sidebar = page.locator("aside").first();

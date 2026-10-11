@@ -96,7 +96,7 @@ export default function TakeOrderPage() {
    * nothing.
    */
   const [shelf, setShelf] = useState<Product[]>([]);
-  const results = useProducts({ search: debounced || undefined, page, per_page: PAGE_SIZE });
+  const results = useProducts({ search: debounced || undefined, for_sale: true, page, per_page: PAGE_SIZE });
   const pagination = results.data?.meta.pagination;
 
   useEffect(() => {
@@ -220,8 +220,8 @@ export default function TakeOrderPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               type="search"
-              aria-label="Search the catalogue"
-              placeholder="Search the catalogue…"
+              aria-label="Search products"
+              placeholder="Search products…"
               className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-theme-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:bg-white dark:border-gray-800 dark:bg-white/[0.03] dark:text-white dark:focus:bg-white/[0.06]"
             />
           </div>
@@ -286,7 +286,7 @@ export default function TakeOrderPage() {
           {!results.isLoading && shelf.length === 0 && (
             <ListEmpty from={results} what="the products">
               <p className="rounded-xl border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                {debounced ? `Nothing in the catalogue matches “${debounced}”.` : "This shop has no products yet."}
+                {debounced ? `No product matches “${debounced}”.` : "This shop has no products yet."}
               </p>
             </ListEmpty>
           )}

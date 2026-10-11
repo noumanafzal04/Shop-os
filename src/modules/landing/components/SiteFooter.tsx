@@ -6,7 +6,7 @@ import type { TradeCode } from "./tradeIcon";
 import { PRODUCT } from "../../../common/brand";
 
 const TRADES: TradeCode[] = [
-  "food", "mart", "pharmacy", "retail",
+  "food", "mart", "pharmacy", "retail", "wholesale",
   "services", "automotive", "petroleum", "finance",
 ];
 

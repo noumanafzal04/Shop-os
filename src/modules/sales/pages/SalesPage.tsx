@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { uuid } from "../../../common/uuid";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
+import { hasSecondShop } from "../../branches/places";
 import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -18,7 +19,7 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
-import { useSale, useSaleMutations, useSales } from "../hooks/useSales";
+import { useReturnWorth, useSale, useSaleMutations, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useQuery } from "@tanstack/react-query";
 import { posService } from "../../pos/services/posService";
@@ -44,6 +45,7 @@ import { MONEY_BACK_OFFLINE } from "../../offline/outbox/canSellOffline";
 import { numbersToSend, saidWhich, unitsOut, whichUnits } from "../unitsBack";
 import { UnitsBack } from "../components/UnitsBack";
 import { GoingOutNumbers } from "../components/GoingOutNumbers";
+import { changed, differenceOf, linesOut, offersOf, replacementsTotal, taken, type Replacement } from "../replacements";
 
 const STATUSES = [
   { value: "completed", label: "Completed" },
@@ -191,7 +193,11 @@ export default function SalesPage() {
   const connected = useConnectionStore((s) => s.online && s.reachable);
   // Show a Branch column only for multi-branch shops.
   const shopSettings = useShopSettings();
-  const multiBranch = shopSettings.data ? shopSettings.data.max_branches !== 1 : false;
+  // A sale is rung at a SHOP, so the column is for more than one of those —
+  // a single counter with a godown behind it has nothing to tell apart here.
+  // A Branch column is worth a column once there are two branches to tell
+  // apart — not because the plan would allow a second one some day.
+  const multiBranch = hasSecondShop(shopSettings.data);
   const cols = multiBranch ? 7 : 6;
 
   const detailModal = useModal();
@@ -221,11 +227,13 @@ export default function SalesPage() {
   useEffect(() => { returnIdemRef.current = uuid(); }, [returnQty, unitsBack, detailId]);
   // Exchange mode: hand items back (returnQty above) + buy replacements, settle the difference.
   const [exchanging, setExchanging] = useState(false);
-  const [exItems, setExItems] = useState<Array<{ product_id: string; name: string; price: number; quantity: number; tracks_serial: boolean; serials: string[] }>>([]);
+  // What goes out instead — by SIZE where the thing comes in sizes. See `replacements`.
+  const [exItems, setExItems] = useState<Replacement[]>([]);
   const [exSearch, setExSearch] = useState("");
   const [exMethod, setExMethod] = useState("cash");
   const [exAmount, setExAmount] = useState("");
-  const exProducts = useProducts({ search: exSearch || undefined });
+  // What the customer takes INSTEAD is a sale like any other: only what is on sale.
+  const exProducts = useProducts({ search: exSearch || undefined, for_sale: true });
 
   const rows = sales.data?.data ?? [];
   const pagination = sales.data?.meta.pagination;
@@ -300,26 +308,11 @@ export default function SalesPage() {
     );
   };
 
-  const addExItem = (p: { id: string; name: string; price: string | number; discount_price?: string | number | null; tracks_serial?: boolean }) => {
-    const sale = Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price) ? Number(p.discount_price) : Number(p.price);
-    setExItems((xs) => {
-      const ex = xs.find((x) => x.product_id === p.id);
-      if (ex) return xs.map((x) => (x.product_id === p.id ? { ...x, quantity: x.quantity + 1 } : x));
-      return [...xs, { product_id: p.id, name: p.name, price: sale, quantity: 1, tracks_serial: !!p.tracks_serial, serials: [] }];
-    });
-    setExSearch("");
-  };
-
   const doExchange = () => {
     if (!detailId || exchange.isPending) return;
     const return_items = linesBack();
-    const items = exItems.filter((x) => x.quantity > 0).map((x) => {
-      // The numbers of the units going out — for the units there are.
-      const serials = x.serials.slice(0, x.quantity).map((n) => n.trim()).filter(Boolean);
-
-      return { product_id: x.product_id, quantity: x.quantity, ...(x.tracks_serial && serials.length > 0 ? { serials } : {}) };
-    });
-    if (return_items.length === 0 || items.length === 0) return;
+    const items = linesOut(exItems);
+    if (return_items.length === 0 || items.length === 0 || exCredit === null) return;
     const amount = exAmount !== "" ? Number(exAmount) || 0 : Math.max(0, exDiff);
     exchange.mutate(
       { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: "walk_in" },
@@ -362,13 +355,36 @@ export default function SalesPage() {
     }
   };
 
-  const netUnitFor = (i: { quantity: string | number; line_total: string | number; unit_price: string | number }) => {
-    const q = Number(i.quantity);
-    return q > 0 ? Number(i.line_total) / q : Number(i.unit_price);
-  };
-  const exCredit = (detail.data?.items ?? []).reduce((s, i) => s + (returnQty[i.id] ?? 0) * netUnitFor(i), 0);
-  const exTotal = exItems.reduce((s, i) => s + i.price * i.quantity, 0);
-  const exDiff = Math.round((exTotal - exCredit) * 100) / 100;
+  /** A line of the sale as a person would say it: the design, and which size of it. */
+  const lineName = (item: { product_name: string; variant_name: string | null }) =>
+    `${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ""}`;
+
+  // ── WHAT IS BEING HANDED BACK IS WORTH — asked of the server ─────────
+  //
+  // This sheet added the money up itself, tag against tag, with no tax. A
+  // kurta bought for 2,625 was a "credit (est.)" of 2,500, the Large that
+  // replaced it "2,700", and the difference it told the cashier to collect
+  // was 200 where the sale wanted 210 — and refused. The refund sheet beside
+  // it never named a figure at all. Both now show the sum the server will
+  // pay, from the method that pays it.
+  const backAsked = JSON.stringify(
+    (detail.data?.items ?? [])
+      .filter((item) => (returnQty[item.id] ?? 0) > 0)
+      .map((item) => ({ sale_item_id: item.id, quantity: returnQty[item.id] })),
+  );
+  // Typed a digit at a time; asked once the typing stops.
+  const backSettled = useDebouncedValue(backAsked, 250);
+  const worth = useReturnWorth(detailId, backSettled, detail.data?.returns?.length ?? 0, (returning || exchanging) && connected);
+  /** The answer to what is on screen NOW — not to the selection before it. */
+  const backWorth = backSettled === backAsked && !worth.isFetching && worth.data ? worth.data : null;
+  const nothingBack = backAsked === "[]";
+
+  const exCredit = nothingBack ? 0 : backWorth?.refund_total ?? null;
+  const exTotal = replacementsTotal(exItems, {
+    defaultTaxRate: Number(shopSettings.data?.default_tax_rate ?? 0),
+    taxInclusive: !!shopSettings.data?.tax_inclusive,
+  });
+  const exDiff = differenceOf(exTotal, exCredit ?? 0);
 
   const applied: AppliedFilter[] = [
     status && {
@@ -715,11 +731,13 @@ export default function SalesPage() {
                       <div key={item.id}>
                         <div className="flex items-center justify-between gap-2">
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
-                            {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
+                            {lineName(item)}
                             <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
                           </span>
+                          {/* Named with its SIZE. Two sizes of one design are two
+                              boxes, and both were announced as the design. */}
                           <Input
-                            aria-label={`How many ${item.product_name} to return`}
+                            aria-label={`How many ${lineName(item)} to return`}
                             type="number" min="0" max={String(max)}
                             value={String(returnQty[item.id] ?? 0)}
                             onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))}
@@ -730,6 +748,17 @@ export default function SalesPage() {
                     );
                   })}
                 </div>
+                {/* The money, BEFORE the press. It used to be known only after. */}
+                {!nothingBack && (
+                  <div data-testid="refund-worth" className="flex items-baseline justify-between rounded-lg border border-gray-200 px-3 py-2 text-theme-sm dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400">Goes back to the customer</span>
+                    <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">
+                      {backWorth
+                        ? <>{money(backWorth.refund_total)}{backWorth.refund_tax > 0 && <span className="ml-1.5 font-normal text-theme-xs text-gray-400">incl. {money(backWorth.refund_tax)} tax</span>}</>
+                        : worth.error instanceof ApiError ? <span className="font-normal text-error-500">{worth.error.message}</span> : "…"}
+                    </span>
+                  </div>
+                )}
                 {processReturn.error instanceof ApiError && (
                   <Alert variant="error" title="Return failed" message={processReturn.error.message} />
                 )}
@@ -759,11 +788,11 @@ export default function SalesPage() {
                         <div key={item.id}>
                           <div className="flex items-center justify-between gap-2">
                             <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
-                              {item.product_name}{item.variant_name ? ` (${item.variant_name})` : ""}
+                              {lineName(item)}
                               <span className="text-theme-xs text-gray-400"> · {max} returnable</span>
                             </span>
                             <Input type="number" min="0" max={String(max)}
-                              aria-label={`How many ${item.product_name} to hand back`}
+                              aria-label={`How many ${lineName(item)} to hand back`}
                               value={String(returnQty[item.id] ?? 0)}
                               onChange={(e) => setReturnQty((m) => ({ ...m, [item.id]: Math.max(0, Math.min(max, Number(e.target.value))) }))} />
                           </div>
@@ -783,12 +812,22 @@ export default function SalesPage() {
                     </div>
                   )}
                   {exSearch && !deniedReason(exProducts.error) && (
-                    <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
-                      {(exProducts.data?.data ?? []).slice(0, 8).map((p) => (
-                        <button key={p.id} onClick={() => addExItem(p)}
-                          className="flex w-full items-center justify-between px-3 py-1.5 text-left text-theme-sm hover:bg-gray-50 dark:hover:bg-white/5">
-                          <span className="truncate text-gray-700 dark:text-gray-300">{p.name}</span>
-                          <span className="text-gray-400">{money(p.price)}</span>
+                    <div data-testid="exchange-offers" className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
+                      {/* Each SIZE is its own row — with how many are left, and
+                          unpressable when there are none. The design on its own
+                          is never offered: the server would ask "which size?",
+                          and this sheet had nowhere to answer. */}
+                      {(exProducts.data?.data ?? []).slice(0, 8).flatMap((p) => offersOf(p)).map((offer) => (
+                        <button key={offer.key} type="button" disabled={offer.whyNot !== null} title={offer.whyNot ?? undefined}
+                          onClick={() => { setExItems((xs) => taken(xs, offer)); setExSearch(""); }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-theme-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent dark:hover:bg-white/5">
+                          <span className="truncate text-gray-700 dark:text-gray-300">{offer.name}</span>
+                          <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                            {offer.left !== null && (
+                              <span className="text-theme-xs text-gray-400">{offer.left > 0 ? `${Number(offer.left.toFixed(3))} left` : "none left"}</span>
+                            )}
+                            <span className="text-gray-400">{money(offer.price)}</span>
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -796,13 +835,13 @@ export default function SalesPage() {
                   {exItems.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {exItems.map((x) => (
-                        <div key={x.product_id}>
+                        <div key={x.key}>
                           <div className="flex items-center justify-between gap-2 text-sm">
                             <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{x.name} · {money(x.price)}</span>
                             <div className="flex items-center gap-1">
-                              <button aria-label={`One fewer ${x.name}`} className="h-6 w-6 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity - 1 } : y)).filter((y) => y.quantity > 0))}>−</button>
+                              <button type="button" aria-label={`One fewer ${x.name}`} className="h-6 w-6 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setExItems((xs) => changed(xs, x.key, -1))}>−</button>
                               <span className="w-6 text-center tabular-nums text-gray-800 dark:text-white/90">{x.quantity}</span>
-                              <button aria-label={`One more ${x.name}`} className="h-6 w-6 rounded bg-brand-500 text-white" onClick={() => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, quantity: y.quantity + 1 } : y)))}>+</button>
+                              <button type="button" aria-label={`One more ${x.name}`} className="h-6 w-6 rounded bg-brand-500 text-white" onClick={() => setExItems((xs) => changed(xs, x.key, 1))}>+</button>
                             </div>
                           </div>
                           {x.tracks_serial && (
@@ -811,7 +850,7 @@ export default function SalesPage() {
                               name={x.name}
                               quantity={x.quantity}
                               value={x.serials}
-                              onChange={(serials) => setExItems((xs) => xs.map((y) => (y.product_id === x.product_id ? { ...y, serials } : y)))}
+                              onChange={(serials) => setExItems((xs) => xs.map((y) => (y.key === x.key ? { ...y, serials } : y)))}
                             />
                           )}
                         </div>
@@ -820,12 +859,17 @@ export default function SalesPage() {
                   )}
                 </div>
 
-                <div className="rounded-lg border border-gray-200 p-3 text-theme-sm dark:border-gray-800">
-                  <div className="flex justify-between text-gray-500"><span>Return credit (est.)</span><span>{money(exCredit)}</span></div>
-                  <div className="flex justify-between text-gray-500"><span>Replacement total (est.)</span><span>{money(exTotal)}</span></div>
+                {/* Not estimates any more: the credit is the server's own sum
+                    and the replacement is the till's bill, tax and all. */}
+                <div data-testid="exchange-sums" className="rounded-lg border border-gray-200 p-3 text-theme-sm tabular-nums dark:border-gray-800">
+                  <div className="flex justify-between text-gray-500">
+                    <span>Credit for what comes back</span>
+                    <span>{exCredit !== null ? money(exCredit) : worth.error instanceof ApiError ? <span className="text-error-500">{worth.error.message}</span> : "…"}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500"><span>What goes out comes to</span><span>{money(exTotal)}</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-gray-800 dark:text-white/90">
                     <span>{exDiff >= 0 ? "Difference to collect" : "Refund to customer"}</span>
-                    <span>{money(Math.abs(exDiff))}</span>
+                    <span>{exCredit !== null ? money(Math.abs(exDiff)) : "…"}</span>
                   </div>
                   {exDiff > 0 && (
                     <div className="mt-2 flex items-center gap-2">
@@ -851,7 +895,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits}>
+                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || exCredit === null}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

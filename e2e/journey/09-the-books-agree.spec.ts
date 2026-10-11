@@ -1,4 +1,4 @@
-import { OWNER_STATE, ask, expect, record, rupees, session, settled, test } from "./kit";
+import { ask, expect, OWNER_STATE, record, roomForACase, rupees, session, settled, test } from "./kit";
 import { CUSTOMERS, PURCHASE, item } from "./shop";
 
 /**
@@ -153,14 +153,19 @@ test("D4 · the activity trail has what was changed, and by whom", async ({ page
   await expect(page.getByText(/QA Bilal Traders/).first()).toBeVisible();
 });
 
-test("D5 · every screen once more, now that it has a day in it — nothing refused, nothing blank", async ({ page }) => {
-  test.setTimeout(600_000);
+test("D5 · every screen once more, now that it has a day in it — nothing refused, nothing blank", async ({ page, request }) => {
+  test.setTimeout(900_000);
   const screens = record().screens as string[];
   expect(screens.length).toBeGreaterThanOrEqual(30);
 
   const bounced: string[] = [];
   const blank: string[] = [];
-  for (const href of screens) {
+  for (const [at, href] of screens.entries()) {
+    // A whole reload for every screen is more than one person may ask of the
+    // API in a minute — more still now the shop has a second branch and each
+    // load asks about that too. Every ten, the walk waits for room; stage E
+    // does the same. Nobody opens a shop's screens at this pace.
+    if (at > 0 && at % 10 === 0) await roomForACase(request);
     await page.goto(href);
     await settled(page);
     await page.waitForTimeout(350);

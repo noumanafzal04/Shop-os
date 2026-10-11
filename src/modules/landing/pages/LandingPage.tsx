@@ -120,7 +120,7 @@ const PLANS: Array<{
     name: "Basic",
     price: "2,500",
     line: "One counter, one shop.",
-    points: ["One branch", "Up to 2 tills", "Full catalogue & stock", "Khata and daily close", "Help centre in the app"],
+    points: ["One branch", "Up to 2 tills", "All your products & stock", "Khata and daily close", "Help centre in the app"],
   },
   {
     name: "Premium",
@@ -141,7 +141,7 @@ const PLANS: Array<{
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: "Does it genuinely keep selling with no internet?",
-    a: "Yes. The catalogue, the prices and the day's settings live on the counter itself, so a sale rings, the receipt prints and the drawer opens with nothing behind it. Each of those sales gets its own slip number the customer can be found by later. When the line comes back they go up in order, and the till counts them down as they go.",
+    a: "Yes. Your products, the prices and the day's settings live on the counter itself, so a sale rings, the receipt prints and the drawer opens with nothing behind it. Each of those sales gets its own slip number the customer can be found by later. When the line comes back they go up in order, and the till counts them down as they go.",
   },
   {
     q: "What happens to an offline sale the server later refuses?",
@@ -180,7 +180,7 @@ export default function LandingPage() {
     <div className="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-white/90">
       <PageMeta
         title="The till that keeps selling"
-        description="A complete business system for shops: point of sale, stock, khata, staff and reporting — built for eight trades, and it keeps selling when the internet does not."
+        description="A complete business system for shops: point of sale, stock, khata, staff and reporting — built for nine trades, and it keeps selling when the internet does not."
       />
 
       <SiteHeader overDark />
@@ -313,7 +313,7 @@ export default function LandingPage() {
             {[
               {
                 t: "The line drops",
-                d: "Nothing on the counter changes. The whole catalogue and every price are already on the device, so the next customer is served exactly as the last one was.",
+                d: "Nothing on the counter changes. Every product and every price is already on the device, so the next customer is served exactly as the last one was.",
               },
               {
                 t: "The queue keeps moving",
@@ -404,7 +404,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28">
           <div className="settles mx-auto max-w-3xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-500">
-              Eight trades
+              Nine trades
             </p>
             <h2 className="mt-5 text-4xl font-bold leading-[1.08] tracking-[-0.02em] text-balance sm:text-5xl">
               Every system says it knows your trade

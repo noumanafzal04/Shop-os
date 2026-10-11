@@ -4,11 +4,32 @@ import { ALL_BRANCHES, branchRows, findBranches, step } from "./branchMenu";
 import type { Branch } from "./services/branchService";
 
 const branch = (over: Partial<Branch>): Branch => ({
-  id: "b", name: "Branch", code: null, is_default: false, is_active: true,
+  id: "b", name: "Branch", code: null, kind: "shop", is_default: false, is_active: true, fills_orders: true,
   address: null, phone: null, city_id: null, city: null, latitude: null, longitude: null, ...over,
 });
 
 describe("the branch menu's rows", () => {
+  it("lists the shops before the warehouses, and says which a warehouse is", () => {
+    // The server sends Main first and the rest by name, so "Godown" arrives
+    // between "Main" and "Gulberg" — and read as one of the branches.
+    const rows = branchRows([
+      branch({ id: "1", name: "Main", is_default: true }),
+      branch({ id: "2", name: "Godown", kind: "warehouse", fills_orders: false }),
+      branch({ id: "3", name: "Gulberg" }),
+    ]);
+
+    expect(rows.map((r) => r.name)).toEqual(["All branches", "Main", "Gulberg", "Godown"]);
+    expect(rows[3]).toMatchObject({ tag: "Warehouse", warehouse: true });
+    expect(rows[1].warehouse).toBe(false);
+  });
+
+  it("a closed warehouse is closed first: that is what stops it being chosen", () => {
+    const [, godown] = branchRows([branch({ id: "2", name: "Godown", kind: "warehouse", is_active: false })]);
+
+    expect(godown.tag).toBe("Closed");
+    expect(godown.warehouse).toBe(true);
+  });
+
   it("opens with the head-office view, and says what choosing it means", () => {
     const rows = branchRows([branch({ id: "1", name: "Saddar" })]);
 

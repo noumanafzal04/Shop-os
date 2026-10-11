@@ -65,6 +65,22 @@ export function settleInCoins(due: number, step: number): number {
   return round2((units - floor > 0.5 ? floor + 1 : floor) * step);
 }
 
+/**
+ * What a cash tender that has been TYPED falls short by.
+ *
+ * Nothing typed is not "short" — it has not been typed yet — and neither is
+ * the exact money or more. Anything else is a note too small for the bill,
+ * and the cashier is told by how much instead of being shown "Change due 0"
+ * over a button that will not press.
+ */
+export function shortBy(tendered: string, payable: number): number {
+  if (tendered.trim() === "") return 0;
+
+  const given = Number(tendered) || 0;
+
+  return given < payable ? round2(payable - given) : 0;
+}
+
 export interface BillInput {
   lines: readonly BillLine[];
   group: BillGroup | null;

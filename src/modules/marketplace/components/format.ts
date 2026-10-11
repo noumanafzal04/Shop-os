@@ -38,6 +38,7 @@ export const tradeLabel = (type: string | null | undefined): string =>
     mart: "Grocery",
     pharmacy: "Pharmacy",
     retail: "Retail",
+    wholesale: "Wholesale",
     services: "Services",
     automotive: "Auto",
     petroleum: "Fuel",

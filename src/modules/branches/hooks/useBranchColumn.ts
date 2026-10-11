@@ -1,5 +1,6 @@
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { useBranches } from "./useBranches";
+import { hasSecondPlace } from "../places";
 
 /**
  * SHOULD THIS LIST SAY WHICH BRANCH, AND WHAT IS IT CALLED?
@@ -25,7 +26,13 @@ import { useBranches } from "./useBranches";
  */
 export function useBranchColumn() {
   const settings = useShopSettings();
-  const multiBranch = settings.data ? settings.data.max_branches !== 1 : false;
+  // An expense, a write-off or a stock movement can happen at a warehouse as
+  // well as a shop, so this asks about every place, not only the ones that sell.
+  //
+  // …and asks about the places there ARE. On the plan's allowance this
+  // fetched the list of branches on every one of these screens for a shop
+  // with one, to learn there was nothing to show.
+  const multiBranch = hasSecondPlace(settings.data);
   const branches = useBranches(multiBranch);
   const list = branches.data ?? [];
 

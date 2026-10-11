@@ -92,6 +92,8 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/disposals": "inventory.manage",
   "/tenant/stocktake": "inventory.manage",
   "/tenant/transfers": "inventory.manage",
+  // The same stock, read across every place instead of moved between two.
+  "/tenant/stock-by-place": "inventory.manage",
   // Naming who a delivery came from, and receiving against the order, are
   // both stockroom work. Editing the vendor directory and raising an order
   // are not — the server draws the same line (Permissions::READS_SUPPLIERS,

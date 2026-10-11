@@ -705,7 +705,7 @@ test.describe("inside the books", () => {
     const downloading = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export", exact: true }).click();
     const csv = fs.readFileSync(await (await downloading).path(), "utf8");
-    expect(csv.split("\n")[0].replace(/^﻿/, "").trim()).toBe("Date,Type,Reference,Description,Category,Method,In,Out,Balance");
+    expect(csv.split("\n")[0].replace(/^\uFEFF/, "").trim()).toBe("Date,Type,Reference,Description,Category,Method,In,Out,Balance");
     for (const line of todays) expect(csv, `${line} is missing from the export`).toContain(line);
     expect(csv, "yesterday's line is in today's export").not.toContain("Salaries — last month");
   });

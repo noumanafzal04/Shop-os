@@ -31,10 +31,13 @@ export const purchasesService = {
     id: string,
     items?: Array<{ id: string; quantity: number; batch_number?: string; expiry_date?: string; serials?: string[] }>,
     idempotencyKey?: string,
+    /** Which place it is put into. Left out: the place being worked at. */
+    intoBranchId?: string,
   ) =>
     apiPost<PurchaseOrder>(`/purchase-orders/${id}/receive`, {
       ...(items ? { items } : {}),
       ...(idempotencyKey ? { idempotency_key: idempotencyKey } : {}),
+      ...(intoBranchId ? { branch_id: intoBranchId } : {}),
     }),
   cancel: (id: string, reason?: string) =>
     apiPost<PurchaseOrder>(`/purchase-orders/${id}/cancel`, { reason }),

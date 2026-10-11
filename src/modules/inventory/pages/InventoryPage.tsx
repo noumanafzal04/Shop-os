@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
@@ -27,6 +27,8 @@ import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { formatQuantity, formatQuantityWithUnit } from "../../../common/format/quantity";
 import { isPastDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useBranchStore } from "../../../stores/branchStore";
+import { refillLink } from "../../transfers/stockWords";
 
 
 type AdjustType = "in" | "out" | "set";
@@ -51,6 +53,12 @@ export default function InventoryPage() {
    */
   const [params, setParams] = useSearchParams();
   const reorderOnly = params.get("filter") === "low";
+  // The place a "bring it" link fills: the one chosen in the header, or — for
+  // somebody pinned to a place — the one they work at. Unknown, the transfer
+  // opens with the destination still to pick.
+  const chosenPlace = useBranchStore((s) => s.activeBranchId);
+  const ownPlace = useAuthStore((s) => s.user?.branch_id);
+  const here = chosenPlace ?? ownPlace ?? null;
   const setReorderOnly = (on: boolean) => {
     const next = new URLSearchParams(params);
     if (on) next.set("filter", "low");
@@ -452,6 +460,19 @@ export default function InventoryPage() {
                     <td className="px-6 py-4">{p.low_stock_threshold != null ? formatQuantity(p.low_stock_threshold) : "—"}</td>
                     {reorderOnly && (
                       <td className="px-6 py-4">
+                        {/* BRING IT BEFORE BUYING IT. A shelf that has run
+                            down while the godown holds forty is not a
+                            purchase order, and this list used to offer a
+                            supplier for it all the same. */}
+                        {(p.held_elsewhere ?? []).length > 0 && (
+                          <Link
+                            to={refillLink(p.held_elsewhere![0].branch_id, here, p.name)}
+                            data-testid="held-elsewhere"
+                            className="mb-1 block text-theme-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                          >
+                            {p.held_elsewhere![0].name} has {formatQuantity(p.held_elsewhere![0].quantity)} — bring it
+                          </Link>
+                        )}
                         {p.last_supplier_name ? (
                           <span className="text-gray-700 dark:text-gray-300">{p.last_supplier_name}</span>
                         ) : (

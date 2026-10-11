@@ -58,7 +58,7 @@ export default function NewSalePage() {
 
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 300);
-  const results = useProducts({ search: debounced, page: 1 });
+  const results = useProducts({ search: debounced, for_sale: true, page: 1 });
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [channel, setChannel] = useState<SaleChannel>("walk_in");
@@ -137,7 +137,10 @@ export default function NewSalePage() {
     );
   };
 
-  const searchResults = (results.data?.data ?? []).filter((p) => p.is_active);
+  // Only what is on sale — asked of the SERVER (`for_sale`), not sieved here.
+  // Dropping the retired ones after the page had arrived left a page of
+  // fifteen holding nine, and the tenth match on a page nobody could reach.
+  const searchResults = results.data?.data ?? [];
 
   return (
     <>

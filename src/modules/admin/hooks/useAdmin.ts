@@ -216,6 +216,27 @@ export function usePlanChangePreview(tenantId: string | undefined, planId: strin
   });
 }
 
+/**
+ * What a payment taken now would buy for this shop on this plan.
+ *
+ * Asked while the dialog is open, and again whenever the plan or a typed date
+ * changes. Never kept: the answer depends on today's date and on where the
+ * shop's period stands, and a remembered one is how the dialog would promise
+ * dates the save then does not write.
+ */
+export function usePlanWindow(tenantId: string | undefined, planId: string, startsAt: string, endsAt: string, open: boolean) {
+  return useQuery({
+    queryKey: ["admin", "tenant", tenantId, "plan-window", planId, startsAt, endsAt],
+    queryFn: async () => (await adminService.planWindow(tenantId!, planId, {
+      starts_at: startsAt || undefined,
+      ends_at: endsAt || undefined,
+    })).data,
+    enabled: open && !!tenantId && planId !== "",
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
 export function useGrantCapacity() {
   const queryClient = useQueryClient();
   return useMutation({

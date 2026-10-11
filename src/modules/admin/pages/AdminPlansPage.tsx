@@ -70,6 +70,7 @@ const blank = {
   // Organisation size. Blank here does NOT mean unlimited — see the note in
   // the form. It means the platform default.
   branches: "",
+  warehouses: "",
   staff: "",
   registers: "",
   offline_selling: false,
@@ -153,7 +154,10 @@ export default function AdminPlansPage() {
       name: plan.name,
       code: plan.code,
       description: plan.description ?? "",
-      price: String(plan.price),
+      // As it was typed. The server hands a price back as "3000.00", and a
+      // box that reopens showing two decimals nobody entered reads as a
+      // figure somebody else changed.
+      price: String(Number(plan.price)),
       billing_period_months: String(plan.billing_period_months ?? 1),
       grace_period_days: String(plan.grace_period_days ?? 7),
       products: str(lim?.products),
@@ -162,6 +166,7 @@ export default function AdminPlansPage() {
       grace_orders_month: str(plan.grace_orders_month),
       retention_months: str(lim?.retention_months),
       branches: str(lim?.branches),
+      warehouses: str(lim?.warehouses),
       staff: str(lim?.staff),
       registers: str(lim?.registers),
       offline_selling: (lim?.offline_selling ?? 0) > 0,
@@ -193,6 +198,7 @@ export default function AdminPlansPage() {
       grace_orders_month: num(form.grace_orders_month),
       retention_months: num(form.retention_months),
       max_branches: num(form.branches),
+      max_warehouses: num(form.warehouses),
       max_staff: num(form.staff),
       max_registers: num(form.registers),
       // A plan that does not grant offline selling sends 0, not null: null
@@ -330,15 +336,18 @@ export default function AdminPlansPage() {
               two numbers nobody has ever rung up about — while branches,
               staff and tills, which are the first three questions on every
               call, were not on a plan at all. */}
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             {([
-              ["Branches", plan.limits.branches],
-              ["Staff", plan.limits.staff],
-              ["Tills", plan.limits.registers],
-            ] as const).map(([label, value]) => (
+              ["Branches", plan.limits.branches, plan.defaults?.branches],
+              // Its own number: a shop with one counter may still have a
+              // godown, and "1 branch" alone would read as "no".
+              ["Warehouses", plan.limits.warehouses, plan.defaults?.warehouses],
+              ["Staff", plan.limits.staff, plan.defaults?.staff],
+              ["Tills", plan.limits.registers, plan.defaults?.registers],
+            ] as const).map(([label, value, fallback]) => (
               <div key={label} className="rounded-lg bg-gray-50 py-2 dark:bg-white/[0.04]">
                 <p className="text-base font-semibold tabular-nums text-gray-800 dark:text-white/90">
-                  {value ?? plan.defaults?.[label.toLowerCase() === "tills" ? "registers" : label.toLowerCase() === "staff" ? "staff" : "branches"] ?? "—"}
+                  {value ?? fallback ?? "—"}
                 </p>
                 <p className="text-gray-400">{label}</p>
               </div>
@@ -543,10 +552,14 @@ export default function AdminPlansPage() {
                 business without minting a plan for it.
               </p>
             </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label>Branches</Label>
                 <Input type="number" min="1" value={form.branches} onChange={(e) => set("branches", e.target.value)} placeholder="1" />
+              </div>
+              <div>
+                <Label>Warehouses</Label>
+                <Input type="number" min="0" value={form.warehouses} onChange={(e) => set("warehouses", e.target.value)} placeholder="1" />
               </div>
               <div>
                 <Label>Staff logins</Label>
@@ -563,7 +576,8 @@ export default function AdminPlansPage() {
                 unlimited staff accounts is a shop nobody is counting. */}
             <p className="mt-2 text-theme-xs text-gray-400">
               Blank here is <span className="font-medium">not</span> unlimited — it falls to the platform default
-              (1 branch, 5 staff, 2 lanes). The owner's own login is never counted as staff.
+              (1 branch, 1 warehouse, 5 staff, 2 lanes). A warehouse holds stock and sells nothing, and is counted
+              apart from the branches. The owner's own login is never counted as staff.
             </p>
           </div>
 
@@ -628,8 +642,13 @@ export default function AdminPlansPage() {
                 </p>
               </div>
               <div>
-                <Label>Days a till may sell offline</Label>
+                {/* Tied by hand. This box shares its cell with the tick below
+                    it, and two controls under one label are exactly where
+                    the automatic pairing stops rather than guess — so the
+                    days were a number box with no name at all. */}
+                <Label htmlFor="plan-offline-days">Days a till may sell offline</Label>
                 <Input
+                  id="plan-offline-days"
                   type="number"
                   min="1"
                   value={form.offline_days}

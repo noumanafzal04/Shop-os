@@ -32,6 +32,7 @@ import VariantMatrixEditor from "../components/VariantMatrixEditor";
 import { axesFromRows, toPayload, type Axis, type MatrixRow } from "../variantMatrix";
 import { PriceHistory } from "../components/PriceHistory";
 import { TAB_LABEL, refusalsOutOfSight, tabOfField, tabsFor, type FormTab } from "../formTabs";
+import { GoesOnShelf } from "../../branches/components/StandingAt";
 
 /** The on/off pill — inside a Toggle, and beside the title of a section that can be switched off. */
 function Pill({ on }: { on: boolean }) {
@@ -1320,6 +1321,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       Stock changes go through inventory adjustments.
                     </p>
                   )}
+                  {/* Which shelf, said before the press — only where there is
+                      more than one to mean. */}
+                  {!isEdit && <GoesOnShelf />}
                 </div>
                 <div>
                   <Label>Low-stock alert at</Label>

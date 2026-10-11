@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shopNav } from "./AppSidebar";
+import { shopNav } from "./shopNav";
 import { TRADE_FEATURES as FEATURES } from "../test/tradeFeatures";
 
 /**
@@ -68,11 +68,31 @@ describe("what goes where", () => {
     expect(part("petroleum", "advanced", "Forecourt")).toBe("Daily work");
   });
 
-  it("the books, the stock and the branches are managed", () => {
-    for (const name of ["Expense Manager", "Branches", "Catalog", "Inventory", "More"]) {
+  it("the products, the stock, the buying, the offers and the books are managed", () => {
+    for (const name of ["Products", "Inventory", "Purchases", "Customers", "Offers & discounts", "Expense Manager", "Reports"]) {
       expect(part("mart", "advanced", name), name).toBe("Manage");
     }
     expect(part("mart", "basic", "Products")).toBe("Manage");
+  });
+
+  it("who works here and where it is belong to the shop itself", () => {
+    // Staff and the list of places are set up once and then left alone. They
+    // were filed with the daily upkeep — Staff inside a folder called "More".
+    expect(part("mart", "advanced", "Staff")).toBe("Your shop");
+    expect(part("mart", "advanced", "Branches & warehouses")).toBe("Your shop");
+    expect(part("mart", "advanced", "Subscription")).toBe("Your shop");
+  });
+
+  it("an office that only keeps its books has the books as its day", () => {
+    // No till, no counter: under "Manage" its whole job was filed as upkeep
+    // and its day had one row in it.
+    expect(part("finance", "advanced", "Expense Manager")).toBe("Daily work");
+    expect(part("finance", "basic", "Expense Manager")).toBe("Daily work");
+  });
+
+  it("somebody waiting to hear about a reservation is daily work, not an entry in the customer book", () => {
+    expect(part("retail", "advanced", "Reservations")).toBe("Daily work");
+    expect(part("retail", "basic", "Reservations")).toBe("Daily work");
   });
 
   it("settings and help close the rail", () => {

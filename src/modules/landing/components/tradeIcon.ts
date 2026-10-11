@@ -1,6 +1,6 @@
 import {
   AutomotiveIcon, FinanceIcon, FoodIcon, MartIcon,
-  PetroleumIcon, PharmacyIcon, RetailIcon, ServicesIcon,
+  PetroleumIcon, PharmacyIcon, RetailIcon, ServicesIcon, WholesaleIcon,
 } from "./TradeIcons";
 
 /**
@@ -14,6 +14,7 @@ export const TRADE_ICON = {
   mart: MartIcon,
   pharmacy: PharmacyIcon,
   retail: RetailIcon,
+  wholesale: WholesaleIcon,
   services: ServicesIcon,
   automotive: AutomotiveIcon,
   finance: FinanceIcon,

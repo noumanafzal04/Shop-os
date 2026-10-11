@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { API } from "../api";
-import { OWNER_STATE, ask, expect, record, remember, rupees, session, settled, test } from "./kit";
+import { OWNER_STATE, ask, expect, record, remember, roomForACase, rupees, session, settled, test } from "./kit";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { CASHIER, DEFAULT_TAX, TAX_GROUPS } from "./shop";
 import { complete, openTill, ring, tender } from "./till";
@@ -111,15 +111,23 @@ const csv = (count: number, from = 1): string => {
   return rows.join("\n") + "\n";
 };
 
+/**
+ * Hand a file to the import and have it CHECKED — which saves nothing.
+ *
+ * The import is three steps now: choose, check, bring in. This stage was
+ * written for the one-step dialog ("Import CSV" → Import) and went on looking
+ * for that button after it had gone, so the shop at volume was not lived
+ * again until somebody noticed its first case had nothing to press.
+ */
 const upload = async (page: import("@playwright/test").Page, content: string, name: string) => {
   const file = path.join(os.tmpdir(), name);
   fs.writeFileSync(file, content);
 
   await page.goto("/tenant/products");
-  await page.getByRole("button", { name: "Import CSV" }).click();
-  const sheet = page.getByRole("dialog", { name: "Import products from CSV" });
-  await sheet.locator('input[type="file"]').setInputFiles(file);
-  await sheet.getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByRole("button", { name: "Import", exact: true }).click();
+  const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Import items" }) });
+  await sheet.locator("#import-file").setInputFiles(file);
+  await sheet.getByRole("button", { name: "Check the file" }).click();
 
   return sheet;
 };
@@ -128,7 +136,9 @@ test("E1 · a file one row over the limit is refused, and says what the limit is
   watch.expect(/422 POST \/products\/import — IMPORT_TOO_LARGE/);
 
   const sheet = await upload(page, csv(PRODUCTS + 1, 90001), "qa-too-many.csv");
-  await expect(sheet.getByText(/import at most 2000 products per file/i)).toBeVisible({ timeout: 60_000 });
+  await expect(sheet.getByText(/This file has more than 2,000 rows\. Split it into files of up to 2,000/)).toBeVisible({ timeout: 60_000 });
+  // Refused at the CHECK: nothing was offered to bring in.
+  await expect(sheet.getByRole("button", { name: /^Import \d/ })).toHaveCount(0);
 });
 
 test("E1 · two thousand products are imported through the screen", async ({ page, request }) => {
@@ -138,8 +148,17 @@ test("E1 · two thousand products are imported through the screen", async ({ pag
   if (before.length === 0) {
     const started = Date.now();
     const sheet = await upload(page, csv(PRODUCTS), "qa-bulk.csv");
-    await expect(sheet.getByText(new RegExp(`${PRODUCTS} created`)), "the import did not report every row created").toBeVisible({ timeout: 420_000 });
-    await expect(sheet.getByText(/failed/)).toHaveCount(0);
+    // The check says what WILL happen — every row, none refused — and has saved nothing.
+    const check = sheet.getByTestId("import-check");
+    await expect(check, "the file was not checked").toBeVisible({ timeout: 180_000 });
+    await expect(sheet.getByTestId("import-created")).toContainText(/2,?000/);
+    await expect(sheet.getByTestId("import-failed")).toContainText("0");
+    expect((await ask<Array<Record<string, unknown>>>(request, "owner", `/products?search=${encodeURIComponent("QA Bulk Item 2000")}`)).length, "the check saved something").toBe(0);
+
+    await check.getByRole("button", { name: /^Import 2,?000 items$/ }).click();
+    await expect(sheet.getByTestId("import-done"), "the import did not finish").toBeVisible({ timeout: 420_000 });
+    await expect(sheet.getByTestId("import-created"), "the import did not report every row created").toContainText(/2,?000/);
+    await expect(sheet.getByTestId("import-failed")).toContainText("0");
     remember({ importSeconds: Math.round((Date.now() - started) / 1000) });
   }
 
@@ -302,7 +321,7 @@ test("E2 · the sales list holds them all, finds one by its number, and pages", 
   await page.goto("/tenant/sales");
   await settled(page);
 
-  const count = rupees((await page.getByText(/[0-9,]+ sales/).first().innerText()));
+  const count = rupees((await page.getByText(/\d[0-9,]* sales/).first().innerText()));
   expect(count).toBe(before.sales_count + Number(r.volumeSales));
 
   await page.getByPlaceholder(/Search invoice/).fill(String(r.volumeInvoice));
@@ -404,15 +423,19 @@ test("E5 · the shelf went down by what was sold, item by item", async ({ page, 
   await expect(row).toContainText(String(STOCK - g.sold.get(n)!));
 });
 
-test("E6 · every screen opens with thousands behind it — nothing refused, nothing slow", async ({ page }) => {
-  test.setTimeout(900_000);
+test("E6 · every screen opens with thousands behind it — nothing refused, nothing slow", async ({ page, request }) => {
+  test.setTimeout(1_500_000);
   const screens = record().screens as string[];
 
   const slow: string[] = [];
   const bounced: string[] = [];
   const blank: string[] = [];
   const timings: Record<string, number> = {};
-  for (const href of screens) {
+  for (const [at, href] of screens.entries()) {
+    // Forty-five whole reloads in a minute is more than one person may ask of
+    // the API in a minute, and nobody opens screens that way. Every ten, the
+    // walk waits for room — it is timing each screen, not racing the limit.
+    if (at > 0 && at % 10 === 0) await roomForACase(request);
     const started = Date.now();
     await page.goto(href);
     await settled(page);

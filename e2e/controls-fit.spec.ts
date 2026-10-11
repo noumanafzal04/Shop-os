@@ -108,12 +108,21 @@ test("the till's action bar stays a bar, not a panel", async ({ page }) => {
     const viewport = document.documentElement.clientHeight;
     // Anchored on a control only this bar has, so a markup change that moves
     // the bar fails loudly instead of measuring some other element.
-    const anchor = [...document.querySelectorAll("button")]
-      .find((b) => /parked ticket/.test(b.getAttribute("title") ?? ""));
+    //
+    // By the START of its title. The title used to be "Open a parked ticket
+    // (F6)" and this matched on those words; it now says both keys — "Drafts
+    // · F6 or Alt+D", or the Option form on a Mac — and the old words were
+    // simply gone, so this found nothing and the test failed on "the bar was
+    // not on the page" for a bar that was plainly there. The top bar carries
+    // a key legend with the same titles, so the one INSIDE the bar is taken.
+    //
     // The bar is a COLUMN below `sm` (two rows) and a wrapping row above
     // it. `flex-col` is on the element at every width; `flex-wrap` is not
     // any more, and anchoring on it silently found nothing.
-    const bar = anchor?.closest("div.flex.shrink-0.flex-col");
+    const bar = [...document.querySelectorAll("button")]
+      .filter((b) => (b.getAttribute("title") ?? "").startsWith("Drafts ·"))
+      .map((b) => b.closest("div.flex.shrink-0.flex-col"))
+      .find((el) => el !== null);
 
     if (!bar) return null;
 
@@ -203,9 +212,16 @@ test("the till's bar splits the way a hand uses it", async ({ page }) => {
   await page.waitForTimeout(1200);
 
   const seen = await page.evaluate(() => {
+    // The bar itself, found the way the test above finds it; every control
+    // is then looked for INSIDE it, by the start of its title — the titles
+    // name both keys now ("Hold · F4 or Alt+H"), and differently on a Mac.
+    const bar = [...document.querySelectorAll("button")]
+      .filter((b) => (b.getAttribute("title") ?? "").startsWith("Drafts ·"))
+      .map((b) => b.closest("div.flex.shrink-0.flex-col"))
+      .find((el) => el !== null);
     const at = (title: string) =>
-      [...document.querySelectorAll("button")].find(
-        (b) => (b.getAttribute("title") ?? "") === title,
+      [...(bar?.querySelectorAll("button") ?? [])].find(
+        (b) => (b.getAttribute("title") ?? "").startsWith(title),
       );
 
     const pill = [...document.querySelectorAll("button")].find((b) =>
@@ -214,11 +230,11 @@ test("the till's bar splits the way a hand uses it", async ({ page }) => {
       ),
     );
     const wanted = {
-      quote: at("Quotation or advance booking (F7)"),
+      quote: at("Quote ·"),
       reset: at("Empty this ticket"),
       discount: at("Discount / coupon"),
-      hold: at("Hold this ticket (F4)"),
-      drafts: at("Open a parked ticket (F6)"),
+      hold: at("Hold ·"),
+      drafts: at("Drafts ·"),
     };
 
     const box = (el?: Element) => {
@@ -237,9 +253,24 @@ test("the till's bar splits the way a hand uses it", async ({ page }) => {
     };
   });
 
-  // THE DENOMINATOR. Every rule below is about six controls; if one of them is
-  // not on the page, the rule it belongs to passes by being unasked.
+  // QUOTE IS THERE ONLY FOR A SHOP THAT HAS QUOTES. The till stopped showing
+  // every control to every shop — a mart with no Quotes module has no Quote
+  // button, by design — and this test went on demanding six. Asked of the
+  // shop itself, where the till reads it, so it is neither assumed present
+  // nor quietly excused.
+  const hasQuotes = await page.evaluate(() => {
+    const raw = localStorage.getItem("shopos-auth");
+    const state = raw ? (JSON.parse(raw) as { state?: { user?: { tenant?: { features?: Record<string, boolean> } } } }) : null;
+
+    return !!state?.state?.user?.tenant?.features?.documents;
+  });
+  if (hasQuotes) expect(seen.quote, "the shop HAS quotes and the bar has no Quote").not.toBeNull();
+  else expect(seen.quote, "a Quote button for a shop without the module").toBeNull();
+
+  // THE DENOMINATOR. Every rule below is about these controls; if one of them
+  // is not on the page, the rule it belongs to passes by being unasked.
   for (const [name, box] of Object.entries(seen)) {
+    if (name === "quote") continue;
     expect(box, `the till's bar had no "${name}" to measure`).not.toBeNull();
   }
 
@@ -254,7 +285,7 @@ test("the till's bar splits the way a hand uses it", async ({ page }) => {
     return;
   }
 
-  expect(sameRow(seen.pill!, seen.quote!), "Quote is not on the connection pill's row").toBe(true);
+  if (seen.quote) expect(sameRow(seen.pill!, seen.quote), "Quote is not on the connection pill's row").toBe(true);
   expect(sameRow(seen.pill!, seen.reset!), "Reset is not on the connection pill's row").toBe(true);
 
   expect(sameRow(seen.discount!, seen.hold!), "Discount and Hold are not on one row").toBe(true);

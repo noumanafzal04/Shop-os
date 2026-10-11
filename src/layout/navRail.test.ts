@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { shopNav, type NavItem } from "./AppSidebar";
+import type { NavItem } from "./navItem";
+import { shopNav } from "./shopNav";
 import { TRADE_FEATURES as FEATURES } from "../test/tradeFeatures";
 
 /**

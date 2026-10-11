@@ -1,5 +1,6 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { Tenant } from "../../auth/types";
+import type { ShopBill } from "../whatYouPay";
 
 export interface SetupPayload {
   business_name?: string;
@@ -59,6 +60,11 @@ export interface SubscriptionInfo {
      */
     retention_months: number | null;
   } | null;
+  /**
+   * What it pays for one period: the plan, and anything switched on past it.
+   * Null with no plan. See `whatYouPay`.
+   */
+  bill?: ShopBill | null;
   /**
    * THE WINDOW AS A DATE — the earliest day still listed.
    *
@@ -242,6 +248,18 @@ export interface ShopSettings {
   day_turns_at: number | null;
   /** Effective branch ceiling (null = unlimited). Drives multi-branch UI. */
   max_branches: number | null;
+  /**
+   * How many warehouses — places that hold stock and do not sell. Counted
+   * apart from branches: a shop with one counter may still have a godown.
+   * Nought where the business keeps no stock at all.
+   */
+  max_warehouses?: number | null;
+  /**
+   * The places it actually has OPEN — not what its plan would allow. What the
+   * menu and the lists read to decide whether anything about "which place" is
+   * worth drawing. See `branches/places.ts`.
+   */
+  places?: { shops: number; warehouses: number } | null;
   /**
    * The rule above as the server applies it, and the date it is there now.
    * Read-only: the panel works "today" out from the first two.

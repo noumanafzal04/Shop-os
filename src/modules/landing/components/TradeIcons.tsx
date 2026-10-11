@@ -61,6 +61,16 @@ export const RetailIcon = ({ className }: Props) => (
   </svg>
 );
 
+/** Cartons on a pallet — the trade that sells to other shops, by the carton. */
+export const WholesaleIcon = ({ className }: Props) => (
+  <svg {...base(className)}>
+    <path d="M3 13h8v7H3z" />
+    <path d="M13 13h8v7h-8z" />
+    <path d="M8 5h8v6H8z" />
+    <path d="M12 5v2.5M7 13v2.5M17 13v2.5" />
+  </svg>
+);
+
 /** Scissors — the trade that sells an hour, not a thing. */
 export const ServicesIcon = ({ className }: Props) => (
   <svg {...base(className)}>

@@ -228,7 +228,10 @@ test("C4 · a ticket is held, comes back the same, and is paid", async ({ page, 
   await page.getByRole("button", { name: /Drafts/ }).first().click();
   await page.getByRole("button", { name: "Resume" }).last().click();
   await expect(page.locator("[data-cart-row]")).toHaveCount(2, { timeout: 15_000 });
-  expect(await grandTotal(page), "the bill changed by being parked").toBe(before);
+  // Asked of the till until it has finished pricing: a ticket that comes
+  // back is priced again by the server (the promotion is not carried in the
+  // parked cart), and for half a second the bill reads without it.
+  await expect.poll(() => grandTotal(page), { message: "the bill changed by being parked", timeout: 10_000 }).toBe(before);
 
   expect(await tender(page, "Card")).toBe(362.56);
   const sale = await complete(page, request);

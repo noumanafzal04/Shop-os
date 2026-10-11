@@ -58,6 +58,24 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     setQ("");
   }, [open]);
 
+  // ESCAPE CLOSES IT FROM ANYWHERE.
+  //
+  // It was heard only INSIDE the box, and the box takes the focus a moment
+  // after it opens. So Ctrl K and then Esc, pressed as quickly as a hand that
+  // changed its mind presses them, landed on the page behind — and the
+  // palette stayed where it was, over the screen, with "esc" printed on it.
+  // The keys that MOVE through the list still belong to the box.
+  useEffect(() => {
+    if (!open) return;
+
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onEscape);
+
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const go = (type: SearchType, item: SearchHit) => {
@@ -71,9 +89,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setActive((i) => (flat.length ? (i + 1) % flat.length : 0));
     } else if (e.key === "ArrowUp") {

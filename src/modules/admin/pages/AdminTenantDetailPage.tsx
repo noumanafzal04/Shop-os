@@ -1,4 +1,5 @@
 import { renewalDue } from "../renewalDue";
+import { windowSays } from "../planWindowWords";
 import { tradePhrase } from "../tradePhrase";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -18,7 +19,7 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, usePlanWindow, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
 import type { Entitlement, Plan, PlanChangePreview, TenantPackage } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
@@ -1200,6 +1201,10 @@ export default function AdminTenantDetailPage() {
   // What picking this plan would do to this shop — asked while the admin is
   // still deciding, and never fetched for the plan they are already on.
   const planPreview = usePlanChangePreview(id, planId, t?.plan?.id ?? null);
+  // The dates a payment taken now would buy — asked of the server, which
+  // works them out the way the save will. See planWindowWords.
+  const planWindow = usePlanWindow(id, planId, startsAt, endsAt, planModal.isOpen);
+  const window_ = planWindow.data ? windowSays(planWindow.data) : null;
   // What to suggest in the Amount box — see renewalDue.
   const due = renewalDue(t?.package?.bill, t?.plan?.id ?? null, (plans.data ?? []).find((p) => p.id === planId));
   const paymentRows = payments.data?.data ?? [];
@@ -1494,6 +1499,10 @@ export default function AdminTenantDetailPage() {
               setReference("");
               setMethod("cash");
               setPaidAt("");
+              // …and the dates, for the same reason: a window typed and then
+              // cancelled would otherwise still be the window next time.
+              setStartsAt("");
+              setEndsAt("");
               planModal.openModal();
             }}
           >
@@ -1627,7 +1636,7 @@ export default function AdminTenantDetailPage() {
           footer={
             <>
               <Button size="sm" variant="outline" onClick={planModal.closeModal}>Cancel</Button>
-              <Button size="sm" onClick={doAssignPlan} disabled={assignPlan.isPending || !planId}>
+              <Button size="sm" onClick={doAssignPlan} disabled={assignPlan.isPending || !planId || !!window_?.wrong}>
                 {assignPlan.isPending ? "Saving…" : "Assign plan"}
               </Button>
             </>
@@ -1652,7 +1661,7 @@ export default function AdminTenantDetailPage() {
             <PlanChangePreviewBlock preview={planPreview} />
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
               <p className="mb-3 text-theme-xs text-gray-400">
-                Billing period (optional — leave blank to run from today for the plan's period)
+                Billing period (optional — leave blank and it is worked out for you; the line below says what it will be)
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1664,10 +1673,28 @@ export default function AdminTenantDetailPage() {
                   <Input type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
                 </div>
               </div>
-              <p className="mt-1 text-theme-xs text-gray-400">
-                Renewing the same plan while it is still running stacks the new period onto the
-                current end date, so paid days are never lost. Typing dates here overrides that.
-              </p>
+              {/* THE DATES, before the save. This was a sentence explaining
+                  the rule — "stacks if it is still running" — and the admin
+                  was left to work out what would be written. Every later
+                  renewal stacks onto that date, so it is said here, by the
+                  same code that will write it. */}
+              {window_ ? (
+                <p
+                  className={`mt-2 rounded-lg px-3 py-2 text-theme-xs ${
+                    window_.wrong
+                      ? "bg-error-50 text-error-700 dark:bg-error-500/10 dark:text-error-400"
+                      : "bg-gray-50 text-gray-600 dark:bg-white/[0.04] dark:text-gray-300"
+                  }`}
+                  data-testid="renew-window"
+                >
+                  <span className="font-semibold text-gray-800 dark:text-white/90">{window_.buys}</span>{" "}
+                  {window_.why}
+                </p>
+              ) : (
+                <p className="mt-1 text-theme-xs text-gray-400">
+                  {planId === "" ? "Choose a plan to see the period it would buy." : planWindow.isError ? "The period could not be worked out just now — it is still worked out when you save." : "Working out the period…"}
+                </p>
+              )}
             </div>
 
             <div className="border-t border-gray-200 pt-4 dark:border-gray-800">

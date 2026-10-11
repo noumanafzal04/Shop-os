@@ -54,6 +54,12 @@ export interface PurchaseOrder {
   id: string;
   supplier_id: string;
   supplier?: { id: string; name: string };
+  /**
+   * Where the supplier is to bring it — a branch, or the warehouse. Null on an
+   * order raised before orders were addressed: it goes wherever it is received.
+   */
+  deliver_to_branch_id?: string | null;
+  deliver_to?: { id: string; name: string; kind: "shop" | "warehouse" } | null;
   po_number: string;
   status: PurchaseStatus;
   order_date: string;
@@ -73,6 +79,8 @@ export interface PurchaseOrder {
 
 export interface PurchaseOrderInput {
   supplier_id: string;
+  /** Left out, the server addresses it: the place deliveries come to, else where it is raised. */
+  deliver_to_branch_id?: string;
   order_date: string;
   expected_date?: string | null;
   discount?: number;

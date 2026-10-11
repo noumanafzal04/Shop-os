@@ -21,7 +21,7 @@ import { PRODUCT } from "../../../common/brand";
  * email is asked for on the way OUT, when they want to keep what they have been
  * playing with, and by then it is worth something to both sides.
  *
- * The trades are the same eight the product actually supports, in the words a
+ * The trades are the same nine the product actually supports, in the words a
  * shopkeeper would use about themselves.
  */
 const TRADES: Array<{ code: TradeCode; label: string; blurb: string }> = [
@@ -29,6 +29,7 @@ const TRADES: Array<{ code: TradeCode; label: string; blurb: string }> = [
   { code: "mart", label: "Mart & grocery", blurb: "Weighing, packs, barcodes" },
   { code: "pharmacy", label: "Pharmacy", blurb: "Batches, expiry, prescriptions" },
   { code: "retail", label: "Retail store", blurb: "Sizes, colours, warranty" },
+  { code: "wholesale", label: "Wholesale & distribution", blurb: "Cartons, dealer accounts, a warehouse" },
   { code: "services", label: "Salon & services", blurb: "Selling an hour, not a thing" },
   { code: "automotive", label: "Auto & tyre", blurb: "Bay board, vehicle history" },
   { code: "petroleum", label: "Petrol pump", blurb: "Meter rolls, dips, shifts" },

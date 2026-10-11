@@ -4,6 +4,7 @@ import type { PeriodTold } from "../../dashboard/period";
 import type { Kpi } from "../../dashboard/types";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { PaymentStatus, Tenant, User } from "../../auth/types";
+import type { PlanWindow } from "../planWindowWords";
 
 /**
  * The billing window a subscription covers, and when the money for it arrived.
@@ -61,6 +62,12 @@ export interface PlanLimits {
   orders_month: number | null;
   /** Branches this plan includes. Null = the platform default. */
   branches: number | null;
+  /**
+   * Warehouses — places that hold stock and do not sell. Counted apart from
+   * branches, so a one-branch plan can still include the godown behind the
+   * shop. Null = the platform default (one).
+   */
+  warehouses?: number | null;
   /** Staff logins, not counting the owner. Null = the platform default. */
   staff: number | null;
   registers: number | null;
@@ -105,7 +112,7 @@ export interface Plan {
    * What a shop lands on when this plan says nothing, so an empty box on the
    * admin screen can print "1 (platform default)" rather than look broken.
    */
-  defaults?: { branches: number; staff: number; registers: number };
+  defaults?: { branches: number; warehouses?: number; staff: number; registers: number };
   /**
    * The modules the plan includes, whatever the trade. A starting point and a
    * label — what a shop is switched on with, and the line between "in the
@@ -160,6 +167,7 @@ export interface PlanInput {
   max_orders_month?: number | null;
   grace_orders_month?: number | null;
   max_branches?: number | null;
+  max_warehouses?: number | null;
   max_staff?: number | null;
   max_registers?: number | null;
   max_offline_selling?: number | null;
@@ -477,6 +485,12 @@ export const adminService = {
   /** A read-only "what would happen" — see PlanChangePreview. */
   planChange: (id: string, planId: string) =>
     apiGet<PlanChangePreview>(`/admin/tenants/${id}/plan-change`, { params: { plan_id: planId } }),
+  /**
+   * The dates a payment taken now would buy — from the same method the save
+   * uses, so the dialog and the ledger cannot disagree. Writes nothing.
+   */
+  planWindow: (id: string, planId: string, period: { starts_at?: string; ends_at?: string }) =>
+    apiGet<PlanWindow>(`/admin/tenants/${id}/plan-window`, { params: { plan_id: planId, ...period } }),
 
   entitlements: (id: string) => apiGet<Entitlement[]>(`/admin/tenants/${id}/entitlements`),
   grantCapacity: (id: string, body: GrantInput) =>

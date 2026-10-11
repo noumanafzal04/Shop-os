@@ -91,3 +91,52 @@ test("a search that finds nothing still says nothing matches — that sentence i
   await expect(page.getByText("No products match.")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("alert").filter({ hasText: "could not be loaded" })).toHaveCount(0);
 });
+
+/**
+ * …AND A SEARCH THAT WAS TURNED AWAY IS NOT THE LIST FROM BEFORE IT.
+ *
+ * The failure above was only ever drawn over an EMPTY shelf. A till that had
+ * its shelf, and was then refused a search, went on showing the items from
+ * before the cashier typed — under the new word, with "20+ results · Enter to
+ * add" beneath it. Found, again, by a run that was not about the till: a
+ * chemist's stage that typed a brand name while the server was slowing it
+ * down, and was shown everything but.
+ */
+test("a search that is turned away says so — the shelf from before is not left up under the new word", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "one walk is enough; it is a sentence, not a layout");
+
+  await openTill(page);
+  await expect(tiles(page).first()).toBeVisible({ timeout: 20_000 });
+  // A word the shelf really answers to: the first of the first tile's name.
+  const word = (await tiles(page).first().innerText()).trim().split(/\s+/)[0];
+  expect(word.length, "the first tile has no name to search for").toBeGreaterThan(1);
+
+  // Only a SEARCH is refused from here on. The till keeps the shelf it has.
+  const aSearch = (url: URL) => url.pathname.endsWith("/api/v1/products") && (url.searchParams.get("search") ?? "") !== "";
+  await page.route(aSearch, (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      body: JSON.stringify({ success: false, message: "Too many requests. Please slow down.", data: null, errors: {}, meta: { error_code: "RATE_LIMITED" } }),
+    }),
+  );
+
+  const box = page.getByPlaceholder(/scan barcode or search/i).first();
+  await box.fill(word);
+
+  const failed = page.getByRole("alert").filter({ hasText: "The product list could not be loaded." });
+  await expect(failed, "a search that was turned away was not said to have failed").toBeVisible({ timeout: 20_000 });
+  await expect(failed).toContainText("Too many requests. Please slow down.");
+  await expect(tiles(page), "the list from before the search was left on the shelf").toHaveCount(0);
+  // …and nothing counts it as results, or offers Enter on it.
+  await expect(page.getByTestId("search-hint")).toHaveText("That search did not go through — press Try again below.");
+  await expect(page.getByText(/· Enter to add/)).toHaveCount(0);
+
+  // The line recovers: asked again, the shelf answers the word in the box.
+  await page.unroute(aSearch);
+  await failed.getByRole("button", { name: "Try again" }).click();
+  await expect(tiles(page).first(), "Try again did not bring the search's answer").toBeVisible({ timeout: 20_000 });
+  await expect(failed).toHaveCount(0);
+  await expect(tiles(page).first()).toContainText(new RegExp(word, "i"));
+  await expect(page.getByTestId("search-hint")).toContainText("Enter to add");
+});

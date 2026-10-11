@@ -10,7 +10,7 @@ import { TRADE_CART } from "./tradeCarts";
 import type { TradeCode } from "./tradeIcon";
 
 const TRADES: TradeCode[] = [
-  "food", "mart", "pharmacy", "retail",
+  "food", "mart", "pharmacy", "retail", "wholesale",
   "services", "automotive", "petroleum", "finance",
 ];
 

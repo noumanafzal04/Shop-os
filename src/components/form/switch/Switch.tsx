@@ -3,6 +3,15 @@ import { useState } from "react";
 interface SwitchProps {
   label: string;
   defaultChecked?: boolean;
+  /**
+   * When given, the switch shows THIS and keeps no state of its own.
+   *
+   * It could only ever remember what it was last pressed to. That is right for
+   * one switch on a form and wrong the moment two of them describe the same
+   * thing — a switch for a group and one for each row in it, where pressing
+   * either has to move the other.
+   */
+  checked?: boolean;
   disabled?: boolean;
   onChange?: (checked: boolean) => void;
   color?: "blue" | "gray"; // Added prop to toggle color theme
@@ -11,11 +20,13 @@ interface SwitchProps {
 const Switch: React.FC<SwitchProps> = ({
   label,
   defaultChecked = false,
+  checked,
   disabled = false,
   onChange,
   color = "blue", // Default to blue color
 }) => {
-  const [isChecked, setIsChecked] = useState(defaultChecked);
+  const [ownChecked, setIsChecked] = useState(defaultChecked);
+  const isChecked = checked ?? ownChecked;
 
   const handleToggle = () => {
     if (disabled) return;

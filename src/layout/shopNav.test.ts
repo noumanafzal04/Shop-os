@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shopNav } from "./AppSidebar";
+import { shopNav } from "./shopNav";
 import { TRADE_FEATURES as FEATURES } from "../test/tradeFeatures";
 import { TENANT_ROUTES as ROUTES } from "../test/routes";
 
@@ -264,10 +264,9 @@ describe("the menu offers nothing the API will refuse", () => {
     const menu = nav("mart", "advanced", false, CASHIER);
     const names = menu.map((i) => i.name);
 
-    expect(names).not.toContain("Inventory");
-    expect(names).not.toContain("Customers");
-    expect(names).not.toContain("Expense Manager");
-    expect(names).not.toContain("More");
+    for (const gone of ["Products", "Inventory", "Purchases", "Customers", "Offers & discounts", "Expense Manager", "Reports", "Staff"]) {
+      expect(names, gone).not.toContain(gone);
+    }
   });
 
   it("a dropdown keeps the rows the person does hold", () => {
@@ -276,18 +275,17 @@ describe("the menu offers nothing the API will refuse", () => {
     // they are checking the delivery against. RAISING an order and paying a
     // supplier are still somebody else's job; the server draws the line at the
     // same place (Permissions::READS_PURCHASE_ORDERS).
-    const inventory = nav("mart", "advanced", false, holding("inventory.manage"))
-      .find((i) => i.name === "Inventory");
+    const menu = nav("mart", "advanced", false, holding("inventory.manage"));
+    const inside = (name: string) => menu.find((i) => i.name === name)?.subItems?.map((s) => s.path);
 
-    expect(inventory?.subItems?.map((s) => s.path)).toEqual([
+    expect(inside("Inventory")).toEqual([
       "/tenant/inventory",
+      "/tenant/stocktake",
       // Recording where a removed lot went is batch housekeeping, which is the
       // same job as adjusting stock — so it rides inventory.manage with it.
       "/tenant/disposals",
-      "/tenant/stocktake",
-      "/tenant/suppliers",
-      "/tenant/purchases",
     ]);
+    expect(inside("Purchases")).toEqual(["/tenant/purchases", "/tenant/suppliers"]);
   });
 
   it("buying screens stay shut to someone with neither stock nor purchase authority", () => {
@@ -596,3 +594,176 @@ describe("the optional tools appear only when their module is on", () => {
     expect(cafe).toContain("/tenant/products");
   });
 });
+
+/**
+ * THE WORDS ON THE RAIL.
+ *
+ *     "sidebar k label b achy krna — kisi ko catalog ka pta b ni hota"
+ *
+ * The folders had been named by whoever built them: "Catalog" for the
+ * products, "More" for Reports and Staff. Held here so neither comes back,
+ * and so the thing an owner opens most is never again inside a dropdown named
+ * after nothing.
+ */
+describe("the menu is in a shopkeeper's words", () => {
+  const names = (type: string, mode: Mode, multiBranch = true) => nav(type, mode, multiBranch).flatMap((item) => [
+    item.name,
+    ...(item.subItems ?? []).map((sub) => sub.name),
+  ]);
+
+  it("no trade is shown a Catalog, or a folder called More", () => {
+    for (const type of TYPES) {
+      for (const mode of MODES) {
+        expect(names(type, mode), `${type}/${mode}`).not.toContain("Catalog");
+        expect(names(type, mode), `${type}/${mode}`).not.toContain("More");
+      }
+    }
+  });
+
+  it("the things a business sells are called what it sells", () => {
+    const top = (features: Record<string, boolean>) =>
+      shopNav(features, "retail", "advanced", false).map((item) => item.name);
+
+    expect(top({ products: true })).toContain("Products");
+    expect(top({ services: true })).toContain("Services");
+    expect(top({ products: true, services: true })).toContain("Products & services");
+  });
+
+  it("Reports is one press away, for everybody who may read them", () => {
+    for (const type of TYPES) {
+      const reports = nav(type, "advanced").find((item) => item.name === "Reports");
+
+      expect(reports?.path, type).toBe("/tenant/reports");
+    }
+  });
+
+  it("buying has its own place, and so have the offers", () => {
+    // A grocer who was also given the bank's card offers.
+    const menu = shopNav({ ...FEATURES.mart, bank_offers: true }, "mart", "advanced", false);
+    const inside = (name: string) => menu.find((i) => i.name === name)?.subItems?.map((s) => s.path) ?? [];
+
+    expect(inside("Purchases")).toEqual(["/tenant/purchases", "/tenant/suppliers"]);
+    expect(inside("Offers & discounts")).toEqual(["/tenant/coupons", "/tenant/promotions", "/tenant/bank-offers"]);
+    // …and neither is still inside the folder it used to be the tail of.
+    expect(inside("Inventory")).not.toContain("/tenant/purchases");
+    expect(inside("Customers")).not.toContain("/tenant/coupons");
+  });
+
+  it("what each place holds is stock work; the list of places is the shop's", () => {
+    const menu = nav("mart", "advanced", true);
+
+    expect(menu.find((i) => i.name === "Inventory")?.subItems?.map((s) => s.path)).toEqual(expect.arrayContaining([
+      "/tenant/stock-by-place",
+      "/tenant/transfers",
+    ]));
+    expect(menu.find((i) => i.name === "Branches & warehouses")?.path).toBe("/tenant/branches");
+  });
+});
+
+/**
+ * A GROUP HOLDING ONE SCREEN IS THAT SCREEN.
+ *
+ * "Customers ▾ Customer list" was two presses to reach the only place it
+ * went, and it was everywhere a menu had been narrowed — by a module the shop
+ * does not have, or by a permission the person does not hold.
+ */
+describe("a group with one screen in it is a link", () => {
+  const menu = (features: Record<string, boolean>, can: Can = OWNER) =>
+    shopNav(features, "retail", "advanced", false, can);
+
+  it("named for the group when the screen left is its home", () => {
+    const customers = menu({ pos: true, products: true, customers: true }).find((i) => i.name === "Customers");
+
+    expect(customers?.path).toBe("/tenant/customers");
+    expect(customers?.subItems).toBeUndefined();
+  });
+
+  it("and for the screen itself when it is not", () => {
+    // Someone who may read the trail and not manage the people: the row says
+    // where it goes, not "Staff".
+    const rows = menu({ pos: true, products: true }, holding("reports.view"));
+    const log = rows.find((i) => i.path === "/tenant/activity");
+
+    expect(log?.name).toBe("Activity log");
+    expect(rows.find((i) => i.name === "Staff"), "a Staff row that opens the activity log").toBeUndefined();
+  });
+
+  it("no menu, for any trade or view, has a dropdown with a single row", () => {
+    for (const type of TYPES) {
+      for (const mode of MODES) {
+        for (const item of nav(type, mode, true)) {
+          expect(item.subItems?.length ?? 2, `${type}/${mode}: ${item.name}`).toBeGreaterThan(1);
+        }
+      }
+    }
+  });
+});
+
+/**
+ * A SHOP WITH ONE PLACE IS NOT SHOWN THE SCREENS ABOUT PLACES.
+ *
+ *     "warehouse compulsory hai? … bht sari shops, shops main e apna sb manage
+ *      krti — branch main un ka warehouse ni hota"
+ *
+ * Every plan allows a godown; most shops will never have one. Drawn from the
+ * allowance, a one-counter grocer got Stock by place — a table with one
+ * column — and Stock transfers, a screen for moving stock to nowhere. The
+ * way every other stock system does it: one location is the plain
+ * experience, and the screens about locations arrive with the second.
+ */
+describe("the screens about places arrive with the second place", () => {
+  const menu = (mode: Mode, mayAdd: boolean, second: boolean) =>
+    shopNav(FEATURES.mart, "mart", mode, mayAdd, OWNER, undefined, second);
+  const all = (items: ReturnType<typeof menu>) => items.flatMap((item) => [
+    ...(item.path ? [item.path] : []),
+    ...(item.subItems ?? []).map((sub) => sub.path),
+  ]);
+
+  it("one shop whose plan allows a godown: where one is added, and nothing about a second place", () => {
+    const full = all(menu("advanced", true, false));
+
+    // Where a godown is added, when the day comes.
+    expect(full).toContain("/tenant/branches");
+    // Nothing to compare and nowhere to send anything.
+    expect(full).not.toContain("/tenant/stock-by-place");
+    expect(full).not.toContain("/tenant/transfers");
+    // The stock it has is still one press away.
+    expect(menu("advanced", true, false).find((i) => i.name === "Inventory")?.subItems?.map((s) => s.path))
+      .toEqual(["/tenant/inventory", "/tenant/stocktake", "/tenant/disposals"]);
+  });
+
+  it("and its Simple view has no places on it at all", () => {
+    const simple = menu("basic", true, false);
+
+    expect(all(simple)).not.toContain("/tenant/branches");
+    expect(all(simple)).not.toContain("/tenant/transfers");
+    // Stock is a link, not a group of one.
+    expect(simple.find((i) => i.name === "Inventory")?.path).toBe("/tenant/inventory");
+  });
+
+  it("the day a second place exists, all of it is there — in both views", () => {
+    for (const mode of MODES) {
+      const paths = all(menu(mode, true, true));
+
+      expect(paths, mode).toContain("/tenant/branches");
+      expect(paths, mode).toContain("/tenant/stock-by-place");
+      expect(paths, mode).toContain("/tenant/transfers");
+    }
+  });
+
+  it("a shop moved to a plan that allows no second place still gets to its second place", () => {
+    // The plan says one; the business has two. What it HAS is what it must be
+    // able to look after — the rail is told so by the caller (`multiBranch`
+    // is "may add, or already has").
+    const paths = all(menu("advanced", true, true));
+
+    expect(paths).toContain("/tenant/branches");
+    expect(paths).toContain("/tenant/transfers");
+  });
+
+  it("left unsaid, a second place follows the allowance — what every caller meant before the two were told apart", () => {
+    expect(all(shopNav(FEATURES.mart, "mart", "advanced", true))).toContain("/tenant/transfers");
+    expect(all(shopNav(FEATURES.mart, "mart", "advanced", false))).not.toContain("/tenant/transfers");
+  });
+});
+

@@ -3,8 +3,8 @@ import Badge from "../../../components/ui/badge/Badge";
 import { useBranchStock } from "../hooks/useTransfers";
 
 /**
- * "Check other branches" — shows this product's on-hand at every active branch.
- * Opened from the product list when the shop runs more than one branch.
+ * "Who has this" — this product's on-hand at every open branch and warehouse.
+ * Opened from the product list when stock could be in more than one place.
  */
 export default function BranchStockModal({
   productId,
@@ -19,7 +19,7 @@ export default function BranchStockModal({
 
   return (
     <Modal isOpen={!!productId} onClose={onClose} className="max-w-md p-6">
-      <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Stock by branch</h3>
+      <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Stock by place</h3>
       {productName && <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{productName}</p>}
 
       {isLoading ? (
@@ -35,6 +35,9 @@ export default function BranchStockModal({
               <div className="flex items-center gap-2">
                 <span className="font-medium text-gray-800 dark:text-white/90">{row.branch}</span>
                 {row.is_default && <Badge size="sm" color="info">Main</Badge>}
+                {/* "Godown: 40" is a walk to the back, not a customer to send
+                    across the city. */}
+                {row.kind === "warehouse" && <Badge size="sm" color="light">Warehouse</Badge>}
               </div>
               <span
                 className={`text-sm font-semibold tabular-nums ${
@@ -46,7 +49,7 @@ export default function BranchStockModal({
             </div>
           ))}
           {(data?.length ?? 0) === 0 && (
-            <p className="py-6 text-center text-sm text-gray-400">No branch stock recorded yet.</p>
+            <p className="py-6 text-center text-sm text-gray-400">No stock recorded at any place yet.</p>
           )}
         </div>
       )}

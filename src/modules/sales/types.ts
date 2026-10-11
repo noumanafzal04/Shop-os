@@ -134,6 +134,15 @@ export interface SaleReturnItem {
   line_total: string;
 }
 
+/** What handing lines back is worth — the server's own sum, asked before the press. */
+export interface ReturnWorth {
+  refund_total: number;
+  /** The tax inside that figure. Already counted in it; never added again. */
+  refund_tax: number;
+  tax_inclusive: boolean;
+  lines: Array<{ sale_item_id: string; quantity: number; amount: number }>;
+}
+
 export interface SaleReturn {
   id: string;
   return_number: string;

@@ -30,7 +30,8 @@ async function written(request: APIRequestContext, trade: string): Promise<{ nam
 }
 
 test.describe("retail", () => {
-  test.beforeEach(({}, info) => {
+  test.beforeEach(({ browserName }, info) => {
+    void browserName;
     test.skip(info.project.name !== "trade-retail", projectOnly("a shop that sells is told its plan as written; the retail project carries one"));
   });
 
@@ -44,7 +45,8 @@ test.describe("retail", () => {
 });
 
 test.describe("finance", () => {
-  test.beforeEach(({}, info) => {
+  test.beforeEach(({ browserName }, info) => {
+    void browserName;
     test.skip(info.project.name !== "trade-finance", projectOnly("an office that bought only the books is the business this is about; the finance project carries one"));
   });
 

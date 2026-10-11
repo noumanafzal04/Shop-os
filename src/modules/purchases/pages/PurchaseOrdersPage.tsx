@@ -25,6 +25,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { shopWallToday } from "../../../common/shopDay";
+import { AddressedTo, DeliverTo, ReceiveInto } from "../../branches/components/ReceiveInto";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
@@ -67,10 +68,14 @@ export default function PurchaseOrdersPage() {
   // error replays instead of double-receiving.
   const receiveKeyRef = useRef<string>(uuid());
   useEffect(() => { receiveKeyRef.current = uuid(); }, [detailId]);
+  // Which place the delivery is being put into — the shop, or the godown
+  // behind it. Empty is "where I am working", and each order starts there.
+  const [into, setInto] = useState("");
+  useEffect(() => { setInto(""); }, [detailId]);
   const doReceive = (id: string) =>
     receive.mutate(
-      { id, idempotency_key: receiveKeyRef.current },
-      { onSuccess: () => { receiveKeyRef.current = uuid(); } },
+      { id, idempotency_key: receiveKeyRef.current, branch_id: into || undefined },
+      { onSuccess: (res) => { receiveKeyRef.current = uuid(); toast.success(res.message); } },
     );
 
   // ── Detailed receive (per-line qty + serials + batch/expiry) ──────
@@ -111,13 +116,15 @@ export default function PurchaseOrdersPage() {
         };
       });
     receive.mutate(
-      { id, items, idempotency_key: receiveKeyRef.current },
-      { onSuccess: () => { receiveKeyRef.current = uuid(); receiveModal.closeModal(); } },
+      { id, items, idempotency_key: receiveKeyRef.current, branch_id: into || undefined },
+      { onSuccess: (res) => { receiveKeyRef.current = uuid(); receiveModal.closeModal(); toast.success(res.message); } },
     );
   };
 
   // Create form
   const [supplierId, setSupplierId] = useState("");
+  // Where the supplier is to bring THIS order. Empty is "the usual place".
+  const [deliverTo, setDeliverTo] = useState("");
   const [orderDate, setOrderDate] = useState(shopWallToday());
   const [lines, setLines] = useState<Line[]>([]);
   const [prodSearch, setProdSearch] = useState("");
@@ -178,6 +185,8 @@ export default function PurchaseOrdersPage() {
     create.mutate(
       {
         supplier_id: supplierId, order_date: orderDate, status,
+        // Left unchosen, the server addresses it by the same rule the form shows.
+        deliver_to_branch_id: deliverTo || undefined,
         items: lines.map((l) => ({ product_id: l.product_id, product_unit_id: l.product_unit_id || undefined, quantity: l.quantity, unit_cost: l.unit_cost })),
       },
       { onSuccess: () => createModal.closeModal() },
@@ -262,6 +271,10 @@ export default function PurchaseOrdersPage() {
           <Input aria-label="Order date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
         </div>
 
+        <div className="mt-3 empty:hidden">
+          <DeliverTo value={deliverTo} onChange={setDeliverTo} />
+        </div>
+
         {/* Product picker */}
         <div className="mt-4">
           <Input placeholder="Search products to add…" value={prodSearch} onChange={(e) => setProdSearch(e.target.value)} />
@@ -326,7 +339,7 @@ export default function PurchaseOrdersPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{d.po_number}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{d.supplier?.name} · {d.order_date}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{d.supplier?.name} · {d.order_date}<AddressedTo place={d.deliver_to} /></p>
               </div>
               <Badge color={STATUS_COLOR[d.status]}>{d.status.replace(/_/g, " ")}</Badge>
             </div>
@@ -365,6 +378,10 @@ export default function PurchaseOrdersPage() {
             {place.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't place the order" message={place.error.message} /></div>}
             {cancel.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={cancel.error.message} /></div>}
             {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={receive.error.message} /></div>}
+
+            {(d.status === "ordered" || d.status === "partially_received") && (
+              <ReceiveInto value={into} onChange={setInto} orderedFor={d.deliver_to_branch_id} />
+            )}
 
             <div className="flex flex-wrap justify-end gap-3">
               {d.status === "draft" && (

@@ -76,7 +76,13 @@ test("a shop hires somebody into a branch and the server has it", async ({ page,
   await page.waitForTimeout(1200);
 
   if (already) {
-    await page.getByLabel(`Edit ${NAME}`).click();
+    // FOUND BY NAME, not by being on the first page. The list pages at
+    // fifteen, and the day a sixteenth person was hired — by another spec's
+    // fixture — this row was on page two and the walk waited five minutes for
+    // an Edit button that was simply not drawn. A row is looked for the way
+    // an owner with a long list would look for it.
+    await page.getByPlaceholder(/^Search name, email/).fill(NAME);
+    await page.getByLabel(`Edit ${NAME}`).click({ timeout: 20_000 });
   } else {
     await page.getByRole("button", { name: /Add staff|Add team|New staff/i }).first().click();
   }

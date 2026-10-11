@@ -76,10 +76,22 @@ async function paperOf(browser: Browser, html: string): Promise<{ widthMm: numbe
  * first version of this spec pressed three tiles in a row and spent five
  * minutes pressing the second one through an open sheet.
  */
+/**
+ * A dish somebody PAYS for.
+ *
+ * "The first plain tile" was whatever the shelf happened to open on, and the
+ * newest product is first: the moment another spec carded an ingredient at
+ * Rs 0 — dough, for a recipe — that was the dish this rang. A bill of nought
+ * has no "Exact" to press, and the case about printing stopped at the tender
+ * sheet on every layout that ran after the other spec. A slip is for a dish
+ * with a price on it.
+ */
+const PRICED = /Rs\s?[1-9]/;
+
 async function ringDish(page: Page, nth: number): Promise<void> {
   const rows = page.locator("[data-cart-row]");
   const before = await rows.count();
-  await page.locator(PLAIN_ITEM).nth(nth).click();
+  await page.locator(PLAIN_ITEM).filter({ hasText: PRICED }).nth(nth).click();
 
   const add = page.getByRole("dialog").getByRole("button", { name: /^Add( to (cart|tab))?( ·|$)/ });
   // The line is COUNTED, not seen: on a phone the cart is behind its own tab,
@@ -125,7 +137,7 @@ test("the kitchen's slip is one slip, says whose it is, and the invoice is a but
   await openTill(page);
 
   // Three dishes, as in the picture.
-  const dishes = page.locator(PLAIN_ITEM);
+  const dishes = page.locator(PLAIN_ITEM).filter({ hasText: PRICED });
   await expect(dishes.first(), "the restaurant's till shows nothing to ring").toBeVisible({ timeout: 20_000 });
   for (let i = 0; i < 3; i++) await ringDish(page, i);
 

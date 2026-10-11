@@ -91,6 +91,12 @@ test("F4 parks the ticket and F6 opens the parked ones", async ({ page }) => {
 });
 
 test("the keys are printed where a cashier learns them", async ({ page }) => {
+  // The legend is for a counter with a KEYBOARD: it is drawn from 1280 wide
+  // up, and a phone or a tablet — which has no F2 to press — is not shown a
+  // row of keys it cannot use. This case ran on every layout and was red on
+  // the small ones for as long as that has been true.
+  test.skip((page.viewportSize()?.width ?? 0) < 1280, "the key legend is drawn where there is a keyboard — 1280 wide and up");
+
   // The legend was removed for an afternoon and asked for back the same day.
   for (const key of ["F2", "F4", "F6", "F9"]) {
     await expect(page.locator("kbd", { hasText: new RegExp(`^${key}$`) }).first(), `${key} is not printed`).toBeVisible();

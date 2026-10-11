@@ -40,6 +40,7 @@ export const TENANT_ROUTES = new Set([
   "/tenant/ledger",
   "/tenant/branches",
   "/tenant/transfers",
+  "/tenant/stock-by-place",
   "/tenant/products",
   "/tenant/products/new",
   "/tenant/categories",

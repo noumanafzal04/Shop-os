@@ -1,4 +1,5 @@
 import type { Branch } from "./services/branchService";
+import { byKind, isWarehouse } from "./places";
 
 /**
  * THE BRANCH MENU, AS ROWS — what each one is called and what is said under it.
@@ -18,6 +19,8 @@ export interface BranchRow {
   /** What is said under the name: where it is, or what choosing it means. */
   note: string | null;
   tag: string | null;
+  /** A warehouse wears a different mark: nothing is sold from it. */
+  warehouse: boolean;
 }
 
 export const ALL_BRANCHES: BranchRow = {
@@ -25,21 +28,36 @@ export const ALL_BRANCHES: BranchRow = {
   name: "All branches",
   note: "Head office — every branch together",
   tag: null,
+  warehouse: false,
 };
 
 /** From this many branches the menu grows a box to find one in. */
 export const FIND_FROM = 7;
 
 export function branchRows(list: readonly Branch[]): BranchRow[] {
+  // Shops, then warehouses: where the business sells is chosen far more often
+  // than where it stores, and a godown in the middle of the branches reads as
+  // one of them.
+  const { shops, warehouses } = byKind(list);
+
   return [
     ALL_BRANCHES,
-    ...list.map((b) => ({
+    ...[...shops, ...warehouses].map((b) => ({
       id: b.id,
       name: b.name,
       note: b.city?.name ?? (b.address && b.address.trim() !== "" ? b.address.trim() : null),
       // One tag, and never the branch's own name back at it: the default
       // branch is usually CALLED "Main", and "Main — Main" says nothing.
-      tag: !b.is_active ? "Closed" : b.is_default ? (/^main$/i.test(b.name.trim()) ? "Default" : "Main branch") : null,
+      // A warehouse says so — choosing it changes what the screens can DO,
+      // not only whose figures they show.
+      tag: !b.is_active
+        ? "Closed"
+        : isWarehouse(b)
+          ? "Warehouse"
+          : b.is_default
+            ? (/^main$/i.test(b.name.trim()) ? "Default" : "Main branch")
+            : null,
+      warehouse: isWarehouse(b),
     })),
   ];
 }

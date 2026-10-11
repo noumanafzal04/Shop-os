@@ -54,6 +54,11 @@ import { ReactComponent as ChatIcon } from "./chat.svg?react";
 import { ReactComponent as MoreDotIcon } from "./moredot.svg?react";
 import { ReactComponent as AlertHexaIcon } from "./alert-hexa.svg?react";
 import { ReactComponent as ErrorHexaIcon } from "./info-hexa.svg?react";
+import { ReactComponent as TagIcon } from "./tag.svg?react";
+import { ReactComponent as TruckIcon } from "./truck.svg?react";
+import { ReactComponent as BarChartIcon } from "./bar-chart.svg?react";
+import { ReactComponent as BookmarkIcon } from "./bookmark.svg?react";
+import { ReactComponent as GearIcon } from "./gear.svg?react";
 
 export {
   ErrorHexaIcon,
@@ -112,4 +117,9 @@ export {
   ChatIcon,
   AngleLeftIcon,
   AngleRightIcon,
+  TagIcon,
+  TruckIcon,
+  BarChartIcon,
+  BookmarkIcon,
+  GearIcon,
 };

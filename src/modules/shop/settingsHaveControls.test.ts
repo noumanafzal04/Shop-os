@@ -59,6 +59,9 @@ const NOT_SET_HERE: Record<string, string> = {
   // The plan decides this, not the shop. A shop that could raise its own
   // branch ceiling would be a shop that never upgrades.
   max_branches: "set by the subscription plan",
+  // The same, for places that hold stock and do not sell.
+  max_warehouses: "set by the subscription plan",
+  places: "a count of the places the shop has open — a fact the server reports, not something to set",
   // The day rule AS THE SERVER APPLIES IT — the shop's clock, the minute its
   // day turns and the date it is there now. Read, never written: what the
   // shop chooses is `day_turns_at`, which has its control.

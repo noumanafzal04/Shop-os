@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { shopNav } from "./AppSidebar";
+import { shopNav } from "./shopNav";
 import { TRADE_FEATURES as FEATURES, EVERY_MODULE } from "../test/tradeFeatures";
 import { TENANT_ROUTES } from "../test/routes";
 

@@ -79,6 +79,16 @@ const PROFILES: Record<string, Partial<TradeProfile>> = {
   },
 
   /**
+   * The people it sells to are shops, on account — and the page calls them
+   * what the business does. Stock first, as for any trade that sells what it
+   * holds.
+   */
+  wholesale: {
+    customers: "Dealers",
+    focus: ["lowStock", "pipeline", "catalog"],
+  },
+
+  /**
    * Work booked in, not baskets rung up.
    *
    * The bay panel above the tiles is what a workshop actually opens the app
