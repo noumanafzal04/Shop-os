@@ -113,8 +113,8 @@ class ProductCsv
         'drug_schedule' => ['pharmacy'],
         'requires_prescription' => ['pharmacy'],
         'kitchen_station' => ['food'],
-        'tracks_serial' => ['retail', 'automotive', 'petroleum'],
-        'warranty_months' => ['retail', 'automotive', 'petroleum'],
+        'tracks_serial' => ['retail', 'wholesale', 'automotive', 'petroleum'],
+        'warranty_months' => ['retail', 'wholesale', 'automotive', 'petroleum'],
         // `duration_minutes` is NOT here: a workshop sells labour too. It goes
         // to any shop that keeps a service — see whyNot().
         // Weight-sold lines with a scale label. A restaurant does not price a

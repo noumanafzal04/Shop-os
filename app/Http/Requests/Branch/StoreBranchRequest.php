@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Branch;
 
+use App\Models\Branch;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,6 +25,16 @@ class StoreBranchRequest extends FormRequest
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],
             'is_active' => ['sometimes', 'boolean'],
+            // What kind of place this is: a shop sells at a counter, a
+            // warehouse only holds stock. Unnamed, it is a shop — which is
+            // what every caller that pre-dates the choice meant.
+            'kind' => ['sometimes', Rule::in(Branch::KINDS)],
+            // May online orders be filled from here. A warehouse's own choice;
+            // a shop always may.
+            'fills_orders' => ['sometimes', 'boolean'],
+            // The one place this business's deliveries come to — its
+            // warehouse, usually. Marking it un-marks any other.
+            'takes_deliveries' => ['sometimes', 'boolean'],
         ];
     }
 }

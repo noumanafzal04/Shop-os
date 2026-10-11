@@ -53,6 +53,9 @@ class OpenForecourtShiftAction
             // to go and set up the equipment it had just set up.
             $branchId = $data['branch_id'] ?? Branch::writeTargetId();
 
+            // Pumps stand at a station, not in a store room.
+            Branch::mustSell($branchId);
+
             // One forecourt, one open shift. Two would each hold a claim on the
             // same meters and neither could be reconciled.
             $existing = ForecourtShift::query()

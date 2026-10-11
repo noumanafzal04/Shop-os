@@ -85,6 +85,21 @@ class Permissions
 
     public const INVENTORY_MANAGE = 'inventory.manage';
 
+    /**
+     * Move stock at a place other than the one you work at.
+     *
+     * A staff member is pinned to one branch, and for stock that pin has to
+     * mean something on the way IN as well as the way out: without this, they
+     * may send from their own place, receive at their own place, and take a
+     * delivery into their own place — and nowhere else. With it they may do
+     * all three anywhere, which is what a manager running a shop and the
+     * godown behind it needs, and what a stock keeper at one branch of a
+     * chain must not have.
+     *
+     * It adds reach to `inventory.manage`; it grants nothing without it.
+     */
+    public const INVENTORY_ANY_PLACE = 'inventory.any_place';
+
     public const SUPPLIERS_MANAGE = 'suppliers.manage';
 
     public const PURCHASES_MANAGE = 'purchases.manage';
@@ -320,6 +335,10 @@ class Permissions
         self::STAFF_MANAGE => ['label' => 'Manage staff'],
         self::PRODUCTS_MANAGE => ['label' => 'Products & categories'],
         self::INVENTORY_MANAGE => ['label' => 'Inventory adjustments'],
+        self::INVENTORY_ANY_PLACE => [
+            'label' => 'Move stock at any place',
+            'hint' => 'Send, receive and take deliveries at every branch and warehouse. Without it, only the place they work at.',
+        ],
         self::SUPPLIERS_MANAGE => ['label' => 'Suppliers'],
         self::PURCHASES_MANAGE => ['label' => 'Purchase orders & payables'],
         self::SALES_MANAGE => ['label' => 'Sales & invoices'],
@@ -377,6 +396,7 @@ class Permissions
     public const NEEDS_MODULE = [
         self::PRODUCTS_MANAGE => ['products', 'services'],
         self::INVENTORY_MANAGE => ['inventory'],
+        self::INVENTORY_ANY_PLACE => ['inventory'],
         // `purchasing`, not `inventory`: Suppliers & Purchases was split out
         // of Inventory, and a shop that counts stock without buying through
         // the system was still offered both boxes — permissions that open a
@@ -488,6 +508,7 @@ class Permissions
             self::STAFF_MANAGE,
             self::PRODUCTS_MANAGE,
             self::INVENTORY_MANAGE,
+            self::INVENTORY_ANY_PLACE,
             self::SUPPLIERS_MANAGE,
             self::PURCHASES_MANAGE,
             self::SALES_MANAGE,

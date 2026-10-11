@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TenantController extends Controller
 {
@@ -695,6 +696,49 @@ class TenantController extends Controller
              * add the next account.
              */
             'excess' => $rows->filter(fn (array $r): bool => $r['excess'] > 0)->values(),
+        ]);
+    }
+
+    /**
+     * WHAT A PAYMENT TAKEN NOW WOULD BUY — the dates, before anybody saves.
+     *
+     * The renewal dialog explained the rule in a sentence and left the admin
+     * to work out the dates: stacks if it is still running, today if it is
+     * not. What was recorded was then whatever the action made of it, and
+     * every later renewal stacks onto THAT. So the dialog asks, and is told
+     * by the same method the save uses (`AssignPlanAction::window`) — there is
+     * no second copy of the rule to drift.
+     *
+     * A GET, and it writes nothing: an admin can try each plan and each pair
+     * of dates and see the period first.
+     */
+    public function planWindow(Request $request, string $id, AssignPlanAction $action): JsonResponse
+    {
+        $asked = $request->validate([
+            'plan_id' => ['required', 'uuid', Rule::exists('plans', 'id')],
+            'starts_at' => ['sometimes', 'nullable', 'date'],
+            'ends_at' => ['sometimes', 'nullable', 'date'],
+        ]);
+
+        $tenant = Tenant::query()->with('plan')->findOrFail($id);
+        $plan = Plan::query()->findOrFail($asked['plan_id']);
+        $window = $action->window($tenant, $plan, [
+            'starts_at' => $asked['starts_at'] ?? null,
+            'ends_at' => $asked['ends_at'] ?? null,
+        ]);
+
+        return ApiResponse::ok([
+            'starts_on' => $window['start']->toDateString(),
+            'ends_on' => $window['end']->toDateString(),
+            // Which of the rules put it there — the dialog says it in words.
+            'because' => $window['because'],
+            // Dates typed the wrong way round are refused at the save; said
+            // here so the dialog can say it first.
+            'valid' => $window['end']->greaterThan($window['start']),
+            // What it would be carrying on from, for the sentence.
+            'current_ends_on' => $tenant->subscription_ends_at?->toDateString(),
+            'grace_ends_on' => $tenant->graceEndsAt()?->toDateString(),
+            'months' => max(1, (int) $plan->billing_period_months),
         ]);
     }
 

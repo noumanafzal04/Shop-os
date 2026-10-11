@@ -163,7 +163,7 @@ class RestaurantTicketController extends Controller
             // `business_name`. This read `->name`, which a shop does not have:
             // null, silently, so no kitchen ticket ever said whose it was.
             'shopName' => $this->context->get()?->business_name,
-            'ticket' => $ticket->load('table'),
+            'ticket' => $ticket->load('table', 'sale:id,table_no'),
             'kot' => $kot->load('items'),
         ]);
     }

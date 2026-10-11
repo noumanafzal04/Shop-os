@@ -3,6 +3,7 @@
 namespace App\Actions\Purchase;
 
 use App\Enums\PurchaseStatus;
+use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
@@ -21,7 +22,7 @@ class CreatePurchaseOrderAction
 
     /**
      * @param array{
-     *   supplier_id: string, order_date: string, expected_date?: ?string,
+     *   supplier_id: string, deliver_to_branch_id?: ?string, order_date: string, expected_date?: ?string,
      *   discount?: float, tax?: float, notes?: ?string, status?: string,
      *   items: array<array{product_id:string, variant_id?:?string, quantity:int, unit_cost:float}>
      * } $data
@@ -88,6 +89,9 @@ class CreatePurchaseOrderAction
             /** @var PurchaseOrder $po */
             $po = PurchaseOrder::query()->create([
                 'supplier_id' => $data['supplier_id'],
+                // Decided when the order is raised, because that is when the
+                // supplier is told where to bring it.
+                'deliver_to_branch_id' => $data['deliver_to_branch_id'] ?? Branch::newOrdersGoTo($tenantId),
                 'po_number' => 'PO-'.str_pad((string) $seq, 6, '0', STR_PAD_LEFT),
                 'status' => ($data['status'] ?? 'draft') === 'ordered'
                     ? PurchaseStatus::Ordered
@@ -105,7 +109,7 @@ class CreatePurchaseOrderAction
 
             $po->items()->createMany($lines);
 
-            return $po->load('items', 'supplier');
+            return $po->load('items', 'supplier', 'deliverTo:id,name,kind');
         });
     }
 }

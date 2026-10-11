@@ -10,7 +10,7 @@ use App\Support\ItemTypes;
 use App\Support\TenantContext;
 
 /**
- * A TAKEAWAY ORDER RUNG AT THE TILL, SENT TO THE KITCHEN.
+ * AN ORDER RUNG AT THE TILL, SENT TO THE KITCHEN — to take away, or for here.
  *
  * ── The gap this closes ─────────────────────────────────────────────────
  *
@@ -57,9 +57,23 @@ class SendCounterOrderToKitchen
             return null;
         }
 
-        // Dine-in has its own path: a tab fires as the waiter sends each course,
-        // and by the time it becomes a Sale the food has long been cooked.
-        if (($sale->order_type ?? null) !== 'takeaway') {
+        // RUNG AT THE COUNTER AND TO BE MADE: to take away, or to have here.
+        //
+        // This asked "is it a takeaway?", to keep a settled TAB from being
+        // fired a second time — a tab fires as each course is sent, and by the
+        // time it becomes a Sale the food was cooked long ago. But "dine-in"
+        // is not only a tab. A food shop with no floor is offered Dine-in at
+        // the TILL, with a table number to type: the customer says "for here",
+        // pays, and sits down — and the bar was told nothing, because the
+        // order was not a takeaway. A paid cup nobody was making.
+        //
+        // Whether a sale settles a tab is a fact about where it CAME from, and
+        // the settle path says so itself (see CreateSaleAction, `settles_tab`):
+        // this is never reached for one. What is left to ask here is only
+        // whether the till said how the food is being eaten at all. A sale
+        // that did not — a mart selling a samosa off the counter with the
+        // module switched on — is not an order for anybody's pass.
+        if (! in_array($sale->order_type ?? null, ['takeaway', 'dine_in'], true)) {
             return null;
         }
 
@@ -94,7 +108,10 @@ class SendCounterOrderToKitchen
             // this was never a tab. See the migration for why they are two
             // columns and not one.
             'from_counter' => true,
-            'order_type' => 'takeaway',
+            // As it was rung. "For here" is still a counter order — it has no
+            // table row and no tab — but the pass has to know the cup is not
+            // going in a bag; where it IS going is `RestaurantTicket::goesTo()`.
+            'order_type' => $sale->order_type,
             'status' => RestaurantTicketStatus::Open,
             // Whoever rang it. The service report reads this, and "nobody"
             // would be a row an owner cannot ask anybody about.

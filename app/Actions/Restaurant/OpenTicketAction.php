@@ -4,6 +4,7 @@ namespace App\Actions\Restaurant;
 
 use App\Enums\RestaurantTicketStatus;
 use App\Exceptions\DomainException;
+use App\Models\Branch;
 use App\Models\DiningTable;
 use App\Models\RestaurantTicket;
 use App\Support\BranchContext;
@@ -50,6 +51,15 @@ class OpenTicketAction
                 }
             }
 
+            // A tab belongs where its table stands. A takeaway has no table,
+            // so it belongs to the site the order was taken at.
+            $branchId = $orderType === 'dine_in' && $tableId !== null
+                ? DiningTable::query()->whereKey($tableId)->value('branch_id')
+                : app(BranchContext::class)->id();
+
+            // Nobody is served out of a store room.
+            Branch::mustSell($branchId);
+
             $seq = RestaurantTicket::withoutTenancy()
                 ->where('tenant_id', $tenantId)
                 ->withTrashed()
@@ -59,11 +69,7 @@ class OpenTicketAction
             $ticket = RestaurantTicket::query()->create([
                 'ticket_number' => 'TAB-'.str_pad((string) $seq, 5, '0', STR_PAD_LEFT),
                 'dining_table_id' => $orderType === 'dine_in' ? $tableId : null,
-                // A tab belongs where its table stands. A takeaway has no
-                // table, so it belongs to the site the order was taken at.
-                'branch_id' => $orderType === 'dine_in' && $tableId !== null
-                    ? DiningTable::query()->whereKey($tableId)->value('branch_id')
-                    : app(BranchContext::class)->id(),
+                'branch_id' => $branchId,
                 'order_type' => $orderType,
                 'status' => RestaurantTicketStatus::Open,
                 'guest_count' => $data['guest_count'] ?? null,

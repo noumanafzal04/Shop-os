@@ -83,7 +83,15 @@ class PlanLimits
         // opinion", and the shop falls to `default`. See `baseline()`.
         //
         // The default "Main" branch counts, so 1 means Main and no more.
+        //
+        // SHOPS ONLY. A warehouse is a place too, and it used to be counted
+        // here — which made a godown cost a branch, and left a single shop on
+        // the smallest plan unable to have one at all.
         'branches' => ['owner' => 'tenant', 'column' => 'max_branches', 'default' => 1, 'label' => 'branches', 'enforced' => true],
+        // Places that hold stock and do not sell. One by default, because a
+        // shop with a godown behind it is the ordinary case and not a chain.
+        // Needs something to hold: a business with no stock has no use for one.
+        'warehouses' => ['owner' => 'tenant', 'column' => 'max_warehouses', 'default' => 1, 'label' => 'warehouses', 'enforced' => true, 'needs' => ['inventory']],
         // The owner is not "staff" — only additional accounts count.
         'staff' => ['owner' => 'tenant', 'column' => 'max_staff', 'default' => 5, 'label' => 'staff members', 'enforced' => true],
         // Checkout lanes. A single-counter shop needs no register row at all,
@@ -388,7 +396,8 @@ class PlanLimits
             'orders_month' => Sale::withoutTenancy()->where('tenant_id', $tenant->id)
                 ->whereNot('status', SaleStatus::Cancelled)
                 ->where('created_at', '>=', self::periodStart($tenant))->count(),
-            'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
+            'branches' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->shops()->count(),
+            'warehouses' => Branch::withoutTenancy()->where('tenant_id', $tenant->id)->warehouses()->count(),
             'registers' => Register::withoutTenancy()->where('tenant_id', $tenant->id)->count(),
             // Not a count of anything owned — the WORST device currently out of
             // contact, in whole days. Zero when every till is in touch, which

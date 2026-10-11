@@ -4,11 +4,11 @@ namespace App\Actions\Catalog;
 
 use App\Exceptions\DomainException;
 use App\Models\Branch;
-use App\Models\BranchStock;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\BarcodeNamespace;
 use App\Support\ItemTypes;
+use App\Support\OpeningShelf;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -67,24 +67,30 @@ class SyncProductVariantsAction
     {
         DB::transaction(function () use ($product, $variants): void {
             $existing = $product->variants()->get()->keyBy('id');
-            // The shop's default branch, resolved the same way CreateProductAction
-            // resolves it. A new size has to arrive on the same shelf the product
-            // itself was put on.
-            $mainBranchId = Branch::withoutTenancy()
-                ->where('tenant_id', $product->tenant_id)
-                ->where('is_default', true)
-                ->value('id');
+            // A new size's opening stock goes where a new product's does:
+            // where whoever is adding it stands. One resolver for both — see
+            // OpeningShelf.
 
             $kept = [];
             $anyActive = false;
 
-            foreach ($variants as $row) {
+            // The list arrives in the order the grid shows it, and that order
+            // is kept: a size put in between two others, or a new one added at
+            // the end, is where the shop put it.
+            //
+            // Read by KEY, not in the order the array happens to hold its rows.
+            // The validator rebuilds each row rule by rule and `id` is the
+            // first rule — so a row with no id, which is every NEW size, was
+            // handed over after all the rows that had one, wherever it stood.
+            ksort($variants);
+            foreach (array_values($variants) as $position => $row) {
                 $id = $row['id'] ?? null;
                 $active = ! array_key_exists('is_active', $row) || (bool) $row['is_active'];
                 $anyActive = $anyActive || $active;
 
                 $fields = [
                     'name' => $row['name'],
+                    'sort_order' => $position,
                     'sku' => $row['sku'] ?? null,
                     'price' => $row['price'],
                     'cost' => $row['cost'] ?? null,
@@ -118,7 +124,7 @@ class SyncProductVariantsAction
                 $kept[] = $created->id;
 
                 BarcodeNamespace::assign($product, $created, $row);
-                $this->openTheShelfFor($product, $created, $mainBranchId, $row);
+                $this->openTheShelfFor($product, $created, $row);
             }
 
             $removed = $existing->keys()->diff($kept);
@@ -158,19 +164,12 @@ class SyncProductVariantsAction
      *
      * @param  array<string, mixed>  $row
      */
-    private function openTheShelfFor(Product $product, ProductVariant $variant, ?string $branchId, array $row): void
+    private function openTheShelfFor(Product $product, ProductVariant $variant, array $row): void
     {
+        $branchId = OpeningShelf::open($product, $variant->id, (float) $variant->stock_quantity);
         if ($branchId === null) {
             return;
         }
-
-        BranchStock::withoutTenancy()->create([
-            'tenant_id' => $product->tenant_id,
-            'branch_id' => $branchId,
-            'product_id' => $product->id,
-            'variant_id' => $variant->id,
-            'quantity' => $variant->stock_quantity,
-        ]);
 
         $opening = (float) ($row['stock_quantity'] ?? 0);
         if ($product->item_type === ItemTypes::MEDICINE && $opening > 0) {

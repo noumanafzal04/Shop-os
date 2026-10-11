@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\KitchenTicket;
 use App\Models\Product;
 use App\Models\RestaurantTicket;
 use App\Models\Tenant;
@@ -156,12 +157,100 @@ class CounterOrderReachesTheKitchenTest extends TestCase
         $this->assertSame(0, RestaurantTicket::query()->count());
     }
 
-    public function test_a_dine_in_sale_does_not_fire_a_second_time(): void
+    public function test_an_order_rung_for_here_reaches_the_pass_and_says_which_table(): void
     {
-        // Dine-in has its own path: a tab fires as each course is sent, and by
-        // the time it becomes a Sale the food was cooked long ago. Firing again
-        // here would put every settled table back on the pass.
-        $this->ring([[$this->biryani, 1]], 'dine_in');
+        /*
+         * This test used to say the opposite: a counter sale rung "dine-in"
+         * left the board EMPTY, and that was asserted — on the grounds that a
+         * dine-in tab has already fired its food. True of a tab. But this shop
+         * has no floor and no tabs; here "dine-in" is the till's own button,
+         * offered to exactly this kind of shop, with a box for the table
+         * number. A customer who said "for here" paid, sat down, and waited
+         * for a cup the bar had never been told about.
+         */
+        $sale = $this->asOwner()->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100000,
+            'order_type' => 'dine_in', 'table_no' => '2',
+            'items' => [['product_id' => $this->biryani->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $board = $this->board();
+        $this->assertCount(1, $board, 'an order rung for here never reached the pass');
+        $this->assertSame('dine_in', $board[0]['order_type']);
+        // Where it is carried to — not a bag, and not the word "Takeaway".
+        $this->assertSame('Table 2', $board[0]['table_name']);
+        $this->assertSame($sale['invoice_number'], $board[0]['ticket_number']);
+
+        // It is still a COUNTER order: paid, no tab, nothing for a floor to hold.
+        $ticket = RestaurantTicket::query()->sole();
+        $this->assertTrue((bool) $ticket->from_counter);
+        $this->assertSame($sale['id'], $ticket->sale_id);
+
+        // And the paper says the table too — the kitchen that works off slips
+        // is the one with no screen to read it from.
+        $named = $sale['kitchen_ticket'];
+        $slip = $this->asOwner()
+            ->get("/api/v1/restaurant/tickets/{$named['ticket_id']}/kot/{$named['kots'][0]['id']}")
+            ->assertOk()->getContent();
+        $this->assertStringContainsString('Table 2', $slip);
+        $this->assertStringNotContainsString('TAKEAWAY', $slip);
+    }
+
+    public function test_a_table_typed_as_the_shop_calls_it_is_left_as_typed_and_none_is_none(): void
+    {
+        $ring = fn (?string $table): array => $this->asOwner()->postJson('/api/v1/sales', array_filter([
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100000,
+            'order_type' => 'dine_in', 'table_no' => $table,
+            'items' => [['product_id' => $this->biryani->id, 'quantity' => 1]],
+        ], fn ($v) => $v !== null))->assertCreated()->json('data');
+
+        $garden = $ring('Garden');
+        $nowhere = $ring(null);
+
+        $by = collect($this->board())->keyBy('ticket_number');
+        // "Garden" is already what the shop calls it. "Table Garden" is not.
+        $this->assertSame('Garden', $by[$garden['invoice_number']]['table_name']);
+        // No table was said: the card is headed by the receipt in the
+        // customer's hand, as an unnamed takeaway's is. Never an invented one.
+        $this->assertNull($by[$nowhere['invoice_number']]['table_name']);
+    }
+
+    public function test_a_tab_that_is_settled_is_not_fired_a_second_time(): void
+    {
+        // What the old rule was really for, asked of the thing it is about: a
+        // shop WITH a floor. The tab fires as it is ordered; paying the bill
+        // must not put the table's food back on the pass.
+        $this->shop->forceFill(['features' => Modules::normalize([
+            'products' => true, 'pos' => true, 'kitchen' => true, 'dine_in' => true, 'expenses' => true,
+        ])])->save();
+
+        $table = $this->asOwner()->postJson('/api/v1/restaurant/tables', ['name' => 'T1', 'seats' => 2])->assertCreated()->json('data.id');
+        $tab = $this->asOwner()->postJson('/api/v1/restaurant/tickets', [
+            'order_type' => 'dine_in', 'dining_table_id' => $table, 'guest_count' => 2,
+        ])->assertCreated()->json('data.id');
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$tab}/items", [
+            'items' => [['product_id' => $this->biryani->id, 'quantity' => 2]],
+        ])->assertOk();
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$tab}/fire")->assertCreated();
+        $this->assertCount(1, $this->board());
+
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$tab}/settle", [
+            'payment_method' => 'cash', 'amount_paid' => 900,
+        ])->assertCreated();
+
+        // One tab, one docket — before the bill and after it.
+        $this->assertSame(1, RestaurantTicket::query()->count(), 'paying the bill opened a second ticket');
+        $this->assertSame(1, KitchenTicket::query()->count(), 'paying the bill fired the food again');
+    }
+
+    public function test_a_sale_the_till_did_not_ring_as_an_order_is_nobodys_order(): void
+    {
+        // No order type at all: a counter that sold a dish the way a mart
+        // sells a packet. The pass is for orders somebody is waiting on.
+        $this->asOwner()->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100000,
+            'items' => [['product_id' => $this->biryani->id, 'quantity' => 1]],
+        ])->assertCreated();
 
         $this->assertSame([], $this->board());
     }

@@ -330,19 +330,27 @@ class ProductController extends Controller
         /** @var Product $product */
         $product = Product::query()->findOrFail($id);
 
+        // One read for every place, not one per place: a chain with fifteen
+        // branches asked the database fifteen times to answer "who has this".
+        $held = BranchStock::query()
+            ->where('product_id', $product->id)
+            ->groupBy('branch_id')
+            ->selectRaw('branch_id, sum(quantity) as quantity')
+            ->pluck('quantity', 'branch_id');
+
         $rows = Branch::query()
             ->where('is_active', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
-            ->get(['id', 'name', 'is_default'])
+            ->get(['id', 'name', 'kind', 'is_default'])
             ->map(fn ($b) => [
                 'branch_id' => $b->id,
                 'branch' => $b->name,
+                // A cashier told "Godown: 40" knows it is a walk to the back,
+                // not a customer to send across the city.
+                'kind' => $b->kind,
                 'is_default' => $b->is_default,
-                'quantity' => (float) BranchStock::query()
-                    ->where('branch_id', $b->id)
-                    ->where('product_id', $product->id)
-                    ->sum('quantity'),
+                'quantity' => (float) ($held[$b->id] ?? 0),
             ]);
 
         return ApiResponse::ok($rows);
@@ -383,8 +391,11 @@ class ProductController extends Controller
             ->whereNull('variant_id')
             ->pluck('price', 'branch_id');
 
+        // A warehouse sells nothing across a counter, so it has no price
+        // list to override.
         $branches = Branch::query()
             ->where('is_active', true)
+            ->shops()
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name', 'is_default'])

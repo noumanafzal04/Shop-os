@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\SubscriptionPayment;
 use App\Support\ApiResponse;
+use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use App\Support\Retention;
@@ -60,6 +61,19 @@ class SubscriptionController extends Controller
              * Null on a plan that keeps everything — the screen then says
              * nothing at all, which is correct.
              */
+            /**
+             * WHAT IT PAYS — the plan AND what was switched on past it.
+             *
+             * This screen said "Rs 3,000 every month" to a shop that pays
+             * Rs 3,400: the plan's price is one line of its bill, and the
+             * add-ons were on the admin's page only. The one screen where a
+             * shop reads what it is charged named a smaller figure than the
+             * one it is asked for.
+             *
+             * The same reckoning the admin's page and the renewal dialog use,
+             * trimmed to what a shop needs: no list prices it was not given.
+             */
+            'bill' => $plan === null ? null : $this->bill(ModulePackages::bill($tenant)),
             'history_from' => Retention::horizon($tenant)?->toDateString(),
             'state' => $tenant->subscriptionState(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
@@ -106,5 +120,28 @@ class SubscriptionController extends Controller
                     'paid_at' => $p->paid_at->toIso8601String(),
                 ]),
         ]);
+    }
+
+    /**
+     * @param  array{plan: array{name: ?string, price: float, months: int}, addons: array<int, array{key: string, label: string, monthly: float}>, addons_total: float, total: float}  $bill
+     * @return array{months: int, plan: float, addons: array<int, array{key: string, label: string, monthly: float, amount: float}>, total: float}
+     */
+    private function bill(array $bill): array
+    {
+        $months = $bill['plan']['months'];
+
+        return [
+            'months' => $months,
+            'plan' => $bill['plan']['price'],
+            'addons' => array_map(fn (array $addon): array => [
+                'key' => $addon['key'],
+                'label' => $addon['label'],
+                'monthly' => $addon['monthly'],
+                // For the whole period: an add-on is priced by the month and
+                // the plan may be paid by the year.
+                'amount' => round($addon['monthly'] * $months, 2),
+            ], $bill['addons']),
+            'total' => $bill['total'],
+        ];
     }
 }

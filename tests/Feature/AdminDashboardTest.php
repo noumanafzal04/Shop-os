@@ -570,4 +570,27 @@ class AdminDashboardTest extends TestCase
         // through this; the whole payload is grouped aggregates.
         $this->assertLessThanOrEqual(20, $queries, "forPlatform() issued {$queries} queries");
     }
+
+    /**
+     * "A month ago", asked on the 31st of March, is the end of February — not
+     * the 31st of February, which Carbon rolls on to the 3rd of March.
+     */
+    public function test_a_month_before_the_end_of_a_long_month_is_the_end_of_the_short_one(): void
+    {
+        $this->travelTo(Carbon::parse('2026-03-31 12:00:00'));
+        $plan = $this->plan('basic-march');
+
+        // Here since January, and its month ran out on the 2nd of March: it
+        // WAS a live subscription a month ago, and is not one today.
+        Tenant::factory()->create([
+            'plan_id' => $plan->id,
+            'created_at' => '2026-01-10 09:00:00',
+            'subscription_ends_at' => '2026-03-02 09:00:00',
+        ]);
+
+        $subscriptions = $this->dashboard()['kpis']['active_subscriptions'];
+
+        $this->assertSame(0, $subscriptions['value']);
+        $this->assertSame(1, $subscriptions['previous'], 'A subscription that was running at the end of February is missing from "a month ago".');
+    }
 }

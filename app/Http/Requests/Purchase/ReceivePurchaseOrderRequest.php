@@ -4,6 +4,7 @@ namespace App\Http\Requests\Purchase;
 
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ReceivePurchaseOrderRequest extends FormRequest
 {
@@ -21,6 +22,13 @@ class ReceivePurchaseOrderRequest extends FormRequest
             // One key per receipt attempt (client generates it when the
             // dialog opens) → a network retry replays instead of double-receiving.
             'idempotency_key' => ['nullable', 'string', 'max:64'],
+            // Which place the delivery is being put into — the shop, or the
+            // warehouse behind it. Omitted: the place being worked at, as
+            // before. Who may name another is the action's to decide.
+            'branch_id' => ['nullable', 'uuid', Rule::exists('branches', 'id')
+                ->where('tenant_id', $this->user()->tenant_id)
+                ->where('is_active', true)
+                ->whereNull('deleted_at')],
             'items' => ['nullable', 'array'],
             'items.*.id' => ['required', 'uuid'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],

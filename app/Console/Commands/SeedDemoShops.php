@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\Inventory\SendStockTransferAction;
 use App\Actions\Tenant\AssignPlanAction;
 use App\Console\Commands\DemoShops\CafeMenu;
 use App\Console\Commands\DemoShops\MartShelves;
@@ -9,10 +10,15 @@ use App\Console\Commands\DemoShops\TradeLists;
 use App\Enums\TenantStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\Branch;
 use App\Models\City;
 use App\Models\Plan;
+use App\Models\Product;
+use App\Models\ProductBatch;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\InventoryService;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -46,6 +52,7 @@ use Illuminate\Support\Str;
  *     shop7@johartown.demo   Canal Road Fuels        petroleum
  *     shop8@johartown.demo   GadgetHub               online
  *     shop9@johartown.demo   Malik & Co. Accounts    finance
+ *     shop10@johartown.demo  Akbari Traders          wholesale
  *
  * Every owner's password is `password`. They are demo logins and are meant to
  * be passed around; nothing real should ever be kept in one of these shops.
@@ -69,7 +76,7 @@ class SeedDemoShops extends SeedLoadTestShops
 {
     protected $signature = 'demo:shops
         {--fresh : remove these demo shops first, then build them again}
-        {--only= : one shop — shop1 … shop9, or its trade (food, mart, pharmacy, retail, services, automotive, petroleum, online, finance)}
+        {--only= : one shop — shop1 … shop10, or its trade (food, mart, pharmacy, retail, services, automotive, petroleum, online, finance)}
         {--sales=240 : sales rung into each shop, spread over the last 90 days}
         {--listed : leave the shops open on the public marketplace}';
 
@@ -98,18 +105,28 @@ class SeedDemoShops extends SeedLoadTestShops
             'colour' => '#15803D', 'address' => '112-G1, Canal Road, Johar Town, Lahore', 'at' => [31.4731, 74.2795],
             'plan' => 'enterprise', 'branches' => ['Main — Johar Town', 'Wapda Town'],
             'sizes' => 0, 'batches' => false, 'dining' => false, 'online' => true, 'bank_offers' => true,
+            // The godown behind the shop: cartons come in here and go to the
+            // shelf as it empties. It ships no online orders.
+            'warehouse' => ['name' => 'Godown — Canal Road', 'ships' => false],
         ],
         'pharmacy' => [
             'n' => 3, 'name' => 'CarePlus Pharmacy', 'type' => 'pharmacy', 'category' => 'medical_store', 'owner' => 'Dr. Sana Malik',
             'colour' => '#0E7490', 'address' => '7-R2, Shaukat Khanum Road, Johar Town, Lahore', 'at' => [31.4652, 74.2701],
             'plan' => 'premium', 'branches' => ['Main — Johar Town', 'Model Town'],
             'sizes' => 0, 'batches' => true, 'dining' => false, 'online' => true,
+            // Where the distributor's cartons are kept, in dated batches.
+            'warehouse' => ['name' => 'Medicine Store', 'ships' => false],
         ],
         'clothing' => [
             'n' => 4, 'name' => 'Zari Clothing', 'type' => 'retail', 'category' => 'garments', 'owner' => 'Ayesha Sheikh',
             'colour' => '#9D174D', 'address' => 'Shop 18, Emporium Mall, Johar Town, Lahore', 'at' => [31.4675, 74.2660],
             'plan' => 'pro', 'branches' => ['Main — Emporium Mall', 'Packages Mall'],
             'sizes' => 4, 'batches' => false, 'dining' => false, 'online' => true,
+            // A brand's own warehouse: it feeds both outlets, and the online
+            // orders are packed and sent from here.
+            // …and everything the brand buys is delivered here first: its
+            // purchase orders are addressed to the warehouse, not to an outlet.
+            'warehouse' => ['name' => 'Central Warehouse', 'ships' => true, 'receives' => true],
         ],
         'services' => [
             'n' => 5, 'name' => 'FixIt Service Centre', 'type' => 'services', 'category' => 'mobile_repair', 'owner' => 'Usman Qureshi',
@@ -140,6 +157,16 @@ class SeedDemoShops extends SeedLoadTestShops
             'colour' => '#0F766E', 'address' => 'Office 12, Siddiq Trade Centre, Gulberg, Lahore', 'at' => [31.5360, 74.3440],
             'plan' => 'basic', 'extra_staff' => 7, 'hrm' => true, 'branches' => ['Main — Office'],
             'sizes' => 0, 'batches' => false, 'dining' => false,
+        ],
+        // A distributor: it sells to other shops, by the carton and the sack,
+        // on account. Its goods arrive at the godown and are brought to the
+        // counter in Akbari Mandi as they sell.
+        'wholesale' => [
+            'n' => 10, 'name' => 'Akbari Traders', 'type' => 'wholesale', 'category' => 'distributor', 'owner' => 'Tariq Mehmood',
+            'colour' => '#1D4ED8', 'address' => 'Shop 14, Akbari Mandi, Lahore', 'at' => [31.5786, 74.3211],
+            'plan' => 'premium', 'branches' => ['Main — Akbari Mandi'],
+            'sizes' => 0, 'batches' => false, 'dining' => false,
+            'warehouse' => ['name' => 'Godown — Badami Bagh', 'ships' => false, 'receives' => true],
         ],
     ];
 
@@ -215,7 +242,7 @@ class SeedDemoShops extends SeedLoadTestShops
 
         $wanted = $this->wanted();
         if ($wanted === []) {
-            $this->error('No such shop: '.$this->option('only').'. Use shop1 … shop9, or a trade: '.implode(', ', array_unique(array_column(self::SHOPS, 'type'))).'.');
+            $this->error('No such shop: '.$this->option('only').'. Use shop1 … shop10, or a trade: '.implode(', ', array_unique(array_column(self::SHOPS, 'type'))).'.');
 
             return self::FAILURE;
         }
@@ -289,6 +316,7 @@ class SeedDemoShops extends SeedLoadTestShops
             'workshop' => TradeLists::workshop(),
             'fuels' => TradeLists::forecourtShop(),
             'gadgets' => TradeLists::gadgetStore(),
+            'wholesale' => TradeLists::wholesaler(),
             default => [],
         };
     }
@@ -490,15 +518,121 @@ class SeedDemoShops extends SeedLoadTestShops
         $tenant->refresh();
         $tenant->assignLimits([
             'branches' => max(1, count($shop['branches'])),
+            'warehouses' => isset($shop['warehouse']) ? 1 : null,
             'staff' => max(8, (int) ($shop['extra_staff'] ?? 0) + 8),
             'registers' => 2 * count($shop['branches']),
         ]);
+
+        if (isset($shop['warehouse'])) {
+            $this->warehouse($tenant, $shop['warehouse']);
+        }
 
         if (! $this->option('listed') && $tenant->online_shop_enabled) {
             $tenant->forceFill(['online_shop_enabled' => false])->save();
         }
 
         $this->subscribe($tenant, $shop);
+    }
+
+    /**
+     * The warehouse behind the shop, with stock in it and one transfer on the
+     * road.
+     *
+     * Built AFTER the shop has traded, and that order is the point: every
+     * branch the builder is given gets tills, shifts and three months of
+     * sales, and a warehouse is the one place that must have none of them.
+     *
+     * Stocked through the same doors a shop uses — a stock-in, a dated batch
+     * for medicine, and a transfer that is SENT and left unreceived — so the
+     * Transfers screen opens on something to count in, rather than on an
+     * empty table a demo would have to explain.
+     *
+     * @param  array{name: string, ships: bool, receives?: bool}  $spec
+     */
+    private function warehouse(Tenant $tenant, array $spec): void
+    {
+        app(TenantContext::class)->set($tenant);
+
+        try {
+            $main = Branch::withoutTenancy()->where('tenant_id', $tenant->id)->where('is_default', true)->firstOrFail();
+            $warehouse = Branch::withoutTenancy()->create([
+                'tenant_id' => $tenant->id,
+                'name' => $spec['name'],
+                'code' => 'WH',
+                'kind' => Branch::KIND_WAREHOUSE,
+                'fills_orders' => $spec['ships'],
+                'takes_deliveries' => $spec['receives'] ?? false,
+                'is_default' => false,
+                'is_active' => true,
+                'city_id' => $main->city_id,
+            ]);
+
+            $inventory = app(InventoryService::class);
+            $medicine = (bool) (self::SHOPS[$this->key]['batches'] ?? false);
+            $onTheVan = [];
+
+            $products = Product::withoutTenancy()
+                ->where('tenant_id', $tenant->id)
+                ->where('track_inventory', true)
+                ->with('variants:id,product_id')
+                ->orderBy('name')
+                ->limit(14)
+                ->get();
+
+            foreach ($products as $i => $product) {
+                // A product sold in sizes holds its stock on the sizes.
+                $targets = $product->variants->isEmpty() ? [null] : $product->variants->pluck('id')->all();
+                $cartons = 24 * (2 + $i % 4);
+
+                foreach ($targets as $variantId) {
+                    $inventory->adjust([
+                        'product_id' => $product->id,
+                        'variant_id' => $variantId,
+                        'branch_id' => $warehouse->id,
+                        'type' => 'in',
+                        'quantity' => $cartons,
+                        'reason' => 'Opening stock at '.$spec['name'],
+                        // A medicine's lot is opened just below, to match.
+                        'reference_type' => $medicine ? 'batch' : null,
+                        'idempotency_key' => "demo-wh-{$warehouse->id}-{$product->id}-".($variantId ?? 'x'),
+                    ]);
+
+                    if ($medicine) {
+                        ProductBatch::withoutTenancy()->create([
+                            'tenant_id' => $tenant->id,
+                            'branch_id' => $warehouse->id,
+                            'product_id' => $product->id,
+                            'variant_id' => $variantId,
+                            'batch_number' => 'WH-'.str_pad((string) ($i + 1), 4, '0', STR_PAD_LEFT),
+                            'expiry_date' => now()->addMonths(10 + $i)->toDateString(),
+                            'quantity' => $cartons,
+                            'cost' => $product->cost,
+                        ]);
+                    }
+
+                    if ($i < 3) {
+                        $onTheVan[] = ['product_id' => $product->id, 'variant_id' => $variantId, 'quantity' => 12];
+                    }
+                }
+            }
+
+            if ($onTheVan !== []) {
+                $sent = app(SendStockTransferAction::class)->execute($tenant, [
+                    'from_branch_id' => $warehouse->id,
+                    'to_branch_id' => $main->id,
+                    'notes' => 'Weekly refill for the shop floor',
+                    'items' => $onTheVan,
+                ]);
+                // Sent by the owner, so the slip has a name on it.
+                $sent->forceFill([
+                    'created_by' => User::query()->where('tenant_id', $tenant->id)->where('role', UserRole::ShopOwner)->value('id'),
+                ])->save();
+            }
+
+            $this->line('  warehouse  '.$spec['name'].' — '.$products->count().' lines in stock, 1 transfer on its way');
+        } finally {
+            app(TenantContext::class)->clear();
+        }
     }
 
     /**

@@ -38,7 +38,8 @@ class InventoryService
      *   product_id: string, variant_id?: ?string, branch_id?: ?string,
      *   type: 'in'|'out'|'set', quantity?: int, new_quantity?: int,
      *   reason?: ?string, idempotency_key?: ?string,
-     *   reference_type?: ?string, reference_id?: ?string
+     *   reference_type?: ?string, reference_id?: ?string,
+     *   allow_negative?: bool, lots_placed?: bool
      * } $data
      *
      * branch_id defaults to the tenant's default "Main" branch when omitted.
@@ -296,7 +297,13 @@ class InventoryService
                 // depleted — keeping batch totals in step with stock_quantity.
                 // Plain manual/purchase INs are new, unbatched stock; batches for
                 // those are created by their own flows (Batches page, PO receive).
-                if ($data['type'] === 'in' && $batchScope
+                //
+                // A transfer that knows WHICH lots left the sender puts those
+                // same lots down at the receiver itself (`lots_placed`) — see
+                // `TransferLots`. Folding them into whatever lot happens to
+                // expire first here would give a strip of medicine somebody
+                // else's expiry date.
+                if ($data['type'] === 'in' && $batchScope && empty($data['lots_placed'])
                     && in_array($data['reference_type'] ?? null,
                         ['sale_return', 'sale_cancellation', 'order_release', 'reservation_release', 'transfer'], true)) {
                     $restoreTo = ProductBatch::withoutTenancy()

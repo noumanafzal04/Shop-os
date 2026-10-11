@@ -200,6 +200,38 @@ class SaleController extends Controller
     }
 
     /**
+     * What handing these back is worth — asked BEFORE the press.
+     *
+     * Nothing is written. The figure is the one `processReturn` and `exchange`
+     * pay out, from the method they pay it with, so a cashier is shown the
+     * money that will actually leave the drawer: the price paid, less the
+     * line's share of any discount, with the tax that was charged on it.
+     */
+    public function returnWorth(Request $request, string $id, ProcessSaleReturnAction $action): JsonResponse
+    {
+        $data = $request->validate([
+            'items' => ['required', 'array', 'min:1', 'max:200'],
+            'items.*.sale_item_id' => ['required', 'uuid', 'distinct'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
+        ]);
+
+        $worth = $action->worth(Sale::query()->with('items')->findOrFail($id), $data['items']);
+
+        return ApiResponse::ok([
+            'refund_total' => $worth['refund_total'],
+            'refund_tax' => $worth['refund_tax'],
+            'tax_inclusive' => $worth['inclusive'],
+            'lines' => array_map(static fn (array $line): array => [
+                'sale_item_id' => $line['sale_item']->id,
+                'quantity' => $line['quantity'],
+                // What this line alone hands back: tax on top where the sale
+                // added it on top, inside the figure where the sale had it inside.
+                'amount' => $worth['inclusive'] ? $line['line_total'] : round($line['line_total'] + $line['line_tax'], 2),
+            ], $worth['lines']),
+        ]);
+    }
+
+    /**
      * Exchange: return items from this sale and buy replacements in one step.
      * The returned value is credited to the new sale; the customer pays only
      * the difference. Returns { return, sale, difference }.

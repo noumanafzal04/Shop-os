@@ -58,6 +58,10 @@ final class FulfillingBranch
         $branches = Branch::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)
+            // Every shop, and a warehouse only when its owner said it ships
+            // orders. A grocer's godown must not be handed a delivery because
+            // it happens to be the nearest roof with the goods under it.
+            ->where('fills_orders', true)
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get();

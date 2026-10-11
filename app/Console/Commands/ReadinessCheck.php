@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\FrontDoor;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
@@ -36,14 +37,20 @@ class ReadinessCheck extends Command
 
     public function handle(): int
     {
+        // Asked twice in one process, the second answer carried the first's
+        // findings: a box that had just been put right was still refused.
+        $this->findings = [];
+
         $this->components->info(config('app.name').' readiness — '.app()->environment());
 
         $this->checkDebug();
-        $this->checkSeededSuperAdmin();
+        $this->checkName();
+        $this->checkPublishedPasswords();
         $this->checkDemoData();
         $this->checkHttps();
         $this->checkAppKey();
         $this->checkCors();
+        $this->checkFrontDoor();
         $this->checkQueueAndSchedule();
 
         return $this->report();
@@ -65,29 +72,107 @@ class ReadinessCheck extends Command
     }
 
     /**
-     * The seeded owner account. Its password is published in this repo's README
-     * and the repo is public, so "nobody knows it" was never true.
+     * Accounts a seeder makes with a password that is written in this
+     * repository — which is public, so "nobody knows it" was never true.
+     *
+     * The second was added with the product's own address and was never on
+     * this list: a live box could carry it on a super admin and be told it
+     * was ready.
      */
-    private function checkSeededSuperAdmin(): void
+    private const PUBLISHED = [
+        'admin@shopos.test' => 'password',
+        'admin@trueserve.app' => 'Admin@123',
+    ];
+
+    private function checkPublishedPasswords(): void
     {
-        $admin = User::query()->where('email', 'admin@shopos.test')->first();
+        $present = 0;
 
-        if ($admin === null) {
-            $this->pass('Seeded super admin', 'not present');
+        foreach (self::PUBLISHED as $email => $password) {
+            $account = User::query()->where('email', $email)->first();
 
-            return;
+            if ($account === null) {
+                continue;
+            }
+            $present++;
+
+            if (Hash::check($password, $account->password)) {
+                $this->blocker(
+                    "{$email} still has its published password",
+                    "{$email} / {$password} — written in a public repository. Change it before this box takes real money.",
+                );
+
+                continue;
+            }
+
+            // A `.test` address is a laptop's account. On a live box it is a
+            // second super admin that nobody signs in as.
+            str_ends_with($email, '.test')
+                ? $this->caution('Seeded super admin exists', "{$email} — its password has been changed. Consider removing the account entirely.")
+                : $this->pass('Seeded admin', "{$email} — password changed");
         }
 
-        if (Hash::check('password', $admin->password)) {
-            $this->blocker(
-                'The seeded super admin still has its published password',
-                'admin@shopos.test / password — documented in a public repo. Change it before this box takes real money.',
+        if ($present === 0) {
+            $this->pass('Seeded super admins', 'not present');
+        }
+    }
+
+    /**
+     * The name a customer reads — on every sign-in code, every e-mail, every
+     * receipt — is whatever THIS box's `.env` says, and a box set up before a
+     * rename goes on saying the old one. The live API was answering as the
+     * product's previous name a month after the panel had stopped.
+     *
+     * The repository's own `.env.example` carries the name as it is today, so
+     * that is what a box is compared with: no name is typed here.
+     */
+    private function checkName(): void
+    {
+        $name = (string) config('app.name');
+        $shipped = $this->shippedName();
+
+        if ($shipped !== null && $shipped !== $name) {
+            $this->caution(
+                "This install calls the product \"{$name}\"",
+                "The repository calls it \"{$shipped}\". Set APP_NAME in .env — it is the name on every sign-in code, e-mail and receipt.",
             );
 
             return;
         }
 
-        $this->caution('Seeded super admin exists', 'Password has been changed. Consider removing the account entirely.');
+        $this->pass('APP_NAME', $name);
+    }
+
+    private function shippedName(): ?string
+    {
+        $example = base_path('.env.example');
+
+        if (! is_file($example)) {
+            return null;
+        }
+
+        return preg_match('/^APP_NAME=(["\']?)(.+?)\1\s*$/m', (string) file_get_contents($example), $m) === 1 ? $m[2] : null;
+    }
+
+    /**
+     * The API's own address in a browser. With nowhere to send a visitor it
+     * says "this is the API" — true, and no use to a shopkeeper who typed the
+     * name they were given.
+     */
+    private function checkFrontDoor(): void
+    {
+        $panel = FrontDoor::panel();
+
+        if ($panel === null && app()->environment('production')) {
+            $this->caution(
+                'This install does not know where its panel is',
+                'Somebody who types this address sees a bare API answer. Set PANEL_URL (or CORS_ALLOWED_ORIGINS) to the panel\'s address.',
+            );
+
+            return;
+        }
+
+        $this->pass('Panel', $panel ?? 'not set (non-production)');
     }
 
     /** Demo tenants on a live box are somebody's shop name next to fake sales. */

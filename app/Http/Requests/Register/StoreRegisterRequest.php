@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Register;
 
+use App\Rules\SellsAtACounter;
 use App\Support\BranchContext;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
@@ -45,6 +46,7 @@ class StoreRegisterRequest extends FormRequest
             'branch_id' => [
                 'nullable', 'uuid',
                 Rule::exists('branches', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
+                new SellsAtACounter('a till'),
             ],
             'is_active' => ['sometimes', 'boolean'],
             'settings' => ['nullable', 'array'],

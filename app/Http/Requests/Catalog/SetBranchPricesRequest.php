@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Catalog;
 
+use App\Rules\SellsAtACounter;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -22,6 +23,7 @@ class SetBranchPricesRequest extends FormRequest
             'prices.*.branch_id' => [
                 'required', 'uuid',
                 Rule::exists('branches', 'id')->where('tenant_id', $tenantId),
+                new SellsAtACounter('a price of its own'),
             ],
             // Null clears the override; a value sets it. Zero is not a valid price.
             'prices.*.price' => ['present', 'nullable', 'numeric', 'gt:0', 'max:100000000'],

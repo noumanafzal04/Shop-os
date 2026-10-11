@@ -214,6 +214,8 @@ class CreateDemoShopAction
             $shelf = match (BusinessTypes::primary($businessType)) {
                 'pharmacy' => [['Panadol 500mg', 45], ['Brufen 400mg', 120], ['Cough Syrup 120ml', 260], ['ORS Sachet', 35], ['Surgical Mask', 20]],
                 'retail' => [['Cotton Shirt', 2400], ['Denim Jeans', 3800], ['Leather Belt', 1500], ['Sports Socks', 450], ['Canvas Shoes', 4200]],
+                // Dealer rates, by the carton and the bale — what a shopkeeper pays.
+                'wholesale' => [['Cooking Oil 1L — carton of 12', 6900], ['Basmati Rice 25kg sack', 8200], ['Tea 950g — carton of 12', 21600], ['Detergent 1kg — carton of 10', 4100], ['Biscuits — carton of 48', 2150]],
                 'services' => [['Haircut', 800], ['Beard Trim', 400], ['Head Massage', 1200], ['Facial', 2500], ['Hair Colour', 3500]],
                 'automotive' => [['Tyre 195/65 R15', 14500], ['Engine Oil 4L', 6800], ['Air Filter', 1800], ['Wiper Blade', 950], ['Battery 12V', 18500]],
                 'petroleum' => [['Petrol', 272], ['Diesel', 278], ['Engine Oil 1L', 1900], ['Coolant 1L', 850], ['Brake Fluid', 1100]],

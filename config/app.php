@@ -55,6 +55,13 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     /*
+     * Where the panel is served. Only the API's own front door asks — a
+     * visitor who types this address is sent there. Left empty, the first
+     * origin in CORS_ALLOWED_ORIGINS is used. See App\Support\FrontDoor.
+     */
+    'panel_url' => env('PANEL_URL'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

@@ -433,7 +433,7 @@ class PlansAndModulesTest extends TestCase
         // shop would rather turn a customer away than sell from a week-old
         // catalog. Opt-in and nobody's to buy.
         $this->assertSame(
-            ['branches', 'staff', 'registers', 'offline_days', 'offline_selling', 'offline_hard_stop_days'],
+            ['branches', 'warehouses', 'staff', 'registers', 'offline_days', 'offline_selling', 'offline_hard_stop_days'],
             PlanLimits::assignedKeys(),
         );
     }

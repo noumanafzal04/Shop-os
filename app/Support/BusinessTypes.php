@@ -18,18 +18,19 @@ namespace App\Support;
  * see Modules and PlanLimits for why that split exists.
  *
  * === The primary types ===
- * The core five are food, mart, pharmacy, retail and services, plus three that
+ * The core five are food, mart, pharmacy, retail and services, plus four that
  * exist because no combination of the five describes them: automotive (goods
  * AND labour on one invoice, with stock behind it), petroleum (a forecourt
- * measured by meter and dip) and finance (books only, no catalog or till).
+ * measured by meter and dip), finance (books only, no catalog or till) and
+ * wholesale (sells to other businesses, not to the public — see its entry).
  *
  * The finer distinction (garments vs electronics, tyre shop vs auto parts,
  * restaurant vs bakery) is the tenant's `business_category`, chosen from the
  * type's `categories` list — a new type is only ever added when the FEATURE
  * defaults differ, never merely because the trade has a different name.
  *
- * Older narrower codes (grocery, clinic, salon, workshop, service, wholesale,
- * books, hardware, restaurant) are kept as `legacy` entries: they still resolve
+ * Older narrower codes (grocery, clinic, salon, workshop, service, books,
+ * hardware, restaurant) are kept as `legacy` entries: they still resolve
  * for existing tenants, demo data and imports, but are hidden from the picker
  * (BusinessTypeController drops `legacy`). Most have been absorbed as a
  * category of one of the five.
@@ -85,6 +86,11 @@ class BusinessTypes
         'mart' => ['customers', 'purchasing', 'stocktake', 'disposals', 'labels', 'promotions'],
         'pharmacy' => ['customers', 'purchasing', 'stocktake', 'disposals'],
         'retail' => ['customers', 'purchasing', 'stocktake', 'disposals', 'labels', 'promotions', 'documents'],
+        // The same tools as a retailer, for a different reason each: the
+        // customer book is its DEALERS and what they owe, a quotation is how
+        // an order is agreed before it is invoiced, and a promotion is a
+        // trade scheme — twelve cartons and the thirteenth free.
+        'wholesale' => ['customers', 'purchasing', 'stocktake', 'disposals', 'labels', 'promotions', 'documents'],
         'services' => ['customers', 'documents'],
         'automotive' => ['customers', 'purchasing', 'stocktake', 'documents'],
         'petroleum' => ['customers', 'purchasing', 'stocktake'],
@@ -116,6 +122,8 @@ class BusinessTypes
         'mart' => ['Piece', 'Pack', 'KG', 'Gram', 'Litre', 'ml', 'Dozen', 'Box', 'Bag', 'Bottle', 'Can'],
         'pharmacy' => ['Tablet', 'Capsule', 'Strip', 'Bottle', 'Tube', 'Injection', 'Sachet', 'ml', 'Gram', 'Box'],
         'retail' => ['Piece', 'Pair', 'Box', 'Set', 'Pack', 'Roll', 'Meter', 'Dozen'],
+        // Sold by the carton and the bale, counted by the piece inside them.
+        'wholesale' => ['Carton', 'Box', 'Pack', 'Piece', 'Dozen', 'Gross', 'Bag', 'Bale', 'Bundle', 'Roll', 'KG', 'Litre'],
         'services' => ['Service', 'Session', 'Hour', 'Visit', 'Job'],
         // A tyre shop sells by the tyre and by the set of four, a battery
         // shop by the piece, and the bay bills labour as a job.
@@ -131,6 +139,7 @@ class BusinessTypes
         'mart' => ['Weight', 'Volume', 'Pack Size'],
         'pharmacy' => ['Strength', 'Pack Size'],
         'retail' => ['Size', 'Color', 'Material', 'Storage', 'Model'],
+        'wholesale' => ['Size', 'Color', 'Pack Size', 'Grade'],
         'services' => ['Package', 'Duration'],
         'petroleum' => ['Grade', 'Viscosity', 'Volume'],
         // How a tyre is actually asked for across a counter: "185/65 R15".
@@ -155,7 +164,7 @@ class BusinessTypes
     private const LEGACY_PRIMARY = [
         'restaurant' => 'food', 'grocery' => 'mart', 'clinic' => 'pharmacy',
         'salon' => 'services', 'workshop' => 'automotive', 'service' => 'services',
-        'wholesale' => 'retail', 'books' => 'retail', 'hardware' => 'retail',
+        'books' => 'retail', 'hardware' => 'retail',
     ];
 
     private const DEFAULT_UNITS = ['Piece', 'Pack', 'Box', 'KG', 'Gram', 'Litre', 'ml', 'Dozen'];
@@ -299,8 +308,50 @@ class BusinessTypes
                     ['value' => 'hardware', 'label' => 'Hardware & Tools'],
                     ['value' => 'jewellery', 'label' => 'Jewellery'],
                     ['value' => 'home_appliances', 'label' => 'Home & Appliances'],
-                    ['value' => 'wholesale', 'label' => 'Wholesale / Distributor'],
                     ['value' => 'general', 'label' => 'General / Other'],
+                ],
+            ],
+            /**
+             * WHOLESALE — sells to other businesses, not to the public.
+             *
+             * It was a category of Retail ("Wholesale / Distributor"), and a
+             * hidden legacy code that answered as retail. Neither is right for
+             * a business whose WHOLE trade is this: a maker, an importer or a
+             * distributor that sells on to shops. A new type is added only
+             * when the defaults differ, and here they do:
+             *
+             *   · it is not on the public marketplace and delivers no online
+             *     orders — its customers are shops, and they ring up;
+             *   · it takes no reservations;
+             *   · it cannot open without a customer book (its dealers, and
+             *     what each owes) or without stock — see ModulePackages;
+             *   · it counts in cartons, bales and dozens.
+             *
+             * What it SELLS with is what every shop sells with: the price on
+             * the product is the dealer's rate, quantity breaks and pack units
+             * do the rest, a dealer buys on account against a limit, and an
+             * order is agreed on a quotation and turned into an invoice.
+             *
+             * A retailer that also sells trade is still a Retail Store: that
+             * is what a customer group on the wholesale price level is for.
+             */
+            'wholesale' => [
+                'label' => 'Wholesale & Distribution',
+                'examples' => ['Distributor', 'Manufacturer', 'Importer', 'Cloth Market', 'Grocery Wholesale', 'Hardware Supplier'],
+                'available' => true,
+                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
+                'product_categories' => ['General Stock'],
+                'expense_categories' => ['Bulk Purchases', 'Warehouse Rent', 'Transportation', 'Loading & Labour', 'Staff Salary', 'Sales Commission', 'Utilities', 'Miscellaneous'],
+                'categories' => [
+                    ['value' => 'distributor', 'label' => 'Distributor'],
+                    ['value' => 'manufacturer', 'label' => 'Manufacturer / Factory'],
+                    ['value' => 'importer', 'label' => 'Importer'],
+                    ['value' => 'cloth_wholesale', 'label' => 'Cloth & Garments'],
+                    ['value' => 'grocery_wholesale', 'label' => 'Grocery & Kiryana'],
+                    ['value' => 'hardware_wholesale', 'label' => 'Hardware & Building Material'],
+                    ['value' => 'electronics_wholesale', 'label' => 'Electronics & Mobile'],
+                    ['value' => 'cosmetics_wholesale', 'label' => 'Cosmetics & General Goods'],
+                    ['value' => 'general_wholesale', 'label' => 'General / Other'],
                 ],
             ],
             'services' => [
@@ -504,15 +555,6 @@ class BusinessTypes
                 'features' => ['products' => false, 'services' => true, 'inventory' => false, 'marketplace' => false, 'reservations' => false, 'delivery' => false],
                 'product_categories' => ['Services'],
                 'expense_categories' => ['Supplies', 'Equipment Maintenance', 'Staff Salary', 'Rent', 'Utilities', 'Marketing'],
-            ],
-            'wholesale' => [
-                'label' => 'Wholesale Business',
-                'examples' => ['Wholesale Distributor'],
-                'available' => false,
-                'legacy' => true,
-                'features' => ['products' => true, 'services' => false, 'inventory' => true, 'marketplace' => true, 'reservations' => false, 'delivery' => true],
-                'product_categories' => ['General Stock'],
-                'expense_categories' => ['Bulk Purchases', 'Warehouse Rent', 'Transportation', 'Staff Salary', 'Utilities'],
             ],
             'books' => [
                 'label' => 'Book & Stationery Store',

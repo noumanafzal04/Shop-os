@@ -1335,9 +1335,14 @@ class DashboardService
             return [];
         }
 
+        // Shops only: this compares what each place SOLD, and a warehouse
+        // sells nothing. Listed here it would be a row of noughts on every
+        // dashboard, and a shop with one branch and a godown would be shown a
+        // "comparison" of one.
         $branches = Branch::query()
             ->where('tenant_id', $tenant->id)
             ->where('is_active', true)
+            ->shops()
             ->orderByDesc('is_default')
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -1403,7 +1408,13 @@ class DashboardService
         $prevMonthStart = $monthStart->copy()->subMonth();
         // The same instant one month/one day back — comparing a part-finished
         // period against a whole one would read as a permanent decline.
-        $monthAgo = $now->copy()->subMonth();
+        //
+        // Without overflow: "a month before 31 March" is the end of February.
+        // `subMonth` makes it the 31st of February, which Carbon rolls on to
+        // 3 March — so on the last days of a long month the baseline was a
+        // date in THIS month, and a subscription that had already run out by
+        // then was missing from "a month ago".
+        $monthAgo = $now->copy()->subMonthNoOverflow();
         $todayStart = $now->copy()->startOfDay();
         $yesterdayStart = $todayStart->copy()->subDay();
         $dayAgo = $now->copy()->subDay();

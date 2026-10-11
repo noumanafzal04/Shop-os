@@ -32,6 +32,7 @@ class ProductVariant extends BaseModel
             'price' => 'decimal:2',
             'cost' => 'decimal:2',
             'stock_quantity' => 'decimal:3',
+            'sort_order' => 'integer',
             'low_stock_threshold' => 'integer',
             'is_active' => 'boolean',
         ];

@@ -38,6 +38,138 @@ class ProcessSaleReturnAction
     ) {}
 
     /**
+     * WHAT A RETURN IS WORTH — before anything moves.
+     *
+     * The returns sheet asked "how many?" and pressed. What would be handed
+     * back was known only afterwards, and the exchange sheet beside it worked
+     * the figure out for itself, in the browser, WITHOUT THE TAX: a kurta
+     * bought for 2,625 was shown as a credit of 2,500, and the difference it
+     * told the cashier to collect was short by the tax on it — which the sale
+     * then refused as an underpayment.
+     *
+     * So the sum lives here, once. `execute()` below pays out what this says,
+     * and a screen asks this first. Reads only.
+     *
+     * @param  array<int, array{sale_item_id: string, quantity: float|int|string, serials?: ?array<int, string>}>  $items
+     * @return array{
+     *   inclusive: bool, refund_base: float, refund_tax: float, refund_total: float,
+     *   lines: list<array{sale_item: SaleItem, quantity: float, remaining: float, line_total: float, line_tax: float, serials: array<int, string>}>
+     * }
+     */
+    public function worth(Sale $sale, array $items): array
+    {
+        if (! $sale->status->isReturnable()) {
+            throw DomainException::conflict('This sale cannot be returned.', 'SALE_NOT_RETURNABLE');
+        }
+
+        $sale->loadMissing('items');
+
+        // Refunds are coupon/discount-aware: a sale-level discount was
+        // spread across the whole basket, so each returned unit refunds
+        // its DISCOUNTED share, never the full sticker price — otherwise
+        // refunds could exceed what the customer actually paid.
+        $saleSubtotal = (float) $sale->subtotal;
+        $saleDiscount = (float) $sale->discount;
+        $discountRatio = $saleSubtotal > 0 ? $saleDiscount / $saleSubtotal : 0.0;
+
+        // Tax refunds line-exactly from each line's snapshotted rate; a
+        // legacy line without a snapshot falls back to the sale's overall
+        // effective rate — either way the customer gets back the tax they
+        // paid on what they're returning, never just the pre-tax price.
+        $taxableBase = round($saleSubtotal - $saleDiscount, 2);
+        // Inclusive: line_total already CONTAINS the tax, so the fallback
+        // rate is derived from the tax as a fraction of the net (base − tax),
+        // and the refund total is the line share alone (see below).
+        $inclusive = (bool) $sale->tax_inclusive;
+        $fallbackRate = (float) $sale->tax > 0
+            ? ($inclusive
+                ? ($taxableBase - (float) $sale->tax > 0
+                    ? (float) $sale->tax / ($taxableBase - (float) $sale->tax) * 100
+                    : 0.0)
+                : ($taxableBase > 0 ? (float) $sale->tax / $taxableBase * 100 : 0.0))
+            : 0.0;
+
+        $lines = [];
+        $refundBase = 0.0;
+        $refundTax = 0.0;
+
+        foreach ($items as $row) {
+            $qty = (float) $row['quantity'];
+            if ($qty <= 0) {
+                continue;
+            }
+
+            $saleItem = $sale->items->firstWhere('id', $row['sale_item_id']);
+            if ($saleItem === null) {
+                throw DomainException::unprocessable('An item does not belong to this sale.', 'RETURN_ITEM_INVALID');
+            }
+
+            // Decimal-safe: weight/volume items sell & return fractions
+            // (e.g. 2.5 kg) — never truncate to int.
+            $alreadyReturned = (float) SaleReturnItem::query()
+                ->where('sale_item_id', $saleItem->id)
+                ->sum('quantity');
+
+            $remaining = round((float) $saleItem->quantity - $alreadyReturned, 3);
+            if ($qty > $remaining) {
+                throw DomainException::unprocessable(
+                    "Cannot return {$qty} of \"{$saleItem->product_name}\" — only {$remaining} left to return.",
+                    'RETURN_QTY_EXCEEDED',
+                );
+            }
+
+            // Refund the price actually PAID for the returned units, by
+            // CUMULATIVE allocation so sequential partial returns can never
+            // drift past what was paid. Rounding each return in isolation
+            // (netUnit × qty) repeats the same-signed paisa error every
+            // call — three 1-of-3 returns of an 800 line summing to 800.01.
+            // Instead: round the exact cumulative refund for everything
+            // returned so far, then subtract what was already refunded — the
+            // final return absorbs the remainder and the sum lands exact.
+            $linePaid = round((float) $saleItem->line_total * (1 - $discountRatio), 2);
+            $soldQty = (float) $saleItem->quantity;
+            $alreadyRefunded = (float) SaleReturnItem::query()
+                ->where('sale_item_id', $saleItem->id)
+                ->sum('line_total');
+            $cumulativeRefund = $soldQty > 0
+                ? round($linePaid * ($alreadyReturned + $qty) / $soldQty, 2)
+                : $linePaid;
+            $lineTotal = round($cumulativeRefund - $alreadyRefunded, 2);
+            $refundBase = round($refundBase + $lineTotal, 2);
+
+            // Tax this line carried, prorated to the returned share.
+            // Exclusive: tax sits on TOP of line_total → share × rate.
+            // Inclusive: tax is WITHIN line_total → extract the portion held
+            // inside (line_total − line_total ÷ (1 + rate)).
+            $lineRate = $saleItem->tax_rate !== null ? (float) $saleItem->tax_rate : $fallbackRate;
+            $lineTax = $inclusive
+                ? round($lineTotal - $lineTotal / (1 + $lineRate / 100), 2)
+                : round($lineTotal * $lineRate / 100, 2);
+            $refundTax = round($refundTax + $lineTax, 2);
+
+            $lines[] = [
+                'sale_item' => $saleItem,
+                'quantity' => $qty,
+                'remaining' => $remaining,
+                'line_total' => $lineTotal,
+                'line_tax' => $lineTax,
+                'serials' => $row['serials'] ?? [],
+            ];
+        }
+
+        return [
+            'inclusive' => $inclusive,
+            'refund_base' => $refundBase,
+            'refund_tax' => $refundTax,
+            // Exclusive: the customer paid base + tax, so refund both. Inclusive:
+            // they paid the base (tax already inside it) — refund_tax is only the
+            // informational portion held within, never added on top again.
+            'refund_total' => $inclusive ? $refundBase : round($refundBase + $refundTax, 2),
+            'lines' => $lines,
+        ];
+    }
+
+    /**
      * @param array{
      *   items: array<array{sale_item_id: string, quantity: float}>,
      *   reason?: ?string, refund_method?: string, notes?: ?string,
@@ -70,88 +202,20 @@ class ProcessSaleReturnAction
                 $tenantId = $this->context->id();
                 $sale->load('items');
 
-                // Refunds are coupon/discount-aware: a sale-level discount was
-                // spread across the whole basket, so each returned unit refunds
-                // its DISCOUNTED share, never the full sticker price — otherwise
-                // refunds could exceed what the customer actually paid.
-                $saleSubtotal = (float) $sale->subtotal;
-                $saleDiscount = (float) $sale->discount;
-                $discountRatio = $saleSubtotal > 0 ? $saleDiscount / $saleSubtotal : 0.0;
-
-                // Tax refunds line-exactly from each line's snapshotted rate; a
-                // legacy line without a snapshot falls back to the sale's overall
-                // effective rate — either way the customer gets back the tax they
-                // paid on what they're returning, never just the pre-tax price.
-                $taxableBase = round($saleSubtotal - $saleDiscount, 2);
-                // Inclusive: line_total already CONTAINS the tax, so the fallback
-                // rate is derived from the tax as a fraction of the net (base − tax),
-                // and the refund total is the line share alone (see below).
-                $inclusive = (bool) $sale->tax_inclusive;
-                $fallbackRate = (float) $sale->tax > 0
-                    ? ($inclusive
-                        ? ($taxableBase - (float) $sale->tax > 0
-                            ? (float) $sale->tax / ($taxableBase - (float) $sale->tax) * 100
-                            : 0.0)
-                        : ($taxableBase > 0 ? (float) $sale->tax / $taxableBase * 100 : 0.0))
-                    : 0.0;
+                // The money is worked out by `worth()` — the same method the
+                // sheet asks BEFORE the press, so the figure a cashier is shown
+                // and the figure that leaves the drawer are one calculation.
+                $worth = $this->worth($sale, $data['items']);
+                $refundTax = $worth['refund_tax'];
+                $refundTotal = $worth['refund_total'];
 
                 $lines = [];
-                $refundBase = 0.0;
-                $refundTax = 0.0;
 
-                foreach ($data['items'] as $row) {
-                    $qty = (float) $row['quantity'];
-                    if ($qty <= 0) {
-                        continue;
-                    }
-
-                    $saleItem = $sale->items->firstWhere('id', $row['sale_item_id']);
-                    if ($saleItem === null) {
-                        throw DomainException::unprocessable('An item does not belong to this sale.', 'RETURN_ITEM_INVALID');
-                    }
-
-                    // Decimal-safe: weight/volume items sell & return fractions
-                    // (e.g. 2.5 kg) — never truncate to int.
-                    $alreadyReturned = (float) SaleReturnItem::query()
-                        ->where('sale_item_id', $saleItem->id)
-                        ->sum('quantity');
-
-                    $remaining = round((float) $saleItem->quantity - $alreadyReturned, 3);
-                    if ($qty > $remaining) {
-                        throw DomainException::unprocessable(
-                            "Cannot return {$qty} of \"{$saleItem->product_name}\" — only {$remaining} left to return.",
-                            'RETURN_QTY_EXCEEDED',
-                        );
-                    }
-
-                    // Refund the price actually PAID for the returned units, by
-                    // CUMULATIVE allocation so sequential partial returns can never
-                    // drift past what was paid. Rounding each return in isolation
-                    // (netUnit × qty) repeats the same-signed paisa error every
-                    // call — three 1-of-3 returns of an 800 line summing to 800.01.
-                    // Instead: round the exact cumulative refund for everything
-                    // returned so far, then subtract what was already refunded — the
-                    // final return absorbs the remainder and the sum lands exact.
-                    $linePaid = round((float) $saleItem->line_total * (1 - $discountRatio), 2);
-                    $soldQty = (float) $saleItem->quantity;
-                    $alreadyRefunded = (float) SaleReturnItem::query()
-                        ->where('sale_item_id', $saleItem->id)
-                        ->sum('line_total');
-                    $cumulativeRefund = $soldQty > 0
-                        ? round($linePaid * ($alreadyReturned + $qty) / $soldQty, 2)
-                        : $linePaid;
-                    $lineTotal = round($cumulativeRefund - $alreadyRefunded, 2);
-                    $refundBase = round($refundBase + $lineTotal, 2);
-
-                    // Tax this line carried, prorated to the returned share.
-                    // Exclusive: tax sits on TOP of line_total → share × rate.
-                    // Inclusive: tax is WITHIN line_total → extract the portion held
-                    // inside (line_total − line_total ÷ (1 + rate)).
-                    $lineRate = $saleItem->tax_rate !== null ? (float) $saleItem->tax_rate : $fallbackRate;
-                    $lineTax = $inclusive
-                        ? round($lineTotal - $lineTotal / (1 + $lineRate / 100), 2)
-                        : round($lineTotal * $lineRate / 100, 2);
-                    $refundTax = round($refundTax + $lineTax, 2);
+                foreach ($worth['lines'] as $line) {
+                    /** @var SaleItem $saleItem */
+                    $saleItem = $line['sale_item'];
+                    $qty = $line['quantity'];
+                    $lineTotal = $line['line_total'];
 
                     // ── WHICH UNIT CAME BACK ────────────────────────────
                     //
@@ -171,7 +235,7 @@ class ProcessSaleReturnAction
                     // choose between, and their numbers are freed without being
                     // asked for. When only some are, the caller says which —
                     // and is refused if it does not.
-                    $serialIds = $this->unitsComingBack($saleItem, $row['serials'] ?? [], $qty, $remaining);
+                    $serialIds = $this->unitsComingBack($saleItem, $line['serials'], $qty, $line['remaining']);
 
                     $lines[] = [
                         'tenant_id' => $tenantId,
@@ -197,11 +261,6 @@ class ProcessSaleReturnAction
                 if (empty($lines)) {
                     throw DomainException::unprocessable('Select at least one item to return.', 'RETURN_EMPTY');
                 }
-
-                // Exclusive: the customer paid base + tax, so refund both. Inclusive:
-                // they paid the base (tax already inside it) — refund_tax is only the
-                // informational portion held within, never added on top again.
-                $refundTotal = $inclusive ? $refundBase : round($refundBase + $refundTax, 2);
 
                 // Gap-free, race-safe number from a locked per-tenant counter — a
                 // plain count()+1 lets two concurrent returns mint the same RET-.

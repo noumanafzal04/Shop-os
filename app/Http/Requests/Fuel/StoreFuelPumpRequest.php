@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Fuel;
 
+use App\Rules\SellsAtACounter;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -20,7 +21,7 @@ class StoreFuelPumpRequest extends FormRequest
         return [
             'name' => [$required, 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:32'],
-            'branch_id' => ['nullable', 'uuid', Rule::exists('branches', 'id')->whereNull('deleted_at')],
+            'branch_id' => ['nullable', 'uuid', Rule::exists('branches', 'id')->whereNull('deleted_at'), new SellsAtACounter('a pump')],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }

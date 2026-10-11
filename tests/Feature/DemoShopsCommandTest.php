@@ -7,8 +7,11 @@ use App\Console\Commands\DemoShops\MartShelves;
 use App\Console\Commands\DemoShops\TradeLists;
 use App\Console\Commands\SeedDemoShops;
 use App\Enums\UserRole;
+use App\Models\Branch;
+use App\Models\StockTransfer;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\PlanLimits;
 use Database\Seeders\CitySeeder;
 use Database\Seeders\PlanSeeder;
 use Database\Seeders\SuperAdminSeeder;
@@ -313,6 +316,70 @@ class DemoShopsCommandTest extends TestCase
 
         $this->assertNotNull(Tenant::query()->find($other->id));
         $this->assertNotNull(User::query()->find($theirs->id));
+    }
+
+    /**
+     * The clothing brand has its own warehouse — and it is a warehouse.
+     *
+     * The builder gives every branch it is handed a till, shifts and three
+     * months of sales. A warehouse built the same way would be a branch with
+     * a different name: it would have traded. So it is made after, and what is
+     * checked is what makes it one — stock in it, sizes and all, a transfer on
+     * its way to the shop floor, and not one sale, shift or lane to its name.
+     */
+    public function test_the_clothing_brand_has_a_warehouse_that_holds_stock_and_has_never_sold(): void
+    {
+        $this->artisan('demo:shops', ['--only' => 'clothing', '--sales' => 4])->assertSuccessful();
+
+        $brand = Tenant::query()->where('slug', 'jtdemo-clothing')->firstOrFail();
+        $warehouse = Branch::withoutTenancy()->where('tenant_id', $brand->id)->where('kind', Branch::KIND_WAREHOUSE)->firstOrFail();
+
+        $this->assertSame('Central Warehouse', $warehouse->name);
+        // A brand packs its online orders at the warehouse, and takes its deliveries there.
+        $this->assertTrue($warehouse->fills_orders);
+        $this->assertSame($warehouse->id, Branch::deliveriesComeTo($brand->id));
+        $this->assertSame(1, PlanLimits::usage($brand, 'warehouses'));
+        $this->assertSame(2, PlanLimits::usage($brand, 'branches'), 'The warehouse was counted as one of the outlets.');
+        $this->assertSame(1, PlanLimits::limit($brand, 'warehouses'));
+
+        $held = DB::table('branch_stock')->where('branch_id', $warehouse->id)->where('quantity', '>', 0);
+        $this->assertGreaterThan(10, (clone $held)->count(), 'The warehouse is empty.');
+        $this->assertGreaterThan(0, (clone $held)->whereNotNull('variant_id')->count(), 'A clothing warehouse holds nothing by size.');
+
+        foreach (['sales', 'cash_sessions', 'registers', 'business_days'] as $table) {
+            $this->assertSame(0, DB::table($table)->where('branch_id', $warehouse->id)->count(), "The warehouse has rows in {$table}: it traded.");
+        }
+
+        $onItsWay = StockTransfer::withoutTenancy()->where('tenant_id', $brand->id)->where('status', StockTransfer::IN_TRANSIT)->firstOrFail();
+        $this->assertSame($warehouse->id, $onItsWay->from_branch_id);
+        $this->assertNotNull($onItsWay->created_by, 'The slip would have nobody on it as the sender.');
+        $this->assertGreaterThan(0, $onItsWay->items()->count());
+    }
+
+    /**
+     * The distributor is a wholesaler in what it has, not only in its name:
+     * dealers with accounts, goods priced by the carton, a godown that takes
+     * its deliveries — and no place on the public marketplace.
+     */
+    public function test_the_distributor_is_built_as_a_wholesale_business(): void
+    {
+        $this->artisan('demo:shops', ['--only' => 'wholesale', '--sales' => 4])->assertSuccessful();
+
+        $trader = Tenant::query()->where('slug', 'jtdemo-wholesale')->firstOrFail();
+
+        $this->assertSame('wholesale', $trader->business_type);
+        $this->assertTrue($trader->featureEnabled('customers'), 'A distributor with no dealer accounts.');
+        $this->assertTrue($trader->featureEnabled('inventory'));
+        $this->assertFalse($trader->featureEnabled('marketplace'), 'A distributor was put on the public marketplace.');
+        $this->assertFalse($trader->featureEnabled('reservations'));
+
+        $this->assertGreaterThan(60, DB::table('products')->where('tenant_id', $trader->id)->count());
+        $this->assertGreaterThan(0, DB::table('products')->where('tenant_id', $trader->id)->where('name', 'like', '%carton of%')->count(), 'Nothing on its list is sold by the carton.');
+
+        $godown = Branch::withoutTenancy()->where('tenant_id', $trader->id)->where('kind', Branch::KIND_WAREHOUSE)->firstOrFail();
+        $this->assertSame($godown->id, Branch::deliveriesComeTo($trader->id), 'Its deliveries are not addressed to its godown.');
+
+        $this->postJson('/api/v1/auth/login', ['identifier' => 'shop10@johartown.demo', 'password' => 'password'])->assertOk();
     }
 
     public function test_an_unknown_shop_is_refused_and_builds_nothing(): void

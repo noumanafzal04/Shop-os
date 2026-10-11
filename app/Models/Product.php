@@ -246,7 +246,10 @@ class Product extends BaseModel
 
     public function variants(): HasMany
     {
-        return $this->hasMany(ProductVariant::class)->orderBy('name');
+        // In the order the shop typed them — S, M, L; Half, Full — and by
+        // name only between sizes that were given no place. Sorting by the
+        // name alone hung a rail as L, M, S on every screen that listed it.
+        return $this->hasMany(ProductVariant::class)->orderBy('sort_order')->orderBy('name');
     }
 
     public function modifierGroups(): HasMany

@@ -64,6 +64,11 @@ final class ModulePackages
         'mart' => ['products', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'labels', 'customers', 'promotions', 'bank_offers', 'expenses', 'images', 'marketplace', 'delivery', 'hrm'],
         'pharmacy' => ['products', 'services', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'labels', 'customers', 'promotions', 'bank_offers', 'expenses', 'images', 'marketplace', 'delivery', 'hrm'],
         'retail' => ['products', 'services', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'labels', 'customers', 'promotions', 'bank_offers', 'expenses', 'images', 'marketplace', 'delivery', 'reservations', 'hrm'],
+        // Everything a shop that sells goods can use, less what is only for
+        // the public: no labour to bill and no tables to book. The
+        // marketplace and delivery stay one tick away — a distributor that
+        // also sells online is not a different business.
+        'wholesale' => ['products', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'labels', 'customers', 'promotions', 'bank_offers', 'expenses', 'images', 'marketplace', 'delivery', 'hrm'],
         'services' => ['services', 'products', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'customers', 'promotions', 'expenses', 'images', 'marketplace', 'reservations', 'hrm'],
         'automotive' => ['products', 'services', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'labels', 'customers', 'promotions', 'expenses', 'images', 'marketplace', 'delivery', 'hrm'],
         'petroleum' => ['products', 'services', 'pos', 'documents', 'inventory', 'purchasing', 'stocktake', 'disposals', 'customers', 'promotions', 'expenses', 'fuel', 'hrm'],
@@ -81,6 +86,9 @@ final class ModulePackages
         'mart' => ['products', 'pos'],
         'pharmacy' => ['products', 'pos', 'inventory'],
         'retail' => ['products', 'pos'],
+        // A wholesaler with no stock figure or no dealer accounts is not one:
+        // it sells what it holds, on account, to people it will see again.
+        'wholesale' => ['products', 'pos', 'inventory', 'customers'],
         'services' => ['services', 'pos'],
         'automotive' => ['products', 'services', 'pos'],
         'petroleum' => ['products', 'pos', 'inventory', 'fuel'],

@@ -58,8 +58,11 @@ class KitchenController extends Controller
             ->with([
                 // A voided line was struck off the tab — it must never reach a pan.
                 'items' => fn ($q) => $q->whereNull('voided_at')->orderBy('created_at'),
-                'ticket:id,ticket_number,dining_table_id,order_type,guest_count,customer_name',
+                'ticket:id,ticket_number,dining_table_id,order_type,guest_count,customer_name,sale_id',
                 'ticket.table:id,name',
+                // The table a counter order was rung "for here" at is typed on
+                // its sale — see RestaurantTicket::goesTo().
+                'ticket.sale:id,table_no',
             ])
             ->orderBy('fired_at')
             ->get();
@@ -374,7 +377,7 @@ class KitchenController extends Controller
                 ? (($ticket->customer_name !== null && trim($ticket->customer_name) !== '')
                     ? trim($ticket->customer_name)
                     : 'Takeaway')
-                : $ticket?->table?->name,
+                : $ticket?->goesTo(),
             // THE NAME ITSELF, or null — said apart from `table_name`, whose
             // fallback is the WORD "Takeaway". A card has to be able to tell
             // "this order is called Takeaway" from "nobody gave a name", or a

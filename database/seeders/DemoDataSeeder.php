@@ -526,10 +526,11 @@ class DemoDataSeeder extends Seeder
                 'quantity' => $product->stock_quantity,
             ]);
 
-            foreach ($variants as $variant) {
+            foreach (array_values($variants) as $position => $variant) {
                 $created = $product->variants()->create([
                     'tenant_id' => $tenant->id,
                     'name' => $variant['name'],
+                    'sort_order' => $position,
                     'sku' => $variant['sku'] ?? null,
                     'price' => $variant['price'],
                     'cost' => $variant['cost'] ?? null,

@@ -79,10 +79,12 @@ class ReservationsTest extends TestCase
 
     public function test_shop_without_reservations_feature_rejects(): void
     {
-        // Wholesale: marketplace stays on, reservations off — hits the
-        // RESERVATIONS_DISABLED guard, not the visibility 404.
+        // On the marketplace, with reservations switched off — said outright
+        // rather than borrowed from a trade's template. (It used to be
+        // borrowed from wholesale's, which was on the marketplace then and is
+        // not now; the test fell to the visibility 404 it means to avoid.)
         $this->shop->forceFill([
-            'features' => BusinessTypes::defaultFeatures('wholesale'),
+            'features' => array_merge(BusinessTypes::defaultFeatures('retail'), ['marketplace' => true, 'reservations' => false]),
         ])->save();
 
         $this->actingAsUser($this->customer)->postJson('/api/v1/customer/reservations', [

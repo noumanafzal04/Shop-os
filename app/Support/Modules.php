@@ -29,13 +29,13 @@ class Modules
         return [
             'products' => [
                 'label' => 'Products',
-                'description' => 'A catalog of physical products / menu items. Almost everything else is built on it.',
+                'description' => 'The physical products or menu items you sell. Almost everything else is built on it.',
                 'group' => 'Selling',
                 'depends' => [],
             ],
             'services' => [
                 'label' => 'Services',
-                'description' => 'Bill labour and services (salon, workshop, repair) — with or without a catalog.',
+                'description' => 'Bill labour and services (salon, workshop, repair) — with or without products.',
                 'group' => 'Selling',
                 'depends' => [],
             ],
@@ -77,7 +77,7 @@ class Modules
             ],
             'labels' => [
                 'label' => 'Barcode Labels',
-                'description' => 'Print shelf and product labels from the catalog. Needs a label printer to be worth switching on.',
+                'description' => 'Print shelf and product labels from your product list. Needs a label printer to be worth switching on.',
                 'group' => 'Stock',
                 'depends' => ['inventory'],
             ],

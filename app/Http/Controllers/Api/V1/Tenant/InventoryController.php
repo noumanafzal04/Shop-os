@@ -11,6 +11,7 @@ use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\LastBoughtFrom;
 use App\Support\LowStock;
+use App\Support\StockByPlace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -140,7 +141,19 @@ class InventoryController extends Controller
         // frequent.
         $lastBought = LastBoughtFrom::forProducts($products->pluck('id')->all());
 
-        $products->each(function (Product $p) use ($lastBought): void {
+        // …and whether it needs buying at all.
+        //
+        // A shelf that has run down while the godown holds forty is not a
+        // purchase order, it is a walk to the back. The list knew one place's
+        // figure and offered a supplier for everything on it, so a shop with a
+        // warehouse was told to buy what it already owned. Asked only when the
+        // list is about ONE place: from head office there is no "elsewhere".
+        $elsewhere = $branchId !== null
+            ? StockByPlace::elsewhere($products->pluck('id')->all(), $branchId)
+            : [];
+
+        $products->each(function (Product $p) use ($lastBought, $elsewhere): void {
+            $p->setAttribute('held_elsewhere', $elsewhere[$p->id] ?? []);
             $last = $lastBought->get($p->id);
             // Absent, never invented. A product nobody has ever bought has no
             // supplier to suggest, and guessing one would put a real order in

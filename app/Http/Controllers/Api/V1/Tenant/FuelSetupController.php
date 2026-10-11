@@ -40,6 +40,10 @@ class FuelSetupController extends Controller
     {
         if (empty($data['branch_id'])) {
             $data['branch_id'] = Branch::writeTargetId();
+            // Named or not, a forecourt stands at a station. The request's
+            // own rule covers a branch that was named; this covers the one
+            // that was only being stood in.
+            Branch::mustSell($data['branch_id']);
         }
 
         return $data;

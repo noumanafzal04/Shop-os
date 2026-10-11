@@ -4,6 +4,7 @@ namespace App\Http\Requests\Fuel;
 
 use App\Http\Requests\Concerns\ValidatesAgainstTheStoredRecord;
 use App\Models\FuelTank;
+use App\Rules\SellsAtACounter;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class StoreFuelTankRequest extends FormRequest
             // What's in it. Fuel is an ordinary Product — the tank points at
             // the catalog rather than keeping a price nobody would update.
             'product_id' => [$required, 'uuid', Rule::exists('products', 'id')->whereNull('deleted_at')],
-            'branch_id' => ['nullable', 'uuid', Rule::exists('branches', 'id')->whereNull('deleted_at')],
+            'branch_id' => ['nullable', 'uuid', Rule::exists('branches', 'id')->whereNull('deleted_at'), new SellsAtACounter('a forecourt tank')],
             // REQUIRED WHEN THE TANK IS INSTALLED, and only then.
             //
             // The column defaults to 0 and the gate that turns a tanker away

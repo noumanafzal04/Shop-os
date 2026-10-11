@@ -37,6 +37,16 @@ class PurchaseOrder extends BaseModel
         return $this->hasMany(PurchaseOrderItem::class);
     }
 
+    /**
+     * Where the supplier is to bring it — a branch, or the warehouse. Null on
+     * an order raised before orders were addressed: it goes wherever it is
+     * received, as it always did.
+     */
+    public function deliverTo(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class, 'deliver_to_branch_id');
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(SupplierPayment::class);

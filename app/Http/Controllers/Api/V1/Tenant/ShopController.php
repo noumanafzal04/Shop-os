@@ -11,6 +11,8 @@ use App\Http\Requests\Shop\UpdateShopSettingsRequest;
 use App\Http\Requests\Shop\UploadCoverRequest;
 use App\Http\Requests\Shop\UploadLogoRequest;
 use App\Http\Resources\TenantResource;
+use App\Models\Branch;
+use App\Models\Tenant;
 use App\Support\ApiResponse;
 use App\Support\Modules;
 use App\Support\PlanLimits;
@@ -53,6 +55,40 @@ class ShopController extends Controller
         return ApiResponse::ok(new TenantResource($tenant->load('city', 'plan')), 'Settings saved');
     }
 
+    /**
+     * THE PLACES THIS BUSINESS ACTUALLY HAS — which is not what its plan allows.
+     *
+     * Every plan allows a warehouse, and most shops will never have one: the
+     * shop is where the goods arrive, are kept and are sold. The panel decided
+     * what to draw from the ALLOWANCE, so a one-counter grocer was shown Stock
+     * by place and Stock transfers — a table with one column in it, and a
+     * screen for moving stock to nowhere.
+     *
+     * A second place existing is the switch, the way every other stock system
+     * does it: add a location and the screens about locations appear. Counted
+     * here, with the settings the panel already holds, so the menu needs no
+     * second request and no permission of its own to know.
+     *
+     * Open places only. A branch that was closed is still in the books and is
+     * nowhere stock can be moved to.
+     *
+     * @return array{shops: int, warehouses: int}
+     */
+    private function places(Tenant $tenant): array
+    {
+        $open = Branch::withoutTenancy()
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->selectRaw('kind, COUNT(*) as held')
+            ->groupBy('kind')
+            ->pluck('held', 'kind');
+
+        return [
+            'shops' => (int) ($open[Branch::KIND_SHOP] ?? 0),
+            'warehouses' => (int) ($open[Branch::KIND_WAREHOUSE] ?? 0),
+        ];
+    }
+
     /** Effective shop settings (defaults merged with saved overrides). */
     public function settings(): JsonResponse
     {
@@ -62,6 +98,10 @@ class ShopController extends Controller
         // (single-branch tenants never do). null = unlimited.
         return ApiResponse::ok($tenant->allSettings() + [
             'max_branches' => PlanLimits::limit($tenant, 'branches'),
+            // Its own allowance: a shop with one branch may still have a
+            // godown, and the panel shows the places screen for either.
+            'max_warehouses' => PlanLimits::appliesTo($tenant, 'warehouses') ? PlanLimits::limit($tenant, 'warehouses') : 0,
+            'places' => $this->places($tenant),
             // Which day it is HERE, and when that changes — so a "Today"
             // button in the panel asks for the day the server will answer.
             'shop_day' => ShopDay::describe($tenant),
@@ -119,6 +159,8 @@ class ShopController extends Controller
 
         return ApiResponse::ok($tenant->allSettings() + [
             'max_branches' => PlanLimits::limit($tenant, 'branches'),
+            'max_warehouses' => PlanLimits::appliesTo($tenant, 'warehouses') ? PlanLimits::limit($tenant, 'warehouses') : 0,
+            'places' => $this->places($tenant),
             'shop_day' => ShopDay::describe($tenant),
         ], 'Settings saved');
     }

@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Purchase\FromReorderListRequest;
 use App\Http\Requests\Purchase\ReceivePurchaseOrderRequest;
 use App\Http\Requests\Purchase\StorePurchaseOrderRequest;
+use App\Models\Branch;
 use App\Models\PurchaseOrder;
 use App\Support\ApiResponse;
 use App\Support\Retention;
@@ -24,7 +25,7 @@ class PurchaseOrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $orders = PurchaseOrder::query()
-            ->with('supplier:id,name')
+            ->with(['supplier:id,name', 'deliverTo:id,name,kind'])
             ->withCount('items')
             ->when($request->query('search'), fn ($q, $s) => $q->where('po_number', 'like', "%{$s}%"))
             ->when($request->query('status'), fn ($q, $st) => $q->where('status', $st))
@@ -84,7 +85,7 @@ class PurchaseOrderController extends Controller
             // Receive dialog can prompt for serials (serialized goods) and a
             // batch/expiry (medicines) on the right lines only.
             PurchaseOrder::query()
-                ->with(['supplier', 'items.product:id,tracks_serial,item_type', 'payments'])
+                ->with(['supplier', 'items.product:id,tracks_serial,item_type', 'payments', 'deliverTo:id,name,kind'])
                 ->findOrFail($id),
         );
     }
@@ -107,9 +108,24 @@ class PurchaseOrderController extends Controller
     public function receive(ReceivePurchaseOrderRequest $request, string $id, ReceivePurchaseOrderAction $action): JsonResponse
     {
         $po = PurchaseOrder::query()->findOrFail($id);
-        $updated = $action->execute($po, $request->receiveMap(), $request->validated('idempotency_key'));
+        // Into the place this receipt names; failing that, the place the
+        // ORDER was addressed to — but only while that place is still open.
+        // An order addressed to a godown that has since closed is received
+        // where its receiver stands, not into a place nobody can count.
+        $into = $request->validated('branch_id') ?? Branch::query()
+            ->where('is_active', true)
+            ->whereKey($po->deliver_to_branch_id)
+            ->value('id');
+        $updated = $action->execute($po, $request->receiveMap(), $request->validated('idempotency_key'), $into);
 
-        return ApiResponse::ok($updated, 'Goods received into inventory');
+        // Say WHERE, for a business with more than one place: "into
+        // inventory" does not tell a shop with a godown which of the two just
+        // gained forty cartons. With one place there is nothing to tell apart.
+        $place = $into !== null && Branch::query()->where('is_active', true)->count() > 1
+            ? Branch::query()->whereKey($into)->value('name')
+            : null;
+
+        return ApiResponse::ok($updated, $place !== null ? "Goods received into {$place}" : 'Goods received into inventory');
     }
 
     public function cancel(Request $request, string $id): JsonResponse

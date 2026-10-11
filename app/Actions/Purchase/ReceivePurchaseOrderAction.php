@@ -16,6 +16,7 @@ use App\Services\InventoryService;
 use App\Support\BranchContext;
 use App\Support\ItemTypes;
 use App\Support\MovingCost;
+use App\Support\StockPlace;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,7 +43,20 @@ class ReceivePurchaseOrderAction
     ) {}
 
     /**
+     * The place this receipt was TOLD to go into, when it was told.
+     *
+     * A van does not always unload where the person keying it in is standing:
+     * the order is raised at the shop and the cartons go into the godown. Set
+     * at the top of `execute` and cleared there too, so one call can never
+     * inherit the last one's destination.
+     */
+    private ?string $into = null;
+
+    /**
      * The branch the goods are physically being booked into.
+     *
+     * Named by the receipt when it names one; otherwise the place being
+     * worked at.
      *
      * Receiving is a WRITE, so it takes the OPERATING branch (`id()`), never
      * `scopeId()` — the latter is null in an owner's all-branches view, and a
@@ -53,9 +67,22 @@ class ReceivePurchaseOrderAction
      * serials: three writes that describe the same physical delivery, and the
      * bug this replaces was them disagreeing.
      */
+    /**
+     * A delivery sent somewhere other than where its receiver stands — which
+     * only some people may do. See `StockPlace`.
+     */
+    private function placeToReceiveInto(?string $branchId): ?string
+    {
+        if ($branchId !== null) {
+            StockPlace::mustActAt(auth()->user(), $branchId, 'take a delivery into');
+        }
+
+        return $branchId;
+    }
+
     private function receivingBranchId(string $tenantId): ?string
     {
-        return $this->branch->id() ?? Branch::withoutTenancy()
+        return $this->into ?? $this->branch->id() ?? Branch::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->where('is_default', true)
             ->value('id');
@@ -65,8 +92,10 @@ class ReceivePurchaseOrderAction
      * @param  array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}>  $receiveMap
      *                                                                                                          poItemId => receipt line. Empty → receive all outstanding.
      */
-    public function execute(PurchaseOrder $po, array $receiveMap = [], ?string $idempotencyKey = null): PurchaseOrder
+    public function execute(PurchaseOrder $po, array $receiveMap = [], ?string $idempotencyKey = null, ?string $intoBranchId = null): PurchaseOrder
     {
+        $this->into = $this->placeToReceiveInto($intoBranchId);
+
         // Replay: a retry under a key that already produced receipts for this
         // PO returns the current state untouched — even if the first attempt
         // closed the PO to `received` (which would otherwise fail canReceive).

@@ -387,4 +387,73 @@ final class TradeLists
 
         return $out;
     }
+
+    /**
+     * A distributor in Akbari Mandi — what it sells to other shops.
+     *
+     * Named the way a dealer's rate list is written: the brand, the pack it
+     * leaves in, and the price of THAT. A carton of twelve one-litre bottles
+     * is one line here, because a kiryana store does not buy a bottle.
+     *
+     * @return array<int, Line>
+     */
+    public static function wholesaler(): array
+    {
+        $shelves = [
+            'Cooking Oil & Ghee' => [
+                ['Dalda', 'Cooking Oil 1 L — carton of 12', 6960], ['Dalda', 'Cooking Oil 5 L — carton of 4', 11400], ['Dalda', 'Banaspati Ghee 1 kg — carton of 12', 7080],
+                ['Sufi', 'Cooking Oil 1 L — carton of 12', 6780], ['Sufi', 'Banaspati Ghee 5 kg — carton of 4', 11600], ['Habib', 'Cooking Oil 1 L — carton of 12', 6720],
+                ['Kisan', 'Cooking Oil 1 L pouch — carton of 12', 6480], ['Mezan', 'Cooking Oil 5 L — carton of 4', 11100], ['Eva', 'Canola Oil 3 L — carton of 4', 7400],
+                ['Soya Supreme', 'Cooking Oil 1 L — carton of 12', 7020],
+            ],
+            'Rice, Flour & Pulses' => [
+                ['Guard', 'Basmati Rice 25 kg sack', 8900], ['Guard', 'Basmati Rice 5 kg — bale of 4', 7300], ['Falak', 'Extreme Basmati 25 kg sack', 9600],
+                ['Kernel', 'Basmati Rice 5 kg — bale of 4', 7800], ['', 'Sella Rice 25 kg sack', 7400], ['', 'Irri-6 Rice 50 kg sack', 9800],
+                ['Sunridge', 'Chakki Atta 10 kg — bale of 2', 3300], ['Bake Parlor', 'Fine Atta 10 kg — bale of 2', 3150], ['', 'Maida 50 kg sack', 7900],
+                ['', 'Daal Chana 25 kg sack', 7250], ['', 'Daal Masoor 25 kg sack', 8100], ['', 'Daal Moong 25 kg sack', 9400], ['', 'White Chana 25 kg sack', 9900],
+                ['', 'Sugar 50 kg sack', 7350], ['', 'Besan 20 kg sack', 6100],
+            ],
+            'Tea & Beverages' => [
+                ['Tapal', 'Danedar 950 g — carton of 12', 21600], ['Tapal', 'Danedar 430 g — carton of 24', 20880], ['Tapal', 'Family Mixture 950 g — carton of 12', 20400],
+                ['Lipton', 'Yellow Label 950 g — carton of 12', 22800], ['Lipton', 'Yellow Label 475 g — carton of 24', 23040], ['Vital', 'Tea 950 g — carton of 12', 19800],
+                ['Nestle', 'Everyday 900 g — carton of 12', 20400], ['Nestle', 'Milkpak 1 L — carton of 12', 3360], ['Olpers', 'Milk 1 L — carton of 12', 3300],
+                ['Tang', 'Orange 750 g — carton of 12', 8640], ['Rooh Afza', 'Sharbat 800 ml — carton of 12', 5400], ['Jam-e-Shirin', 'Sharbat 800 ml — carton of 12', 4920],
+                ['Coca-Cola', '1.5 L — shrink of 6', 990], ['Pepsi', '1.5 L — shrink of 6', 980], ['Nestle', 'Pure Life 1.5 L — shrink of 6', 420],
+            ],
+            'Soap & Detergent' => [
+                ['Surf Excel', '1 kg — carton of 12', 6240], ['Surf Excel', '500 g — carton of 24', 6360], ['Ariel', '1 kg — carton of 12', 6120],
+                ['Brite', '1 kg — carton of 12', 4680], ['Bonus', '1 kg — carton of 12', 3360], ['Sunlight', '1 kg — carton of 12', 3840],
+                ['Lux', 'Soap 150 g — carton of 72', 9360], ['Lifebuoy', 'Soap 140 g — carton of 72', 7920], ['Safeguard', 'Soap 135 g — carton of 72', 9720],
+                ['Dettol', 'Soap 130 g — carton of 72', 10080], ['Vim', 'Dishwash Bar 300 g — carton of 36', 3240], ['Max', 'Dishwash Liquid 500 ml — carton of 24', 5760],
+                ['Harpic', 'Toilet Cleaner 500 ml — carton of 24', 8400], ['Sufi', 'Laundry Soap 250 g — carton of 48', 3360],
+            ],
+            'Biscuits & Snacks' => [
+                ['Peek Freans', 'Sooper Ticky Pack — carton of 288', 2600], ['Peek Freans', 'Sooper Half Roll — carton of 96', 2500], ['Peek Freans', 'Rio Ticky Pack — carton of 288', 2600],
+                ['LU', 'Tuc Ticky Pack — carton of 288', 2650], ['LU', 'Prince Half Roll — carton of 72', 2800], ['LU', 'Candi Family Pack — carton of 24', 2160],
+                ['Bisconni', 'Cocomo — carton of 144', 2700], ['EBM', 'Party Family Pack — carton of 24', 2280], ['Lays', 'Classic Rs 30 — carton of 48', 1296],
+                ['Kurkure', 'Chutney Chaska Rs 30 — carton of 48', 1296], ['Super Crisp', 'Rs 20 — carton of 72', 1296], ['Kolson', 'Slanty Rs 30 — carton of 48', 1272],
+                ['National', 'Nimco Mix 200 g — carton of 24', 3120],
+            ],
+            'Spices & Sauces' => [
+                ['National', 'Biryani Masala — carton of 72', 6840], ['National', 'Karahi Masala — carton of 72', 6840], ['Shan', 'Biryani Masala — carton of 72', 7200],
+                ['Shan', 'Tikka Masala — carton of 72', 7200], ['National', 'Red Chilli Powder 200 g — carton of 48', 9600], ['National', 'Salt 800 g — carton of 24', 1080],
+                ['National', 'Tomato Ketchup 800 g — carton of 12', 4080], ['Mitchells', 'Ketchup 825 g — carton of 12', 4320], ['Knorr', 'Chicken Cubes — carton of 24 jars', 5520],
+                ['Shangrila', 'Soy Sauce 800 ml — carton of 12', 3360], ['Youngs', 'Mayonnaise 1 L — carton of 12', 7440],
+            ],
+            'Personal Care' => [
+                ['Sunsilk', 'Shampoo 360 ml — carton of 12', 6960], ['Head & Shoulders', 'Shampoo 360 ml — carton of 12', 9240], ['Pantene', 'Shampoo 360 ml — carton of 12', 8880],
+                ['Colgate', 'Toothpaste 150 g — carton of 72', 19440], ['Sensodyne', 'Toothpaste 100 g — carton of 72', 30240], ['Fair & Lovely', 'Cream 50 g — carton of 72', 17280],
+                ['Always', 'Pads Maxi — carton of 48', 13440], ['Pampers', 'Medium Mega Pack — carton of 4', 15600], ['Rose Petal', 'Tissue Box — carton of 36', 5040],
+            ],
+        ];
+
+        $out = [];
+        foreach ($shelves as $shelf => $things) {
+            foreach ($things as [$brand, $thing, $price]) {
+                $out[] = ['category' => $shelf, 'name' => trim("{$brand} {$thing}"), 'price' => $price, 'brand' => $brand !== '' ? $brand : null, 'by_weight' => false];
+            }
+        }
+
+        return $out;
+    }
 }

@@ -49,11 +49,14 @@ class DiningTableController extends Controller
         // operating branch — an owner adding tables from the HQ view falls back
         // to Main rather than creating a table that belongs to no site.
         $branch = app(BranchContext::class);
-        $table = DiningTable::query()->create($request->validated() + [
-            'branch_id' => $branch->id() ?? Branch::withoutTenancy()
-                ->where('tenant_id', app(TenantContext::class)->id())
-                ->where('is_default', true)->value('id'),
-        ]);
+        $branchId = $branch->id() ?? Branch::withoutTenancy()
+            ->where('tenant_id', app(TenantContext::class)->id())
+            ->where('is_default', true)->value('id');
+
+        // Nobody is seated in a store room.
+        Branch::mustSell($branchId);
+
+        $table = DiningTable::query()->create($request->validated() + ['branch_id' => $branchId]);
 
         return ApiResponse::created($table, 'Table added.');
     }

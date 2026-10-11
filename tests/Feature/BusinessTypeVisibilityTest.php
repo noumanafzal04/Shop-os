@@ -440,7 +440,6 @@ class BusinessTypeVisibilityTest extends TestCase
             // automotive module set, and a mechanic wants the plate register
             // and part-shaped units, not a portfolio.
             'workshop' => 'automotive',
-            'wholesale' => 'retail',
             'books' => 'retail',
             'hardware' => 'retail',
         ] as $legacy => $primary) {

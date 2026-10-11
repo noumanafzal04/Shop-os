@@ -22,6 +22,12 @@ class StorePurchaseOrderRequest extends FormRequest
                 'required', 'uuid',
                 Rule::exists('suppliers', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),
             ],
+            // Where the supplier is to bring it. Left out, the order is
+            // addressed by the business's own rule — see Branch::newOrdersGoTo.
+            'deliver_to_branch_id' => [
+                'nullable', 'uuid',
+                Rule::exists('branches', 'id')->where('tenant_id', $tenantId)->where('is_active', true)->whereNull('deleted_at'),
+            ],
             'order_date' => ['required', 'date'],
             'expected_date' => ['nullable', 'date', 'after_or_equal:order_date'],
             'discount' => ['nullable', 'numeric', 'min:0', 'max:99999999'],

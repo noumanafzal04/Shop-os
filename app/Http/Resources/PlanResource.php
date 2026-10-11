@@ -43,11 +43,21 @@ class PlanResource extends JsonResource
                 'storage_mb' => $this->max_storage_mb,
                 'orders_month' => $this->max_orders_month,
                 'branches' => $this->max_branches,
+                'warehouses' => $this->max_warehouses,
                 'staff' => $this->max_staff,
                 'registers' => $this->max_registers,
+                // Whether a shop on this plan may sell with no server, and for
+                // how many days. The plans screen has read these two since it
+                // was built and was never sent them: every plan's card said
+                // "Selling offline: No", including the three seeded WITH it.
+                'offline_selling' => $this->max_offline_selling,
+                'offline_days' => $this->max_offline_days,
                 // How far back this plan lets a shop look. Null = no limit.
                 'retention_months' => $this->retention_months,
             ],
+            // Room past the included bills before anyone is called over. Read
+            // by the same screen, and missing for the same reason.
+            'grace_orders_month' => $this->grace_orders_month,
             /**
              * The defaults a shop lands on when this plan says nothing, so
              * the admin screen can print "1 branch (platform default)" rather
@@ -55,6 +65,7 @@ class PlanResource extends JsonResource
              */
             'defaults' => [
                 'branches' => PlanLimits::REGISTRY['branches']['default'],
+                'warehouses' => PlanLimits::REGISTRY['warehouses']['default'],
                 'staff' => PlanLimits::REGISTRY['staff']['default'],
                 'registers' => PlanLimits::REGISTRY['registers']['default'],
             ],

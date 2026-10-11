@@ -95,6 +95,41 @@ class RestaurantTicket extends BaseModel
         return $this->belongsTo(Sale::class);
     }
 
+    /**
+     * WHERE THIS ORDER GOES — what a cook calls out and a runner carries it to.
+     *
+     * A table's own name, for a tab on the floor. An order rung at the counter
+     * "for here" has no table row: all there is to go on is the number the
+     * cashier typed onto the sale, which is all a café with two tables outside
+     * has ever had. Null where there is nowhere to carry it — a takeaway.
+     *
+     * One answer for the board and the printed slip, so the screen and the
+     * paper cannot send the same cup to two places.
+     */
+    public function goesTo(): ?string
+    {
+        // `getRelationValue`, not `$this->table`: inside a model that property
+        // is the name of the database table, and reading it here read a string.
+        $table = $this->getRelationValue('table');
+
+        if ($table !== null) {
+            return $table->name;
+        }
+
+        if ($this->order_type === 'takeaway') {
+            return null;
+        }
+
+        $typed = trim((string) $this->sale?->table_no);
+
+        if ($typed === '') {
+            return null;
+        }
+
+        // "5" is a table; "T5" and "Garden" are already what the shop calls it.
+        return ctype_digit($typed) ? "Table {$typed}" : $typed;
+    }
+
     public function isOpen(): bool
     {
         return $this->status === RestaurantTicketStatus::Open;

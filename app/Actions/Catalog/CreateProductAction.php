@@ -2,11 +2,10 @@
 
 namespace App\Actions\Catalog;
 
-use App\Models\Branch;
-use App\Models\BranchStock;
 use App\Models\Product;
 use App\Support\BarcodeNamespace;
 use App\Support\ItemTypes;
+use App\Support\OpeningShelf;
 use App\Support\PlanLimits;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -134,19 +133,11 @@ class CreateProductAction
                 'visible_in_marketplace' => $data['visible_in_marketplace'] ?? true,
             ]);
 
-            // Multi-branch: opening stock lands at the tenant's default "Main"
-            // branch. branch_stock is the per-branch source of truth;
-            // product.stock_quantity (set above) is its sum-across-branches
-            // rollup — so the product-level Main row mirrors it exactly.
-            $mainBranchId = Branch::withoutTenancy()
-                ->where('tenant_id', $product->tenant_id)->where('is_default', true)->value('id');
-            BranchStock::withoutTenancy()->create([
-                'tenant_id' => $product->tenant_id,
-                'branch_id' => $mainBranchId,
-                'product_id' => $product->id,
-                'variant_id' => null,
-                'quantity' => $product->stock_quantity,
-            ]);
+            // Opening stock lands where its maker is standing — the godown,
+            // when the godown is chosen — and on Main otherwise. branch_stock
+            // is the per-place source of truth; product.stock_quantity (set
+            // above) is its sum across places. See OpeningShelf.
+            $placeId = OpeningShelf::open($product, null, (float) $product->stock_quantity);
 
             // Pharmacy: opening stock must be backed by a lot from day one so
             // stock_quantity and batch totals never start out of step (the
@@ -159,7 +150,8 @@ class CreateProductAction
             if ($itemType === ItemTypes::MEDICINE && $openingStock > 0) {
                 $product->batches()->create([
                     'tenant_id' => $product->tenant_id,
-                    'branch_id' => $mainBranchId,
+                    // The lot is where the stock is.
+                    'branch_id' => $placeId,
                     'batch_number' => $openingBatch,
                     'expiry_date' => $data['expiry_date'] ?? null,
                     'quantity' => $openingStock,
@@ -174,10 +166,16 @@ class CreateProductAction
                 $product->save();
             }
 
-            foreach ($data['variants'] ?? [] as $variant) {
+            // The place is the position in the list as typed — read by key,
+            // because validated rows are not always handed over in key order
+            // (see SyncProductVariantsAction).
+            $typed = $data['variants'] ?? [];
+            ksort($typed);
+            foreach (array_values($typed) as $position => $variant) {
                 $created = $product->variants()->create([
                     'tenant_id' => $product->tenant_id,
                     'name' => $variant['name'],
+                    'sort_order' => $position,
                     'sku' => $variant['sku'] ?? null,
                     'price' => $variant['price'],
                     'cost' => $variant['cost'] ?? null,
@@ -192,15 +190,8 @@ class CreateProductAction
                 // after a create.
                 BarcodeNamespace::assign($product, $created, $variant);
 
-                // Per-branch on-hand for this variant at Main (mirrors the
-                // variant's rollup stock_quantity).
-                BranchStock::withoutTenancy()->create([
-                    'tenant_id' => $product->tenant_id,
-                    'branch_id' => $mainBranchId,
-                    'product_id' => $product->id,
-                    'variant_id' => $created->id,
-                    'quantity' => $created->stock_quantity,
-                ]);
+                // This size's on-hand, on the same shelf the product was put on.
+                OpeningShelf::open($product, $created->id, (float) $created->stock_quantity);
 
                 // Medicine variants get the same day-one lot guarantee as the
                 // product-level opening stock below: every unit is batch-backed
@@ -211,7 +202,7 @@ class CreateProductAction
                 if ($itemType === ItemTypes::MEDICINE && $variantOpening > 0) {
                     $product->batches()->create([
                         'tenant_id' => $product->tenant_id,
-                        'branch_id' => $mainBranchId,
+                        'branch_id' => $placeId,
                         'variant_id' => $created->id,
                         'batch_number' => $openingBatch,
                         'expiry_date' => $data['expiry_date'] ?? null,

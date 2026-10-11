@@ -73,8 +73,8 @@
         <span>
             @if ($ticket->order_type === 'takeaway')
                 TAKEAWAY
-            @elseif ($ticket->table)
-                {{ $ticket->table->name }}
+            @elseif ($ticket->goesTo())
+                {{ $ticket->goesTo() }}
             @else
                 {{ $ticket->ticket_number }}
             @endif

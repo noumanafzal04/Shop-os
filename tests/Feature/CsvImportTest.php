@@ -154,9 +154,12 @@ class CsvImportTest extends TestCase
         $this->assertSame(0, $res['failed'], json_encode($res['errors']));
 
         $shirt = Product::withoutTenancy()->where('sku', 'TSHIRT')->firstOrFail();
-        $sizes = $shirt->variants()->orderBy('name')->get();
+        $sizes = $shirt->variants()->get();
 
-        $this->assertSame(['Large', 'Small'], $sizes->pluck('name')->all());
+        // In the order the FILE lists them — Small above Large, as the
+        // merchant wrote the sheet — not sorted by name. See
+        // SizesKeepTheOrderTheyWereTypedInTest.
+        $this->assertSame(['Small', 'Large'], $sizes->pluck('name')->all());
         $this->assertSame('1000.00', (string) $sizes->firstWhere('name', 'Large')->price);
         $this->assertSame('TSHIRT-S', $sizes->firstWhere('name', 'Small')->sku);
     }
@@ -197,9 +200,11 @@ class CsvImportTest extends TestCase
         CSV)->assertOk();
 
         $shirt = Product::withoutTenancy()->where('sku', 'TSHIRT')->firstOrFail();
-        $sizes = $shirt->variants()->orderBy('name')->get();
+        $sizes = $shirt->variants()->get();
 
-        $this->assertSame(['Large', 'Small'], $sizes->pluck('name')->all(), 'a partial import retired a size');
+        // Both still there — and still in the order the shop had them: a file
+        // that names one size neither retires the other nor moves it.
+        $this->assertSame(['Small', 'Large'], $sizes->pluck('name')->all(), 'a partial import retired a size, or reordered them');
         $this->assertSame('1200.00', (string) $sizes->firstWhere('name', 'Large')->price);
     }
 

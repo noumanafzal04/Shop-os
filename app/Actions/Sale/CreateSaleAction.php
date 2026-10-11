@@ -9,6 +9,7 @@ use App\Enums\SaleChannel;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\BankCardOffer;
+use App\Models\Branch;
 use App\Models\BranchPrice;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
@@ -187,6 +188,18 @@ class CreateSaleAction
                 // is protecting nothing.
                 if ($trustedOffline && ! empty($data['offline_branch_id'])) {
                     $branchId = $data['offline_branch_id'];
+                }
+
+                // ── A warehouse has no counter ──────────────────────────
+                //
+                // Asked of a sale made ACROSS a counter, and of nothing else.
+                // An online order a warehouse filled is closed by a sale at
+                // that warehouse, and that is right — the goods came off its
+                // shelves. And a sale already rung offline is never refused
+                // here: the money crossed the counter, and a place changing
+                // kind afterwards cannot un-cross it.
+                if ($atTheCounter && ! $trustedOffline) {
+                    Branch::mustSell($branchId);
                 }
 
                 // The goods already left the shelf, so this sale must not take them
@@ -1601,9 +1614,17 @@ class CreateSaleAction
                 // failure is a bug, in which case losing an unrung sale is the
                 // loud answer rather than a paid order the kitchen never saw.
                 //
-                // Silent for every shop without the module, without a takeaway
-                // order, or with nothing on the ticket a kitchen makes.
-                $kitchen = app(SendCounterOrderToKitchen::class)->execute($sale);
+                // Silent for every shop without the module, for a sale the till
+                // did not ring as an order, or with nothing a kitchen makes.
+                //
+                // And NEVER for a sale that settles a tab: its food was fired
+                // course by course and eaten before the bill was asked for.
+                // `settles_tab` is said by SettleTicketAction and by nobody
+                // else — the request rules do not know the key, so a till
+                // cannot claim it.
+                $kitchen = ($data['settles_tab'] ?? false) === true
+                    ? null
+                    : app(SendCounterOrderToKitchen::class)->execute($sale);
 
                 $sale->load('items', 'payments', 'tradeIns', 'vehicle');
 

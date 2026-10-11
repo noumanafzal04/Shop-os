@@ -231,6 +231,9 @@ class StaffPresets
                     Permissions::TABLES_SERVE_ANY,
                     Permissions::PRODUCTS_MANAGE,
                     Permissions::INVENTORY_MANAGE,
+                    // A manager runs the shop AND the godown behind it. The
+                    // stock keeper preset deliberately goes without.
+                    Permissions::INVENTORY_ANY_PLACE,
                     Permissions::SUPPLIERS_MANAGE,
                     Permissions::PURCHASES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,

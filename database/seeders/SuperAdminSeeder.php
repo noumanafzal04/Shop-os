@@ -11,17 +11,27 @@ class SuperAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        User::query()->updateOrCreate(
-            ['email' => 'admin@shopos.test'],
-            [
-                'name' => 'Super Admin',
-                'password' => 'password', // hashed by cast; change in production
-                'role' => UserRole::SuperAdmin,
-                'status' => UserStatus::Active,
-                'tenant_id' => null,
-                'email_verified_at' => now(),
-            ],
-        );
+        /**
+         * The laptop's admin — every e2e run signs in as it.
+         *
+         * ON A LIVE BOX IT IS MADE ONCE AND LEFT. This wrote `password` back
+         * on every `db:seed`, so the one thing the launch checklist asks for
+         * — change that password — was undone by the next person to seed
+         * anything. A laptop keeps the old behaviour on purpose: there, a
+         * re-seed is how an admin a test has broken is put right.
+         */
+        $laptopAdmin = [
+            'name' => 'Super Admin',
+            'password' => 'password', // hashed by cast; `shopos:readiness` refuses a live box that still has it
+            'role' => UserRole::SuperAdmin,
+            'status' => UserStatus::Active,
+            'tenant_id' => null,
+            'email_verified_at' => now(),
+        ];
+
+        app()->environment('production')
+            ? User::query()->firstOrCreate(['email' => 'admin@shopos.test'], $laptopAdmin)
+            : User::query()->updateOrCreate(['email' => 'admin@shopos.test'], $laptopAdmin);
 
         /**
          * The platform's account at the product's own address.

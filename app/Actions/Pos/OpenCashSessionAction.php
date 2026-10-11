@@ -3,6 +3,7 @@
 namespace App\Actions\Pos;
 
 use App\Exceptions\DomainException;
+use App\Models\Branch;
 use App\Models\CashSession;
 use App\Models\Register;
 use App\Models\User;
@@ -120,6 +121,9 @@ class OpenCashSessionAction
             }
 
             $branchId = $register?->branch_id ?? $this->branch->id() ?? $user->branch_id;
+
+            // A warehouse has no till to open a shift on.
+            Branch::mustSell($branchId);
 
             // Every shift belongs to a trading day, opened on demand by the
             // first cashier through the door. Making the owner remember to

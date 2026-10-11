@@ -122,6 +122,10 @@ class SettleTicketAction
                 'tip_amount' => $data['tip_amount'] ?? 0,
                 'notes' => $data['notes'] ?? "Dine-in tab {$ticket->ticket_number}",
                 'trusted_prices' => true,
+                // This bill is a TAB's: the kitchen has had every line of it
+                // already. See CreateSaleAction — a sale is otherwise sent to
+                // the pass whether it was rung to take away or for here.
+                'settles_tab' => true,
             ]);
 
             // Mark exactly the settled items as paid by this sale.

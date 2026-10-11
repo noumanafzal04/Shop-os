@@ -91,6 +91,7 @@ use App\Http\Controllers\Api\V1\Tenant\ShopCommissionController;
 use App\Http\Controllers\Api\V1\Tenant\ShopController;
 use App\Http\Controllers\Api\V1\Tenant\SoldOutController;
 use App\Http\Controllers\Api\V1\Tenant\StaffController as TenantStaffController;
+use App\Http\Controllers\Api\V1\Tenant\StockByPlaceController;
 use App\Http\Controllers\Api\V1\Tenant\StockCountController;
 use App\Http\Controllers\Api\V1\Tenant\StockDisposalController;
 use App\Http\Controllers\Api\V1\Tenant\SubscriptionController;
@@ -262,6 +263,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('branches', [BranchController::class, 'store']);
                 Route::put('branches/{branch}', [BranchController::class, 'update']);
                 Route::delete('branches/{branch}', [BranchController::class, 'destroy']);
+                // What would have to be decided before it could go.
+                Route::get('branches/{branch}/leaving', [BranchController::class, 'leaving']);
             });
 
             // Hardware registry — receipt/label printers, scanners, cash drawer.
@@ -662,6 +665,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                         ->middleware('permission:sales.void');
                     Route::post('/{sale}/returns', [SaleController::class, 'processReturn'])
                         ->middleware('permission:sales.refund');
+                    // What a return would hand back, before it is pressed. A
+                    // POST for the list of lines it carries; it writes nothing.
+                    Route::post('/{sale}/returns/worth', [SaleController::class, 'returnWorth'])
+                        ->middleware('permission:sales.refund');
                     // Exchange rings a replacement sale, so it needs the POS module.
                     // It also returns goods, hence the refund permission.
                     Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
@@ -786,9 +793,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('/disposals/{id}/credit', [StockDisposalController::class, 'credit']);
                 });
 
-                // Branch-to-branch transfers (multi-branch).
+                // Stock moving between places — shop to shop, warehouse to
+                // shop. Sent, then counted in at the other end; a shortage is
+                // settled by the place that sent it.
                 Route::get('/transfers', [TransferController::class, 'index']);
                 Route::post('/transfers', [TransferController::class, 'store']);
+                Route::post('/transfers/{transfer}/send', [TransferController::class, 'send']);
+                Route::post('/transfers/{transfer}/receive', [TransferController::class, 'receive']);
+                Route::post('/transfers/{transfer}/settle', [TransferController::class, 'settle']);
+                Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel']);
+                Route::get('/transfers/{transfer}/slip', [TransferController::class, 'slip']);
+                // Every place's figure for a product, side by side.
+                Route::get('/by-place', [StockByPlaceController::class, 'index']);
 
                 // Stocktake. Counting is floor work, so anyone who manages
                 // stock may draw a sheet and enter figures; APPLYING it writes
@@ -1296,6 +1312,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // shop would land over. Writes nothing, so an admin can
                 // compare all four plans without committing to any.
                 Route::get('/{tenant}/plan-change', [TenantController::class, 'planChange'])->middleware('permission:tenants.assign_plan');
+                // The dates a payment taken now would buy, from the same
+                // method the save uses. Writes nothing.
+                Route::get('/{tenant}/plan-window', [TenantController::class, 'planWindow'])->middleware('permission:tenants.assign_plan');
                 Route::post('/{tenant}/assign-plan', [TenantController::class, 'assignPlan'])->middleware('permission:tenants.assign_plan');
                 // Account recovery for a locked-out shop owner. Its own
                 // permission, not tenants.update — this one can impersonate a
