@@ -690,3 +690,63 @@ errors; both type checks clean.
 offer; raw ingredients are offered for sale; "Reservations" in a restaurant is
 item holds, not tables.
 
+## A badge, a question, a count that is kept — and the front page read down (2026-10-13, small hours)
+
+The owner, on seeing the Orders screens: *"pickup and delivery badge on orders
+page or any identifier?"*, *"when out for delivery, ask assign rider — optional,
+but ask always"*, *"on sidebar orders count? … blinking dot like notification"*.
+Then, on being told what the count cost: *"aise to theek nahi, har baar load ho
+— tab update ho jab order create ho"*. Then the landing page: *"hero pe blue
+background … apne primary color se"*, *"Nine trades … jo mobile khud bana rahe
+wo acha ni lga"*, *"salon ni, services hain"*, *"ek symmetry chahiye"*, *"real
+plans … jo jo offer kar rahe wo bhi list"*, *"dashboard ka screenshot, full
+menu ke saath"*.
+
+| # | Found | Now |
+|---|---|---|
+| 178 | Delivery or pickup was two grey words at the foot of a card, and a column only a wide screen drew | a badge — blue *Delivery*, purple *Pickup* — on the board, in the table at every width, on the sheet |
+| 179 | "Out for delivery" sent an order out with nobody on it and never asked | it asks who is carrying it, always; *Send without a rider* is always there, and a shop with no rider is told where riders are made and not stopped |
+| 180 | A new order arrived in a list on a screen nobody was looking at | the menu's Orders row carries how many are being worked; a new one turns it orange with a blinking ring |
+| 181 | The rider sheet's two buttons side by side pushed the first off a phone | one above the other below `sm` |
+| 182 | **The count was asked on every load and every half minute** — and a walk of 35 screens a minute was refused by the API's limit because of it (301 requests in 56 s, 32 of them the count) | kept on the device; asked again only on news of an order — this device's own work, the bell, the Orders screen's own list — and otherwise once in two minutes |
+| 183 | The walk of every menu entry asks 269 things in under a minute even without the count: over the 240 a person is allowed. It had been passing on where the limiter's minute turned | it makes room every eighth screen; the take-order spec (fifteen tests, one owner) makes room before each |
+| 184 | A check of "how many times was the count asked" counted the dev server serving two source files named `orders/waiting…` | it counts requests to the server's own address |
+| 185 | The same check waited for "the next answer from the bell" and then counted the asking that answer caused | it waits on what the device has heard |
+| 186 | The front page's dark bands stood under an indigo light — the colour of a brand the product no longer has | the brand's own ground and light, read from the ramp; the footer on the same ground |
+| 187 | Two headings hung off the left edge above three equal columns, between sections whose headings were centred; the three steps were left-hung under a centred heading | one form: centred over a full-width row, left beside a picture |
+| 188 | Nine trades were pills that wrapped seven and two, over a list floating beside a narrower card | nine equal tiles (three by three on a phone) over one card of two halves |
+| 189 | The trade's till was a drawing with three invented lines on it | a photograph of a real shop of that trade, nine of them; a finance office is shown its books, not a till it does not have |
+| 190 | "Salon & services" — the trade is Services | Services, on the tile, the footer, the enquiry form and the demo chooser |
+| 191 | The page sold three plans at 2,500 / 6,000 / 15,000 with hand-written points ("Up to 2 tills" on a plan that allows one). The product has four, at other prices | the seeder's four, every line written from the figures; what Basic lacks (selling offline) is said and marked; a test reads the seeder |
+| 192 | The hero said eight trades over a section that says nine | nine |
+| 193 | The dashboard was photographed at two in the morning: "Good morning, Tuesday" over a "Today" that was Monday's (the day turns at five) | the script can set the hour the page reads; the picture is the evening of the shop's own day |
+| 194 | **Mine.** Moving that night's expenses onto the shop's day by their *description*, an older expense of the same name went with them | put back on its own day (worked out from the old picture: 1,800 + 2,450 = the 4,250 it showed). Found by id from now on |
+
+**On the copy stack before landing:** `waitingCount.test` 13,
+`useOrdersWaiting.test` 11, `plans.test` 8; faults put in — nine under the
+count's unit tests, three under its browser test, four under the plans' —
+all caught, and each restored run green.
+
+**Gates on the real tree, after all of it:** backend 3,748 tests (3,726
+passed, 22 skipped); panel 256 files · 3,063 tests; `npm run build` exit 0;
+eslint 0 errors; both type checks clean.
+
+**In a browser, on the real stack, after the last change:**
+
+| Run | Result |
+|---|---|
+| `food.take-order` × three sizes | 17 passed (6 skipped by design: one order through its life is run on one size) |
+| the online journey — stages 01 02 27 | 15 passed |
+
+**Run that night against the FIRST build of these screens, and not again
+after the count became a kept one:** the screen walker 17, the sheets 22, at
+volume 3 — all passed. The change since then is in when a request is made,
+not in anything drawn. The whole standing regression was not run again
+before this push; the owner stopped the night's work and asked for what was
+done to be pushed.
+
+**Not run at all:** the landing page has no browser spec. It was photographed
+— every section, at a laptop's width, a tablet's and a phone's — and no
+width scrolls sideways.
+
+

@@ -95,6 +95,23 @@ stopped. Both hooks now share one named function.
   is left is real work: best sellers and revenue by category (~45 ms each, a
   join of sale lines to sales over the period), cost of goods by day (~30 ms),
   and three counts over the product table (~80 ms together) that could be one.
+- **A whole reload asks six things before the screen asks its own**
+  (measured 2026-10-13 from a browser trace of the journey's menu walk):
+  `/auth/me`, `/shop/settings`, `POST /pos/devices` (this device says it is
+  here), `GET /pos-devices`, `/pos/catalog` (what changed) and
+  `/notifications`. For one evening there was a seventh — `/orders/waiting`,
+  for the menu's count — and it is why this was measured: the walk of 35
+  screens was refused by the limit (301 requests in the 56 seconds before the
+  first 429, 32 of them the new ask). The count is kept on the device now and
+  asks nothing on a load (`shopos-an-order-reaches-the-kitchen.md`). Without
+  it the walk is still 269 in under a minute — over the 240 a person is
+  allowed — so it had been passing on where the limiter's minute happened to
+  turn, and on a machine slowed by other work: likely, not measured. It makes
+  room every eighth screen (`roomForACase`).
+  Nobody reloads like a test does, and inside the app the menu stays mounted,
+  so a person pays these once. Worth doing next, the same way — kept on the
+  device, asked on news: the two device asks and the catalogue pull on
+  screens that are not a till, and the shop's settings.
 - **Three queries of housekeeping on every request**: the default branch, the
   user's open shift, its till. Cheap (about 1 ms together); a request that
   touches no till still asks.

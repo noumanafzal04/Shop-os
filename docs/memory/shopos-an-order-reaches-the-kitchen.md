@@ -55,6 +55,9 @@ and for "Today and Past orders" tabs):**
    only `is_active`) — the "ingredient — not sold" kind from 11 Oct.
 4. "Reservations" on a restaurant's menu = marketplace item holds, not tables.
 
+**Added 2026-10-13 at the user's word** (their words in `docs/decisions/shopos-an-order-reaches-the-kitchen.md`): a Delivery / Pickup badge (`HowItReaches.tsx`) on board, table and sheet; "Out for delivery" asks who is carrying it — always asked, never required (`whoCarries.ts`, `WhoCarriesIt.tsx`; server unchanged); the menu's Orders row carries a count and blinks orange for a NEW order (`layout/ordersWaiting.ts`, `GET /orders/waiting`).
+**The count is KEPT on the device, not asked for** — see [[shopos-kept-not-asked]]. I first built it asked on every load + every 30 s; the user rejected that outright.
+
 **Why tests missed it:** every order test used counted products without sizes
 (a mart's), and nothing ever looked at the kitchen after an order.
 **How to apply:** a selling path is tested with a DISH (uncounted, sized, with a

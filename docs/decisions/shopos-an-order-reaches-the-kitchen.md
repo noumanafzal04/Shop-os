@@ -126,6 +126,86 @@ order pane answers to **its own** width (a container query), not the window's �
 beside the menu on a tablet it is half the screen. Below `lg` the order is
 under the menu and a bar at the menu's foot leads to it.
 
+## And three things the owner asked for on seeing it
+
+*"pickup and delivery badge on orders page or any identifier?"*, *"when out for
+delivery, ask assign rider — optional, but ask always; maybe he has not created
+any rider"*, and *"on sidebar orders count? or any highlight dot? blinking dot
+like notification"*.
+
+**Delivery or pickup is a badge.** It was two grey words at the foot of a card
+and a column only a wide screen drew. `components/HowItReaches.tsx`: a blue
+*Delivery* with a van, a purple *Pickup* with a bag — beside the order's number
+on the board, in the table at every width, and on the order's sheet.
+
+**"Out for delivery" asks who is carrying it — always, and never insists.**
+`orders/whoCarries.ts` + `components/WhoCarriesIt.tsx`. Pressed on a delivery
+with nobody on it — from a card, a row or the sheet; they all go through one
+`move()` — a sheet lists the shop's riders, the free ones first, each saying
+whether they are already out.
+- *Send with ⟨name⟩* puts the rider on the order **first** (so the rider and
+  the customer are told), then sends it. If the name will not go on, the order
+  does not leave.
+- *Send without a rider* is always there, and is the main button when the shop
+  has made no rider — which is allowed; the sheet says where riders are made.
+- Closing the sheet is not an answer. The order stays where it was.
+- An order that already has a rider is not asked about again. A pickup never is.
+- The server is unchanged: assign-rider and advance are the two calls they were.
+
+**The menu says an order is waiting, from every screen.** A new order arrived
+in a list on a screen nobody was looking at; after the bell's one message no
+other screen said so. The Orders row now carries how many orders are being
+worked (steady), and when one of them is *new* — accepted by nobody — the count
+turns the colour of a notification and a ring blinks behind it (never for a
+reader who has asked for no motion; folded to icons, a dot).
+- `GET /orders/waiting` → `{ new, being_worked }`: **one** aggregate. Not the
+  list with a page size of one (four queries for two numbers) — a test counts
+  the queries.
+- `layout/ordersWaiting.ts` marks that row and no other; asked only by a rail
+  that has the row.
+- The blink is for the new one only: a board of orders already cooking is not
+  an alarm.
+
+**The count is kept, not asked for** (the same night, at the owner's word).
+As first built it was asked on every load and every half minute. A browser
+run that reloads thirty-five screens a minute was refused by the API's limit
+because of it, and when that was reported the owner said the thing itself was
+wrong: *"aise to theek nahi, har baar load ho — tab update ho jab order create
+ho; invalidate tab, jab order on/off ho"*, and *"jab hum store use kar rahe
+hain to aisi cheezain kyun nahi use kar rahe, ke rate limit theek rahe"*.
+
+So the device keeps the last answer (`orders/waitingStore.ts`, a persisted
+store, fenced by shop and person) and asks again only on news of an order
+(`orders/waitingCount.ts`):
+
+| What happened | How the menu knows | Asked? |
+|---|---|---|
+| The app is opened again | it shows what was kept | no, inside two minutes |
+| This device took, confirmed or cancelled an order | the count lives under the `["orders"]` key those invalidate | once |
+| An order was taken on another device, or online | `order.placed` rings the bell of everyone who can work it; the bell is asked anyway, and its newest order news is compared with the last one acted on | once |
+| The Orders screen is open | its own list has the same count of the same orders, and tells the menu (`useTellTheMenu`) | no |
+| Another device accepted an order and told nobody | nothing rings for that | once, after two minutes with no word |
+
+- News is told apart by WHICH notification is newest, never by a time: the
+  server's clock and the device's are two clocks.
+- The last row is the one thing still asked on a clock. Without it a second
+  counter would blink "1 new" until the app was closed. A quarter as often as
+  before, and never on a reload inside the two minutes.
+- The Orders screen telling the menu is also what stops the two disagreeing
+  on one screen: the board is asked every half minute while it is open.
+- Taking an order on this device asks twice — once for the press, once for
+  the bell it rang. Known, and left: the second is one request.
+- Tests: `waitingCount.test.ts` (13), `useOrdersWaiting.test.tsx` (11, and
+  what they count is the requests), and in a browser — the app opened again
+  asks nothing; an order taken at another counter reaches the menu by the
+  bell, asked once; back on the Orders screen the two agree. Nine faults put
+  in on the copy under the unit tests and three under the browser's: all
+  caught.
+- The two browser runs still make room for themselves under the limit
+  (`roomToWork`, `roomForACase`). The walk of every menu entry asks 269
+  things in under a minute without this count; it had been passing on where
+  the limiter's minute happened to turn.
+
 ## Not decided here — the owner's to say
 
 1. **An order is not taxed.** The till charges this shop 5% on a biryani; the
@@ -184,3 +264,12 @@ Later the same day:
   cancel asked, refused, then given a reason. Three faults put in on the copy
   — the kitchen not told, the page left to scroll, the past not cut from
   today — three caught.
+- `whoCarries.test.ts` (8), `layout/ordersWaiting.test.ts` (6),
+  `TheOrderQueueTest` +3 (the menu's two numbers; nought, and never another
+  shop's; **one query** — a second query, and finished orders counted, both
+  caught). The spec's fifth test: a delivery wears its badge and says "no
+  rider"; the step asks; Escape sends nothing; *Send without a rider* sends it
+  with no name; a chosen rider is on the order before it leaves; the next step
+  asks nothing. And in the fourth: the count beside Orders is the server's two
+  numbers, blinks while one is new, is there on the Dashboard too, and moves
+  with Confirm.

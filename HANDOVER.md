@@ -308,6 +308,66 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-13 (small hours) — a badge, a question, a count that is kept; and the front page read down
+
+Asked for on seeing the night's Orders screens, then on being told what one of
+them cost, then about the landing page. Decisions:
+`docs/decisions/shopos-an-order-reaches-the-kitchen.md` ("And three things the
+owner asked for on seeing it", "The count is kept, not asked for"),
+`shopos-the-front-page-shows-the-product.md` ("The night the owner read the
+page down"), `shopos-what-a-request-costs.md`. Findings #178–194 in
+`docs/qa/journey/RUNS.md`.
+
+- **Delivery / Pickup is a badge** (`orders/components/HowItReaches.tsx`) on
+  the board, in the table at every width, and on the order's sheet.
+- **"Out for delivery" asks who is carrying it** — always, never insisting
+  (`orders/whoCarries.ts`, `components/WhoCarriesIt.tsx`). The server is
+  unchanged: assign-rider, then advance.
+- **The menu's Orders row carries a count, and blinks for a new order**
+  (`layout/ordersWaiting.ts`, `GET /orders/waiting` — one query).
+- **That count is kept on the device** (`orders/waitingStore.ts`, key
+  `shopos-orders-waiting`, fenced by shop and person) and asked for again only
+  on news of an order — this device's own work, the bell's `order.*` news, the
+  Orders screen's own list — and otherwise once in two minutes
+  (`orders/waitingCount.ts`). As first built it was asked on every load and
+  every half minute; the owner said that was wrong, and a browser walk had
+  been refused by the API's limit because of it.
+- **The landing page.** Dark bands in the brand's own colour
+  (`.landing-night`); one form of heading; nine trades as nine tiles over a
+  two-half card; the drawn till replaced by nine photographs of real tills
+  (`public/landing/trade-<code>.webp`, `TRADE=<code> node
+  scripts/landing-shots.mjs`); "Services", not "Salon & services"; the four
+  real plans with every line written from the figures
+  (`modules/landing/plans.ts`, held to `PlanSeeder` by `plans.test.ts`); the
+  dashboard retaken with the full menu (`CLOCK=` sets the hour the page
+  reads). The hero's phone picture was left as it was, at the owner's word.
+- **Entries made in two load-test shops, through the app, and left:** Zaiqa
+  Grill House — fourteen sales and three expenses on 12 Oct, a category
+  "Kitchen gas"; Rehman Books & Accounts — five fees, 3–11 Oct, a category
+  "Client fees". One older expense was moved by mistake and put back.
+- **Two browser runs make room for themselves under the API's limit** now:
+  `e2e/food.take-order.spec.ts` (`roomToWork`) and the journey's walk of
+  every menu entry (`roomForACase`, every eighth screen).
+
+**Gates:** backend 3,748 (3,726 passed, 22 skipped) · panel 256 files / 3,063
+· build 0 · eslint 0 errors. **Browser, real stack, after the last change:**
+`food.take-order` × three sizes 17 passed; the online journey (01 02 27) 15
+passed. The whole standing regression was not run again before this push.
+
+**Pushed:** backend `a640c77` (`offline/v1/backend`), panel `a559ba7`
+(`offline/v1/admin-panel`); docs on `main` after them. Nothing is on the live
+box — deploy backend first, then the panel.
+
+**Stopped here at the owner's word** ("abhi stop kar do, baqi kaam kal").
+**Next:** the other things a whole reload asks, kept the same way (the two
+device asks, the catalogue pull on screens that are not a till, the shop's
+settings); restaurant stages 41 and 42; the rest of the money-screen audit.
+**Still the owner's to decide:** orders are untaxed and take no promotion; raw
+ingredients are sold; "Reservations" in a restaurant is item holds. And a
+price changed in the admin console on a live box does not reach the landing
+page by itself.
+
+
 ### 2026-10-12 (night) — one press to the kitchen, its slip, Today / Past orders, and a Take-order page laid out like the till
 
 The owner looked at the afternoon's screens and sent three things back:

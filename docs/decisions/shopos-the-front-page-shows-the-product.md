@@ -81,6 +81,67 @@ True, and unreadable. `formatDelta` now says a rise past tenfold as a
 multiple — "43×" — and drops the tenth of a percent once a change is in the
 hundreds.
 
+## The night the owner read the page down (2026-10-13)
+
+*"hero section pe blue background type aa raha — apne primary color se change
+kar dein"*, *"Nine trades … ispe jo mobile khud bana rahe wo acha ni lga"*,
+*"salon ni, services hain"*, *"ek symmetry chahiye landing page ki"*, *"real
+plans … aur jo jo offer kar rahe wo bhi list"*, *"dashboard ka updated
+screenshot, full menu ke saath"*.
+
+- **The dark bands are the brand's own night.** The hero, the till's section
+  and the closing band stood on gray-950 under an indigo light
+  (`rgba(70,95,255)`) — the colour of a brand this product no longer has.
+  `.landing-night` / `.landing-night-light` in `index.css` read the ground and
+  the light from the brand ramp; the footer stands on the same ground. The
+  hero's two lights were in opposite corners under a centred headline; both
+  are on the centre line now.
+- **One form of heading.** A heading over a full-width row is centred; a
+  heading beside a picture keeps the left. "Why it is different" and "What is
+  inside" hung off the left edge above three equal columns — that was the
+  empty space under the hero. The three steps are centred under their
+  centred heading, with the rule running from number to number.
+- **Nine trades is nine tiles** — one row on a laptop, three by three on a
+  phone — over one card of two halves. The pills wrapped seven and two.
+- **The drawn till is gone** (`TillMock.tsx`). Each trade shows the phone
+  screen of a real shop of that trade, with a sale half rung:
+  `public/landing/trade-<code>.webp`, taken from the nine load-test shops by
+  `TRADE=<code> node scripts/landing-shots.mjs`. A finance office has no
+  till; its picture is its books. `tradeCarts.ts` keeps what each picture
+  shows, in words, for whoever cannot see it.
+- **Services, not "Salon & services"** — on the tile, the footer, the enquiry
+  form and the demo chooser.
+- **The plans are the product's.** Three hand-written cards (2,500 / 6,000 /
+  15,000, "Up to 2 tills" on a plan that allows one) became `PlanSeeder`'s
+  four, with every line on a card written from the figures
+  (`modules/landing/plans.ts`). What a plan lacks is said and marked, not left
+  out: Basic does not sell offline. Modules are listed once under all four —
+  a plan sells room, never a feature. `plans.test.ts` reads the seeder as
+  text where the backend sits beside the panel; four faults put in, four
+  caught. A price changed in the admin console on a live box does not reach
+  this page by itself.
+- **The dashboard was retaken with the full menu**, on an evening the shop
+  had actually traded: fourteen sales rung through its own till and three
+  expenses recorded, through the app. The hero's phone was left as it was, at
+  the owner's word — so the two pictures in the hero show different days.
+- **The hour on the wall.** The sales were rung at two in the morning, which
+  belongs to the evening before (the day turns at five): the dashboard said
+  "Good morning, Tuesday" over a "Today" that was Monday's. `CLOCK=` gives
+  the page an evening hour of the shop's own day. Nothing sent to the server
+  changes.
+
+**A mistake made and undone while doing it.** Moving that night's three
+expenses onto the shop's day, a fourth of the same name — "Takeaway boxes and
+bags", Rs 2,450, written on the 6th — went with them. Expenses leave no audit
+row, so its day was worked out from the old picture: Rs 4,250 on the 6th is
+1,800 + 2,450. It is back on the 6th. A fixture is found by its id, not by
+what it is called.
+
+**Entries made in the two shops, and left:** in Zaiqa Grill House, fourteen
+sales and three expenses on 12 Oct (and a category, "Kitchen gas"); in Rehman
+Books & Accounts, five fees between 3 and 11 Oct under a new category,
+"Client fees".
+
 ## To keep them true
 
 They are files. When the dashboard or the till changes shape, retake them.

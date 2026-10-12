@@ -1,6 +1,7 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-12 ~22:15: PUSHED backend bf4a060 / panel 83f5691; NEXT = Delivery/Pickup badge on Orders + "Out for delivery" asks for a rider (optional); then stages 41/42
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 ~04:30: SECOND PUSH (badge, rider question, kept Orders count, landing page: brand colour, 9 real till photos, 4 real plans); user stopped for the night; NEXT = other shell requests kept the same way, then stages 41/42
+- [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): what the shell shows on every screen is kept in a persisted store and asked again only on news — never per load or a 30 s poll; the pattern, and what is still to convert
 - [An Order Reaches The Kitchen](shopos-an-order-reaches-the-kitchen.md) — FIXED 2026-10-12: orders never reached the pass; Take order rebuilt (size, questions, server's total); 4 things await the USER (orders untaxed, no offers, ingredients sold, Reservations ≠ tables)
 - [An Item Is Counted Or Not](shopos-an-item-is-counted-or-not.md) — FIXED 2026-10-12: first dish born stock-counted at 0; edit switch saved nothing; STANDING: a request-dependent default is "unknown", never the harmful value
 - [Develop On A Copy Stack](shopos-develop-on-a-copy-stack.md) — STANDING: while the user tests or a suite runs, change code on panel :5198 → backend :8001 and land later; how, and its traps
