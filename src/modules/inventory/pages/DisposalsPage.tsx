@@ -241,6 +241,7 @@ export default function DisposalsPage() {
  * figure would make agreeing with it the path of least resistance.
  */
 function CreditModal({ disposal, onClose }: { disposal: StockDisposal; onClose: () => void }) {
+  const money = useMoney();
   const toast = useToast();
   const credit = useCreditDisposal();
 
@@ -253,7 +254,7 @@ function CreditModal({ disposal, onClose }: { disposal: StockDisposal; onClose: 
       <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Credit received</h3>
       <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
         {disposal.product_name} · {disposal.number}
-        {disposal.credit_expected !== null && ` · Rs ${Number(disposal.credit_expected).toLocaleString()} was expected`}
+        {disposal.credit_expected !== null && ` · ${money(disposal.credit_expected)} was expected`}
       </p>
 
       <div className="mt-4 space-y-4">

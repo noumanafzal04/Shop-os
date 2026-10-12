@@ -29,6 +29,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
 import { saleParams, VOID_REASONS, type VoidReasonCode } from "../services/salesService";
+import { counted } from "../../../common/format/counted";
 import {
   DateRangeFilter,
   EMPTY_RANGE,
@@ -46,6 +47,7 @@ import { numbersToSend, saidWhich, unitsOut, whichUnits } from "../unitsBack";
 import { UnitsBack } from "../components/UnitsBack";
 import { GoingOutNumbers } from "../components/GoingOutNumbers";
 import { changed, differenceOf, linesOut, offersOf, replacementsTotal, taken, type Replacement } from "../replacements";
+import { shopDate, shopDateTime } from "../../../common/format/date";
 
 const STATUSES = [
   { value: "completed", label: "Completed" },
@@ -542,7 +544,7 @@ export default function SalesPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4">{new Date(s.sold_at).toLocaleString()}</td>
+                    <td className="whitespace-nowrap px-6 py-4 tabular-nums">{shopDateTime(s.sold_at)}</td>
                     {multiBranch && (
                       <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{s.branch?.name ?? "—"}</td>
                     )}
@@ -591,7 +593,7 @@ export default function SalesPage() {
                   </p>
                 )}
                 <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                  {new Date(detail.data.sold_at).toLocaleString()} · {detail.data.channel.replace("_", "-")} ·{" "}
+                  {shopDateTime(detail.data.sold_at)} · {detail.data.channel.replace("_", "-")} ·{" "}
                   {detail.data.payment_method.replace("_", " ")}
                 </p>
               </div>
@@ -649,7 +651,7 @@ export default function SalesPage() {
                 <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">Refunds</p>
                 {(detail.data.returns ?? []).map((r) => (
                   <div key={r.id} className="flex justify-between text-theme-sm text-gray-600 dark:text-gray-300">
-                    <span>{r.return_number} · {(r.items ?? []).reduce((s, i) => s + Number(i.quantity), 0)} item(s){r.reason ? ` · ${r.reason}` : ""}</span>
+                    <span>{r.return_number} · {counted((r.items ?? []).reduce((s, i) => s + Number(i.quantity), 0), "item")}{r.reason ? ` · ${r.reason}` : ""}</span>
                     <span className="font-medium text-error-500">-{money(r.refund_total)}</span>
                   </div>
                 ))}
@@ -667,8 +669,8 @@ export default function SalesPage() {
                       {s.product_name}
                       {/* A unit that came back has no warranty to quote: it is the shop's again. */}
                       {s.returned_at
-                        ? ` · came back ${new Date(s.returned_at).toLocaleDateString()}`
-                        : s.warranty_expires_at ? ` · warranty to ${new Date(s.warranty_expires_at).toLocaleDateString()}` : ""}
+                        ? ` · came back ${shopDate(s.returned_at)}`
+                        : s.warranty_expires_at ? ` · warranty to ${shopDate(s.warranty_expires_at)}` : ""}
                     </span>
                   </div>
                 ))}
@@ -694,7 +696,7 @@ export default function SalesPage() {
                       {p.user?.name ?? "—"}
                       {p.register?.name ? ` · ${p.register.name}` : ""}
                       {" · "}
-                      {new Date(p.printed_at).toLocaleString()}
+                      {shopDateTime(p.printed_at)}
                     </span>
                   </div>
                 ))}

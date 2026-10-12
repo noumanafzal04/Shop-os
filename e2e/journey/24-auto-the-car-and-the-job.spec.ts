@@ -284,7 +284,7 @@ test("M5 · a car is booked into the bay: the plate finds the car and its owner,
   if (job.status === "open") {
     await expect(onBoard).toContainText(`${CAR.make} ${CAR.model} · ${CAR.owner}`);
     await expect(onBoard).toContainText(COMPLAINT);
-    await expect(onBoard, "the board does not show the hour that was promised").toContainText(/Due .* 05:00/);
+    await expect(onBoard, "the board does not show the hour that was promised").toContainText(/Due .* 5:00 PM/);
   }
 });
 

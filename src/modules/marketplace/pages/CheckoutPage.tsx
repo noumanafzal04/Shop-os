@@ -7,7 +7,7 @@ import Input from "../../../components/form/input/InputField";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
-import { useCartStore } from "../../../stores/cartStore";
+import { basketCurrency, useCartStore } from "../../../stores/cartStore";
 import { usePlaceOrder } from "../../orders/hooks/useOrders";
 import { DeliveryAddressField } from "../components/DeliveryAddressField";
 import { money } from "../components/format";
@@ -66,6 +66,8 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
 
   const groups = cart.groups();
+  // The one currency the basket is in — or none, when its shops trade in different money.
+  const one = basketCurrency(groups);
 
   const [choices, setChoices] = useState<Record<string, ShopChoices>>({});
   const [failed, setFailed] = useState<Record<string, string>>({});
@@ -247,7 +249,7 @@ export default function CheckoutPage() {
                       <span className="truncate">{group.shop_name}</span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
-                      {money(group.subtotal)}
+                      {money(group.subtotal, group.currency)}
                     </span>
                   </header>
 
@@ -272,7 +274,7 @@ export default function CheckoutPage() {
                             )}
                           </span>
                           <span className="shrink-0 tabular-nums text-gray-600 dark:text-gray-300">
-                            {money(line.unit_price * line.quantity)}
+                            {money(line.unit_price * line.quantity, group.currency)}
                           </span>
                         </li>
                       ))}
@@ -301,26 +303,26 @@ export default function CheckoutPage() {
                     <div className="space-y-1 rounded-2xl bg-gray-50 px-4 py-3 text-sm dark:bg-white/5">
                       <div className="flex justify-between gap-3">
                         <span className="text-gray-500 dark:text-gray-400">Items</span>{" "}
-                        <span className="tabular-nums text-gray-900 dark:text-white">{money(group.subtotal)}</span>
+                        <span className="tabular-nums text-gray-900 dark:text-white">{money(group.subtotal, group.currency)}</span>
                       </div>
                       {how === "delivery" && (
                         <div className="flex justify-between gap-3">
                           <span className="text-gray-500 dark:text-gray-400">Delivery</span>{" "}
                           <span className="tabular-nums text-gray-900 dark:text-white">
-                            {figures.delivery > 0 ? money(figures.delivery) : "Free"}
+                            {figures.delivery > 0 ? money(figures.delivery, group.currency) : "Free"}
                           </span>
                         </div>
                       )}
                       {figures.toFreeDelivery !== null && figures.short === 0 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Add {money(figures.toFreeDelivery)} more and delivery is free.
+                          Add {money(figures.toFreeDelivery, group.currency)} more and delivery is free.
                         </p>
                       )}
                     </div>
 
                     {figures.short > 0 && minimum !== null && (
                       <p role="alert" className="rounded-2xl bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
-                        Minimum order for delivery is {money(minimum)} — add {money(figures.short)} more, or collect it.
+                        Minimum order for delivery is {money(minimum, group.currency)} — add {money(figures.short, group.currency)} more, or collect it.
                       </p>
                     )}
 
@@ -370,7 +372,7 @@ export default function CheckoutPage() {
                 {groups.map((group) => (
                   <div key={group.shop_slug} className="flex items-center justify-between gap-3">
                     <dt className="min-w-0 truncate text-gray-600 dark:text-gray-300">{group.shop_name}</dt>
-                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(figuresFor(group).total)}</dd>
+                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(figuresFor(group).total, group.currency)}</dd>
                   </div>
                 ))}
               </dl>
@@ -378,7 +380,7 @@ export default function CheckoutPage() {
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/5">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
                 <span data-testid="checkout-total" className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
-                  {money(grandTotal)}
+                  {one ? money(grandTotal, one) : <span className="text-sm font-medium text-gray-500 dark:text-gray-400" title="These shops trade in different currencies, so there is no single figure that adds them up.">per shop, above</span>}
                 </span>
               </div>
 

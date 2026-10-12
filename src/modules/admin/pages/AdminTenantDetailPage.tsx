@@ -26,8 +26,10 @@ import { useEffect } from "react";
 import type { LimitUsage, Tenant } from "../../auth/types";
 import { toIsoDate } from "../../../components/ui/filters";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { platformMoney } from "../../../common/format/currency";
+import { shopDate } from "../../../common/format/date";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+const money = (n: string | number) => platformMoney(n);
 
 /**
  * The ceilings an admin can change here. `orders_month` is never capped, so it
@@ -792,7 +794,7 @@ function CapacityCard({ tenant }: { tenant: Tenant }) {
   };
 
   const money = (v: number | null) =>
-    v === null ? "—" : `Rs ${v.toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+    v === null ? "—" : platformMoney(v);
 
   const list = rows.data ?? [];
   const billable = list
@@ -1141,7 +1143,7 @@ function BillCard({ pkg }: { pkg: TenantPackage }) {
       <dl className="space-y-2 text-theme-sm">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-gray-700 dark:text-gray-300">{bill.plan.name ?? "No plan"}</dt>
-          <dd className="tabular-nums text-gray-800 dark:text-white/90">Rs {Math.round(bill.plan.price).toLocaleString()}</dd>
+          <dd className="tabular-nums text-gray-800 dark:text-white/90">{platformMoney(Math.round(bill.plan.price))}</dd>
         </div>
         {bill.addons.map((a) => (
           <div key={a.key} className="flex items-baseline justify-between gap-3">
@@ -1153,13 +1155,13 @@ function BillCard({ pkg }: { pkg: TenantPackage }) {
               )}
             </dt>
             <dd className="whitespace-nowrap tabular-nums text-gray-800 dark:text-white/90">
-              {a.monthly > 0 ? `Rs ${Math.round(a.monthly * bill.plan.months).toLocaleString()}` : <span className="text-gray-400">Free</span>}
+              {a.monthly > 0 ? platformMoney(Math.round(a.monthly * bill.plan.months)) : <span className="text-gray-400">Free</span>}
             </dd>
           </div>
         ))}
         <div className="flex items-baseline justify-between gap-3 border-t border-gray-200 pt-2 dark:border-gray-800">
           <dt className="font-medium text-gray-800 dark:text-white/90">Due {every}</dt>
-          <dd className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">Rs {Math.round(bill.total).toLocaleString()}</dd>
+          <dd className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{platformMoney(Math.round(bill.total))}</dd>
         </div>
       </dl>
       {bill.addons.length === 0 && (
@@ -1307,7 +1309,7 @@ export default function AdminTenantDetailPage() {
           {[
             (businessTypes.data ?? []).find((b) => b.code === (t.business_type_primary ?? t.business_type))?.label ?? null,
             t.city?.name ?? null,
-            t.created_at ? `since ${new Date(t.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : null,
+            t.created_at ? `since ${shopDate(t.created_at)}` : null,
             t.origin === "converted" ? "kept from a demo" : null,
           ].filter(Boolean).join(" · ")}
         </p>
@@ -1364,6 +1366,7 @@ export default function AdminTenantDetailPage() {
               <div><dt className="text-gray-400">City</dt><dd className="text-gray-700 dark:text-gray-300">{t.city?.name ?? "—"}</dd></div>
               <div><dt className="text-gray-400">Email</dt><dd className="text-gray-700 dark:text-gray-300">{t.email ?? "—"}</dd></div>
               <div><dt className="text-gray-400">Phone</dt><dd className="text-gray-700 dark:text-gray-300">{t.phone ?? "—"}</dd></div>
+              <div><dt className="text-gray-400">Trades in</dt><dd data-testid="tenant-currency" className="text-gray-700 dark:text-gray-300">{t.currency ? `${t.currency.name} (${t.currency.code})` : "—"}</dd></div>
               <div><dt className="text-gray-400">Plan</dt><dd className="text-gray-700 dark:text-gray-300">{t.plan?.name ?? "No plan"}</dd></div>
               <div>
                 <dt className="text-gray-400">Subscription</dt>
@@ -1372,14 +1375,14 @@ export default function AdminTenantDetailPage() {
                       checking a renewal dispute needs to know what the last
                       payment bought, and "until 12/09" alone does not say. */}
                   {t.subscription_ends_at
-                    ? `${t.subscription_starts_at ? `${new Date(t.subscription_starts_at).toLocaleDateString()} → ` : "until "}${new Date(t.subscription_ends_at).toLocaleDateString()}`
+                    ? `${t.subscription_starts_at ? `${shopDate(t.subscription_starts_at)} → ` : "until "}${shopDate(t.subscription_ends_at)}`
                     : "—"}
                   {t.subscription_state === "grace" && <Badge size="sm" color="warning">grace</Badge>}
                   {t.subscription_state === "read_only" && <Badge size="sm" color="error">expired</Badge>}
                 </dd>
                 {t.subscription_state === "grace" && t.grace_ends_at && (
                   <dd className="text-theme-xs text-warning-600 dark:text-warning-400">
-                    Read-only from {new Date(t.grace_ends_at).toLocaleDateString()}
+                    Read-only from {shopDate(t.grace_ends_at)}
                   </dd>
                 )}
               </div>
@@ -1450,7 +1453,7 @@ export default function AdminTenantDetailPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {paymentRows.map((p) => (
                     <tr key={p.id} className="text-gray-700 dark:text-gray-300">
-                      <td className="py-2">{new Date(p.paid_at).toLocaleDateString()}</td>
+                      <td className="py-2 tabular-nums">{shopDate(p.paid_at)}</td>
                       <td className="py-2">{p.plan_name}</td>
                       <td className="py-2 text-theme-xs text-gray-400">{p.period_start} → {p.period_end}</td>
                       <td className="py-2 capitalize">{p.method.replace("_", " ")}</td>

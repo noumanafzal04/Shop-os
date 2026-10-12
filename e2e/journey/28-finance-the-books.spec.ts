@@ -575,10 +575,15 @@ test.describe("inside the books", () => {
       // A budget never blocks: the bill arrived either way. It is SAVED, and
       // the form stays to say the one thing worth hearing — by how much.
       const said = `${BILLBOARD.category} is now 6,500.00 over its 20,000.00 budget for ${MONTH_NAMES[TODAY.getMonth()]} ${TODAY.getFullYear()}.`;
-      await expect(form.getByText(said)).toBeVisible({ timeout: 15_000 });
-      await expect(form.getByText("Saved", { exact: true })).toBeVisible();
-      await form.getByRole("button", { name: "Done" }).click();
-      await expect(form).toBeHidden();
+      // The sheet is no longer "Add expense" once it has added one: it is
+      // named for what it now is. (This case went on looking for the old
+      // name after the sheet learned to say it had saved, and found nothing.)
+      const saved = dialogOf(page, "Expense recorded");
+      const notice = saved.getByTestId("saved-notice");
+      await expect(notice).toContainText(said, { timeout: 15_000 });
+      await expect(notice).toContainText("This expense is recorded.");
+      await saved.getByRole("button", { name: "Done" }).click();
+      await expect(saved).toBeHidden();
     }
     expect(Number((await held(request, "/expenses")).find((h) => h.description === BILLBOARD.description)?.amount)).toBe(BILLBOARD.amount);
 
@@ -883,8 +888,9 @@ test.describe("inside the books", () => {
     form = dialogOf(page, "Add expense");
     await fill(form, twice, "Paid by", "Bill / voucher no.");
     await form.getByRole("button", { name: "Save expense" }).click();
-    await expect(form.getByText("A very similar expense (same category, amount and date) already exists.")).toBeVisible({ timeout: 15_000 });
-    await form.getByRole("button", { name: "Done" }).click();
+    const again = dialogOf(page, "Expense recorded");
+    await expect(again.getByTestId("saved-notice")).toContainText("A very similar expense (same category, amount and date) already exists.", { timeout: 15_000 });
+    await again.getByRole("button", { name: "Done" }).click();
     await expect.poll(total).toBe(everything + twice.amount);
 
     // Taken off again, and asked first.

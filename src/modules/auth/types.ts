@@ -1,3 +1,5 @@
+import type { CurrencyFormat } from "../../common/format/currency";
+
 export type UserRole =
   | "super_admin"
   | "admin_staff"
@@ -80,6 +82,8 @@ export interface LimitUsage {
 export type PaymentStatus = "paid" | "grace" | "unpaid" | "no_plan" | "suspended";
 
 export interface Tenant {
+  /** The money this business trades in — its mark and how its amounts are written. */
+  currency?: CurrencyFormat;
   id: string;
   business_name: string;
   slug: string;

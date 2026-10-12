@@ -1,5 +1,6 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
 import { Outlet } from "react-router";
+import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import DemoBanner from "../modules/landing/components/DemoBanner";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
@@ -76,15 +77,21 @@ const LayoutContent: React.FC = () => {
             z-999998, on top of whatever the screen drew down there: on a tablet
             that was the "Shop street address" field. Reachable with a scroll,
             but a shop should not have to find that out by tapping a banner. */}
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) pb-[calc(1rem+var(--pinned-bottom,0px))] md:p-6 md:pb-[calc(1.5rem+var(--pinned-bottom,0px))]">
+        {/* The page itself, said to be the page. It was a plain <div>: a
+            screen reader had a menu and a header to jump between and nowhere
+            called "the content", and a test that looked for words "in main"
+            found none because there was no main to look in. */}
+        <main className="p-4 mx-auto max-w-(--breakpoint-2xl) pb-[calc(1rem+var(--pinned-bottom,0px))] md:p-6 md:pb-[calc(1.5rem+var(--pinned-bottom,0px))]">
           {/*
             Listens on EVERY shop screen, not only Orders. An order arrives
             while somebody is editing a product, and a chime that only sounds
             on the orders page is a chime for people already looking.
           */}
           <OrderAlertsListener />
-          <Outlet />
-        </div>
+          <WrittenTheShopsWay>
+            <Outlet />
+          </WrittenTheShopsWay>
+        </main>
       </div>
     </div>
   );

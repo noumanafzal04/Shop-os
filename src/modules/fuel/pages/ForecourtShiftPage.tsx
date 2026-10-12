@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useShift } from "../hooks/useFuel";
+import { shopDateTime } from "../../../common/format/date";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 })} L`;
 
@@ -34,8 +35,8 @@ export default function ForecourtShiftPage() {
         <Link to="/tenant/fuel" className="text-theme-xs text-gray-400 hover:text-gray-600">← Forecourt</Link>
         <h1 className="mt-1 text-xl font-semibold text-gray-800 dark:text-white/90">{s.number}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {new Date(s.opened_at).toLocaleString()}
-          {s.closed_at ? ` → ${new Date(s.closed_at).toLocaleString()}` : ""}
+          {shopDateTime(s.opened_at)}
+          {s.closed_at ? ` → ${shopDateTime(s.closed_at)}` : ""}
           {s.closed_by ? ` · closed by ${s.closed_by.name}` : ""}
         </p>
       </div>

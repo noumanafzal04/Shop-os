@@ -18,8 +18,9 @@ import type { Banner } from "../services/adminService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { PKR, platformMoney } from "../../../common/format/currency";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+const money = (n: string | number) => platformMoney(n);
 
 export default function AdminBannersPage() {
   const confirm = useConfirm();
@@ -318,7 +319,7 @@ export default function AdminBannersPage() {
             <div><label className="text-theme-xs text-gray-400">Ends</label><Input type="date" value={form.ends_at ?? ""} onChange={(e) => set("ends_at", e.target.value)} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-theme-xs text-gray-400">Ad fee (Rs)</label><Input type="number" min="0" value={form.amount ?? ""} onChange={(e) => set("amount", e.target.value)} /></div>
+            <div><label className="text-theme-xs text-gray-400">Ad fee ({PKR.symbol})</label><Input type="number" min="0" value={form.amount ?? ""} onChange={(e) => set("amount", e.target.value)} /></div>
             <div><label className="text-theme-xs text-gray-400">Paid on</label><Input type="date" value={form.paid_at ?? ""} onChange={(e) => set("paid_at", e.target.value)} /></div>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">

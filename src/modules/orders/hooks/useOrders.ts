@@ -7,6 +7,7 @@ import {
 import {
   ordersService,
   type CounterOrderPayload,
+  type OrderAsked,
   type OrderQueueFilters,
   type OrderStatus,
   type PlaceOrderPayload,
@@ -43,6 +44,27 @@ export function useCancelMyOrder() {
  * a noisy room gets double-tapped, and two identical orders would each hold
  * their own stock.
  */
+/**
+ * What the order on the screen will come to — the server's figure, asked
+ * again every time the order changes.
+ *
+ * Its own key, apart from everything a saved order invalidates, and never
+ * served from an old answer: the figure shown must be for THIS order, not the
+ * one before the last tap.
+ */
+export function useOrderWorth(asked: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["order-worth", asked],
+    queryFn: async () => (await ordersService.worth(JSON.parse(asked) as OrderAsked)).data,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    // A refusal is an answer, not a blip.
+    retry: false,
+  });
+}
+
 export function useTakeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -58,10 +80,11 @@ export function useTakeOrder() {
 }
 
 // owner
-export function useShopOrders(params: OrderQueueFilters) {
+export function useShopOrders(params: OrderQueueFilters, enabled = true) {
   return useQuery({
     queryKey: ["orders", "shop", params],
     queryFn: () => ordersService.shopOrders(params),
+    enabled,
     placeholderData: keepPreviousData,
     refetchInterval: 30_000, // new orders surface without manual refresh
   });

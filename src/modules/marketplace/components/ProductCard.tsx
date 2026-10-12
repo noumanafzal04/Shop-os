@@ -66,6 +66,7 @@ export function ProductCard({ product }: { product: AisleProduct }) {
   const line = {
     shop_slug: shopSlug,
     shop_name: product.shop?.business_name ?? "",
+    currency: product.shop?.currency,
     product_id: product.id,
     variant_id: size?.id ?? null,
     variant_name: size?.name ?? null,
@@ -212,11 +213,11 @@ export function ProductCard({ product }: { product: AisleProduct }) {
         <div className="mt-auto flex items-end justify-between gap-2 pt-1">
           <div className="min-w-0">
             <p className="text-base font-bold tabular-nums tracking-tight text-gray-900 dark:text-white">
-              {money(price)}
+              {money(price, product.shop?.currency)}
             </p>
             {was !== null && (
               <p className="text-xs tabular-nums text-gray-400 line-through dark:text-gray-500">
-                {money(was)}
+                {money(was, product.shop?.currency)}
               </p>
             )}
           </div>

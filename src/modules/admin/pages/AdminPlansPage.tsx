@@ -17,8 +17,9 @@ import { ListIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
 import { applyModuleChange } from "../components/moduleRules";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { PKR, platformMoney } from "../../../common/format/currency";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+const money = (n: string | number) => platformMoney(n);
 const slugify = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 const fmtLimit = (n: number | null | undefined) => (n == null ? "Unlimited" : n.toLocaleString());
@@ -506,7 +507,7 @@ export default function AdminPlansPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label>Price (Rs)</Label>
+              <Label>Price ({PKR.symbol})</Label>
               <Input type="number" min="0" value={form.price} onChange={(e) => set("price", e.target.value)} />
             </div>
             <div>

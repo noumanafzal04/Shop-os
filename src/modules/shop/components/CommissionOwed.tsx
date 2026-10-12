@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiGet } from "../../../common/api/client";
 import Badge from "../../../components/ui/badge/Badge";
+import { useMoney } from "../hooks/useShop";
 
 /**
  * WHAT THIS SHOP OWES THE MARKETPLACE.
@@ -50,7 +51,6 @@ type Owed = {
   }>;
 };
 
-const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 /**
  * Is there anything about commission to tell this business?
@@ -70,6 +70,8 @@ export function commissionIsWorthSaying(d: Pick<Owed, "applies" | "rate" | "outs
 }
 
 export function CommissionOwed() {
+  // In the shop's own money: commission is a share of what the shop took.
+  const money = useMoney();
   const owed = useQuery({
     queryKey: ["shop", "commission"],
     queryFn: async () => (await apiGet<Owed>("/commission")).data,

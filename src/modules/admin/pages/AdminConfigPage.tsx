@@ -5,6 +5,7 @@ import { useModuleCatalog, useModulePrices } from "../hooks/useAdmin";
 import { BoltIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
+import { platformMoney } from "../../../common/format/currency";
 
 /**
  * Platform Configuration — a read-only overview of the two curated registries
@@ -69,7 +70,7 @@ export default function AdminConfigPage() {
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <h4 className="font-medium text-gray-800 dark:text-white/90">{m.label}</h4>
                   {prices.data?.[m.key] ? (
-                    <Badge size="sm" color="warning">Rs {Math.round(prices.data[m.key]).toLocaleString()} / mo</Badge>
+                    <Badge size="sm" color="warning">{platformMoney(Math.round(prices.data[m.key]))} / mo</Badge>
                   ) : (
                     <Badge size="sm" color="light">free to add</Badge>
                   )}

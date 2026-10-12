@@ -2,6 +2,7 @@ import type React from "react";
 import type { FC } from "react";
 
 import { useFieldName } from "../../../common/a11y/useFieldName";
+import DateField from "../DateField";
 
 interface InputProps {
   type?: "text" | "number" | "email" | "password" | "date" | "time" | string;
@@ -102,6 +103,36 @@ const Input: FC<InputProps> = ({
     inputClasses += `  border-success-500 focus:border-success-300 focus:ring-success-500/20 dark:text-success-400 dark:border-success-500 dark:focus:border-success-800`;
   } else {
     inputClasses += ` bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white/90  dark:focus:border-brand-800`;
+  }
+
+  // A DATE is not left to the browser. Its own field shows the day the way the
+  // shop writes dates, takes what is typed, and opens a calendar — see
+  // DateField. Every screen that asks for a date asks through this component,
+  // so every one of them has it. The value is what it always was
+  // ("2026-10-12"), handed back as the change event these callers read.
+  if (type === "date") {
+    return (
+      <div className="relative">
+        <DateField
+          inputRef={nameRef}
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(day) => onChange?.({ target: { value: day }, currentTarget: { value: day } } as React.ChangeEvent<HTMLInputElement>)}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
+          id={id}
+          name={name}
+          placeholder={placeholder}
+          min={min}
+          max={max}
+          disabled={disabled}
+          autoFocus={autoFocus}
+          className={inputClasses.replace("date-field", "appearance-none")}
+        />
+        {hint && (
+          <p className={`mt-1.5 text-xs ${error ? "text-error-500" : success ? "text-success-500" : "text-gray-500"}`}>{hint}</p>
+        )}
+      </div>
+    );
   }
 
   return (

@@ -1,0 +1,1465 @@
+{
+    "default": "PKR",
+    "currencies": [
+        {
+            "code": "PKR",
+            "name": "Pakistani Rupee",
+            "symbol": "Rs",
+            "grouping": "western",
+            "decimals": "when_needed",
+            "space": true,
+            "cash": [
+                5000,
+                1000,
+                500,
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1
+            ]
+        },
+        {
+            "code": "INR",
+            "name": "Indian Rupee",
+            "symbol": "₹",
+            "grouping": "indian",
+            "decimals": "when_needed",
+            "space": false,
+            "cash": [
+                500,
+                200,
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1
+            ]
+        },
+        {
+            "code": "USD",
+            "name": "US Dollar",
+            "symbol": "$",
+            "grouping": "western",
+            "decimals": "always",
+            "space": false,
+            "cash": [
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1,
+                0.25,
+                0.1,
+                0.05,
+                0.01
+            ]
+        },
+        {
+            "code": "AED",
+            "name": "UAE Dirham",
+            "symbol": "AED",
+            "grouping": "western",
+            "decimals": "always",
+            "space": true,
+            "cash": [
+                1000,
+                500,
+                200,
+                100,
+                50,
+                20,
+                10,
+                5,
+                1,
+                0.5,
+                0.25
+            ]
+        },
+        {
+            "code": "SAR",
+            "name": "Saudi Riyal",
+            "symbol": "SAR",
+            "grouping": "western",
+            "decimals": "always",
+            "space": true,
+            "cash": [
+                500,
+                200,
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1,
+                0.5,
+                0.25,
+                0.1,
+                0.05
+            ]
+        },
+        {
+            "code": "GBP",
+            "name": "Pound Sterling",
+            "symbol": "£",
+            "grouping": "western",
+            "decimals": "always",
+            "space": false,
+            "cash": [
+                50,
+                20,
+                10,
+                5,
+                2,
+                1,
+                0.5,
+                0.2,
+                0.1,
+                0.05,
+                0.02,
+                0.01
+            ]
+        },
+        {
+            "code": "EUR",
+            "name": "Euro",
+            "symbol": "€",
+            "grouping": "western",
+            "decimals": "always",
+            "space": false,
+            "cash": [
+                200,
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1,
+                0.5,
+                0.2,
+                0.1,
+                0.05,
+                0.02,
+                0.01
+            ]
+        },
+        {
+            "code": "BDT",
+            "name": "Bangladeshi Taka",
+            "symbol": "৳",
+            "grouping": "indian",
+            "decimals": "when_needed",
+            "space": false,
+            "cash": [
+                1000,
+                500,
+                200,
+                100,
+                50,
+                20,
+                10,
+                5,
+                2,
+                1
+            ]
+        }
+    ],
+    "cases": [
+        {
+            "code": "PKR",
+            "amount": 0,
+            "screen": "Rs 0",
+            "paper": "Rs 0.00",
+            "number": "0"
+        },
+        {
+            "code": "PKR",
+            "amount": 1,
+            "screen": "Rs 1",
+            "paper": "Rs 1.00",
+            "number": "1"
+        },
+        {
+            "code": "PKR",
+            "amount": 12.3,
+            "screen": "Rs 12.30",
+            "paper": "Rs 12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "PKR",
+            "amount": 99.99,
+            "screen": "Rs 99.99",
+            "paper": "Rs 99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "PKR",
+            "amount": 999.5,
+            "screen": "Rs 999.50",
+            "paper": "Rs 999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "PKR",
+            "amount": 1000,
+            "screen": "Rs 1,000",
+            "paper": "Rs 1,000.00",
+            "number": "1,000"
+        },
+        {
+            "code": "PKR",
+            "amount": 4000,
+            "screen": "Rs 4,000",
+            "paper": "Rs 4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "PKR",
+            "amount": 4000.0000001,
+            "screen": "Rs 4,000",
+            "paper": "Rs 4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "PKR",
+            "amount": 12345,
+            "screen": "Rs 12,345",
+            "paper": "Rs 12,345.00",
+            "number": "12,345"
+        },
+        {
+            "code": "PKR",
+            "amount": 100000,
+            "screen": "Rs 100,000",
+            "paper": "Rs 100,000.00",
+            "number": "100,000"
+        },
+        {
+            "code": "PKR",
+            "amount": 123456,
+            "screen": "Rs 123,456",
+            "paper": "Rs 123,456.00",
+            "number": "123,456"
+        },
+        {
+            "code": "PKR",
+            "amount": 1234567,
+            "screen": "Rs 1,234,567",
+            "paper": "Rs 1,234,567.00",
+            "number": "1,234,567"
+        },
+        {
+            "code": "PKR",
+            "amount": 1234567.5,
+            "screen": "Rs 1,234,567.50",
+            "paper": "Rs 1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "PKR",
+            "amount": 2350196.5,
+            "screen": "Rs 2,350,196.50",
+            "paper": "Rs 2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "PKR",
+            "amount": 12345678901.25,
+            "screen": "Rs 12,345,678,901.25",
+            "paper": "Rs 12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "PKR",
+            "amount": -5,
+            "screen": "Rs -5",
+            "paper": "Rs -5.00",
+            "number": "-5"
+        },
+        {
+            "code": "PKR",
+            "amount": -500,
+            "screen": "Rs -500",
+            "paper": "Rs -500.00",
+            "number": "-500"
+        },
+        {
+            "code": "PKR",
+            "amount": -1500.75,
+            "screen": "Rs -1,500.75",
+            "paper": "Rs -1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "PKR",
+            "amount": 0.004,
+            "screen": "Rs 0",
+            "paper": "Rs 0.00",
+            "number": "0"
+        },
+        {
+            "code": "PKR",
+            "amount": 0.006,
+            "screen": "Rs 0.01",
+            "paper": "Rs 0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "PKR",
+            "amount": 0.5,
+            "screen": "Rs 0.50",
+            "paper": "Rs 0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "PKR",
+            "amount": 682.5,
+            "screen": "Rs 682.50",
+            "paper": "Rs 682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "PKR",
+            "amount": 1438.5,
+            "screen": "Rs 1,438.50",
+            "paper": "Rs 1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "INR",
+            "amount": 0,
+            "screen": "₹0",
+            "paper": "₹0.00",
+            "number": "0"
+        },
+        {
+            "code": "INR",
+            "amount": 1,
+            "screen": "₹1",
+            "paper": "₹1.00",
+            "number": "1"
+        },
+        {
+            "code": "INR",
+            "amount": 12.3,
+            "screen": "₹12.30",
+            "paper": "₹12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "INR",
+            "amount": 99.99,
+            "screen": "₹99.99",
+            "paper": "₹99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "INR",
+            "amount": 999.5,
+            "screen": "₹999.50",
+            "paper": "₹999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "INR",
+            "amount": 1000,
+            "screen": "₹1,000",
+            "paper": "₹1,000.00",
+            "number": "1,000"
+        },
+        {
+            "code": "INR",
+            "amount": 4000,
+            "screen": "₹4,000",
+            "paper": "₹4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "INR",
+            "amount": 4000.0000001,
+            "screen": "₹4,000",
+            "paper": "₹4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "INR",
+            "amount": 12345,
+            "screen": "₹12,345",
+            "paper": "₹12,345.00",
+            "number": "12,345"
+        },
+        {
+            "code": "INR",
+            "amount": 100000,
+            "screen": "₹1,00,000",
+            "paper": "₹1,00,000.00",
+            "number": "1,00,000"
+        },
+        {
+            "code": "INR",
+            "amount": 123456,
+            "screen": "₹1,23,456",
+            "paper": "₹1,23,456.00",
+            "number": "1,23,456"
+        },
+        {
+            "code": "INR",
+            "amount": 1234567,
+            "screen": "₹12,34,567",
+            "paper": "₹12,34,567.00",
+            "number": "12,34,567"
+        },
+        {
+            "code": "INR",
+            "amount": 1234567.5,
+            "screen": "₹12,34,567.50",
+            "paper": "₹12,34,567.50",
+            "number": "12,34,567.50"
+        },
+        {
+            "code": "INR",
+            "amount": 2350196.5,
+            "screen": "₹23,50,196.50",
+            "paper": "₹23,50,196.50",
+            "number": "23,50,196.50"
+        },
+        {
+            "code": "INR",
+            "amount": 12345678901.25,
+            "screen": "₹12,34,56,78,901.25",
+            "paper": "₹12,34,56,78,901.25",
+            "number": "12,34,56,78,901.25"
+        },
+        {
+            "code": "INR",
+            "amount": -5,
+            "screen": "-₹5",
+            "paper": "-₹5.00",
+            "number": "-5"
+        },
+        {
+            "code": "INR",
+            "amount": -500,
+            "screen": "-₹500",
+            "paper": "-₹500.00",
+            "number": "-500"
+        },
+        {
+            "code": "INR",
+            "amount": -1500.75,
+            "screen": "-₹1,500.75",
+            "paper": "-₹1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "INR",
+            "amount": 0.004,
+            "screen": "₹0",
+            "paper": "₹0.00",
+            "number": "0"
+        },
+        {
+            "code": "INR",
+            "amount": 0.006,
+            "screen": "₹0.01",
+            "paper": "₹0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "INR",
+            "amount": 0.5,
+            "screen": "₹0.50",
+            "paper": "₹0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "INR",
+            "amount": 682.5,
+            "screen": "₹682.50",
+            "paper": "₹682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "INR",
+            "amount": 1438.5,
+            "screen": "₹1,438.50",
+            "paper": "₹1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "USD",
+            "amount": 0,
+            "screen": "$0.00",
+            "paper": "$0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "USD",
+            "amount": 1,
+            "screen": "$1.00",
+            "paper": "$1.00",
+            "number": "1.00"
+        },
+        {
+            "code": "USD",
+            "amount": 12.3,
+            "screen": "$12.30",
+            "paper": "$12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "USD",
+            "amount": 99.99,
+            "screen": "$99.99",
+            "paper": "$99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "USD",
+            "amount": 999.5,
+            "screen": "$999.50",
+            "paper": "$999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "USD",
+            "amount": 1000,
+            "screen": "$1,000.00",
+            "paper": "$1,000.00",
+            "number": "1,000.00"
+        },
+        {
+            "code": "USD",
+            "amount": 4000,
+            "screen": "$4,000.00",
+            "paper": "$4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "USD",
+            "amount": 4000.0000001,
+            "screen": "$4,000.00",
+            "paper": "$4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "USD",
+            "amount": 12345,
+            "screen": "$12,345.00",
+            "paper": "$12,345.00",
+            "number": "12,345.00"
+        },
+        {
+            "code": "USD",
+            "amount": 100000,
+            "screen": "$100,000.00",
+            "paper": "$100,000.00",
+            "number": "100,000.00"
+        },
+        {
+            "code": "USD",
+            "amount": 123456,
+            "screen": "$123,456.00",
+            "paper": "$123,456.00",
+            "number": "123,456.00"
+        },
+        {
+            "code": "USD",
+            "amount": 1234567,
+            "screen": "$1,234,567.00",
+            "paper": "$1,234,567.00",
+            "number": "1,234,567.00"
+        },
+        {
+            "code": "USD",
+            "amount": 1234567.5,
+            "screen": "$1,234,567.50",
+            "paper": "$1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "USD",
+            "amount": 2350196.5,
+            "screen": "$2,350,196.50",
+            "paper": "$2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "USD",
+            "amount": 12345678901.25,
+            "screen": "$12,345,678,901.25",
+            "paper": "$12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "USD",
+            "amount": -5,
+            "screen": "-$5.00",
+            "paper": "-$5.00",
+            "number": "-5.00"
+        },
+        {
+            "code": "USD",
+            "amount": -500,
+            "screen": "-$500.00",
+            "paper": "-$500.00",
+            "number": "-500.00"
+        },
+        {
+            "code": "USD",
+            "amount": -1500.75,
+            "screen": "-$1,500.75",
+            "paper": "-$1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "USD",
+            "amount": 0.004,
+            "screen": "$0.00",
+            "paper": "$0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "USD",
+            "amount": 0.006,
+            "screen": "$0.01",
+            "paper": "$0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "USD",
+            "amount": 0.5,
+            "screen": "$0.50",
+            "paper": "$0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "USD",
+            "amount": 682.5,
+            "screen": "$682.50",
+            "paper": "$682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "USD",
+            "amount": 1438.5,
+            "screen": "$1,438.50",
+            "paper": "$1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "AED",
+            "amount": 0,
+            "screen": "AED 0.00",
+            "paper": "AED 0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "AED",
+            "amount": 1,
+            "screen": "AED 1.00",
+            "paper": "AED 1.00",
+            "number": "1.00"
+        },
+        {
+            "code": "AED",
+            "amount": 12.3,
+            "screen": "AED 12.30",
+            "paper": "AED 12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "AED",
+            "amount": 99.99,
+            "screen": "AED 99.99",
+            "paper": "AED 99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "AED",
+            "amount": 999.5,
+            "screen": "AED 999.50",
+            "paper": "AED 999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "AED",
+            "amount": 1000,
+            "screen": "AED 1,000.00",
+            "paper": "AED 1,000.00",
+            "number": "1,000.00"
+        },
+        {
+            "code": "AED",
+            "amount": 4000,
+            "screen": "AED 4,000.00",
+            "paper": "AED 4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "AED",
+            "amount": 4000.0000001,
+            "screen": "AED 4,000.00",
+            "paper": "AED 4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "AED",
+            "amount": 12345,
+            "screen": "AED 12,345.00",
+            "paper": "AED 12,345.00",
+            "number": "12,345.00"
+        },
+        {
+            "code": "AED",
+            "amount": 100000,
+            "screen": "AED 100,000.00",
+            "paper": "AED 100,000.00",
+            "number": "100,000.00"
+        },
+        {
+            "code": "AED",
+            "amount": 123456,
+            "screen": "AED 123,456.00",
+            "paper": "AED 123,456.00",
+            "number": "123,456.00"
+        },
+        {
+            "code": "AED",
+            "amount": 1234567,
+            "screen": "AED 1,234,567.00",
+            "paper": "AED 1,234,567.00",
+            "number": "1,234,567.00"
+        },
+        {
+            "code": "AED",
+            "amount": 1234567.5,
+            "screen": "AED 1,234,567.50",
+            "paper": "AED 1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "AED",
+            "amount": 2350196.5,
+            "screen": "AED 2,350,196.50",
+            "paper": "AED 2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "AED",
+            "amount": 12345678901.25,
+            "screen": "AED 12,345,678,901.25",
+            "paper": "AED 12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "AED",
+            "amount": -5,
+            "screen": "AED -5.00",
+            "paper": "AED -5.00",
+            "number": "-5.00"
+        },
+        {
+            "code": "AED",
+            "amount": -500,
+            "screen": "AED -500.00",
+            "paper": "AED -500.00",
+            "number": "-500.00"
+        },
+        {
+            "code": "AED",
+            "amount": -1500.75,
+            "screen": "AED -1,500.75",
+            "paper": "AED -1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "AED",
+            "amount": 0.004,
+            "screen": "AED 0.00",
+            "paper": "AED 0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "AED",
+            "amount": 0.006,
+            "screen": "AED 0.01",
+            "paper": "AED 0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "AED",
+            "amount": 0.5,
+            "screen": "AED 0.50",
+            "paper": "AED 0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "AED",
+            "amount": 682.5,
+            "screen": "AED 682.50",
+            "paper": "AED 682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "AED",
+            "amount": 1438.5,
+            "screen": "AED 1,438.50",
+            "paper": "AED 1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 0,
+            "screen": "SAR 0.00",
+            "paper": "SAR 0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 1,
+            "screen": "SAR 1.00",
+            "paper": "SAR 1.00",
+            "number": "1.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 12.3,
+            "screen": "SAR 12.30",
+            "paper": "SAR 12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "SAR",
+            "amount": 99.99,
+            "screen": "SAR 99.99",
+            "paper": "SAR 99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "SAR",
+            "amount": 999.5,
+            "screen": "SAR 999.50",
+            "paper": "SAR 999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 1000,
+            "screen": "SAR 1,000.00",
+            "paper": "SAR 1,000.00",
+            "number": "1,000.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 4000,
+            "screen": "SAR 4,000.00",
+            "paper": "SAR 4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 4000.0000001,
+            "screen": "SAR 4,000.00",
+            "paper": "SAR 4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 12345,
+            "screen": "SAR 12,345.00",
+            "paper": "SAR 12,345.00",
+            "number": "12,345.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 100000,
+            "screen": "SAR 100,000.00",
+            "paper": "SAR 100,000.00",
+            "number": "100,000.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 123456,
+            "screen": "SAR 123,456.00",
+            "paper": "SAR 123,456.00",
+            "number": "123,456.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 1234567,
+            "screen": "SAR 1,234,567.00",
+            "paper": "SAR 1,234,567.00",
+            "number": "1,234,567.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 1234567.5,
+            "screen": "SAR 1,234,567.50",
+            "paper": "SAR 1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 2350196.5,
+            "screen": "SAR 2,350,196.50",
+            "paper": "SAR 2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 12345678901.25,
+            "screen": "SAR 12,345,678,901.25",
+            "paper": "SAR 12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "SAR",
+            "amount": -5,
+            "screen": "SAR -5.00",
+            "paper": "SAR -5.00",
+            "number": "-5.00"
+        },
+        {
+            "code": "SAR",
+            "amount": -500,
+            "screen": "SAR -500.00",
+            "paper": "SAR -500.00",
+            "number": "-500.00"
+        },
+        {
+            "code": "SAR",
+            "amount": -1500.75,
+            "screen": "SAR -1,500.75",
+            "paper": "SAR -1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "SAR",
+            "amount": 0.004,
+            "screen": "SAR 0.00",
+            "paper": "SAR 0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "SAR",
+            "amount": 0.006,
+            "screen": "SAR 0.01",
+            "paper": "SAR 0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "SAR",
+            "amount": 0.5,
+            "screen": "SAR 0.50",
+            "paper": "SAR 0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 682.5,
+            "screen": "SAR 682.50",
+            "paper": "SAR 682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "SAR",
+            "amount": 1438.5,
+            "screen": "SAR 1,438.50",
+            "paper": "SAR 1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 0,
+            "screen": "£0.00",
+            "paper": "£0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 1,
+            "screen": "£1.00",
+            "paper": "£1.00",
+            "number": "1.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 12.3,
+            "screen": "£12.30",
+            "paper": "£12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "GBP",
+            "amount": 99.99,
+            "screen": "£99.99",
+            "paper": "£99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "GBP",
+            "amount": 999.5,
+            "screen": "£999.50",
+            "paper": "£999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 1000,
+            "screen": "£1,000.00",
+            "paper": "£1,000.00",
+            "number": "1,000.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 4000,
+            "screen": "£4,000.00",
+            "paper": "£4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 4000.0000001,
+            "screen": "£4,000.00",
+            "paper": "£4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 12345,
+            "screen": "£12,345.00",
+            "paper": "£12,345.00",
+            "number": "12,345.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 100000,
+            "screen": "£100,000.00",
+            "paper": "£100,000.00",
+            "number": "100,000.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 123456,
+            "screen": "£123,456.00",
+            "paper": "£123,456.00",
+            "number": "123,456.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 1234567,
+            "screen": "£1,234,567.00",
+            "paper": "£1,234,567.00",
+            "number": "1,234,567.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 1234567.5,
+            "screen": "£1,234,567.50",
+            "paper": "£1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 2350196.5,
+            "screen": "£2,350,196.50",
+            "paper": "£2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 12345678901.25,
+            "screen": "£12,345,678,901.25",
+            "paper": "£12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "GBP",
+            "amount": -5,
+            "screen": "-£5.00",
+            "paper": "-£5.00",
+            "number": "-5.00"
+        },
+        {
+            "code": "GBP",
+            "amount": -500,
+            "screen": "-£500.00",
+            "paper": "-£500.00",
+            "number": "-500.00"
+        },
+        {
+            "code": "GBP",
+            "amount": -1500.75,
+            "screen": "-£1,500.75",
+            "paper": "-£1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "GBP",
+            "amount": 0.004,
+            "screen": "£0.00",
+            "paper": "£0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "GBP",
+            "amount": 0.006,
+            "screen": "£0.01",
+            "paper": "£0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "GBP",
+            "amount": 0.5,
+            "screen": "£0.50",
+            "paper": "£0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 682.5,
+            "screen": "£682.50",
+            "paper": "£682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "GBP",
+            "amount": 1438.5,
+            "screen": "£1,438.50",
+            "paper": "£1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 0,
+            "screen": "€0.00",
+            "paper": "€0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 1,
+            "screen": "€1.00",
+            "paper": "€1.00",
+            "number": "1.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 12.3,
+            "screen": "€12.30",
+            "paper": "€12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "EUR",
+            "amount": 99.99,
+            "screen": "€99.99",
+            "paper": "€99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "EUR",
+            "amount": 999.5,
+            "screen": "€999.50",
+            "paper": "€999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 1000,
+            "screen": "€1,000.00",
+            "paper": "€1,000.00",
+            "number": "1,000.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 4000,
+            "screen": "€4,000.00",
+            "paper": "€4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 4000.0000001,
+            "screen": "€4,000.00",
+            "paper": "€4,000.00",
+            "number": "4,000.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 12345,
+            "screen": "€12,345.00",
+            "paper": "€12,345.00",
+            "number": "12,345.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 100000,
+            "screen": "€100,000.00",
+            "paper": "€100,000.00",
+            "number": "100,000.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 123456,
+            "screen": "€123,456.00",
+            "paper": "€123,456.00",
+            "number": "123,456.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 1234567,
+            "screen": "€1,234,567.00",
+            "paper": "€1,234,567.00",
+            "number": "1,234,567.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 1234567.5,
+            "screen": "€1,234,567.50",
+            "paper": "€1,234,567.50",
+            "number": "1,234,567.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 2350196.5,
+            "screen": "€2,350,196.50",
+            "paper": "€2,350,196.50",
+            "number": "2,350,196.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 12345678901.25,
+            "screen": "€12,345,678,901.25",
+            "paper": "€12,345,678,901.25",
+            "number": "12,345,678,901.25"
+        },
+        {
+            "code": "EUR",
+            "amount": -5,
+            "screen": "-€5.00",
+            "paper": "-€5.00",
+            "number": "-5.00"
+        },
+        {
+            "code": "EUR",
+            "amount": -500,
+            "screen": "-€500.00",
+            "paper": "-€500.00",
+            "number": "-500.00"
+        },
+        {
+            "code": "EUR",
+            "amount": -1500.75,
+            "screen": "-€1,500.75",
+            "paper": "-€1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "EUR",
+            "amount": 0.004,
+            "screen": "€0.00",
+            "paper": "€0.00",
+            "number": "0.00"
+        },
+        {
+            "code": "EUR",
+            "amount": 0.006,
+            "screen": "€0.01",
+            "paper": "€0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "EUR",
+            "amount": 0.5,
+            "screen": "€0.50",
+            "paper": "€0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 682.5,
+            "screen": "€682.50",
+            "paper": "€682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "EUR",
+            "amount": 1438.5,
+            "screen": "€1,438.50",
+            "paper": "€1,438.50",
+            "number": "1,438.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 0,
+            "screen": "৳0",
+            "paper": "৳0.00",
+            "number": "0"
+        },
+        {
+            "code": "BDT",
+            "amount": 1,
+            "screen": "৳1",
+            "paper": "৳1.00",
+            "number": "1"
+        },
+        {
+            "code": "BDT",
+            "amount": 12.3,
+            "screen": "৳12.30",
+            "paper": "৳12.30",
+            "number": "12.30"
+        },
+        {
+            "code": "BDT",
+            "amount": 99.99,
+            "screen": "৳99.99",
+            "paper": "৳99.99",
+            "number": "99.99"
+        },
+        {
+            "code": "BDT",
+            "amount": 999.5,
+            "screen": "৳999.50",
+            "paper": "৳999.50",
+            "number": "999.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 1000,
+            "screen": "৳1,000",
+            "paper": "৳1,000.00",
+            "number": "1,000"
+        },
+        {
+            "code": "BDT",
+            "amount": 4000,
+            "screen": "৳4,000",
+            "paper": "৳4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "BDT",
+            "amount": 4000.0000001,
+            "screen": "৳4,000",
+            "paper": "৳4,000.00",
+            "number": "4,000"
+        },
+        {
+            "code": "BDT",
+            "amount": 12345,
+            "screen": "৳12,345",
+            "paper": "৳12,345.00",
+            "number": "12,345"
+        },
+        {
+            "code": "BDT",
+            "amount": 100000,
+            "screen": "৳1,00,000",
+            "paper": "৳1,00,000.00",
+            "number": "1,00,000"
+        },
+        {
+            "code": "BDT",
+            "amount": 123456,
+            "screen": "৳1,23,456",
+            "paper": "৳1,23,456.00",
+            "number": "1,23,456"
+        },
+        {
+            "code": "BDT",
+            "amount": 1234567,
+            "screen": "৳12,34,567",
+            "paper": "৳12,34,567.00",
+            "number": "12,34,567"
+        },
+        {
+            "code": "BDT",
+            "amount": 1234567.5,
+            "screen": "৳12,34,567.50",
+            "paper": "৳12,34,567.50",
+            "number": "12,34,567.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 2350196.5,
+            "screen": "৳23,50,196.50",
+            "paper": "৳23,50,196.50",
+            "number": "23,50,196.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 12345678901.25,
+            "screen": "৳12,34,56,78,901.25",
+            "paper": "৳12,34,56,78,901.25",
+            "number": "12,34,56,78,901.25"
+        },
+        {
+            "code": "BDT",
+            "amount": -5,
+            "screen": "-৳5",
+            "paper": "-৳5.00",
+            "number": "-5"
+        },
+        {
+            "code": "BDT",
+            "amount": -500,
+            "screen": "-৳500",
+            "paper": "-৳500.00",
+            "number": "-500"
+        },
+        {
+            "code": "BDT",
+            "amount": -1500.75,
+            "screen": "-৳1,500.75",
+            "paper": "-৳1,500.75",
+            "number": "-1,500.75"
+        },
+        {
+            "code": "BDT",
+            "amount": 0.004,
+            "screen": "৳0",
+            "paper": "৳0.00",
+            "number": "0"
+        },
+        {
+            "code": "BDT",
+            "amount": 0.006,
+            "screen": "৳0.01",
+            "paper": "৳0.01",
+            "number": "0.01"
+        },
+        {
+            "code": "BDT",
+            "amount": 0.5,
+            "screen": "৳0.50",
+            "paper": "৳0.50",
+            "number": "0.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 682.5,
+            "screen": "৳682.50",
+            "paper": "৳682.50",
+            "number": "682.50"
+        },
+        {
+            "code": "BDT",
+            "amount": 1438.5,
+            "screen": "৳1,438.50",
+            "paper": "৳1,438.50",
+            "number": "1,438.50"
+        }
+    ]
+}

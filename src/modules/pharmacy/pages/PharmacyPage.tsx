@@ -11,6 +11,7 @@ import type { DispensingRow } from "../services/pharmacyService";
 import { toIsoDate } from "../../../components/ui/filters";
 import { shopTodayDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate, shopDateTime } from "../../../common/format/date";
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -138,7 +139,7 @@ function RegisterRow({ row }: { row: DispensingRow }) {
   return (
     <tr className="border-b border-gray-100 last:border-0 dark:border-gray-800">
       <td className="whitespace-nowrap px-5 py-3 text-gray-500 dark:text-gray-400">
-        {row.dispensed_at ? new Date(row.dispensed_at).toLocaleString() : "—"}
+        {row.dispensed_at ? shopDateTime(row.dispensed_at) : "—"}
       </td>
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
@@ -259,7 +260,7 @@ function RecallTab() {
                     {data.dispensed.map((s) => (
                       <tr key={s.sale_id} className="border-b border-gray-100 last:border-0 dark:border-gray-800">
                         <td className="whitespace-nowrap px-5 py-3 text-gray-500 dark:text-gray-400">
-                          {s.sold_at ? new Date(s.sold_at).toLocaleDateString() : "—"}
+                          {s.sold_at ? shopDate(s.sold_at) : "—"}
                         </td>
                         <td className="px-3 py-3 text-gray-800 dark:text-white/90">{s.customer_name ?? "Walk-in"}</td>
                         <td className="px-3 py-3">

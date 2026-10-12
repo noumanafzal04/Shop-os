@@ -1,4 +1,5 @@
 import { api, apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
+import type { SettleAsk, SettleWorth } from "../settleSheet";
 import { printHtmlDocument } from "../../../common/print";
 
 export interface DiningTable {
@@ -281,6 +282,13 @@ export const dineInService = {
    */
   waiterReport: (params: { from?: string; to?: string } = {}) =>
     apiGet<WaiterReport>("/restaurant/reports/waiters", { params }),
+
+  /**
+   * What settling this much of the tab will ask for — the sale path's own
+   * figures, with nothing written. The settle sheet shows these and no others.
+   */
+  settleWorth: (id: string, ask: SettleAsk) =>
+    apiPost<SettleWorth>(`/restaurant/tickets/${id}/settle/worth`, ask),
 
   settle: (id: string, payload: SettlePayload) =>
     apiPost<{ ticket: Ticket; sale: { id: string; invoice_number: string; total: string } }>(

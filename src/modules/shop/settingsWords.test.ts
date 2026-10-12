@@ -18,6 +18,13 @@ describe("what the Business tab of Settings says", () => {
     expect(office.logoTitle).toBe("Logo");
   });
 
+  it("is told its money and its dates in its own terms — the two cards that came to this tab later", () => {
+    expect(office.currency).toBe("The money your books and reports are written in.");
+    expect(office.dates).toBe("How a date is written on every screen and in every report.");
+    expect(shop.currency).toMatch(/prices, receipts and reports/);
+    expect(shop.dates).toMatch(/receipts, invoices and reports/);
+  });
+
   it("…and is not offered an online shop it has nothing to list on", () => {
     expect(office.offersOnlineShop).toBe(false);
   });

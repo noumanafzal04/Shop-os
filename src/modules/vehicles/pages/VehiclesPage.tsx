@@ -14,6 +14,7 @@ import { useMoney } from "../../shop/hooks/useShop";
 import { useVehicleHistory, useVehicleMutations, useVehicles } from "../hooks/useVehicles";
 import type { Vehicle } from "../services/vehiclesService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 const blank = {
   registration: "", make: "", model: "", year: "", colour: "",
@@ -311,7 +312,7 @@ export default function VehiclesPage() {
               <div key={visit.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                 <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                   <span className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                    {new Date(visit.sold_at).toLocaleDateString()}
+                    {shopDate(visit.sold_at)}
                     <span className="ml-2 font-mono text-theme-xs text-gray-400">{visit.invoice_number}</span>
                     {visit.status === "cancelled" && <Badge size="sm" color="light">voided</Badge>}
                   </span>

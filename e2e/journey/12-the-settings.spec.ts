@@ -612,7 +612,7 @@ test("G4 · Till PIN: taken away again, and the list says so", async ({ page }) 
 
 const TERMS = "QA terms: prices firm for one week. Fitting not included.";
 
-/** A date N days from today, the way the quotation prints it: 13 Oct 2026. */
+/** A date N days from today, the way the quotation prints it: 13 Oct 2026 — and 5 Oct 2026, never 05. */
 const inDays = (n: number): { iso: string; printed: string } => {
   const d = new Date();
   d.setDate(d.getDate() + n);
@@ -620,7 +620,7 @@ const inDays = (n: number): { iso: string; printed: string } => {
 
   return {
     iso: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
-    printed: `${pad(d.getDate())} ${d.toLocaleString("en-GB", { month: "short" })} ${d.getFullYear()}`,
+    printed: `${d.getDate()} ${d.toLocaleString("en-GB", { month: "short" })} ${d.getFullYear()}`,
   };
 };
 

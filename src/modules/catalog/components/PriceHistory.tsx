@@ -4,6 +4,8 @@ import { Link } from "react-router";
 import { apiGet } from "../../../common/api/client";
 import { canVisit } from "../../../common/routing/screenPermissions";
 import { useAuthStore } from "../../../stores/authStore";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * WHAT THIS ITEM USED TO COST, AND WHO MOVED IT.
@@ -42,8 +44,6 @@ interface Row {
   created_at: string;
 }
 
-const money = (v: unknown) =>
-  v === null || v === undefined || v === "" ? "—" : `Rs ${Number(v).toLocaleString()}`;
 
 const WHICH: Record<string, string> = {
   price: "Price",
@@ -52,6 +52,9 @@ const WHICH: Record<string, string> = {
 };
 
 export function PriceHistory({ productId }: { productId: string }) {
+  const shopMoney = useMoney();
+  // A price that was never set is a dash, not nothing of the shop's money.
+  const money = (v: unknown) => (v === null || v === undefined || v === "" ? "—" : shopMoney(Number(v)));
   const role = useAuthStore((s) => s.user?.role);
   const permissions = useAuthStore((s) => s.user?.permissions);
   const mayRead = canVisit(
@@ -109,7 +112,7 @@ export function PriceHistory({ productId }: { productId: string }) {
                     {money(r.new_values?.[k])}
                   </span>
                   <span className="text-gray-400">
-                    · {r.actor?.name ?? "somebody"} · {new Date(r.created_at).toLocaleDateString()}
+                    · {r.actor?.name ?? "somebody"} · {shopDate(r.created_at)}
                   </span>
                 </div>
               ))}

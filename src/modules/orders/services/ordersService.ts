@@ -1,4 +1,6 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
+import type { SentToTheKitchen } from "../kitchenSlip";
+import type { CurrencyFormat } from "../../../common/format/currency";
 
 export type OrderStatus =
   | "pending" | "confirmed" | "preparing" | "ready"
@@ -15,7 +17,8 @@ export interface OrderItem {
 export interface CustomerOrder {
   id: string;
   order_number: string;
-  shop?: { slug: string | null; business_name: string | null };
+  /** The shop it was placed with — and the money its figures are in. */
+  shop?: { slug: string | null; business_name: string | null; currency?: CurrencyFormat };
   status: OrderStatus;
   fulfillment_type: "delivery" | "pickup";
   payment_method: string;
@@ -75,9 +78,29 @@ export interface CounterOrderPayload {
   fulfillment_type: "delivery" | "pickup";
   delivery_address?: string;
   payment_method?: "cod" | "paid";
-  items?: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
+  items?: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
   notes?: string;
+  coupon_code?: string;
+  /** The kitchen starts on it now: accepted and being prepared in the breath it is taken. */
+  send_to_kitchen?: boolean;
   idempotency_key?: string;
+}
+
+/**
+ * What an order would come to, asked of the path that places it. The name and
+ * the address are not needed to say a price, so the question does not wait
+ * for them.
+ */
+export type OrderAsked = Pick<CounterOrderPayload, "channel" | "fulfillment_type" | "items" | "coupon_code">;
+
+/** The server's own figures for an order that has not been placed. */
+export interface OrderWorth {
+  subtotal: number;
+  discount: number;
+  coupon_code: string | null;
+  delivery_fee: number;
+  total: number;
+  lines: Array<{ product_id: string; variant_id: string | null; quantity: number; unit_price: number; line_total: number }>;
 }
 
 export interface Rider {
@@ -160,6 +183,11 @@ export interface OwnerOrder {
    */
   branch_id: string | null;
   branch?: { id: string; name: string } | null;
+  /**
+   * The kitchen ticket the step that answered with this order SENT — on taking
+   * it, or on moving it on. Null when that step sent nothing. For the slip.
+   */
+  kitchen_ticket?: SentToTheKitchen | null;
 }
 
 /**
@@ -181,6 +209,17 @@ export interface OrderQueueFilters {
   from?: string | null;
   to?: string | null;
   page?: number;
+  /** Only the orders still being worked — not completed, not cancelled. */
+  open_only?: boolean;
+  /** Only the finished ones — completed or cancelled. */
+  closed_only?: boolean;
+  /**
+   * Placed today, or before today — by the SHOP'S day, which the server cuts.
+   * This screen never works out where a day ends: a restaurant's runs past
+   * midnight.
+   */
+  when?: "today" | "past";
+  per_page?: number;
 }
 
 /** How many orders sit at each stage. Every stage is present, including the
@@ -208,10 +247,17 @@ export const ordersService = {
         unassigned: params.unassigned ? true : undefined,
         from: params.from || undefined,
         to: params.to || undefined,
+        // The board asks for what is still being worked, all of it at once.
+        open_only: params.open_only ? true : undefined,
+        closed_only: params.closed_only ? true : undefined,
+        when: params.when,
+        per_page: params.per_page,
         page: params.page ?? 1,
       },
     }),
   takeOrder: (payload: CounterOrderPayload) => apiPost<OwnerOrder>("/orders", payload),
+  /** What it will come to. Nothing is written — see OrderService::worth. */
+  worth: (asked: OrderAsked) => apiPost<OrderWorth>("/orders/worth", asked),
   advance: (id: string, status: OrderStatus) => apiPost<OwnerOrder>(`/orders/${id}/advance`, { status }),
   cancel: (id: string, reason?: string) => apiPost<OwnerOrder>(`/orders/${id}/cancel`, { reason }),
   assignRider: (id: string, riderId: string | null) =>

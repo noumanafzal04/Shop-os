@@ -310,7 +310,6 @@ export default function ReportsPage() {
   );
 }
 
-const fmt = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -322,6 +321,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function PurchasesTab({ range }: { range: ReportRange }) {
+  const fmt = useMoney();
   const q = usePurchasesReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
@@ -367,6 +367,8 @@ function PurchasesTab({ range }: { range: ReportRange }) {
  * the question somebody opened this tab to ask.
  */
 function StaffRows({ rows }: { rows: Array<{ staff_id: string; name: string; sales_count: number; revenue: number }> }) {
+  const fmt = useMoney();
+
   return (
     <table className="w-full text-left text-theme-sm">
       <thead><tr className="text-theme-xs text-gray-500 dark:text-gray-400"><th className="pb-2 font-medium">Staff</th><th className="pb-2 text-right font-medium">Sales</th><th className="pb-2 text-right font-medium">Revenue</th></tr></thead>
@@ -383,6 +385,7 @@ function StaffRows({ rows }: { rows: Array<{ staff_id: string; name: string; sal
 }
 
 function StaffTab({ range }: { range: ReportRange }) {
+  const fmt = useMoney();
   const q = useStaffReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
@@ -424,6 +427,7 @@ function StaffTab({ range }: { range: ReportRange }) {
 }
 
 function TaxTab({ range }: { range: ReportRange }) {
+  const fmt = useMoney();
   const q = useTaxReport(range, true);
   const d = q.data;
   if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;

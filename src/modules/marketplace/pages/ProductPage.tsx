@@ -98,6 +98,9 @@ export default function ProductPage() {
       return { ...was, [groupId]: [...current, optionId] };
     });
 
+  // Every figure on this page is in the money of the shop that sells it.
+  const price = (n: string | number | null | undefined) => money(n, product?.shop?.currency);
+
   const add = () => {
     if (!product?.shop) return;
 
@@ -109,6 +112,7 @@ export default function ProductPage() {
       {
         shop_slug: product.shop.slug,
         shop_name: product.shop.business_name,
+        currency: product.shop.currency,
         product_id: product.id,
         variant_id: size?.id ?? null,
         variant_name: size?.name ?? null,
@@ -256,10 +260,10 @@ export default function ProductPage() {
 
             <div className="mt-4 flex items-end gap-3">
               <span className="text-3xl font-bold tabular-nums tracking-tight text-gray-900 dark:text-white">
-                {money(unit)}
+                {price(unit)}
               </span>
               {was !== null && (
-                <span className="pb-1 text-lg tabular-nums text-gray-400 line-through">{money(was)}</span>
+                <span className="pb-1 text-lg tabular-nums text-gray-400 line-through">{price(was)}</span>
               )}
               {product.unit && <span className="pb-1.5 text-sm text-gray-500">per {product.unit}</span>}
             </div>
@@ -304,7 +308,7 @@ export default function ProductPage() {
                       }`}
                     >
                       {v.name}
-                      <span className="ml-2 text-xs opacity-70">{money(v.price)}</span>
+                      <span className="ml-2 text-xs opacity-70">{price(v.price)}</span>
                     </button>
                   ))}
                 </div>
@@ -345,7 +349,7 @@ export default function ProductPage() {
                         </span>
                         {Number(option.price_delta) > 0 && (
                           <span className="shrink-0 text-xs tabular-nums text-gray-500">
-                            +{money(option.price_delta)}
+                            +{price(option.price_delta)}
                           </span>
                         )}
                       </button>
@@ -366,7 +370,7 @@ export default function ProductPage() {
                 className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-6 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/10 dark:disabled:text-gray-500"
               >
                 <CartIcon className="size-5" />
-                {missing.length > 0 ? `Choose ${missing[0]}` : `Add ${qty > 1 ? `${qty} ` : ""}to basket · ${money(unit * qty)}`}
+                {missing.length > 0 ? `Choose ${missing[0]}` : `Add ${qty > 1 ? `${qty} ` : ""}to basket · ${price(unit * qty)}`}
               </button>
             </div>
 
@@ -387,7 +391,7 @@ export default function ProductPage() {
                 <dt className="sr-only">Delivery</dt>
                 <dd>
                   {product.shop.delivery_fee !== undefined && product.shop.delivery_fee > 0
-                    ? `Delivery from ${money(product.shop.delivery_fee)}`
+                    ? `Delivery from ${price(product.shop.delivery_fee)}`
                     : "Delivery or pickup — chosen at checkout"}
                 </dd>
               </div>
@@ -443,7 +447,7 @@ export default function ProductPage() {
                       {item.name}
                     </p>
                     <p className="mt-0.5 text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-                      {money(item.price)}
+                      {price(item.price)}
                     </p>
                   </div>
                 </Link>

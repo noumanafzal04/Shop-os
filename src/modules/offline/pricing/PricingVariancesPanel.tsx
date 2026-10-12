@@ -5,6 +5,8 @@ import { ApiError } from "../../../common/types/api";
 import { describe, groupVariances, type VarianceGroup } from "./groupVariances";
 import { varianceService, type ReportedVariance } from "./varianceService";
 import { SKIP_CONCERN, verdict } from "./verdict";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopDate, shopDateTime } from "../../../common/format/date";
 
 /**
  * Whether this shop's tills can be trusted to price on their own.
@@ -27,10 +29,15 @@ import { SKIP_CONCERN, verdict } from "./verdict";
  * rather than shown a clean sheet it did not earn.
  */
 
-const money = (n: number) => `Rs ${n.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+/** To the paisa, always: this screen is about two figures that differ by a paisa. */
+function useExactMoney() {
+  const money = useMoney();
+
+  return (n: number) => money(n, 2);
+}
 
 const when = (iso: string | null): string =>
-  iso === null ? "—" : new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  iso === null ? "—" : shopDate(iso);
 
 /** Whole days between then and now. */
 function daysSince(iso: string | null): number | null {
@@ -152,6 +159,7 @@ export default function PricingVariancesPanel() {
  * the second in front of the first buries the answer under the evidence.
  */
 function GroupCard({ group }: { group: VarianceGroup }) {
+  const money = useExactMoney();
   const range =
     group.smallest === group.largest
       ? money(group.largest)
@@ -202,6 +210,8 @@ const EXAMPLES = 5;
 
 /** One disagreement, in the terms a developer would need to reproduce it. */
 function VarianceRow({ variance }: { variance: ReportedVariance }) {
+  const money = useExactMoney();
+
   return (
     <div className="p-3">
       <div className="flex items-center gap-2">
@@ -209,7 +219,7 @@ function VarianceRow({ variance }: { variance: ReportedVariance }) {
           {variance.device?.name ?? "Unknown till"}
         </Badge>
         <span className="text-theme-xs text-gray-400">
-          {variance.found_at === null ? "—" : new Date(variance.found_at).toLocaleString()}
+          {variance.found_at === null ? "—" : shopDateTime(variance.found_at)}
         </span>
       </div>
 

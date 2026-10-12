@@ -12,7 +12,7 @@ import TextArea from "../../../components/form/input/TextArea";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
-import { formatMoney } from "../../../common/format/money";
+import { platformMoney } from "../../../common/format/currency";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useUrlFilters } from "../../../common/hooks/useUrlFilters";
 import {
@@ -131,7 +131,7 @@ type Detail = {
   invoices: Invoice[];
 };
 
-const money = (n: number) => formatMoney("Rs", n);
+const money = (n: number) => platformMoney(n);
 
 /**
  * Which day a charge was earned on, AS THE SERVER FILES IT.

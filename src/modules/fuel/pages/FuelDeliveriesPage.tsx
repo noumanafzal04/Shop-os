@@ -15,6 +15,7 @@ import { useSuppliers } from "../../purchases/hooks/usePurchases";
 import { useAuthStore } from "../../../stores/authStore";
 import { isWaiting, nextMidnight, rateTiming } from "../rateTiming";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate, shopDateTime } from "../../../common/format/date";
 
 const litres = (n: number | string) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 })} L`;
 
@@ -148,7 +149,7 @@ export default function FuelDeliveriesPage() {
                       <td className="px-4 py-3">
                         <div className="text-gray-800 dark:text-white/90">{d.tank?.name ?? "—"}</div>
                         <div className="text-theme-xs text-gray-400">
-                          {new Date(d.received_at).toLocaleDateString()}
+                          {shopDate(d.received_at)}
                           {d.shift ? ` · ${d.shift.number}` : ""}
                         </div>
                       </td>
@@ -197,7 +198,7 @@ export default function FuelDeliveriesPage() {
                     </span>
                   )}
                   <span className="ml-2 text-theme-xs text-gray-400">
-                    {isWaiting(c) ? "from " : ""}{new Date(c.effective_at).toLocaleString()}
+                    {isWaiting(c) ? "from " : ""}{shopDateTime(c.effective_at)}
                     {c.reason ? ` · ${c.reason}` : ""}
                   </span>
                 </div>

@@ -10,6 +10,7 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords, hasJobBoard, type BoardWords } from "../../workshop/words";
 import { isPastDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * WHICH KINDS THIS SHOP ACTUALLY WRITES.
@@ -251,7 +252,7 @@ function Row({
         </td>
       )}
       <td className="px-5 py-3 text-theme-xs text-gray-500 dark:text-gray-400">
-        {doc.expires_at ? new Date(doc.expires_at).toLocaleDateString() : "No expiry"}
+        {doc.expires_at ? shopDate(doc.expires_at) : "No expiry"}
       </td>
     </tr>
   );

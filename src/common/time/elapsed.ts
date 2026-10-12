@@ -18,6 +18,16 @@ export function minutesSince(iso: string): number {
 }
 
 /**
+ * "12m ago" — and "just now", which is already a time ago and does not take
+ * another one. An order's own sheet read "just now ago".
+ */
+export function elapsedAgo(iso: string): string {
+  const label = elapsedLabel(iso);
+
+  return label === "just now" ? label : `${label} ago`;
+}
+
+/**
  * "just now" · "12m" · "1h 05m" · "3h" · "2d"
  *
  * Short on purpose: it sits on a card beside the order number and is read at a

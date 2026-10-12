@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 
 import type { RetentionNotice } from "../../../common/types/api";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * WHY THIS LIST STOPS WHERE IT STOPS.
@@ -32,9 +33,7 @@ export function ArchivedBefore({ notice, what = "Records" }: {
 }) {
   if (notice === undefined) return null;
 
-  const from = new Date(notice.from).toLocaleDateString(undefined, {
-    day: "numeric", month: "short", year: "numeric",
-  });
+  const from = shopDate(notice.from);
   const years = notice.months % 12 === 0 ? notice.months / 12 : null;
   const window = years !== null ? `${years} year${years === 1 ? "" : "s"}` : `${notice.months} months`;
 

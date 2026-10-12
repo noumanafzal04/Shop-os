@@ -165,6 +165,37 @@ const BLOCKED_FOR_MS = 400;
 /** print() returned at once and nothing has said the window closed. Move on. */
 const NO_SIGNAL_MS = 1_500;
 
+/** …and that long after it, a frame nobody has released is taken away anyway. */
+const FRAME_BACKSTOP_MS = 60_000;
+
+/**
+ * NOTHING OF THE APP'S RUNS WHILE THE PRINT WINDOW IS UP.
+ *
+ *     "Print works once. Then no button can be pressed — not Print, not Fire
+ *      to kitchen, not Settle, not Refund — and no screen opens."
+ *
+ * While its print window is open Chrome holds the page still, and `afterprint`
+ * is delivered INSIDE that hold. The job used to be declared finished right
+ * there, in the handler: the promise settled, whoever was waiting on it (the
+ * till, the sales sheet, the tab) set its state, and React queued the
+ * microtask every one of its renders starts from. Chrome does not run a
+ * microtask queued while it is holding the page — it drops it, without an
+ * error. React had marked its render as on the way and waited for it for
+ * ever: nothing on any screen was drawn again until the page was reloaded.
+ *
+ * Measured in a real Chrome with its real print window (a headless browser
+ * has no print window and holds nothing, which is why every test passed):
+ * settled inside `afterprint` — "microtask queued", and never "runs";
+ * settled one task later — queued, runs, the toast appears.
+ *
+ * So `afterprint` is only allowed to ASK for the finish. The finish itself is
+ * a task of its own, which the browser cannot start until it has let go of
+ * the page.
+ */
+const onceThePageIsLetGo = (finish: () => void): void => {
+  setTimeout(finish, 0);
+};
+
 export function printHtmlDocument(html: string): Promise<void> {
   const job = queue.then(() => printNow(withoutSelfPrint(html)));
   // A failed print must not jam every print after it.
@@ -190,14 +221,28 @@ function printNow(html: string): Promise<void> {
 
       let printed = false;
       let settled = false;
+      let released = false;
+      // Where the keyboard was before the frame took it — the Print button,
+      // nearly always — so it can be handed back.
+      const hadFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+      // The frame goes, and the keyboard returns to where it was. A frame
+      // removed while it holds the focus leaves it on nothing at all.
+      const release = () => {
+        if (released) return;
+        released = true;
+        const heldFocus = document.activeElement === iframe;
+        iframe.remove();
+        if (heldFocus && hadFocus?.isConnected) hadFocus.focus({ preventScroll: true });
+      };
       // "Dealt with": the window has closed (or will never say so). Only then
       // may the next job start.
       const done = () => {
         if (settled) return;
         settled = true;
-        iframe.remove();
         resolve();
       };
+      const closed = () => { release(); done(); };
 
       const go = () => {
         if (printed) return;
@@ -205,7 +250,7 @@ function printNow(html: string): Promise<void> {
         try {
           // After the images, so a logo that arrived late is in the height.
           fitRoll(doc);
-          win.onafterprint = done;
+          win.onafterprint = () => onceThePageIsLetGo(closed);
           win.focus();
           const asked = performance.now();
           win.print();
@@ -216,11 +261,16 @@ function printNow(html: string): Promise<void> {
           // Where it returns at once (Safari), `afterprint` is the signal,
           // and the short wait below is only for a browser that never sends
           // one: a queue that waited for ever would lose every print after
-          // the first, which is worse than two windows asking at once.
-          if (performance.now() - asked > BLOCKED_FOR_MS) done();
-          else setTimeout(done, NO_SIGNAL_MS);
+          // the first, which is worse than two windows asking at once. The
+          // FRAME is not taken away on that guess — its window may still be
+          // up, printing from it — only the queue moves on.
+          if (performance.now() - asked > BLOCKED_FOR_MS) onceThePageIsLetGo(closed);
+          else {
+            setTimeout(done, NO_SIGNAL_MS);
+            setTimeout(release, FRAME_BACKSTOP_MS);
+          }
         } catch (e) {
-          iframe.remove();
+          release();
           reject(e instanceof Error ? e : new Error("Print failed"));
         }
       };

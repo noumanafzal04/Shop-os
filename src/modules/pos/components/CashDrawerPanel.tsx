@@ -6,10 +6,12 @@ import TextArea from "../../../components/form/input/TextArea";
 import { AlertIcon, ChevronLeftIcon, CloseIcon } from "../../../icons";
 import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
-import { useShopSettings } from "../../shop/hooks/useShop";
+import { paperIn } from "../../../common/format/currency";
+import { useTillCurrency } from "../../offline/tillSettings";
 import { useCashMovementMutation, useSessionReport } from "../hooks/usePos";
 import type { CashMovement, ManualMovementType } from "../services/posService";
 import { INLINE_DISMISS } from "../../../components/ui/modal/closeButton";
+import { shopShortDateTime } from "../../../common/format/date";
 
 /**
  * The X-read, in the cashier's words: what this drawer should hold RIGHT NOW,
@@ -117,18 +119,15 @@ const DirectionPill = ({ direction }: { direction: CashMovement["direction"] }) 
 };
 
 export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coveringFor = null }: Props) {
-  const settings = useShopSettings();
-  const cur = settings.data?.currency_symbol ?? "Rs";
+  const currency = useTillCurrency();
+  const cur = currency.symbol;
   // Cash is counted to the paisa here — a drawer read that rounds is a variance
   // waiting to happen, unlike the ticket totals elsewhere in the POS.
-  const money = (n: string | number) => {
-    const v = Number(n);
-    return `${cur} ${(Number.isFinite(v) ? v : 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  const money = (n: string | number) => paperIn(currency, n);
   const when = (iso: string | null) => {
     if (!iso) return "—";
     const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    return Number.isNaN(d.getTime()) ? "—" : shopShortDateTime(d);
   };
 
   const report = useSessionReport(isOpen && hasOpenShift);

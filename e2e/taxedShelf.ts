@@ -152,16 +152,41 @@ export async function ring(page: Page, names: readonly string[], already = 0): P
      * So the answer is waited for, and the tap is made once. It is NOT
      * retried: a retry would also hide a till that really does drop one.
      */
-    const answered = page.waitForResponse(
-      (r) => r.url().includes("/products") && decodeURIComponent(r.url().replace(/\+/g, " ")).includes(name),
-      { timeout: 15_000 },
-    ).catch(() => null);
-    await search.fill(name);
-    await answered;
+    const asked = (r: { url(): string }) => r.url().includes("/products") && decodeURIComponent(r.url().replace(/\+/g, " ")).includes(name);
+    let answer = await Promise.all([
+      page.waitForResponse(asked, { timeout: 15_000 }).catch(() => null),
+      search.fill(name),
+    ]).then(([r]) => r);
+
+    /*
+     * THE API'S FENCE IS NOT THE TILL'S FAULT.
+     *
+     * One signed-in person may ask 240 things a minute. A phone run that has
+     * just walked four till specs as the same owner can spend that minute,
+     * and the search is then turned away — the till, correctly, shows no
+     * tile for it. Twice that read as "E2E Taxed Item B is not on the till",
+     * a different case each time, passing alone.
+     *
+     * A refused search is waited out and asked again, once. The TAP below is
+     * still made once and never retried: that is the till's to get right.
+     */
+    if (answer !== null && answer.status() === 429) {
+      await page.waitForTimeout((Number(answer.headers()["retry-after"] ?? 60) + 1) * 1000);
+      answer = await Promise.all([
+        page.waitForResponse(asked, { timeout: 15_000 }).catch(() => null),
+        search.fill("").then(() => search.fill(name)),
+      ]).then(([r]) => r);
+    }
 
     const items = page.locator("[data-pos-item]");
     const tile = items.filter({ hasText: name }).first();
-    await expect(tile, `${name} is not on the till`).toBeVisible({ timeout: 15_000 });
+    // Said with what the till WAS showing, and how the search was answered:
+    // "not on the till" alone has been three different faults.
+    await expect(tile, `${name} is not on the till`).toBeVisible({ timeout: 15_000 }).catch(async (missing: Error) => {
+      const shelf = (await page.locator("[data-pos-item]").allInnerTexts().catch(() => [])).slice(0, 6).map((t) => t.replace(/\s+/g, " ").slice(0, 40));
+      const said = (await page.locator("main, body").first().innerText().catch(() => "")).replace(/\s+/g, " ").match(/(could not be loaded|No products match|offline|Too many|try again)[^.]{0,80}/i)?.[0] ?? "nothing about why";
+      throw new Error(`${missing.message}\n  the search was answered: ${answer === null ? "by nobody (no response in 15s)" : answer.status()}\n  the till said: ${said}\n  on the shelf instead: ${JSON.stringify(shelf)}`);
+    });
     // …and drawn: the first row IS the one asked for.
     await expect(items.first(), "the list has not settled on the search").toContainText(name, { timeout: 15_000 });
 

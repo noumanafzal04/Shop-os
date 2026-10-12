@@ -13,13 +13,15 @@ import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useConfirm } from "../../../components/ui/confirm";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup, ProductVariant } from "../../catalog/types";
 import { usePickableProducts } from "../../catalog/hooks/useCatalog";
 import { sizesOf, whyNotSellable } from "../../pos/availability";
-import { useTicket, useDineInMutations, useOpenTickets, useServers, useTables, useTabLines } from "../hooks/useDineIn";
+import { useTicket, useDineInMutations, useOpenTickets, useServers, useSettleWorth, useTables, useTabLines } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
+import { askOf, settlementOf, tendersOf, type SettleAsk } from "../settleSheet";
 import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "../tabLines";
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
@@ -356,57 +358,40 @@ export default function TabPage() {
     settleModal.openModal();
   };
 
-  // Subtotal of the selected items (pre-tax). Tax is added at settle time by
-  // the sale path, so the amount collected must include it. We estimate tax
-  // from the shop's default rate (the common case — food usually shares one
-  // rate or is tax-free); an over-estimate is safe (it just books change_due),
-  // and the printed invoice always carries the exact figure.
-  // Each line's contribution = its total prorated to the chosen quantity, so a
-  // partial split collects exactly its share (discounts / modifiers included).
-  const settleSubtotal = unsettled.reduce((sum, i) => {
-    const q = settleQty[i.id] ?? 0;
-    const lineQty = Number(i.quantity) || 1;
-    return sum + Math.round(((Number(i.line_total) * q) / lineQty) * 100) / 100;
-  }, 0);
-  const settleTax = Math.round(settleSubtotal * taxRate) / 100;
-  const settleBill = Math.round((settleSubtotal + settleTax) * 100) / 100;
-  const tipAmount = Math.max(0, Math.round((Number(tip) || 0) * 100) / 100);
-  // What the customer hands over: the bill plus whatever they added.
-  const settleDue = Math.round((settleBill + tipAmount) * 100) / 100;
-  const settleCount = unsettled.filter((i) => (settleQty[i.id] ?? 0) > 0).length;
-
-  /** The second tender's amount, never more than what is owed. */
-  const splitPaid = splitMethod === ""
-    ? 0
-    : Math.min(settleDue, Math.max(0, Math.round((Number(splitAmount) || 0) * 100) / 100));
-  const firstPaid = Math.round((settleDue - splitPaid) * 100) / 100;
+  // ── WHAT THE SHEET SHOWS IS WHAT THE TILL WILL TAKE ──────────────────
+  //
+  // This block used to add the bill up: the chosen lines, times the shop's
+  // default tax rate — "an over-estimate is safe", its comment said. A table
+  // with tea at its own 18% was UNDER-estimated, "Take Rs 4,485" was sent as
+  // the cash handed over, and the till refused it: the tab could not be
+  // settled from this screen at all.
+  //
+  // So the sheet does not work the bill out. It says what is being settled and
+  // how, and shows the figures the sale path answers with — see settleSheet.ts.
+  const ask = askOf(unsettled, settleQty, method, splitMethod, splitAmount, tip);
+  const askKey = JSON.stringify(ask);
+  // Each press of − / + and each digit of a tip is a different question. The
+  // one that is asked is the one the hand has stopped on.
+  const askedKey = useDebouncedValue(askKey, 250);
+  const asked = useMemo(() => JSON.parse(askedKey) as SettleAsk, [askedKey]);
+  const worthQ = useSettleWorth(id, asked, settleModal.isOpen);
+  // The answer to THIS question, or nothing. A figure that answered the
+  // question before is not shown as the answer to this one — it is exactly
+  // the wrong amount, one press out of date.
+  const worth = worthQ.data !== undefined && !worthQ.isFetching && askedKey === askKey ? worthQ.data : null;
+  const worthRefused = askedKey === askKey && !worthQ.isFetching && worthQ.error
+    ? (worthQ.error instanceof ApiError ? worthQ.error.message : "The bill could not be worked out — check the connection and try again.")
+    : null;
+  const tipAmount = ask.tip_amount;
+  const settleCount = ask.splits.length;
+  const tenders = worth ? tendersOf(worth.due, ask, splitAmount) : [];
   const settlingWhole = unsettled.length > 0 && unsettled.every((i) => (settleQty[i.id] ?? 0) >= Number(i.quantity));
 
   const confirmSettle = () => {
-    if (!id || settleCount === 0 || settle.isPending) return;
-    // Always send splits (a full-qty split settles the whole line server-side).
-    const splits = unsettled
-      .filter((i) => (settleQty[i.id] ?? 0) > 0)
-      .map((i) => ({ id: i.id, quantity: settleQty[i.id] }));
+    // Nothing is taken until the till has said what it will take.
+    if (!id || worth === null || settleCount === 0 || settle.isPending) return;
     settle.mutate(
-      {
-        id,
-        payload: {
-          splits,
-          // One tender stays one field; two go as the array the endpoint has
-          // always taken, so a half-cash-half-card bill is one settle and not
-          // two.
-          ...(splitPaid > 0
-            ? {
-                payments: [
-                  { method, amount: firstPaid },
-                  { method: splitMethod, amount: splitPaid },
-                ],
-              }
-            : { payment_method: method, amount_paid: settleDue }),
-          tip_amount: tipAmount || undefined,
-        },
-      },
+      { id, payload: settlementOf(worth, ask, splitAmount) },
       {
         onSuccess: (res) => {
           settleModal.closeModal();
@@ -423,7 +408,12 @@ export default function TabPage() {
          * about money or stock, and most expensive to guess at. `move` and the
          * waiter handover in this same file already surfaced it.
          */
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't settle the tab."),
+        onError: (e) => {
+          toast.error(e instanceof ApiError ? e.message : "Couldn't settle the tab.");
+          // Refused — so something about the tab is not what the sheet was
+          // told (another waiter added to it, a line was paid). Ask again.
+          void worthQ.refetch();
+        },
       },
     );
   };
@@ -1242,39 +1232,65 @@ export default function TabPage() {
                 placeholder="Amount on this method"
               />
               <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                {splitPaid > 0
-                  ? <>{money(firstPaid)} on {method}, {money(splitPaid)} on {splitMethod}.</>
+                {tenders.length === 2
+                  ? <>{money(tenders[0].amount)} on {method}, {money(tenders[1].amount)} on {splitMethod}.</>
                   : <>Type what goes on {splitMethod}; the rest stays on {method}.</>}
               </p>
             </div>
           )}
         </div>
-        <div className="mb-4 space-y-1 rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-800/50">
-          <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
-            <span>{settlingWhole ? "Whole bill" : `${settleCount} item(s)`}</span>
-            <span>{money(settleSubtotal)}</span>
-          </div>
-          {settleTax > 0 && (
-            <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
-              <span>Tax ({taxRate}%)</span>
-              <span>{money(settleTax)}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Bill</span>
-            <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(settleBill)}</span>
-          </div>
-          {tipAmount > 0 && (
-            <div className="flex items-center justify-between text-theme-sm">
-              <span className="text-gray-500 dark:text-gray-400">Tip</span>
-              <span className="font-medium text-gray-700 dark:text-gray-200">{money(tipAmount)}</span>
-            </div>
-          )}
-          {tipAmount > 0 && (
-            <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">To collect</span>
-              <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(settleDue)}</span>
-            </div>
+        {/* THE SERVER'S FIGURES, and nothing while they are being asked for.
+            A sum drawn here a moment early is a sum somebody reads out. */}
+        <div data-testid="settle-worth" aria-live="polite" className="mb-4 space-y-1 rounded-lg bg-gray-50 px-4 py-3 dark:bg-gray-800/50">
+          {worth === null ? (
+            worthRefused ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-theme-sm text-error-600 dark:text-error-400">{worthRefused}</p>
+                <button type="button" onClick={() => void worthQ.refetch()} className="text-theme-sm font-semibold text-brand-600 hover:underline dark:text-brand-400">
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <p className="py-2 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+                {settleCount === 0 ? "Choose at least one item to settle." : "Working out the bill…"}
+              </p>
+            )
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
+                <span>{settlingWhole ? "Whole bill" : `${settleCount} ${settleCount === 1 ? "item" : "items"}`}</span>
+                <span className="tabular-nums">{money(worth.subtotal)}</span>
+              </div>
+              {worth.tax > 0 && (
+                <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
+                  {/* No rate beside it: each dish is taxed at its own. */}
+                  <span>Tax</span>
+                  <span className="tabular-nums">{money(worth.tax)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Bill</span>
+                <span data-testid="settle-bill" className="text-lg font-bold tabular-nums text-gray-800 dark:text-white/90">{money(worth.total)}</span>
+              </div>
+              {worth.tip > 0 && (
+                <div className="flex items-center justify-between text-theme-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Tip</span>
+                  <span className="font-medium tabular-nums text-gray-700 dark:text-gray-200">{money(worth.tip)}</span>
+                </div>
+              )}
+              {worth.rounding !== 0 && (
+                <div className="flex items-center justify-between text-theme-sm">
+                  <span className="text-gray-500 dark:text-gray-400">Rounded for cash</span>
+                  <span className="font-medium tabular-nums text-gray-700 dark:text-gray-200">{worth.rounding > 0 ? "+" : "−"}{money(Math.abs(worth.rounding))}</span>
+                </div>
+              )}
+              {worth.due !== worth.total && (
+                <div className="flex items-center justify-between border-t border-gray-200 pt-1 dark:border-gray-700">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">To collect</span>
+                  <span className="text-lg font-bold tabular-nums text-gray-800 dark:text-white/90">{money(worth.due)}</span>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -1296,8 +1312,9 @@ export default function TabPage() {
                 <button
                   key={pct}
                   type="button"
-                  onClick={() => setTip(String(Math.round(settleBill * pct) / 100))}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-theme-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+                  disabled={worth === null}
+                  onClick={() => worth && setTip(String(Math.round(worth.total * pct) / 100))}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-theme-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
                 >
                   {pct}%
                 </button>
@@ -1312,8 +1329,8 @@ export default function TabPage() {
         )}
         <div className="flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={settleModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={confirmSettle} disabled={settleCount === 0 || settle.isPending}>
-            {settle.isPending ? "Settling…" : `Take ${money(settleDue)}`}
+          <Button size="sm" onClick={confirmSettle} disabled={worth === null || settleCount === 0 || settle.isPending}>
+            {settle.isPending ? "Settling…" : worth === null ? "Take payment" : `Take ${money(worth.due)}`}
           </Button>
         </div>
       </Modal>

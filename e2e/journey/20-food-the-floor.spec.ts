@@ -109,6 +109,11 @@ test("H2 · the menu: a dish for each station, on the list at the price typed", 
     expect(held, `${dish.name} is not on the menu`).toBeTruthy();
     expect(Number(held.price)).toBe(dish.price);
     expect(held.kitchen_station, `${dish.name} lost its station`).toBe(dish.station);
+    // MADE TO ORDER. Nobody gave it a stock, so nobody is counting one. The
+    // first dish of a new restaurant was born counted at nothing — the form
+    // had sent its own guess before it was told what a dish is — and read
+    // "none left" at every table.
+    expect(held.track_inventory, `${dish.name} was born counted, at a stock nobody gave it`).toBe(false);
   }
 });
 
@@ -290,7 +295,7 @@ test("H6 · the bill is the dishes and the tax, it is paid, and the table is fre
   // The figures, as worked out at the top of this file.
   const row = async (label: string | RegExp) => rupees(await sheet.getByText(label).locator("xpath=following-sibling::span[1]").innerText());
   expect(await row("Whole bill")).toBe(BILL.subtotal);
-  expect(await row(`Tax (${TAX}%)`)).toBe(BILL.tax);
+  expect(await row(/^Tax$/)).toBe(BILL.tax);
   expect(await row(/^Bill$/)).toBe(BILL.total);
 
   await sheet.getByRole("button", { name: /^Take Rs 1,134/ }).click();

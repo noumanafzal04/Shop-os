@@ -23,7 +23,13 @@ import { API, roomToWork } from "../api";
 export const TRADE = process.env.JOURNEY_TRADE ?? "mart";
 
 const DIR = "e2e/.journey";
-const RECORD = `${DIR}/${TRADE}.json`;
+/**
+ * Whose record this run keeps. A second journey of the same trade —
+ * `JOURNEY_RECORD=house` beside the standing food journey — is another
+ * business with its own sign-ins, and does not write over the first.
+ */
+export const KEPT_AS = process.env.JOURNEY_RECORD ?? TRADE;
+const RECORD = `${DIR}/${KEPT_AS}.json`;
 
 export const ADMIN_EMAIL = process.env.E2E_ADMIN ?? "admin@shopos.test";
 export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "password";
@@ -42,6 +48,8 @@ export const TRADE_LABEL: Record<string, string> = {
   wholesale: "Wholesale & Distribution",
   // Stage R makes its own shop — a grocer — to put on the plan it makes.
   billing: "Mart & Grocery",
+  // Stage V is a grocer too, in another country's money.
+  dollars: "Mart & Grocery",
 };
 
 // ── the record ───────────────────────────────────────────────────────
@@ -60,7 +68,7 @@ export interface Record_ {
 
 export function record(): Record_ {
   if (!fs.existsSync(RECORD)) {
-    throw new Error(`No journey record for ${TRADE} — stage 01 (the admin creates the business) has not run.`);
+    throw new Error(`No journey record for ${KEPT_AS} — stage 01 (the admin creates the business) has not run.`);
   }
 
   return JSON.parse(fs.readFileSync(RECORD, "utf8")) as Record_;
@@ -86,9 +94,9 @@ export function begin(): Record_ {
   const fresh: Record_ = {
     stamp,
     trade: TRADE,
-    business: `QA ${TRADE[0].toUpperCase()}${TRADE.slice(1)} ${stamp}`,
+    business: `QA ${KEPT_AS[0].toUpperCase()}${KEPT_AS.slice(1)} ${stamp}`,
     ownerName: `QA ${TRADE} owner`,
-    ownerEmail: `qa-${TRADE}-${stamp}@qa.test`,
+    ownerEmail: `qa-${KEPT_AS}-${stamp}@qa.test`,
     ownerPassword: "Journey-pass-1",
     // Its own number: a business's phone is unique across the platform.
     phone: `03${stamp.replace(/\D/g, "").slice(-9)}`,
@@ -100,7 +108,7 @@ export function begin(): Record_ {
 
 // ── the session ──────────────────────────────────────────────────────
 
-const stateFile = (who: "admin" | "owner") => `${DIR}/${TRADE}-${who}.json`;
+const stateFile = (who: "admin" | "owner") => `${DIR}/${KEPT_AS}-${who}.json`;
 
 /** The saved sign-in for `test.use({ storageState })`. */
 export const ADMIN_STATE = stateFile("admin");

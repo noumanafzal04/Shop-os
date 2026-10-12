@@ -9,6 +9,8 @@ import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPost } from "../../../common/api/client";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
+import { counted } from "../../../common/format/counted";
 
 interface OwnerReview {
   id: string;
@@ -65,7 +67,7 @@ export default function OwnerReviewsPage() {
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Reviews</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {summary.data?.count
-              ? `★ ${summary.data.average} average from ${summary.data.count} review(s)`
+              ? `★ ${summary.data.average} average from ${counted(summary.data.count, "review")}`
               : "What customers say about your shop"}
           </p>
         </div>
@@ -108,7 +110,7 @@ export default function OwnerReviewsPage() {
                   {!r.is_published && <Badge size="sm" color="light">hidden</Badge>}
                 </div>
                 <span className="text-theme-xs text-gray-400">
-                  {new Date(r.created_at).toLocaleDateString()}
+                  {shopDate(r.created_at)}
                 </span>
               </div>
 

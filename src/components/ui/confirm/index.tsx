@@ -8,6 +8,7 @@ import {
 } from "react";
 import { Modal } from "../modal";
 import Button from "../button/Button";
+import { dismissLabel } from "./words";
 
 interface ConfirmOptions {
   title: string;
@@ -149,7 +150,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
             <div className="mt-6 flex justify-end gap-3">
               <Button size="sm" variant="outline" onClick={dismiss}>
-                {opts.cancelLabel ?? "Cancel"}
+                {dismissLabel(opts)}
               </Button>
               <button
                 // The text field wants the focus when there is one.

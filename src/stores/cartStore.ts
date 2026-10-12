@@ -1,10 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { currencyOf, type CurrencyFormat } from "../common/format/currency";
+
 export interface CartLine {
   /** Which shop this line is bought FROM. A basket can hold several. */
   shop_slug: string;
   shop_name: string;
+  /**
+   * The money this line's price is in — its shop's. Absent on a line put in
+   * the basket before shops could trade in anything but the default.
+   */
+  currency?: CurrencyFormat;
   product_id: string;
   variant_id: string | null;
   /** The size, spelled out — "Large", "XL", "42". Shown on the line. */
@@ -22,8 +29,24 @@ export interface CartLine {
 export interface CartGroup {
   shop_slug: string;
   shop_name: string;
+  /** The money every figure of this slice is in. */
+  currency: CurrencyFormat;
   lines: CartLine[];
   subtotal: number;
+}
+
+/**
+ * The ONE currency a basket is in — or null when its shops trade in different
+ * money. A basket across three shops is three orders anyway; where they are
+ * three currencies as well, there is no single figure that adds them up, and
+ * the screen must not print one.
+ */
+export function basketCurrency(groups: CartGroup[]): CurrencyFormat | null {
+  if (groups.length === 0) return currencyOf(undefined);
+
+  const first = groups[0].currency;
+
+  return groups.every((g) => g.currency.code === first.code) ? first : null;
 }
 
 interface CartState {
@@ -118,6 +141,7 @@ export const useCartStore = create<CartState>()(
           const group = by.get(line.shop_slug) ?? {
             shop_slug: line.shop_slug,
             shop_name: line.shop_name,
+            currency: currencyOf(line.currency),
             lines: [],
             subtotal: 0,
           };

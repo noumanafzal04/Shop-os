@@ -15,6 +15,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import Pager from "../../../components/ui/pager";
 import { apiGet } from "../../../common/api/client";
+import { shopDateTime } from "../../../common/format/date";
 
 /**
  * The shop's own record of who changed what.
@@ -302,7 +303,7 @@ export default function ActivityPage() {
                 rows.map((log) => (
                   <tr key={log.id} className="align-top text-theme-sm text-gray-700 dark:text-gray-300">
                     <td className="px-6 py-4 text-theme-xs whitespace-nowrap">
-                      {new Date(log.created_at).toLocaleString()}
+                      {shopDateTime(log.created_at)}
                     </td>
                     <td className="px-6 py-4">
                       {/* "System" is honest: a scheduled job posting a

@@ -62,6 +62,10 @@ const VOLUME_ONLY = /at-volume\.spec\.ts/;
 // in the middle of its name, and an unanchored pattern handed the admin
 // project a stage of the journey — which is lived once, in order.
 const ADMIN_ONLY = /\/admin-[a-z-]+\.spec\.ts$/;
+// Specs that need a browser somebody can SEE: a headless one has no print
+// window, so a spec that closes one would wait for a window that never comes.
+// They run in their own project and nowhere else — see e2e/printWindow.ts.
+const PRINT_WINDOW_ONLY = /print-window\..*\.spec\.ts/;
 const TRADES = ["petroleum", "pharmacy", "automotive", "retail", "services", "finance"];
 
 export default defineConfig({
@@ -116,13 +120,13 @@ export default defineConfig({
     // "below xl" is on every tablet in the shop.
     {
       name: "tablet-landscape",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY, PRINT_WINDOW_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7) landscape"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "tablet-portrait",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY, PRINT_WINDOW_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPad (gen 7)"], storageState: "e2e/.auth/owner.json" },
     },
@@ -134,13 +138,13 @@ export default defineConfig({
     // the catalog share a screen that is 390 points wide.
     {
       name: "phone",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY, PRINT_WINDOW_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["iPhone 14"], storageState: "e2e/.auth/owner.json" },
     },
     {
       name: "desktop",
-      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY],
+      testIgnore: [RESTAURANT_ONLY, TRADE_ONLY, STOREFRONT_ONLY, DOORS_ONLY, VOLUME_ONLY, ADMIN_ONLY, JOURNEY_ONLY, PRINT_WINDOW_ONLY],
       dependencies: ["shelf"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/owner.json" },
     },
@@ -286,6 +290,21 @@ export default defineConfig({
       // A case is one thing a person does. Two minutes is a long time to do
       // one thing; five was hiding a missing control behind a slow failure.
       timeout: 120_000,
+    },
+
+    /**
+     * AFTER A PRINT — in a browser with a real print window.
+     *
+     * Run on its own: `npx playwright test --project=print-window`. It opens a
+     * window you can see (or a tab in one already open — PRINT_WINDOW_CDP),
+     * which is the only place a print window exists. Not part of a headless
+     * run, and not skipped inside one: it is simply not there.
+     */
+    {
+      name: "print-window",
+      testMatch: PRINT_WINDOW_ONLY,
+      dependencies: ["shelf"],
+      timeout: 180_000,
     },
 
     ...TRADES.map((trade) => ({

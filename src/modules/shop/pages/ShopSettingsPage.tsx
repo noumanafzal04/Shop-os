@@ -14,7 +14,9 @@ import { useToast } from "../../../components/ui/toast";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
-import { useCities, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { useCities, useCurrency, useShopCurrencies, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { formatIn } from "../../../common/format/currency";
+import { DATE_FORMAT_CODES, dateFormatOf, dateIn, dateTimeIn, type DateFormatCode } from "../../../common/format/date";
 import { POS_SUBTABS, posSubTabsFor, settingsTabsFor, type SettingsTab } from "../settingsTabs";
 import { YourModules } from "../components/YourModules";
 import { shopService } from "../services/shopService";
@@ -44,6 +46,7 @@ const BlocksGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><p
 const StoreGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 9V6l2-3h12l2 3v3M4 9v11h16V9M4 9h16M9 20v-6h6v6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PinGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.7" /></svg>);
 const GlobeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" /><path d="M3 12h18M12 3c2.5 2.5 2.5 15 0 18M12 3c-2.5 2.5-2.5 15 0 18" stroke="currentColor" strokeWidth="1.7" /></svg>);
+const CoinGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" /><path d="M14.6 9.6c-.4-.8-1.4-1.3-2.6-1.3-1.6 0-2.7.8-2.7 1.9 0 2.6 5.5 1.2 5.5 3.8 0 1.1-1.2 1.9-2.8 1.9-1.3 0-2.4-.5-2.8-1.4M12 6.8v10.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>);
 const PercentGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 18 18 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /><circle cx="7.5" cy="7.5" r="2.2" stroke="currentColor" strokeWidth="1.7" /><circle cx="16.5" cy="16.5" r="2.2" stroke="currentColor" strokeWidth="1.7" /></svg>);
 const TruckGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><circle cx="7" cy="18" r="1.8" stroke="currentColor" strokeWidth="1.7" /><circle cx="17" cy="18" r="1.8" stroke="currentColor" strokeWidth="1.7" /></svg>);
 const ReceiptGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 3h12v18l-2.5-1.5L13 21l-2.5-1.5L8 21l-2-1.5V3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /><path d="M9 8h6M9 12h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
@@ -52,6 +55,14 @@ const BarcodeGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><
 const ScaleGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M12 4v16M6 20h12M5 8h14l-2.5 6h-9L5 8ZM9 4h6" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const PrinterGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M6 9V3h12v6M6 18H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6h-2M6 14h12v7H6z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>);
 const UserGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.7" /><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
+const CalendarGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" strokeWidth="1.7" /><path d="M3.5 10h17M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>);
+/** What each way of writing a date is, in words — beside the example of it. */
+const DATE_FORMAT_WORDS: Record<DateFormatCode, string> = {
+  dmy_text: "day, month by name, year",
+  dmy: "day / month / year",
+  mdy: "month / day / year",
+  ymd: "year - month - day",
+};
 const ClockGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.7" /><path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>);
 const GiftGlyph = () => (<svg viewBox="0 0 24 24" fill="none" className={g}><path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7S10.5 3 8.5 3 6 5 8 7h4Zm0 0s1.5-4 3.5-4 2.5 2 .5 4h-4Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>);
 
@@ -305,6 +316,11 @@ export default function ShopSettingsPage() {
   // ── Preferences (PUT /shop/settings) ─────────────────────────────────
   const settings = useShopSettings();
   const updatePrefs = useUpdateShopSettings();
+  // Which currencies there are, and whether this shop may still change its own.
+  const currencies = useShopCurrencies();
+  // The shop's own mark, for the labels that name a figure's unit.
+  const shopCurrency = useCurrency();
+  const sym = shopCurrency.symbol;
   const [prefs, setPrefs] = useState<Record<string, PrefValue> | null>(null);
   const [prefsDirty, setPrefsDirty] = useState(false);
   const [tab, setTab] = useState<SettingsTab>("business");
@@ -499,6 +515,96 @@ export default function ShopSettingsPage() {
                     </div>
                   </SectionCard>
 
+                  {/* WHAT THE SHOP'S NUMBERS AND DATES MEAN.
+                      These two sat on Tax & Delivery, behind a tab a shop that
+                      does not sell at a counter never gets — and a shopkeeper
+                      looking for "which currency am I in" does not look under
+                      tax. They are facts about the business, so they are on
+                      its first page. They are settings, not profile fields, so
+                      the bar below saves both kinds. */}
+                  {prefs === null ? (
+                    <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
+                  ) : (
+                    <>
+                  {/* THE MONEY THE SHOP TRADES IN.
+                      Help has always said "set your currency" and there was
+                      nowhere to set it: the mark was "Rs" for everybody. It
+                      is chosen here — and only until there is money on the
+                      books, because nothing is ever converted: Rs 500 would
+                      simply start reading $500. Once it is fixed the screen
+                      says so, in the server's words, instead of offering a
+                      control that would be refused. */}
+                  <SectionCard icon={<CoinGlyph />} title="Currency" description={words.currency}>
+                    {(() => {
+                      const options = currencies.data?.options ?? [];
+                      const chosen = options.find((o) => o.code === String(prefs.currency)) ?? currencies.data?.current;
+                      const label = (o: { name: string; symbol: string; code: string }) => `${o.name} — ${o.symbol} (${o.code})`;
+
+                      return (
+                        <>
+                          {currencies.data?.locked ? (
+                            <div data-testid="currency-locked">
+                              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{label(currencies.data.current)}</p>
+                              <p className="mt-1.5 rounded-lg bg-gray-50 px-3 py-2 text-theme-xs text-gray-600 dark:bg-white/5 dark:text-gray-300">{currencies.data.why}</p>
+                            </div>
+                          ) : (
+                            <Field label="Currency" hint="Choose it before you start trading. Nothing is converted — a price of 500 stays 500 — so it is fixed once there is a sale, an order or an expense on the books.">
+                              <Select
+                                aria-label="Currency"
+                                className="max-w-sm"
+                                value={String(prefs.currency ?? "")}
+                                options={options.map((o) => ({ value: o.code, label: label(o) }))}
+                                placeholder={currencies.isLoading ? "Loading…" : "Choose a currency"}
+                                onChange={(v) => v && setP("currency", v)}
+                              />
+                            </Field>
+                          )}
+                          {chosen && (
+                            <p data-testid="currency-example" className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                              Written as <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{formatIn(chosen, 1234567.5)}</span> and <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{formatIn(chosen, 4000)}</span>.
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </SectionCard>
+
+                  {/* HOW A DATE IS WRITTEN.
+                      Every screen used to write its dates the way the
+                      browser it was opened in writes them — "10/12/2026" on
+                      one laptop, the tenth of December to a shopkeeper who
+                      meant the twelfth of October — while the receipt said
+                      "12 Oct 2026". One choice, here, for every screen and
+                      every paper; the first one cannot be misread, so it is
+                      where a shop starts. */}
+                  <SectionCard icon={<CalendarGlyph />} title="Dates" description={words.dates}>
+                    {(() => {
+                      const chosen = dateFormatOf(prefs.date_format);
+                      const now = new Date();
+
+                      return (
+                        <>
+                          <Field label="Date format" hint="A date typed into a box is read the same way: with the day first, unless you choose the month first.">
+                            <Select
+                              aria-label="Date format"
+                              className="max-w-sm"
+                              value={chosen}
+                              options={DATE_FORMAT_CODES.map((code) => ({ value: code, label: `${dateIn(code, "2026-10-12")} — ${DATE_FORMAT_WORDS[code]}` }))}
+                              onChange={(v) => v && setP("date_format", v as DateFormatCode)}
+                            />
+                          </Field>
+                          <p data-testid="date-format-example" className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                            Today is written as <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{dateIn(chosen, now)}</span>, and this moment as{" "}
+                            <span className="font-semibold tabular-nums text-gray-700 dark:text-gray-200">{dateTimeIn(chosen, now)}</span>.
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </SectionCard>
+
+                    </>
+                  )}
+
                   {/* Not offered to a business with nothing to list on it —
                       see settingsWords. */}
                   {words.offersOnlineShop && (
@@ -588,7 +694,7 @@ export default function ShopSettingsPage() {
                           />
                         </div>
 
-                        <Field label="Delivery fee (Rs)" hint="Charged on delivery orders. Set 0 for free delivery / pickup-only." error={errorFor("delivery_fee")}>
+                        <Field label={`Delivery fee (${sym})`} hint="Charged on delivery orders. Set 0 for free delivery / pickup-only." error={errorFor("delivery_fee")}>
                           <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} className="max-w-xs" />
                         </Field>
                       </>
@@ -633,11 +739,16 @@ export default function ShopSettingsPage() {
             />
 
             <SaveBar
-              dirty={profileDirty}
-              saving={save.isPending}
-              onSave={submitProfile}
+              dirty={profileDirty || prefsDirty}
+              saving={save.isPending || updatePrefs.isPending}
+              onSave={() => {
+                // Whichever was touched: the profile is its own request, the
+                // currency and the date format are settings.
+                if (profileDirty) submitProfile();
+                if (prefsDirty) savePrefs();
+              }}
               label="Save profile"
-              blocked={!form.business_name.trim()}
+              blocked={profileDirty && !form.business_name.trim()}
             />
           </div>
         ) : settings.isLoading || !prefs ? (
@@ -787,10 +898,10 @@ export default function ShopSettingsPage() {
                           <Field label="Prep time (min)" hint="Estimated preparation time shown to customers.">
                             <Input type="number" min="1" max="480" value={prefs.prep_time_minutes != null ? String(prefs.prep_time_minutes) : ""} onChange={(e) => setP("prep_time_minutes", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 25" />
                           </Field>
-                          <Field label="Minimum order (Rs)" hint="Delivery orders below this are rejected.">
+                          <Field label={`Minimum order (${sym})`} hint="Delivery orders below this are rejected.">
                             <Input type="number" min="0" value={prefs.min_order_amount != null ? String(prefs.min_order_amount) : ""} onChange={(e) => setP("min_order_amount", e.target.value === "" ? null : Number(e.target.value))} placeholder="No minimum" />
                           </Field>
-                          <Field label="Free delivery above (Rs)" hint="Waive the delivery fee at/above this subtotal.">
+                          <Field label={`Free delivery above (${sym})`} hint="Waive the delivery fee at/above this subtotal.">
                             <Input type="number" min="0" value={prefs.free_delivery_threshold != null ? String(prefs.free_delivery_threshold) : ""} onChange={(e) => setP("free_delivery_threshold", e.target.value === "" ? null : Number(e.target.value))} placeholder="Never" />
                           </Field>
                         </div>
@@ -974,7 +1085,7 @@ export default function ShopSettingsPage() {
                                 onChange={(e) => setP("max_discount_amount", e.target.value === "" ? null : Number(e.target.value))}
                                 placeholder="No limit"
                               />
-                              <Unit side="left">{String(prefs.currency_symbol ?? "Rs")}</Unit>
+                              <Unit side="left">{String(settings.data?.currency_symbol ?? "")}</Unit>
                             </div>
                           </Field>
                         </div>
@@ -1190,7 +1301,7 @@ export default function ShopSettingsPage() {
                           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Field
                               label="Minimum advance"
-                              hint="Rs 100 against a Rs 90,000 fridge takes it off your floor for weeks and costs the customer nothing to walk away from. 20% is usual. 0 = any amount."
+                              hint="A token advance against an expensive fridge takes it off your floor for weeks and costs the customer nothing to walk away from. 20% is usual. 0 = any amount."
                             >
                               <div className="relative">
                                 <Input
@@ -1331,10 +1442,10 @@ export default function ShopSettingsPage() {
                 />
                 {!!prefs.loyalty_enabled && (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <Field label="Earn: Rs per point" hint="Spend this much (Rs) to earn 1 point.">
+                    <Field label={`Earn: ${sym} per point`} hint="Spend this much to earn 1 point.">
                       <Input type="number" min="1" value={String(prefs.loyalty_earn_per_amount ?? 100)} onChange={(e) => setP("loyalty_earn_per_amount", Number(e.target.value))} />
                     </Field>
-                    <Field label="Redeem: Rs per point" hint="What each point is worth when redeemed.">
+                    <Field label={`Redeem: ${sym} per point`} hint="What each point is worth when redeemed.">
                       <Input type="number" min="0" step={0.01} value={String(prefs.loyalty_redeem_value ?? 1)} onChange={(e) => setP("loyalty_redeem_value", Number(e.target.value))} />
                     </Field>
                     <Field label="Minimum to redeem" hint="Points needed before any redemption.">
@@ -1395,10 +1506,10 @@ export default function ShopSettingsPage() {
                             <Select
                               value={String(prefs.scale_price_decimals ?? 0)}
                               options={[
-                                { value: "0", label: "Whole rupees — 00450 is Rs 450" },
-                                { value: "2", label: "With paisa — 00450 is Rs 4.50" },
+                                { value: "0", label: `Whole amounts — 00450 is ${formatIn(shopCurrency, 450)}` },
+                                { value: "2", label: `With decimals — 00450 is ${formatIn(shopCurrency, 4.5, 2)}` },
                               ]}
-                              placeholder="Whole rupees — 00450 is Rs 450"
+                              placeholder={`Whole amounts — 00450 is ${formatIn(shopCurrency, 450)}`}
                               onChange={(v) => setP("scale_price_decimals", Number(v))}
                             />
                           </Field>

@@ -20,6 +20,7 @@ import {
   type DateRange,
   type RangeKey,
 } from "./dateRanges";
+import { spokenDate } from "../../../common/format/date";
 
 const WEEKDAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
@@ -359,11 +360,7 @@ function startingMonth(range: DateRange, today: Date): Date {
 /** "10 August 2026" — what a day cell is called when the number alone is
  *  ambiguous, which in a two-month grid it always is. */
 function fullDate(iso: string): string {
-  return fromIsoDate(iso).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return spokenDate(iso);
 }
 
 function EndBox({ title, iso, armed }: { title: string; iso: string | null; armed: boolean }) {

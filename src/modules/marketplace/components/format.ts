@@ -1,21 +1,20 @@
+import { currencyOf, formatIn } from "../../../common/format/currency";
+
 /**
- * Money, written the way a price tag is.
+ * Money, written the way a price tag is — in the money of the shop whose tag
+ * it is.
  *
  * One function because every marketplace surface shows a price and three of
  * them had their own copy of `Rs ${n}` — which is fine until one of them
  * starts rounding and the card and the cart disagree about what a thing costs.
+ *
+ * It said "Rs" for every shop. A price belongs to a shop, and a shop trades in
+ * its own currency: the caller hands over that shop's (`shop.currency`, as
+ * the server sends it), and a price with no shop behind it is written in the
+ * product's default.
  */
-export const money = (n: string | number | null | undefined): string => {
-  const value = Number(n ?? 0);
-  if (!Number.isFinite(value)) return "Rs 0";
-
-  // Whole rupees on a tag; paisa only when there actually are any, because
-  // "Rs 1,200.00" everywhere is noise a shopper reads past.
-  return `Rs ${value.toLocaleString("en-PK", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
-  })}`;
-};
+export const money = (n: string | number | null | undefined, currency?: unknown): string =>
+  formatIn(currencyOf(currency), n);
 
 /**
  * How much has come off, as a whole percent.

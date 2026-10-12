@@ -1,3 +1,5 @@
+import { platformMoney } from "../../common/format/currency";
+
 /**
  * One audit row's changes, as lines a person can read.
  *
@@ -124,7 +126,7 @@ const SETTING: Record<string, string> = {
   console_theme_sidebar: "Console menu",
 };
 
-const rupees = (v: unknown): string => (typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) ? `Rs ${Number(v).toLocaleString()}` : "free");
+const rupees = (v: unknown): string => (typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v))) ? platformMoney(Number(v)) : "free");
 
 /** One setting's value, in the words of the screen it is set on. */
 function said(key: string, v: unknown): string {

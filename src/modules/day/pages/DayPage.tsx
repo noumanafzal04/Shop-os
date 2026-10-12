@@ -28,6 +28,7 @@ import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 import { useBranchStore } from "../../../stores/branchStore";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate, shopShortDate, timeOf, weekdayOf } from "../../../common/format/date";
 
 type Tab = "today" | "shifts" | "history" | "banking";
 
@@ -46,24 +47,19 @@ const TENDER_LABELS: Record<string, string> = {
  * at UTC midnight. Handing that to `new Date()` renders as the day before for
  * anyone west of Greenwich, so the date is rebuilt in local time from its parts.
  */
-function calendarDay(value: string, opts: Intl.DateTimeFormatOptions): string {
-  const [y, m, d] = value.slice(0, 10).split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, opts);
-}
+const calendarDay = (value: string) => value.slice(0, 10);
 
-const dayDate = (d: string) =>
-  calendarDay(d, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+/** "Mon, 12 Oct 2026" — the weekday is a name, the date is written the shop's way. */
+const dayDate = (d: string) => `${weekdayOf(calendarDay(d))}, ${shopDate(calendarDay(d))}`;
 
-const clock = (t: string | null) =>
-  t ? new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "—";
+const clock = (t: string | null) => (t ? timeOf(t) : "—");
 
 /**
  * When a shift STARTED. Unlike a trading date this is a real instant, so it is
  * rendered in local time — a shift opened at 11pm belongs to that evening for
  * the person who worked it, whatever day the server filed it under.
  */
-const shiftDate = (t: string) =>
-  new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const shiftDate = (t: string) => shopShortDate(t);
 
 /** Over and short are both problems; only zero is the good colour. */
 function VarianceText({ value, money }: { value: number; money: (n: number) => string }) {
@@ -796,7 +792,7 @@ export default function DayPage() {
                   {(deposits.data?.data ?? []).map((d) => (
                     <tr key={d.id} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
                       <td className="px-5 py-3 text-gray-700 dark:text-gray-300">
-                        {new Date(d.deposited_at).toLocaleDateString()}
+                        {shopDate(d.deposited_at)}
                         <span className="ml-2 text-theme-xs text-gray-400">{clock(d.deposited_at)}</span>
                       </td>
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-400">
@@ -808,7 +804,7 @@ export default function DayPage() {
                       </td>
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-400">
                         {d.business_day
-                          ? calendarDay(d.business_day.trading_date, { day: "numeric", month: "short", year: "numeric" })
+                          ? shopDate(calendarDay(d.business_day.trading_date))
                           : "—"}
                       </td>
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-400">{signerName(d.deposited_by) ?? "—"}</td>

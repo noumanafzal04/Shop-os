@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import Badge from "../../../components/ui/badge/Badge";
 import { ApiError } from "../../../common/types/api";
 import { offlineReportService } from "./offlineReportService";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopShortDateTime } from "../../../common/format/date";
 
 /**
  * What happened while the shop was offline.
@@ -26,10 +28,9 @@ import { offlineReportService } from "./offlineReportService";
  * report is broken. That sentence is the feature on every day but the bad one.
  */
 
-const money = (n: number) => `Rs ${n.toLocaleString()}`;
 
 const when = (iso: string | null) =>
-  iso === null ? "—" : new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  iso === null ? "—" : shopShortDateTime(iso);
 
 /**
  * How far a clock is out, and which way.
@@ -62,6 +63,7 @@ function held(hours: number | null): string {
 }
 
 export function OfflineReportTab() {
+  const money = useMoney();
   const report = useQuery({
     queryKey: ["reports", "offline"],
     queryFn: () => offlineReportService.load().then((r) => r.data),

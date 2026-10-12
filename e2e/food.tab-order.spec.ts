@@ -211,11 +211,12 @@ test("a Half and a Full are told apart on the tab and on the sheet the bill is s
   await expect(sheet.getByText(`${SIZED} (Half)`, { exact: true })).toBeVisible();
   await expect(sheet.getByText(`${SIZED} (Full)`, { exact: true })).toBeVisible();
   // …and taking the Half off the bill is a button that says so, and does that.
+  // ("1 item" — the sheet counts in words a person would use; it said "1 item(s)".)
   await sheet.getByRole("button", { name: `Settle less ${SIZED} (Half)`, exact: true }).click();
-  await expect(sheet.getByText("1 item(s)")).toBeVisible();
+  await expect(sheet.getByText("1 item", { exact: true })).toBeVisible();
   await expect(sheet.getByRole("button", { name: `Settle less ${SIZED} (Half)`, exact: true })).toBeDisabled();
   await expect(sheet.getByRole("button", { name: `Settle less ${SIZED} (Full)`, exact: true })).toBeEnabled();
   // 1,400 is what is being paid for — the Full, not the Half.
-  await expect(sheet.getByText("1 item(s)").locator("xpath=following-sibling::span[1]")).toContainText("1,400");
+  await expect(sheet.getByText("1 item", { exact: true }).locator("xpath=following-sibling::span[1]")).toContainText("1,400");
   await sheet.getByRole("button", { name: "Cancel" }).click();
 });

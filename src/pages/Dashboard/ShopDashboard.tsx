@@ -26,6 +26,7 @@ import { tradeProfile } from "../../modules/dashboard/components/shop/trade";
 import { useMoney } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import { useUiMode } from "../../context/UiModeContext";
+import { shopDate, weekdayOf } from "../../common/format/date";
 
 /** Two letters off the shop's own name — a mark, not an avatar upload. */
 function initials(name: string): string {
@@ -107,12 +108,7 @@ export default function ShopDashboard() {
       <DashboardHero
         eyebrow={greeting(now.getHours())}
         title={shopName}
-        subtitle={now.toLocaleDateString(undefined, {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })}
+        subtitle={`${weekdayOf(now, true)}, ${shopDate(now)}`}
         initials={initials(shopName)}
         logo={user?.tenant?.logo_url}
         status={data ? shopStatus(data, caps) : null}
@@ -146,7 +142,7 @@ export default function ShopDashboard() {
             variant="warning"
             title="Subscription expired — grace period"
             message={`Everything still works until ${
-              data.grace_ends_at ? new Date(data.grace_ends_at).toLocaleDateString() : "soon"
+              data.grace_ends_at ? shopDate(data.grace_ends_at) : "soon"
             }. Renew now to avoid read-only mode. Your data is safe.`}
           />
         </div>

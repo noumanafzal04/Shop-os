@@ -49,6 +49,27 @@ export function useReturnWorth(saleId: string | null, asked: string, already: nu
   });
 }
 
+/**
+ * WHAT A SALE WILL COME TO — asked of the server each time the bill changes.
+ *
+ * `asked` is the sale exactly as it would be sent, as a string: the same
+ * question is the same key. Keyed apart from `["sales"]`, which ringing the
+ * sale invalidates — an answer re-fetched at that moment would be for a cart
+ * that has just been emptied. Never served from an old answer.
+ */
+export function useSaleWorth(asked: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["sale-worth", asked],
+    queryFn: async () => (await salesService.worth(JSON.parse(asked) as SaleInput)).data,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    // A refusal is an answer, not a blip.
+    retry: false,
+  });
+}
+
 export function useSaleMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => {

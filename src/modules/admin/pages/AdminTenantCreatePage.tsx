@@ -10,13 +10,14 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
+import { useAdminCities, useCurrencies, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { ModulePicker } from "../components/ModulePicker";
 import { settle } from "../components/moduleRules";
 import { toIsoDate } from "../../../components/ui/filters";
+import { PKR, platformMoney } from "../../../common/format/currency";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+const money = (n: string | number) => platformMoney(n);
 
 /**
  * The three numbers a buyer asks about first — named once, because the
@@ -68,6 +69,7 @@ function FormCard({ title, description, children, className = "" }: {
 export default function AdminTenantCreatePage() {
   const navigate = useNavigate();
   const cities = useAdminCities();
+  const currencies = useCurrencies();
   const plans = usePlans();
   const businessTypes = useBusinessTypes();
   const catalog = useModuleCatalog();
@@ -80,6 +82,9 @@ export default function AdminTenantCreatePage() {
     business_type: "",
     business_category: "",
     city_id: "",
+    // The money the business trades in. Blank is the product's default; it
+    // is asked here because the owner cannot change it once they have traded.
+    currency: "",
     plan_id: "",
     // The subscription window. Blank = starts today and runs for the plan's
     // billing period, which is right for a shop signing up now and wrong for
@@ -161,6 +166,7 @@ export default function AdminTenantCreatePage() {
         business_type: form.business_type,
         business_category: form.business_category || undefined,
         city_id: form.city_id || undefined,
+        currency: form.currency || undefined,
         plan_id: form.plan_id,
         // Sent only when the admin typed something. An empty period object is
         // indistinguishable from "no opinion" server-side, and this is the one
@@ -276,7 +282,7 @@ export default function AdminTenantCreatePage() {
             <p className="-mt-2 text-theme-xs text-gray-400">
               The type drives terminology, default categories and the modules proposed below. The owner can't change it.
             </p>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label>Email</Label>
                 <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
@@ -296,7 +302,21 @@ export default function AdminTenantCreatePage() {
                   onChange={(v) => set("city_id", v)}
                 />
               </div>
+              <div>
+                <Label>Currency</Label>
+                <Select
+                  aria-label="Currency"
+                  value={form.currency}
+                  options={(currencies.data ?? []).map((c) => ({ value: c.code, label: `${c.name} — ${c.symbol} (${c.code})` }))}
+                  placeholder={`${PKR.name} — ${PKR.symbol} (${PKR.code})`}
+                  onChange={(v) => set("currency", v)}
+                />
+                {errorFor("currency") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("currency")}</p>}
+              </div>
             </div>
+            <p className="mt-2 text-theme-xs text-gray-400">
+              The currency is what the shop's prices, receipts and reports are written in. The owner can change it until their first sale; after that it is fixed.
+            </p>
           </div>
         </FormCard>
 

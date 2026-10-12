@@ -20,6 +20,7 @@ import {
   type AppliedFilter,
   type DateRange,
 } from "../../../components/ui/filters";
+import { shopDateTime } from "../../../common/format/date";
 
 interface AuditLog {
   id: string;
@@ -212,7 +213,7 @@ export default function AdminAuditPage() {
               ) : (
                 rows.map((log) => (
                   <tr key={log.id} className="align-top text-theme-sm text-gray-700 dark:text-gray-300">
-                    <td className="px-6 py-4 text-theme-xs whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
+                    <td className="px-6 py-4 text-theme-xs whitespace-nowrap">{shopDateTime(log.created_at)}</td>
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-800 dark:text-white/90">{log.actor?.name ?? "System"}</div>
                       {log.actor?.email && <div className="text-theme-xs text-gray-400">{log.actor.email}</div>}

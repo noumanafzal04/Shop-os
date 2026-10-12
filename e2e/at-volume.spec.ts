@@ -54,7 +54,8 @@ const SCREENS: Screen[] = [
   // The other door. Both of these were empty on every load-test shop until
   // the fixture switched the marketplace module on beside the flag — so
   // neither screen had ever been looked at with a real queue on it.
-  { path: "/tenant/orders", name: "online orders", rows: true },
+  { path: "/tenant/orders", name: "online orders · today's board", rows: true },
+  { path: "/tenant/orders?show=past", name: "online orders · the past", rows: true },
   { path: "/tenant/riders", name: "riders · cash held", rows: true },
 ];
 
@@ -143,7 +144,8 @@ function walk(screen: Screen): void {
 
     // Still where it asked for. A guard redirect would make everything below
     // describe the dashboard — see four-doors.spec.ts.
-    expect(new URL(page.url()).pathname, `${screen.name} was redirected`).toBe(screen.path);
+    // (A screen may name a view of itself — `?show=past` — and that is not part of where it is.)
+    expect(new URL(page.url()).pathname, `${screen.name} was redirected`).toBe(screen.path.split("?")[0]);
 
     expect(
       seconds,

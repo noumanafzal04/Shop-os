@@ -1,5 +1,5 @@
 import { apiGet, apiPost } from "../../../common/api/client";
-import type { ReturnWorth, Sale, SaleInput, SaleReturn } from "../types";
+import type { ReturnWorth, Sale, SaleInput, SaleReturn, SaleWorth } from "../types";
 
 /** Mirrors Sale::VOID_REASONS on the server. */
 export const VOID_REASONS = [
@@ -58,6 +58,9 @@ export const salesService = {
   show: (id: string) => apiGet<Sale>(`/sales/${id}`),
 
   create: (payload: SaleInput) => apiPost<Sale>("/sales", payload),
+
+  /** What that sale would come to, asked before it is rung. Nothing is written. */
+  worth: (payload: SaleInput) => apiPost<SaleWorth>("/sales/worth", payload),
 
   /**
    * A void needs a CODED reason — free text alone can't be tallied, and the

@@ -115,14 +115,14 @@ test("a car is booked in, the job grows as it is worked on, and it is billed for
   expect(job, "the car was booked in and is not in the shop").toBeTruthy();
   // FIVE IN THE AFTERNOON, HERE — not five o'clock UTC.
   expect(new Date(String(job.promised_at)).getTime(), "the promised time moved between the sheet and the server").toBe(new Date(promised).getTime());
-  await expect(card(page), "the board does not show the hour that was promised").toContainText(/Due .* 05:00/, { timeout: 15_000 });
+  await expect(card(page), "the board does not show the hour that was promised").toContainText(/Due .* 5:00 PM/, { timeout: 15_000 });
 
   // ── its own page ───────────────────────────────────────────────────
   await card(page).getByRole("link", { name: CAR.plate, exact: true }).click();
   const facts = page.getByTestId("job-details");
   await expect(facts).toContainText(CAR.plate, { timeout: 15_000 });
   await expect(facts).toContainText("Rattle over bumps");
-  await expect(facts).toContainText(/05:00/);
+  await expect(facts).toContainText(/\b5:00 PM/);
   await expect(page.getByText("Job card", { exact: true }), "a job card is called a quotation").toBeVisible();
   await expect(page.getByText("Quotation", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "← Workshop" })).toBeVisible();

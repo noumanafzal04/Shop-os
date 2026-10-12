@@ -9,6 +9,7 @@ import { useMoney } from "../../shop/hooks/useShop";
 import { useDeadStockReport, useMarginsReport, useValuationReport } from "../hooks/useExpenses";
 import { rangeParams, type ReportRange } from "../reportPeriod";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 /** A report you cannot take to an accountant is half a report. */
 function ExportButton({ url, params, filename }: { url: string; params?: Record<string, unknown>; filename: string }) {
@@ -373,7 +374,7 @@ export function DeadStockTab() {
                         <span className="text-error-600 dark:text-error-400">never</span>
                       ) : (
                         <>
-                          {new Date(row.last_sold_at).toLocaleDateString()}
+                          {shopDate(row.last_sold_at)}
                           <span className="ml-2 text-theme-xs text-gray-400">{row.days_idle}d ago</span>
                         </>
                       )}

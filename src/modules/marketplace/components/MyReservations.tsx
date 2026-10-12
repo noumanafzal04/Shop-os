@@ -6,6 +6,8 @@ import Pager from "../../../components/ui/pager";
 import { useToast } from "../../../components/ui/toast";
 import { useCancelReservation, useMyReservations } from "../hooks/useMarketplace";
 import type { CustomerReservation } from "../services/marketplaceService";
+import { money } from "./format";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * Things a buyer has asked a shop to hold for them.
@@ -48,7 +50,6 @@ const STATUS_WORDS: Record<string, string> = {
   expired: "Hold ran out",
 };
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
 /** The shop can still be talked out of it while it is one of these. */
 const cancellable = (r: CustomerReservation) => r.status === "pending" || r.status === "accepted";
@@ -83,7 +84,7 @@ export function MyReservations() {
                   {r.variant_name && <span className="text-gray-400"> · {r.variant_name}</span>}
                 </p>
                 <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                  {r.shop.business_name} · {r.quantity} × {money(r.unit_price)}
+                  {r.shop.business_name} · {r.quantity} × {money(r.unit_price, r.shop.currency)}
                 </p>
               </div>
 
@@ -115,7 +116,7 @@ export function MyReservations() {
                 reads as though something is still counting down. */}
             {r.status === "accepted" && r.expires_at && (
               <p className="mt-2 text-theme-xs text-gray-400">
-                Held until {new Date(r.expires_at).toLocaleDateString()}
+                Held until {shopDate(r.expires_at)}
               </p>
             )}
           </div>

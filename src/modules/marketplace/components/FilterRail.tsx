@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import type { AisleFacets, AisleFilters } from "../services/marketplaceService";
-import { money, tradeLabel } from "./format";
+import { PKR, numberIn } from "../../../common/format/currency";
+import { tradeLabel } from "./format";
 import { CheckIcon, CloseIcon, StarIcon } from "./MarketIcons";
 
 /**
@@ -241,7 +242,7 @@ export function FilterRail({
         </div>
         {facets && facets.price.max > 0 && (
           <p className="mt-2 text-[11px] text-gray-400">
-            {money(facets.price.min)} – {money(facets.price.max)} across {facets.total} items
+            {numberIn(PKR, facets.price.min)} – {numberIn(PKR, facets.price.max)} across {facets.total} items
           </p>
         )}
       </Section>

@@ -3,6 +3,7 @@ import type { DateRange } from "../../../components/ui/filters";
 import type { PeriodTold } from "../../dashboard/period";
 import type { Kpi } from "../../dashboard/types";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
+import type { CurrencyFormat } from "../../../common/format/currency";
 import type { PaymentStatus, Tenant, User } from "../../auth/types";
 import type { PlanWindow } from "../planWindowWords";
 
@@ -252,6 +253,8 @@ export interface Announcement {
 
 export interface TenantInput {
   business_name: string;
+  /** The money it trades in. Left out, the product's default. */
+  currency?: string;
   // null clears the field on an update; the API's rules take null, not "".
   email?: string | null;
   phone?: string | null;
@@ -504,6 +507,8 @@ export const adminService = {
   updatePlan: (id: string, payload: Partial<PlanInput>) => apiPut<Plan>(`/admin/plans/${id}`, payload),
   deletePlan: (id: string) => apiDelete<null>(`/admin/plans/${id}`),
   cities: () => apiGet<Array<{ id: string; name: string }>>("/cities"),
+  /** The currencies a business can be put on. */
+  currencies: () => apiGet<CurrencyFormat[]>("/currencies"),
 
   payments: (params: PaymentFilters) =>
     apiGet<Payment[]>("/admin/billing/payments", {

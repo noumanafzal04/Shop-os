@@ -16,6 +16,7 @@ import { useCategories } from "../../catalog/hooks/useCatalog";
 import { catalogService } from "../../catalog/services/catalogService";
 import { usePromotions, usePromotionMutations } from "../hooks/usePromotions";
 import type { Promotion, PromoScope, PromoType } from "../services/promotionsService";
+import { counted } from "../../../common/format/counted";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -191,7 +192,7 @@ export default function PromotionsPage() {
                           : money(p.value)}
                     </td>
                     <td className="px-4 py-3 capitalize">
-                      {p.scope === "order" ? "Whole order" : p.scope === "category" ? `Category: ${p.category?.name ?? "—"}` : `${p.product_ids?.length ?? 0} product(s)`}
+                      {p.scope === "order" ? "Whole order" : p.scope === "category" ? `Category: ${p.category?.name ?? "—"}` : counted(p.product_ids?.length, "product")}
                     </td>
                     <td className="px-4 py-3 text-theme-xs text-gray-500">{scheduleLabel(p)}</td>
                     <td className="px-4 py-3"><Badge size="sm" color={p.is_active ? "success" : "light"}>{p.is_active ? "Active" : "Off"}</Badge></td>

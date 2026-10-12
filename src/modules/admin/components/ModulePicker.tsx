@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { applyModuleChange, settle } from "./moduleRules";
 import type { ModuleInfo } from "../services/adminService";
+import { platformMoney } from "../../../common/format/currency";
 
 /**
  * WHICH MODULES A SHOP HAS — sorted by where each one comes from.
@@ -37,7 +38,7 @@ export interface ModuleBands {
   essential?: string[];
 }
 
-const rupees = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rupees = (n: number) => platformMoney(Math.round(n));
 
 export function ModulePicker({
   catalog,

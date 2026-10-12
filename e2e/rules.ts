@@ -900,6 +900,95 @@ export async function everyRule(page: Page): Promise<Finding[]> {
   return [...atRest, ...reachable, ...(await pinnedThingsDoNotSitOnThePage(page))];
 }
 
+/**
+ * NOTHING IS WRITTEN UNDER A BUTTON — in a sheet that is open.
+ *
+ *     "Modal cross ✕ button ke piche text bhi cut raha hai, bohat jagah."
+ *
+ * A sheet's ✕ sat in the corner its own content begins in, so whatever a
+ * screen put at the right-hand end of its first row was half under it: an
+ * order's stage read "Waiting to be conf…", a long title on a phone lost its
+ * last word. `nothingIsCovered` did not see it, and could not have — it asks
+ * whether a BUTTON can be reached, and the thing being covered here is text.
+ *
+ * So this asks the other way round, of every control in every open sheet: is
+ * there writing (or another control) under you that is not your own?
+ *
+ * Measured by rectangles AND by what is painted on top at the overlap, because
+ * two boxes can cross with nothing hidden — a line box is taller than its
+ * glyphs — and a rule that cries at every crossing is a rule that gets
+ * switched off.
+ */
+export async function nothingIsWrittenUnderAButton(page: Page): Promise<Finding[]> {
+  return page.evaluate((selector) => {
+    const found: Array<{ what: string; detail: string }> = [];
+    const named = (el: Element) => (el.getAttribute("aria-label") ?? el.textContent ?? el.tagName).trim().replace(/\s+/g, " ").slice(0, 40);
+    /** What is left of a box once every scroller and clipper between it and the sheet has cut it. */
+    const drawn = (box: DOMRect, from: Element | null, within: Element) => {
+      let { left, right, top, bottom } = box;
+      for (let el = from; el !== null && el !== within.parentElement; el = el.parentElement) {
+        const style = getComputedStyle(el);
+        if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+        const clip = el.getBoundingClientRect();
+        left = Math.max(left, clip.left);
+        right = Math.min(right, clip.right);
+        top = Math.max(top, clip.top);
+        bottom = Math.min(bottom, clip.bottom);
+        if (right - left < 1 || bottom - top < 1) return null;
+      }
+
+      return { left, right, top, bottom };
+    };
+
+    for (const sheet of Array.from(document.querySelectorAll('[role="dialog"]'))) {
+      const texts: Array<{ node: Text; rects: DOMRect[] }> = [];
+      const walker = document.createTreeWalker(sheet, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (!(n.textContent ?? "").trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        texts.push({ node: n as Text, rects: Array.from(range.getClientRects()) });
+      }
+
+      for (const button of Array.from(sheet.querySelectorAll(selector))) {
+        const b = button.getBoundingClientRect();
+        if (b.width === 0 || b.height === 0) continue;
+
+        for (const { node, rects } of texts) {
+          // Its own words, or the words of the thing it sits inside (a row that is itself a button).
+          if (button.contains(node) || node.parentElement?.closest(selector)?.contains(button)) continue;
+
+          for (const whole of rects) {
+            // Only the part of the writing that is DRAWN. A long form scrolls
+            // inside its sheet and its buttons are pinned below it: the lines
+            // that have scrolled out are, by their rectangles, "under" the
+            // buttons — and are not on the screen at all.
+            const r = drawn(whole, node.parentElement, sheet);
+            if (r === null) continue;
+            const left = Math.max(r.left, b.left);
+            const right = Math.min(r.right, b.right);
+            const top = Math.max(r.top, b.top);
+            const bottom = Math.min(r.bottom, b.bottom);
+            // A crossing a person could see: more than a hair, both ways.
+            if (right - left < 3 || bottom - top < 3) continue;
+            const over = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+            // …and the button is what is painted there.
+            if (over === null || !(button === over || button.contains(over))) continue;
+
+            found.push({
+              what: `“${(node.textContent ?? "").trim().slice(0, 50)}” is written under the “${named(button)}” button`,
+              detail: `${Math.round(right - left)}px of it is covered, in the sheet “${named(sheet.querySelector("h1, h2, h3, h4") ?? sheet)}”`,
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    return found;
+  }, PRESSABLE);
+}
+
 export function report(findings: Finding[], where: string): void {
   expect(
     findings,

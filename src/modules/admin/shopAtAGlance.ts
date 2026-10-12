@@ -1,5 +1,7 @@
 import type { LimitUsage } from "../auth/types";
 import type { Tone } from "./components/face";
+import { platformMoney } from "../../common/format/currency";
+import { shopDate } from "../../common/format/date";
 
 /**
  * A SHOP, AT A GLANCE — the four things asked of its page first.
@@ -33,11 +35,11 @@ interface ShopSeen {
   } | null;
 }
 
-const rupees = (n: number): string => `Rs ${Math.round(n).toLocaleString()}`;
+const rupees = (n: number): string => platformMoney(Math.round(n));
 const every = (months: number): string => (months === 1 ? "a month" : `every ${months} months`);
 const plural = (n: number, one: string, many: string): string => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 const day = (iso: string): string =>
-  new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  shopDate(iso);
 
 /**
  * Days from today to the day a moment falls on — by the CALENDAR, not by

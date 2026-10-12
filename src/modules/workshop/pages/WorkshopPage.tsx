@@ -17,6 +17,8 @@ import { findOnBoard } from "../find";
 import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopShortDateTime } from "../../../common/format/date";
 
 /**
  * What is in the shop right now.
@@ -52,7 +54,6 @@ import { ListEmpty } from "../../../common/ui/ListEmpty";
  */
 const STAGE_KEYS: WorkStatus[] = ["received", "in_progress", "ready"];
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
 /** Overdue is the one thing on this board worth a colour. */
 function isOverdue(job: SaleDocument): boolean {
@@ -62,13 +63,12 @@ function isOverdue(job: SaleDocument): boolean {
 
 function promised(job: SaleDocument): string | null {
   if (!job.promised_at) return null;
-  const at = new Date(job.promised_at);
 
-  return at.toLocaleDateString(undefined, { day: "numeric", month: "short" })
-    + " " + at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return shopShortDateTime(job.promised_at);
 }
 
 export default function WorkshopPage() {
+  const money = useMoney();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [booking, setBooking] = useState(false);

@@ -151,17 +151,17 @@ export default function MarketShopPage() {
                   {(shop.data.delivery_fee ?? 0) > 0 && (
                     <span className="flex items-center gap-1">
                       <TruckIcon className="size-3.5" />
-                      Delivery {money(shop.data.delivery_fee)}
+                      Delivery {money(shop.data.delivery_fee, shop.data.currency)}
                     </span>
                   )}
                   {/* The least it delivers and when delivery is free were on
                       the wire and on no screen: a stranger met the first as a
                       refusal at checkout, and never heard of the second. */}
                   {(shop.data.min_order_amount ?? 0) > 0 && (
-                    <span>Minimum order {money(shop.data.min_order_amount ?? 0)}</span>
+                    <span>Minimum order {money(shop.data.min_order_amount ?? 0, shop.data.currency)}</span>
                   )}
                   {(shop.data.delivery_fee ?? 0) > 0 && (shop.data.free_delivery_threshold ?? 0) > 0 && (
-                    <span>Free delivery above {money(shop.data.free_delivery_threshold ?? 0)}</span>
+                    <span>Free delivery above {money(shop.data.free_delivery_threshold ?? 0, shop.data.currency)}</span>
                   )}
                 </p>
               </div>

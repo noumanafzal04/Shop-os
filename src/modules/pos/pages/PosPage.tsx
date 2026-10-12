@@ -20,7 +20,8 @@ import { syncDetail, syncLabel, useManualSync } from "../../offline/sync/useManu
 import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { effectiveTaxRate } from "../../offline/pricing/priceCart";
 import { round2 } from "../../offline/pricing/money";
-import { formatMoney } from "../../../common/format/money";
+import { formatIn } from "../../../common/format/currency";
+import { useTillCurrency } from "../../offline/tillSettings";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine } from "../lineMath";
 import { followLevel, shortBy, tillBill, type BillGroup } from "../tillBill";
@@ -84,6 +85,8 @@ import { asProduct, loadShelf, loadTaxRates, shelfRows } from "../../offline/loo
 import { findByCode } from "../../offline/lookup/findByCode";
 import { onSale, sellingPrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
+import { shopDateTime } from "../../../common/format/date";
+import { counted } from "../../../common/format/counted";
 
 interface CartLine {
   /**
@@ -374,7 +377,9 @@ export default function PosPage() {
    */
   const requireShift = settings.data?.pos_require_shift === true;
   const canRing = canRingASale(session.data ?? null, requireShift);
-  const cur = settings.data?.currency_symbol ?? "Rs";
+  // The shop's money — from the server, or from the device when there is none.
+  const currency = useTillCurrency();
+  const cur = currency.symbol;
   // Settings → Point of Sale → Default payment. The setting was saved, typed
   // and validated, and then read by nobody: the till always opened on cash. A
   // shop that mostly takes card was one extra press away on every single sale.
@@ -384,7 +389,7 @@ export default function PosPage() {
   // exactly two. This page had its own copy that kept up to THREE places and
   // dropped trailing zeroes, so the till read "Rs 437.4" and "Rs 750.861"
   // while the Products screen beside it read "Rs 217.50".
-  const money = (n: string | number) => formatMoney(cur, n);
+  const money = (n: string | number) => formatIn(currency, n);
 
   // ── Receipts & drawer ───────────────────────────────────────────
   // The hardware this lane drives. The drawer usually hangs off the printer,
@@ -1791,7 +1796,7 @@ export default function PosPage() {
       if (data.scale) notices.push(`${data.product.name}: ${data.scale.quantity} ${data.product.unit ?? "kg"} weighed`);
       if (data.serial) notices.push(`${data.product.name}: unit ${data.serial} is on the bill`);
       if (data.requires_prescription) notices.push(`℞ ${data.product.name} requires a prescription`);
-      if (data.near_expiry) notices.push(`${data.product.name}: batch ${data.near_expiry.batch_number} expires in ${data.near_expiry.days} day(s) (${data.near_expiry.expiry_date})`);
+      if (data.near_expiry) notices.push(`${data.product.name}: batch ${data.near_expiry.batch_number} expires in ${counted(data.near_expiry.days, "day")} (${data.near_expiry.expiry_date})`);
       // A warning, never a fence. Settings → Stock ageing promises "the counter
       // is told, and the decision stays with whoever is standing there" — this
       // line is the first half of that. It names the lot the customer will
@@ -4796,11 +4801,11 @@ export default function PosPage() {
                   {/* An unreadable amount says so. "Rs 0" reads as a sale worth
                       nothing, which is a different and wrong story. */}
                   <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">
-                    {amount === null ? "amount unreadable" : `Rs ${amount.toLocaleString()}`}
+                    {amount === null ? "amount unreadable" : money(amount)}
                   </span>
                 </div>
                 <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
-                  {new Date(row.at).toLocaleString()}
+                  {shopDateTime(row.at)}
                 </p>
                 <p className="mt-1 text-theme-xs text-error-600 dark:text-error-400">
                   {row.error ?? "The server gave no reason."}

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import type { SettleAsk } from "../settleSheet";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   dineInService,
@@ -171,6 +172,31 @@ export function useTabLines(ticketId: string | undefined) {
   [ticketId, inTurn]);
 
   return { add, step, note, waiting, busy: Object.keys(waiting).length > 0 };
+}
+
+/**
+ * WHAT THE SETTLE SHEET SHOWS — asked of the server, each time the question changes.
+ *
+ * Keyed APART from `["dine-in", …]`. Settling invalidates everything under
+ * that key, and a question re-asked at that moment is about lines that have
+ * just been paid for: the answer is a refusal, and it would be drawn on a
+ * sheet that is closing.
+ *
+ * Never served from an old answer: the tab can change between two openings of
+ * the sheet (a line added, a line voided), so it is asked again every time,
+ * and the sheet does not show a figure while it is being asked.
+ */
+export function useSettleWorth(ticketId: string | undefined, ask: SettleAsk, open: boolean) {
+  return useQuery({
+    queryKey: ["tab-settle-worth", ticketId, JSON.stringify(ask)],
+    queryFn: async () => (await dineInService.settleWorth(ticketId!, ask)).data,
+    enabled: open && !!ticketId && ask.splits.length > 0,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    // A refusal is an answer ("this line is already paid"), not a blip.
+    retry: false,
+  });
 }
 
 export function useDineInMutations(ticketId?: string) {

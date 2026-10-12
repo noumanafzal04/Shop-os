@@ -1,13 +1,14 @@
 import { Link } from "react-router";
 
 import { formatQuantity } from "../../../common/format/quantity";
-import { elapsedLabel, urgencyOf } from "../../../common/time/elapsed";
+import { elapsedAgo, urgencyOf } from "../../../common/time/elapsed";
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { nextStep } from "../orderFlow";
 import { STAGE } from "./orderStage";
 import type { OrderStatus, OwnerOrder, Rider } from "../services/ordersService";
+import { shopDateTime } from "../../../common/format/date";
 
 /**
  * ONE ORDER IN FULL — opened from a row, never drawn in the list.
@@ -61,7 +62,7 @@ export function OrderDetail({
               {order.order_number}
             </h3>
             <p className="mt-0.5 text-theme-sm text-gray-500 dark:text-gray-400">
-              Placed {new Date(order.placed_at).toLocaleString()}
+              Placed {shopDateTime(order.placed_at)}
               {" · "}
               <span
                 className={
@@ -72,7 +73,7 @@ export function OrderDetail({
                       : ""
                 }
               >
-                {elapsedLabel(order.placed_at)} ago
+                {elapsedAgo(order.placed_at)}
               </span>
             </p>
           </div>
@@ -123,9 +124,11 @@ export function OrderDetail({
 
           <Field label="Payment">
             <p className="text-theme-sm text-gray-700 dark:text-gray-300">
-              <span className="uppercase">{order.payment_method}</span>{" "}
+              {/* In words. It read "cod unpaid" — a column's value and another
+                  column's value, side by side. */}
+              {order.payment_method === "cod" ? (delivery ? "Cash on delivery" : "Pays when collecting") : "Paid when ordering"}{" "}
               <Badge size="sm" color={order.payment_status === "paid" ? "success" : "light"}>
-                {order.payment_status}
+                {order.payment_status === "paid" ? "Paid" : "Not yet paid"}
               </Badge>
             </p>
           </Field>

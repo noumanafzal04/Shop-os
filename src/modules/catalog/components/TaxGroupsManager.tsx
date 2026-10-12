@@ -8,6 +8,7 @@ import { useTaxGroups, useTaxGroupMutations } from "../hooks/useTaxGroups";
 import type { TaxGroup } from "../services/taxGroupsService";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { counted } from "../../../common/format/counted";
 
 /**
  * Manage reusable tax groups — named rates a product can point at instead of a
@@ -61,7 +62,7 @@ export default function TaxGroupsManager() {
           <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
             <div>
               <span className="font-medium text-gray-800 dark:text-white/90">{g.name}</span>
-              <span className="ml-2 text-theme-xs text-gray-400">{Number(g.rate)}%{g.products_count != null ? ` · ${g.products_count} product(s)` : ""}</span>
+              <span className="ml-2 text-theme-xs text-gray-400">{Number(g.rate)}%{g.products_count != null ? ` · ${counted(g.products_count, "product")}` : ""}</span>
             </div>
             <div className="flex gap-3">
               <button className={ROW_ACTION} onClick={() => setDraft({ id: g.id, name: g.name, rate: String(g.rate) })}>Edit</button>

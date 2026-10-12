@@ -1,3 +1,6 @@
+import { PKR, formatIn } from "../../../../common/format/currency";
+import { shopDate } from "../../../../common/format/date";
+
 /**
  * Platform-console formatting.
  *
@@ -8,13 +11,10 @@
 
 export function money(amount: number, currency?: string | null): string {
   const code = currency?.trim().toUpperCase();
-  const prefix = !code || code === "PKR" ? "Rs" : code;
 
-  return `${prefix} ${amount.toLocaleString(undefined, {
-    // Whole rupees decode as ints; only show paisa when there are any.
-    minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
+  // The platform's money — or, for a payment row that names another code,
+  // that code as its own mark, never somebody else's.
+  return formatIn(!code || code === PKR.code ? PKR : { ...PKR, code, symbol: code }, amount);
 }
 
 export function count(n: number): string {
@@ -41,9 +41,7 @@ function parse(iso: string | null | undefined): Date | null {
 export function date(iso: string | null | undefined): string {
   const d = parse(iso);
 
-  return d
-    ? d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-    : "—";
+  return d ? shopDate(d) : "—";
 }
 
 export function dateTime(iso: string | null | undefined): string {

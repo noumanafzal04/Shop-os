@@ -171,7 +171,7 @@ test("O3 · eight shirts are taken in: what they want done, whose they are, when
     if (job.work_status === "received") await expect(column(page, "Taken in").filter({ has: onBoard })).toBeVisible({ timeout: 15_000 });
     await expect(onBoard).toContainText(SANA.name);
     await expect(onBoard).toContainText(ASKED);
-    await expect(onBoard, "the board does not show the hour that was promised").toContainText(/Due .* 06:00/);
+    await expect(onBoard, "the board does not show the hour that was promised").toContainText(/Due .* 6:00 PM/);
   }
 });
 

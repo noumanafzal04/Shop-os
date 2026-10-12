@@ -5,6 +5,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { authService, type DeviceSession } from "../services/authService";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * Where this account is signed in — and the button that ends one.
@@ -70,7 +71,7 @@ export default function DeviceSessionsPanel() {
             </div>
             <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
               {s.last_used_at ? `Last used ${ago(s.last_used_at)}` : "Never used"}
-              {s.created_at ? ` · signed in ${new Date(s.created_at).toLocaleDateString()}` : ""}
+              {s.created_at ? ` · signed in ${shopDate(s.created_at)}` : ""}
             </p>
           </div>
           {!s.is_current && (

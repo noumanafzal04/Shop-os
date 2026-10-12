@@ -23,6 +23,7 @@ import type { PaymentStatus, Tenant } from "../../auth/types";
 import { GroupIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
 import { paymentChip } from "../paymentChip";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * The four buckets, in the order an admin reads them: who is fine, who needs a
@@ -75,7 +76,7 @@ function dueLabel(t: Tenant): string {
 
   const ends = new Date(t.subscription_ends_at);
   const days = Math.round((ends.getTime() - Date.now()) / 86_400_000);
-  const date = ends.toLocaleDateString();
+  const date = shopDate(ends);
 
   if (days === 0) return `${date} · today`;
   if (days > 0) return `${date} · in ${days}d`;

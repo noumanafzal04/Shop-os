@@ -1,3 +1,5 @@
+import { shopDate } from "../../common/format/date";
+
 /**
  * How the warranty desk SAYS what it knows.
  *
@@ -23,8 +25,6 @@ export function daysLeft(days: number): string {
  */
 export function deskDate(value: string | null | undefined): string {
   if (!value) return "—";
-  const d = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
 
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return shopDate(value) || "—";
 }

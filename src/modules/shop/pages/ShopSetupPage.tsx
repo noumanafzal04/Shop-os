@@ -7,7 +7,7 @@ import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import MapPicker, { type PickedLocation } from "../../../components/maps/MapPicker";
 import { ApiError } from "../../../common/types/api";
-import { useBusinessTypes, useCities, useCompleteSetup } from "../hooks/useShop";
+import { useBusinessTypes, useCities, useCompleteSetup, useShopCurrencies } from "../hooks/useShop";
 import { useCapabilities } from "../../dashboard/components/shop/capabilities";
 import { useAuthStore } from "../../../stores/authStore";
 
@@ -23,6 +23,13 @@ export default function ShopSetupPage() {
   const setup = useCompleteSetup();
 
   const [cityId, setCityId] = useState("");
+  // The money the shop trades in. Asked HERE, on the first screen a new shop
+  // sees, because it is fixed once there is a sale on the books — and "you
+  // should have chosen this before you began" is no use to somebody who has
+  // begun. Until a choice is made it is whatever the shop is already on.
+  const currencies = useShopCurrencies();
+  const [currency, setCurrency] = useState("");
+  const chosenCurrency = currency || currencies.data?.current.code || "";
   const [address, setAddress] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
@@ -73,6 +80,8 @@ export default function ShopSetupPage() {
     if (setup.isPending) return;
     setup.mutate({
       city_id: cityId,
+      // Not sent by a business that has already traded: it keeps its own.
+      currency: currencies.data && !currencies.data.locked && chosenCurrency ? chosenCurrency : undefined,
       address: address || undefined,
       latitude: coords?.lat,
       longitude: coords?.lng,
@@ -137,6 +146,25 @@ export default function ShopSetupPage() {
                 <p className="mt-1 text-theme-xs text-error-500">{fieldErrors.city_id[0]}</p>
               )}
             </div>
+
+            {currencies.data && !currencies.data.locked && (
+              <div>
+                <Label>Currency</Label>
+                <Select
+                  aria-label="Currency"
+                  value={chosenCurrency}
+                  options={currencies.data.options.map((o) => ({ value: o.code, label: `${o.name} — ${o.symbol} (${o.code})` }))}
+                  placeholder="Choose a currency"
+                  onChange={(v) => v && setCurrency(v)}
+                />
+                <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+                  The money your prices and receipts are written in. It can be changed in Settings until your first sale — after that it is fixed.
+                </p>
+                {fieldErrors.currency && (
+                  <p className="mt-1 text-theme-xs text-error-500">{fieldErrors.currency[0]}</p>
+                )}
+              </div>
+            )}
 
             <div>
               <Label>{noun.Title} location</Label>

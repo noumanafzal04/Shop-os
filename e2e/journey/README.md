@@ -100,6 +100,23 @@ stage, 20 onwards, listed in `CASES.md`:
 | 26 | O | services | 〃 |
 | 27 | P | online | 〃 |
 | 28 | Q | finance | **its own business** — see below |
+| 40 | W | food | the restaurant stages 20–21 made: its suppliers, a delivery, its people, its offers |
+| 43 | Z | food | the same restaurant: every screen, and every sheet a screen can open |
+
+**A second business of one trade.** `JOURNEY_RECORD=<name>` keeps its own
+record and sign-ins (`e2e/.journey/<name>.json`), so a new restaurant can be
+lived while the standing food journey's is left alone:
+
+```sh
+JOURNEY_TRADE=food JOURNEY_RECORD=house E2E_BASE_URL=http://localhost:5177 npx playwright test --project=journey e2e/journey/01 e2e/journey/02 e2e/journey/20 e2e/journey/21 e2e/journey/40 e2e/journey/43 --reporter=line
+```
+
+Stage 43 writes `e2e/.journey/<name>-screens.json` (what every screen asked the
+server, and how long each answer took); with `JOURNEY_DUMP=<folder>` it also
+writes what each screen and sheet says, as a screen reader would be told it —
+the quickest way to learn a screen's labels before writing a stage about it.
+A food journey cannot be resumed once stage 21 has seated its table: stage 20
+asserts both tables are free. After a cut run, use a new record.
 
 **Stage 28 makes its own business.** Stage 01 switches on every module, and
 the whole subject of a Finance Manager is that it has only the books. So Q1 is

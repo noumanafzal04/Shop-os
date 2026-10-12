@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { Modal } from "../../../components/ui/modal";
 import Button from "../../../components/ui/button/Button";
 import { useMoney } from "../../shop/hooks/useShop";
+import { numberIn } from "../../../common/format/currency";
 import { useSessionReport } from "../hooks/usePos";
-import { tillFlag, useTillSettings } from "../../offline/tillSettings";
+import { tillFlag, useTillSettings, useTillCurrency } from "../../offline/tillSettings";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useOfflineStore } from "../../offline/offlineStore";
 
@@ -74,12 +75,17 @@ export default function CloseShiftModal({
   const connected = useConnectionStore((c) => c.online && c.reachable);
   const owed = useOfflineStore((o) => o.pending);
   const provisional = !connected || owed > 0;
-  const denominations = report.data?.denominations ?? [5000, 1000, 500, 100, 50, 20, 10, 5, 2, 1];
+  // The shop's OWN notes and coins. The server's list first; with no server,
+  // the one that came down with the catalogue — it was five-thousand-rupee
+  // notes for everybody, whatever the drawer actually held.
+  const currency = useTillCurrency();
+  const denominations = report.data?.denominations ?? currency.cash;
   const expected = report.data?.drawer?.expected_cash;
 
   const countedTotal = useMemo(() => {
     if (!byNote) return Number(typed) || 0;
-    return denominations.reduce((sum, d) => sum + d * (Number(counts[String(d)]) || 0), 0);
+    // To the paisa: three dimes are 0.30, not 0.30000000000000004.
+    return Math.round(denominations.reduce((sum, d) => sum + d * (Number(counts[String(d)]) || 0), 0) * 100) / 100;
   }, [byNote, typed, counts, denominations]);
 
   // Only meaningful when the cashier is allowed to see what was expected.
@@ -136,7 +142,7 @@ export default function CloseShiftModal({
             return (
               <div key={d} className="flex items-center gap-2">
                 <span className="w-16 shrink-0 text-right text-sm tabular-nums text-gray-500 dark:text-gray-400">
-                  {d.toLocaleString()}
+                  {numberIn(currency, d)}
                 </span>
                 <span className="text-gray-300">×</span>
                 <input
@@ -146,7 +152,7 @@ export default function CloseShiftModal({
                   // who can see the figure printed to its left. This is a
                   // drawer being counted; naming the box is the difference
                   // between counting the five-hundreds and counting the fives.
-                  aria-label={`How many ${d.toLocaleString()} notes`}
+                  aria-label={`How many ${numberIn(currency, d)} ${d < 1 ? "coins" : "notes"}`}
                   data-denomination={d}
                   className="h-9 w-16 rounded-lg border border-gray-200 bg-white px-2 text-center text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
                   value={counts[String(d)] ?? ""}
@@ -155,7 +161,7 @@ export default function CloseShiftModal({
                   onChange={(e) => setCounts((c) => ({ ...c, [String(d)]: e.target.value.replace(/\D/g, "") }))}
                 />
                 <span className={`flex-1 text-right text-sm tabular-nums ${qty ? "text-gray-700 dark:text-gray-200" : "text-gray-300 dark:text-gray-600"}`}>
-                  {qty ? (d * qty).toLocaleString() : "—"}
+                  {qty ? numberIn(currency, d * qty) : "—"}
                 </span>
               </div>
             );

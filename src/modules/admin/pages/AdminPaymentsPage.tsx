@@ -22,6 +22,7 @@ import { ANY_DATE, datesName, ledgerDates, ledgerEmpty, ledgerNote, ledgerTotalN
 import { PageHeader } from "../components/kit";
 import type { ChaseRow, MethodSplit, OutstandingBucket, PaymentTotals } from "../services/adminService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 const METHODS = [
   { value: "cash", label: "Cash" },
@@ -392,7 +393,7 @@ export default function AdminPaymentsPage() {
               ) : (
                 rows.map((p) => (
                   <tr key={p.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                    <td className="px-6 py-4">{new Date(p.paid_at).toLocaleDateString()}</td>
+                    <td className="whitespace-nowrap px-6 py-4 tabular-nums">{shopDate(p.paid_at)}</td>
                     <td className="px-6 py-4 font-medium text-gray-800 dark:text-white/90">
                       {p.tenant?.business_name ?? (
                         // The relation is `withTrashed` now, so a closed shop

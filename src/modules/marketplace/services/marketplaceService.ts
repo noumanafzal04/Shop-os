@@ -1,10 +1,13 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { LoginResponse } from "../../auth/types";
+import type { CurrencyFormat } from "../../../common/format/currency";
 
 export interface PublicShop {
   slug: string;
   business_name: string;
   business_type: string | null;
+  /** The money this shop's prices are in. */
+  currency?: CurrencyFormat;
   business_category: string | null;
   /** What `business_category` is called. A key is for filters, never for a reader. */
   business_category_label?: string | null;
@@ -164,6 +167,8 @@ export interface AisleProduct extends PublicProduct {
     city: { id: string; name: string } | null;
     rating: number | null;
     delivery_fee: number;
+    /** The money this product's price is in — its shop's. */
+    currency?: CurrencyFormat;
   } | null;
 }
 
@@ -434,7 +439,7 @@ export interface AddressPayload {
 /** A buyer's own view of something they asked a shop to hold for them. */
 export interface CustomerReservation {
   id: string;
-  shop: { slug: string | null; business_name: string | null };
+  shop: { slug: string | null; business_name: string | null; currency?: CurrencyFormat };
   product_name: string;
   variant_name: string | null;
   quantity: number;

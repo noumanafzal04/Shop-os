@@ -154,11 +154,36 @@ export const Modal: React.FC<ModalProps> = ({
             // nothing else — the one control every modal has, and the one a
             // person who cannot see the ✕ most needs named.
             aria-label="Close"
-            className="absolute right-3 top-3 z-999 flex h-9.5 w-9.5 items-center justify-center rounded-full bg-gray-100 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-11 sm:w-11"
+            /*
+             * ON THE CORNER, not in it.
+             *
+             *     "Modal cross ✕ button ke piche text bhi cut raha hai, bohat jagah."
+             *
+             * The ✕ used to sit inside the sheet, 24px in from the top and
+             * the right — which is exactly where a sheet's own content
+             * starts. Anything a screen put at the right-hand end of its
+             * first row was under it: an order's stage ("Waiting to be
+             * conf…"), a long title on a phone. Each of 118 sheets was
+             * expected to remember to leave that corner empty, and the ones
+             * that carry something worth reading there did not.
+             *
+             * So it no longer shares the sheet's space. It hangs on the
+             * corner, mostly outside, and what is left of it inside ends
+             * before the content begins — whatever the content is. Nothing
+             * has to remember anything.
+             *
+             * A full-screen sheet has no outside to hang in, so there it
+             * stays where it was.
+             */
+            className={`absolute z-999 flex items-center justify-center rounded-full transition-colors ${
+              isFullscreen
+                ? "right-3 top-3 h-9.5 w-9.5 bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white sm:right-6 sm:top-6 sm:h-11 sm:w-11"
+                : "-right-3.5 -top-3.5 h-10 w-10 bg-white text-gray-500 shadow-lg ring-1 ring-gray-900/10 hover:bg-gray-50 hover:text-gray-800 dark:bg-gray-800 dark:text-gray-300 dark:ring-white/15 dark:hover:bg-gray-700 dark:hover:text-white"
+            }`}
           >
             <svg
-              width="24"
-              height="24"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               xmlns="http://www.w3.org/2000/svg"
@@ -213,7 +238,7 @@ export function ModalForm({ title, description, footer, children }: {
 }) {
   return (
     <div className="flex max-h-[85dvh] flex-col">
-      <header className="shrink-0 border-b border-gray-200 px-6 py-5 pr-16 dark:border-gray-800">
+      <header className="shrink-0 border-b border-gray-200 px-6 py-5 dark:border-gray-800">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{title}</h3>
         {description && <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">{description}</p>}
       </header>

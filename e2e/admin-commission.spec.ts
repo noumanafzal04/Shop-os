@@ -2,6 +2,9 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from "@
 
 import { API, roomToWork, tradeAuth } from "./api";
 
+/** The months, in words — written here and not borrowed from the app, which is what is being checked. */
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 /**
  * WHO OWES THE PLATFORM — through the screen.
  *
@@ -200,12 +203,17 @@ test("an invoice says what it would bill before it is raised, and one raised by 
   await period.click();
   await page.getByRole("button", { name: /Custom range/ }).click();
   const picker = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Pick a custom range" }) });
-  const cellFor = (day: string) =>
-    page.evaluate(([y, m, d]) => new Date(y, m - 1, d).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }), day.split("-").map(Number));
-  const first = picker.getByRole("button", { name: await cellFor(days[0]), exact: true });
+  // A day in the calendar is named in words — "12 October 2026" — whatever the
+  // browser's own language would have made of it.
+  const cellFor = (day: string) => {
+    const [y, m, d] = day.split("-").map(Number);
+
+    return `${d} ${MONTHS_LONG[m - 1]} ${y}`;
+  };
+  const first = picker.getByRole("button", { name: cellFor(days[0]), exact: true });
   for (let back = 0; back < 12 && (await first.count()) === 0; back++) await picker.getByRole("button", { name: "Previous month" }).click();
   await first.first().click();
-  const last = picker.getByRole("button", { name: await cellFor(iso(now)), exact: true });
+  const last = picker.getByRole("button", { name: cellFor(iso(now)), exact: true });
   for (let on = 0; on < 12 && (await last.count()) === 0; on++) await picker.getByRole("button", { name: "Next month" }).click();
   await last.first().click();
   await picker.getByRole("button", { name: "Apply range" }).click();

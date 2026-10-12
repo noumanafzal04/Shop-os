@@ -99,8 +99,8 @@ test("C6 · a customer brings one bag back, then the other — each is refunded 
       // Said in words, and not under the close button.
       await expect(sheet.getByText("Partially refunded", { exact: true }), "the status is not shown as words").toBeVisible({ timeout: 20_000 });
       await expect(sheet.getByText(/partially_refunded/), "a database value on the screen").toHaveCount(0);
-      // One bag: "1 item(s)", not "01.000".
-      await expect(sheet.getByText(/RET-\d+ · 1 item\(s\)/)).toBeVisible();
+      // One bag: "1 item" — not "01.000", and not "1 items".
+      await expect(sheet.getByText(/RET-\d+ · 1 item(?!s)/)).toBeVisible();
       expect(await stock(request, rice), "the first bag did not go back on the shelf").toBe(before + 1);
     }
 

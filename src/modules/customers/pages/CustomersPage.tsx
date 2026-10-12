@@ -25,6 +25,8 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
+import { counted } from "../../../common/format/counted";
 
 
 export default function CustomersPage() {
@@ -279,7 +281,7 @@ export default function CustomersPage() {
             <div key={g.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
               <div>
                 <span className="font-medium text-gray-800 dark:text-white/90">{g.name}</span>
-                <span className="ml-2 text-theme-xs text-gray-400 capitalize">{g.price_level}{g.discount_percent != null && Number(g.discount_percent) > 0 ? ` · ${Number(g.discount_percent)}% off` : ""}{g.customers_count != null ? ` · ${g.customers_count} member(s)` : ""}</span>
+                <span className="ml-2 text-theme-xs text-gray-400 capitalize">{g.price_level}{g.discount_percent != null && Number(g.discount_percent) > 0 ? ` · ${Number(g.discount_percent)}% off` : ""}{g.customers_count != null ? ` · ${counted(g.customers_count, "member")}` : ""}</span>
               </div>
               <div className="flex gap-3">
                 <button className={ROW_ACTION} onClick={() => editGroup(g)}>Edit</button>
@@ -352,7 +354,7 @@ export default function CustomersPage() {
                   {d.ledger!.map((e) => (
                     <div key={e.id} className="flex items-center justify-between text-theme-xs">
                       <span className="text-gray-500 dark:text-gray-400">
-                        {new Date(e.created_at).toLocaleDateString()} · {e.type === "charge" ? "Credit sale" : e.type === "payment" ? `Payment (${e.method})` : "Adjustment"}
+                        {shopDate(e.created_at)} · {e.type === "charge" ? "Credit sale" : e.type === "payment" ? `Payment (${e.method})` : "Adjustment"}
                       </span>
                       <span className={e.type === "charge" ? "text-error-600 dark:text-error-400" : "text-success-600 dark:text-success-400"}>
                         {e.type === "charge" ? "+" : "−"}{money(e.amount)}
@@ -377,7 +379,7 @@ export default function CustomersPage() {
                       const label = e.type === "earn" ? "Earned" : e.type === "redeem" ? "Redeemed" : e.type === "reverse_earn" ? "Reversed (return)" : "Refunded (return)";
                       return (
                         <div key={e.id} className="flex items-center justify-between text-theme-xs">
-                          <span className="text-gray-500 dark:text-gray-400">{new Date(e.created_at).toLocaleDateString()} · {label}</span>
+                          <span className="text-gray-500 dark:text-gray-400">{shopDate(e.created_at)} · {label}</span>
                           <span className={positive ? "text-success-600 dark:text-success-400" : "text-gray-600 dark:text-gray-300"}>
                             {positive ? "+" : "−"}{e.points} pts
                           </span>

@@ -1,7 +1,7 @@
 import { formatQuantity } from "../../../common/format/quantity";
-import { elapsedLabel, urgencyOf } from "../../../common/time/elapsed";
 import { STAGE } from "./orderStage";
 import type { OwnerOrder } from "../services/ordersService";
+import { shopDateTime, shopShortDateTime, timeOf } from "../../../common/format/date";
 
 /**
  * The columns this row draws.
@@ -45,6 +45,7 @@ export function OrderRow({
   onOpen,
   onAdvance,
   nextLabel,
+  placed,
 }: {
   order: OwnerOrder;
   money: (n: string | number) => string;
@@ -53,20 +54,34 @@ export function OrderRow({
   onAdvance: () => void;
   /** The single forward move, or null once the order is finished. */
   nextLabel: string | null;
+  /**
+   * How the row says when it was placed: one finished today says the time; one
+   * from another day says the day. (How long an order has WAITED is the
+   * board's to say — "3d" on a list of last month's orders tells nobody which
+   * Tuesday.)
+   */
+  placed: "time" | "moment";
 }) {
   const stage = STAGE[order.status];
-  const urgency = urgencyOf(order.placed_at, order.status);
+  const when = placed === "time" ? timeOf(order.placed_at) : shopShortDateTime(order.placed_at);
   const delivery = order.fulfillment_type === "delivery";
   const open = order.status !== "completed" && order.status !== "cancelled";
   const needsRider = delivery && open && order.rider_id === null;
   const items = (order.items ?? []).reduce((n, i) => n + Number(formatQuantity(i.quantity) || 0), 0);
 
   return (
+    // ON A PHONE A ROW IS TWO COLUMNS, NOT NINE: its number, who it is for and
+    // when on the left; what it came to and where it got to on the right. The
+    // same cells, placed on a grid — nothing is written twice. (As a table it
+    // ran off the right edge at 390px, and what was off the edge was the total
+    // and the stage.) The roles are said out loud because a row that is not
+    // displayed as a table row stops being announced as one.
     <tr
+      role="row"
       onClick={onOpen}
-      className="cursor-pointer text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/[0.04]"
+      className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-4 py-3 text-theme-sm text-gray-700 transition hover:bg-gray-50 sm:table-row sm:p-0 dark:text-gray-300 dark:hover:bg-white/[0.04]"
     >
-      <td className="px-4 py-3">
+      <td role="cell" className="col-start-1 row-start-1 sm:px-4 sm:py-3">
         <div className="flex items-center gap-2.5">
           <span aria-hidden className={`size-2 shrink-0 rounded-full ${stage.dot}`} />
           <button
@@ -81,22 +96,13 @@ export function OrderRow({
         </div>
       </td>
 
-      <td className="whitespace-nowrap px-4 py-3">
-        <span
-          className={`rounded-md px-1.5 py-0.5 text-theme-xs font-semibold tabular-nums ${
-            urgency === "late"
-              ? "bg-error-50 text-error-700 dark:bg-error-500/15 dark:text-error-400"
-              : urgency === "warm"
-                ? "bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-400"
-                : "text-gray-500 dark:text-gray-400"
-          }`}
-          title={new Date(order.placed_at).toLocaleString()}
-        >
-          {elapsedLabel(order.placed_at)}
+      <td role="cell" className="col-start-1 row-start-3 whitespace-nowrap pl-[1.375rem] sm:px-4 sm:py-3">
+        <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400" title={shopDateTime(order.placed_at)}>
+          {when}
         </span>
       </td>
 
-      <td className="max-w-44 px-4 py-3">
+      <td role="cell" className="col-start-1 row-start-2 min-w-0 pl-[1.375rem] sm:max-w-44 sm:px-4 sm:py-3">
         <span className="block truncate font-medium text-gray-800 dark:text-white/90">
           {order.customer_name}
         </span>
@@ -109,16 +115,18 @@ export function OrderRow({
           <span className="xl:hidden">{delivery ? "Delivery" : "Pickup"}</span>
           <span className="sm:hidden"> · {items} {items === 1 ? "item" : "items"}</span>
           {order.channel && order.channel !== "online" && (
-            <span className="capitalize"> · {order.channel.replace("_", " ")}</span>
+            // From `xl` up "Delivery" and the items have columns of their own,
+            // and this is the first thing on the line: it read "· Phone".
+            <span className="capitalize"><span className="xl:hidden"> · </span>{order.channel.replace("_", " ")}</span>
           )}
         </span>
       </td>
 
-      <td className="hidden whitespace-nowrap px-4 py-3 text-theme-xs text-gray-500 sm:table-cell dark:text-gray-400">
+      <td role="cell" className="hidden whitespace-nowrap px-4 py-3 text-theme-xs text-gray-500 sm:table-cell dark:text-gray-400">
         {items} {items === 1 ? "item" : "items"}
       </td>
 
-      <td className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
+      <td role="cell" className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
         <span className="text-theme-xs text-gray-600 dark:text-gray-300">
           {delivery ? "Delivery" : "Pickup"}
         </span>
@@ -132,7 +140,7 @@ export function OrderRow({
         )}
       </td>
 
-      <td className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
+      <td role="cell" className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
         <span
           className={`text-theme-xs font-medium ${
             order.payment_status === "paid"
@@ -144,17 +152,17 @@ export function OrderRow({
         </span>
       </td>
 
-      <td className="whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums text-gray-800 dark:text-white/90">
+      <td role="cell" className="col-start-2 row-start-1 flex min-h-9 items-center justify-end whitespace-nowrap text-right font-medium tabular-nums text-gray-800 sm:table-cell sm:px-4 sm:py-3 dark:text-white/90">
         {money(order.total)}
       </td>
 
-      <td className="whitespace-nowrap px-4 py-3">
+      <td role="cell" className="col-start-2 row-start-2 justify-self-end whitespace-nowrap sm:px-4 sm:py-3">
         <span className={`rounded-lg px-2 py-1 text-theme-xs font-semibold ${stage.chip}`}>
           {stage.short}
         </span>
       </td>
 
-      <td className="hidden whitespace-nowrap px-4 py-3 text-right sm:table-cell">
+      <td role="cell" className="hidden whitespace-nowrap px-4 py-3 text-right sm:table-cell">
         {nextLabel !== null && (
           <button
             type="button"

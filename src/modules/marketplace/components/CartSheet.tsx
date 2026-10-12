@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { cartKeyOf, useCartStore } from "../../../stores/cartStore";
+import { basketCurrency, cartKeyOf, useCartStore } from "../../../stores/cartStore";
 import { money } from "./format";
 import { CartIcon, CloseIcon, StoreIcon } from "./MarketIcons";
 import { ProductThumb } from "./ProductThumb";
@@ -22,6 +22,8 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const cart = useCartStore();
   const groups = cart.groups();
   const subtotal = cart.subtotal();
+  // The one currency the basket is in — or none, when its shops trade in different money.
+  const one = basketCurrency(groups);
   const count = cart.count();
 
   if (!open) return null;
@@ -83,7 +85,7 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
                       <StoreIcon className="size-3.5 shrink-0 text-brand-500" />
                       <span className="truncate">{group.shop_name}</span>
                     </Link>
-                    <span className="shrink-0 text-xs tabular-nums text-gray-500">{money(group.subtotal)}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-gray-500">{money(group.subtotal, group.currency)}</span>
                   </div>
 
                   <ul className="space-y-2">
@@ -113,7 +115,7 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
                               onChange={(next) => cart.setQty(cartKeyOf(line), next)}
                             />
                             <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
-                              {money(line.unit_price * line.quantity)}
+                              {money(line.unit_price * line.quantity, group.currency)}
                             </span>
                           </div>
                         </div>
@@ -127,7 +129,7 @@ export function CartSheet({ open, onClose }: { open: boolean; onClose: () => voi
             <footer className="border-t border-gray-200 px-5 py-4 dark:border-white/10">
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm text-gray-600 dark:text-gray-300">Subtotal</span>
-                <span className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{money(subtotal)}</span>
+                <span className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">{one ? money(subtotal, one) : <span className="text-sm font-medium text-gray-500 dark:text-gray-400" title="These shops trade in different currencies, so there is no single figure that adds them up.">per shop, above</span>}</span>
               </div>
               <p className="mb-3 text-[11px] text-gray-500 dark:text-gray-400">
                 {groups.length === 1

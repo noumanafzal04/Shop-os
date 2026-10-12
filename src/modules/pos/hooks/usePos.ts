@@ -29,37 +29,50 @@ import type { HeldSale, ManualMovementType, SessionState } from "../services/pos
  * 500 means the shop's server is broken, which is a different conversation than
  * a dead line. Both still fail, loudly, as they did before.
  */
+/**
+ * Ask the server which shift this till is on — and fall back to the one this
+ * device remembers only when the server could not be reached at all.
+ *
+ * A function with a name, because TWO hooks hold the same query: the till,
+ * which asks, and the drawer's X-read, which only watches. A watcher with no
+ * function of its own left the query without one whenever its options were
+ * the last registered — and every refetch of the shift then failed with "No
+ * queryFn was passed", eighty times a minute on a till that was only being
+ * looked at.
+ */
+async function currentSession() {
+  const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
+
+  try {
+    const session = (await posService.currentSession()).data;
+
+    // Written on every answer, not only when the shift changes: an answer
+    // is the only moment the device can be sure. `null` clears it — a
+    // remembered shift the shop has since closed is worse than none, since
+    // the till would go on selling into it.
+    //
+    // A COVER is deliberately not mirrored. It is a live arrangement
+    // between two people that only the server can start or end, and a
+    // remembered one would leave a reliever holding somebody else's drawer
+    // after a reload with no way to hand it back. Covering while offline is
+    // already refused; this keeps it refused across a restart.
+    await mirrorShift(isCover(session) ? null : session, tenantId);
+
+    return session;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 0) {
+      const remembered = await mirroredShift(tenantId);
+      if (remembered !== null) return remembered as SessionState;
+    }
+
+    throw error;
+  }
+}
+
 export function useCurrentSession() {
   return useQuery({
     queryKey: ["pos", "session"],
-    queryFn: async () => {
-      const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
-
-      try {
-        const session = (await posService.currentSession()).data;
-
-        // Written on every answer, not only when the shift changes: an answer
-        // is the only moment the device can be sure. `null` clears it — a
-        // remembered shift the shop has since closed is worse than none, since
-        // the till would go on selling into it.
-        //
-        // A COVER is deliberately not mirrored. It is a live arrangement
-        // between two people that only the server can start or end, and a
-        // remembered one would leave a reliever holding somebody else's drawer
-        // after a reload with no way to hand it back. Covering while offline is
-        // already refused; this keeps it refused across a restart.
-        await mirrorShift(isCover(session) ? null : session, tenantId);
-
-        return session;
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 0) {
-          const remembered = await mirroredShift(tenantId);
-          if (remembered !== null) return remembered as SessionState;
-        }
-
-        throw error;
-      }
-    },
+    queryFn: currentSession,
   });
 }
 
@@ -226,7 +239,7 @@ export function useSessionReport(enabled: boolean) {
   // Is there a shift to report on? Read off the session the till already
   // keeps — watched, never fetched from here. `null` is "none"; `undefined` is
   // "not known yet", and a sheet opened that early may still ask.
-  const session = useQuery<SessionState>({ queryKey: ["pos", "session"], enabled: false });
+  const session = useQuery<SessionState>({ queryKey: ["pos", "session"], queryFn: currentSession, enabled: false });
 
   const query = useQuery({
     queryKey: ["pos", "session", "report"],

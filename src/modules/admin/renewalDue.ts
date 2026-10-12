@@ -1,4 +1,5 @@
 import type { TenantPackage } from "./services/adminService";
+import { platformMoney } from "../../common/format/currency";
 
 /** What to suggest in the Amount box of "Assign / renew plan". */
 export interface RenewalDue {
@@ -7,7 +8,7 @@ export interface RenewalDue {
   says: string;
 }
 
-const rs = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rs = (n: number) => platformMoney(Math.round(n));
 
 /**
  * WHAT THIS SHOP WOULD BE PAYING, said under the box it is typed into.

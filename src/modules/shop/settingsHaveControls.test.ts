@@ -48,13 +48,14 @@ const NOT_SET_HERE: Record<string, string> = {
   theme_secondary: "ThemeCustomizer",
   theme_tint: "ThemeCustomizer",
   theme_sidebar: "ThemeCustomizer",
-  // Derived, not chosen: the symbol follows the currency, and is shown as a
-  // read-only unit beside price fields.
+  // Derived, not chosen: the mark and the way an amount is written both
+  // follow the currency's code. The shop chooses `currency` — which has its
+  // control now, and was listed here as "fixed — PKR" until a shop could
+  // trade in anything else.
   currency_symbol: "derived from currency",
-  // PKR is the only currency the product sells in, and English the only
-  // language it ships. Both stay in the payload so neither becomes a migration
-  // the day that changes.
-  currency: "fixed — PKR",
+  currency_format: "derived from currency",
+  // English is the only language the product ships. It stays in the payload
+  // so it does not become a migration the day that changes.
   language: "fixed — one language ships today",
   // The plan decides this, not the shop. A shop that could raise its own
   // branch ceiling would be a shop that never upgrades.

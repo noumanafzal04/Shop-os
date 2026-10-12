@@ -194,6 +194,26 @@ export interface SaleTradeIn {
   reversed_at: string | null;
 }
 
+/**
+ * What a sale would come to, in the figures the server will charge — see
+ * `CreateSaleAction::worth`. A screen that takes money shows these, and does
+ * not add the bill up for itself.
+ */
+export interface SaleWorth {
+  subtotal: number;
+  discount: number;
+  tax: number;
+  /** The bill — what the invoice will say. */
+  total: number;
+  tip: number;
+  /** The coin a cash bill settles to: nought, or what it moves by. */
+  rounding: number;
+  /** What has to cross the counter. */
+  due: number;
+  /** The same, as the sale checks it — sent back as `expected_payable`. */
+  payable: number;
+}
+
 export interface SaleInput {
   channel: SaleChannel;
   customer_name?: string;

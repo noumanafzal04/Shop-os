@@ -14,8 +14,8 @@ import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { money } from "../../marketplace/components/format";
 
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
 
 const STATUS_COLOR: Record<OrderStatus, "success" | "warning" | "info" | "error" | "light"> = {
   pending: "warning", confirmed: "info", preparing: "info", ready: "info",
@@ -85,7 +85,7 @@ export default function MyOrdersPage() {
                   {(o.items ?? []).map((it, i) => (
                     <div key={i} className="flex justify-between">
                       <span>{it.quantity} × {it.product_name}{it.variant_name ? ` (${it.variant_name})` : ""}</span>
-                      <span>{money(it.line_total)}</span>
+                      <span>{money(it.line_total, o.shop?.currency)}</span>
                     </div>
                   ))}
                   {/* The lines and the total did not add up, and nothing said
@@ -94,13 +94,13 @@ export default function MyOrdersPage() {
                   {Number(o.discount ?? 0) > 0 && (
                     <div className="flex justify-between">
                       <span>Coupon</span>
-                      <span>− {money(o.discount ?? 0)}</span>
+                      <span>− {money(o.discount ?? 0, o.shop?.currency)}</span>
                     </div>
                   )}
                   {Number(o.delivery_fee) > 0 && (
                     <div className="flex justify-between">
                       <span>Delivery</span>
-                      <span>{money(o.delivery_fee)}</span>
+                      <span>{money(o.delivery_fee, o.shop?.currency)}</span>
                     </div>
                   )}
                 </div>
@@ -110,7 +110,7 @@ export default function MyOrdersPage() {
                     {o.fulfillment_type === "delivery" ? `Delivery · ${o.delivery_address ?? ""}` : "Pickup"} · {o.payment_method.toUpperCase()}
                   </span>
                   <div className="flex items-center gap-3">
-                    <span className="font-bold text-gray-800 dark:text-white/90">{money(o.total)}</span>
+                    <span className="font-bold text-gray-800 dark:text-white/90">{money(o.total, o.shop?.currency)}</span>
                     {/* A customer cancelling their own order. This said nothing
                         either way — and an order you believe you cancelled but
                         did not is the version of this that costs someone money. */}

@@ -11,6 +11,7 @@ import { useCurrentShift, useFuelMutations, useShifts, useFuelTanks } from "../h
 import { StartShiftModal } from "../components/StartShiftModal";
 import type { ForecourtDip, ForecourtReading, ForecourtShift } from "../services/fuelService";
 import { useConfirm } from "../../../components/ui/confirm";
+import { shopDateTime } from "../../../common/format/date";
 
 /** A totaliser rolls at 999999.999 and starts again — mirrors FuelNozzle::ROLLOVER_AT. */
 const ROLLOVER_AT = 1_000_000;
@@ -192,7 +193,7 @@ export default function ForecourtPage() {
                         {s.number}
                       </Link>
                       <div className="text-theme-xs text-gray-400">
-                        {new Date(s.opened_at).toLocaleString()}
+                        {shopDateTime(s.opened_at)}
                         {s.price_changed_during && " · rate changed mid-shift"}
                       </div>
                     </td>
@@ -374,7 +375,7 @@ function CloseShiftForm({
             {shift.number} is running
           </p>
           <p className="text-theme-xs text-success-700/70 dark:text-success-400/70">
-            Opened {new Date(shift.opened_at).toLocaleString()}
+            Opened {shopDateTime(shift.opened_at)}
             {shift.opened_by ? ` by ${shift.opened_by.name}` : ""}
           </p>
         </div>

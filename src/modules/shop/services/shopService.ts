@@ -1,8 +1,12 @@
+import type { CurrencyFormat } from "../../../common/format/currency";
+import type { DateFormatCode } from "../../../common/format/date";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import type { Tenant } from "../../auth/types";
 import type { ShopBill } from "../whatYouPay";
 
 export interface SetupPayload {
+  /** The money the shop trades in. Left out, it stays what it is. */
+  currency?: string;
   business_name?: string;
   // Type is set by the admin at tenant creation — the owner never sends it.
   business_category?: string;
@@ -144,9 +148,25 @@ export interface GalleryImage {
   sort_order: number;
 }
 
+/** What the settings screen is told about the shop's currency. */
+export interface ShopCurrencies {
+  current: CurrencyFormat;
+  /** There is money on the books: the currency is fixed. */
+  locked: boolean;
+  /** Why, in the server's words — null while it may still change. */
+  why: string | null;
+  options: CurrencyFormat[];
+}
+
 export interface ShopSettings {
+  /** The code of the currency this shop trades in: "PKR", "INR", "USD". */
   currency: string;
+  /** Its mark. Given by the server from the code — never sent back. */
   currency_symbol: string;
+  /** How its amounts are written. Given by the server from the code. */
+  currency_format?: CurrencyFormat;
+  /** How this shop writes a date — a code from the server's list. See common/format/date.ts. */
+  date_format?: DateFormatCode;
   language: string;
   default_tax_rate: number | string;
   tax_inclusive: boolean;
@@ -283,6 +303,8 @@ export const shopService = {
   businessTypes: () => apiGet<BusinessType[]>("/business-types"),
   subscription: () => apiGet<SubscriptionInfo>("/shop/subscription"),
   settings: () => apiGet<ShopSettings>("/shop/settings"),
+  /** Which currencies there are, which this shop is on, and whether it may still change. */
+  currencies: () => apiGet<ShopCurrencies>("/shop/currencies"),
   /**
    * What this shop has, and what it has not.
    *

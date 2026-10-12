@@ -9,6 +9,7 @@ import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
+import { counted } from "../../../common/format/counted";
 import {
   useCollection,
   useCollectionMutations,
@@ -19,8 +20,10 @@ import type { Collection } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useMoney } from "../../shop/hooks/useShop";
 
 export default function CollectionsPage() {
+  const money = useMoney();
   const confirm = useConfirm();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const collections = useCollections();
@@ -139,7 +142,7 @@ export default function CollectionsPage() {
                 </div>
               </div>
               {c.description && <p className="mb-3 line-clamp-2 text-theme-xs text-gray-400">{c.description}</p>}
-              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{c.items_count ?? 0} item(s)</p>
+              <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">{counted(c.items_count, "item")}</p>
               <div className="flex gap-3 text-sm">
                 <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
                 <button
@@ -189,7 +192,7 @@ export default function CollectionsPage() {
                   <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-white/5">
                     <input type="checkbox" checked={itemIds.includes(p.id)} onChange={() => toggleItem(p.id)} />
                     <span className="flex-1 text-sm text-gray-700 dark:text-gray-300">{p.name}</span>
-                    <span className="text-theme-xs text-gray-400">Rs {Number(p.price).toLocaleString()}</span>
+                    <span className="text-theme-xs text-gray-400">{money(p.price)}</span>
                   </label>
                 ))
               )}

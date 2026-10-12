@@ -17,6 +17,7 @@ import { booksRows } from "./booksWaiting";
 import type { Capabilities } from "./capabilities";
 import { formatDate } from "./format";
 import { SectionCard } from "./SectionCard";
+import { formatIn } from "../../../../common/format/currency";
 
 type Severity = "critical" | "warning" | "info";
 
@@ -57,7 +58,12 @@ interface Props {
   money?: (amount: number) => string;
 }
 
-const rupees = (amount: number) => `Rs ${amount.toLocaleString()}`;
+/**
+ * How an amount is written when nobody said — the product's default currency.
+ * The dashboard hands this panel the shop's own `money`; this is for a caller
+ * that has none to give, and it reaches for no setting to find one.
+ */
+const inTheDefault = (amount: number) => formatIn(null, amount);
 
 /**
  * Every row here is derived from a real figure in the payload — nothing is
@@ -71,7 +77,7 @@ const rupees = (amount: number) => `Rs ${amount.toLocaleString()}`;
  * may open the screen the row leads to; the two rows that lead somewhere
  * ungated (subscription, setup) reach everyone, as they should.
  */
-export function AttentionPanel({ data, caps, money = rupees }: Props) {
+export function AttentionPanel({ data, caps, money = inTheDefault }: Props) {
   const rows: Item[] = [];
 
   if (data.subscription_state === "read_only") {

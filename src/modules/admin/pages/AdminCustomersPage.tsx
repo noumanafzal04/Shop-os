@@ -17,6 +17,8 @@ import { useToast } from "../../../components/ui/toast";
 import { CheckLineIcon, LockIcon, PaperPlaneIcon, PlusIcon, ShootingStarIcon, UserIcon } from "../../../icons";
 import { Card, Empty, PageHeader, Person, Pill, StatRow, StatTile } from "../components/kit";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { platformMoney } from "../../../common/format/currency";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * THE PLATFORM'S CUSTOMERS — made here, and then found here.
@@ -72,14 +74,14 @@ const SORT = [
   { value: "spent", label: "Spent the most" },
 ];
 
-const rupees = (n: number) => `Rs ${Math.round(n).toLocaleString()}`;
+const rupees = (n: number) => platformMoney(Math.round(n));
 
 /** A stored instant, or the database's own "2026-10-09 14:03:11" — read as UTC either way. */
 function day(at: string | null): string {
   if (!at) return "—";
   const d = new Date(/[zZ]|[+-]\d\d:\d\d$/.test(at) ? at : `${at.replace(" ", "T")}Z`);
 
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return Number.isNaN(d.getTime()) ? "—" : shopDate(d);
 }
 
 const said = (e: unknown, otherwise: string) => (e instanceof ApiError ? (e.firstFieldError() ?? e.message) : otherwise);

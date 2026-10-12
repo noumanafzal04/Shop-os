@@ -17,8 +17,10 @@ import type { Coupon } from "../services/couponsService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { useMoney } from "../../shop/hooks/useShop";
 
 export default function CouponsPage() {
+  const money = useMoney();
   const confirm = useConfirm();
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const [page, setPage] = useState(1);
@@ -83,7 +85,7 @@ export default function CouponsPage() {
   }
 
   const rows = coupons.data?.data ?? [];
-  const fmtValue = (c: Coupon) => (c.type === "percent" ? `${c.value}%` : `Rs ${Number(c.value).toLocaleString()}`);
+  const fmtValue = (c: Coupon) => (c.type === "percent" ? `${c.value}%` : money(c.value));
 
   return (
     <>
@@ -121,8 +123,8 @@ export default function CouponsPage() {
                   <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">
                     {c.code} {!c.is_active && <Badge size="sm" color="light">off</Badge>}
                   </td>
-                  <td className="px-5 py-3">{fmtValue(c)}{c.max_discount ? ` (max Rs ${Number(c.max_discount).toLocaleString()})` : ""}</td>
-                  <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.min_spend ? `Rs ${Number(c.min_spend).toLocaleString()}` : "—"}</td>
+                  <td className="px-5 py-3">{fmtValue(c)}{c.max_discount ? ` (max ${money(c.max_discount)})` : ""}</td>
+                  <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.min_spend ? money(c.min_spend) : "—"}</td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.used_count}{c.usage_limit ? ` / ${c.usage_limit}` : ""}</td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.expires_at ? c.expires_at.slice(0, 10) : "—"}</td>
                   <td className="px-5 py-3 text-right">

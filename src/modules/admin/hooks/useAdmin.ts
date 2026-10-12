@@ -272,6 +272,15 @@ export function usePlans() {
   });
 }
 
+/** The currencies a business can be put on — a short list that does not change while a page is open. */
+export function useCurrencies() {
+  return useQuery({
+    queryKey: ["currencies"],
+    queryFn: async () => (await adminService.currencies()).data,
+    staleTime: Infinity,
+  });
+}
+
 export function useAdminCities() {
   return useQuery({
     queryKey: ["cities"],

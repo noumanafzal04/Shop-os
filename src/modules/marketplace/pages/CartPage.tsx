@@ -2,7 +2,7 @@ import { Link } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
 import { useConfirm } from "../../../components/ui/confirm";
-import { cartKeyOf, useCartStore } from "../../../stores/cartStore";
+import { basketCurrency, cartKeyOf, useCartStore } from "../../../stores/cartStore";
 import { money } from "../components/format";
 import { CartIcon, StoreIcon, TrashIcon, TruckIcon } from "../components/MarketIcons";
 import { ProductThumb } from "../components/ProductThumb";
@@ -24,6 +24,8 @@ export default function CartPage() {
   const cart = useCartStore();
   const confirm = useConfirm();
   const groups = cart.groups();
+  // The one currency the basket is in — or none, when its shops trade in different money.
+  const one = basketCurrency(groups);
 
   const clearShop = async (slug: string, name: string) => {
     const yes = await confirm({
@@ -120,7 +122,7 @@ export default function CartPage() {
                           </p>
                         )}
                         <p className="mt-0.5 text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                          {money(line.unit_price)} each
+                          {money(line.unit_price, group.currency)} each
                         </p>
 
                         <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3">
@@ -131,7 +133,7 @@ export default function CartPage() {
                             onChange={(next) => cart.setQty(cartKeyOf(line), next)}
                           />
                           <span className="text-base font-bold tabular-nums text-gray-900 dark:text-white">
-                            {money(line.unit_price * line.quantity)}
+                            {money(line.unit_price * line.quantity, group.currency)}
                           </span>
                         </div>
                       </div>
@@ -145,7 +147,7 @@ export default function CartPage() {
                     Delivered by {group.shop_name}
                   </span>
                   <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
-                    {money(group.subtotal)}
+                    {money(group.subtotal, group.currency)}
                   </span>
                 </footer>
               </section>
@@ -161,7 +163,7 @@ export default function CartPage() {
                 {groups.map((group) => (
                   <div key={group.shop_slug} className="flex items-center justify-between gap-3">
                     <dt className="min-w-0 truncate text-gray-600 dark:text-gray-300">{group.shop_name}</dt>
-                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(group.subtotal)}</dd>
+                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(group.subtotal, group.currency)}</dd>
                   </div>
                 ))}
               </dl>
@@ -169,7 +171,7 @@ export default function CartPage() {
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/5">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">Items total</span>
                 <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
-                  {money(cart.subtotal())}
+                  {one ? money(cart.subtotal(), one) : <span className="text-sm font-medium text-gray-500 dark:text-gray-400" title="These shops trade in different currencies, so there is no single figure that adds them up.">per shop, above</span>}
                 </span>
               </div>
 

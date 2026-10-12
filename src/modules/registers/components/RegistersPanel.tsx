@@ -14,6 +14,7 @@ import { useBranches } from "../../branches/hooks/useBranches";
 import { useRegisterMutations, useRegisters } from "../hooks/useRegisters";
 import type { Register } from "../services/registerService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { timeOf } from "../../../common/format/date";
 
 interface Draft {
   id?: string;
@@ -127,7 +128,7 @@ export default function RegistersPanel() {
                 <div className="truncate text-theme-xs text-gray-400">
                   {multiSite && r.branch?.name ? `${r.branch.name} · ` : ""}
                   {r.open_session
-                    ? `${r.open_session.user_name ?? "A cashier"} · since ${new Date(r.open_session.opened_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                    ? `${r.open_session.user_name ?? "A cashier"} · since ${timeOf(r.open_session.opened_at)}`
                     : "Free"}
                 </div>
               </div>

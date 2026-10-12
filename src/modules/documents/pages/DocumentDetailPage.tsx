@@ -19,6 +19,7 @@ import { formatQuantity } from "../../../common/format/quantity";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords } from "../../workshop/words";
 import { AddToJob } from "../components/AddToJob";
+import { shopDate, shopShortDateTime } from "../../../common/format/date";
 
 
 /**
@@ -112,7 +113,7 @@ export default function DocumentDetailPage() {
               </>
             )}
             {doc.expires_at && (
-              <> · {layaway || job ? "Collect by" : "Valid until"} {new Date(doc.expires_at).toLocaleDateString()}</>
+              <> · {layaway || job ? "Collect by" : "Valid until"} {shopDate(doc.expires_at)}</>
             )}
           </p>
         </div>
@@ -152,7 +153,7 @@ export default function DocumentDetailPage() {
           )}
           <JobFact label="Promised back">
             {doc.promised_at
-              ? new Date(doc.promised_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+              ? shopShortDateTime(doc.promised_at)
               : "—"}
           </JobFact>
           {open && doc.work_status && (
@@ -334,7 +335,7 @@ export default function DocumentDetailPage() {
                 {(doc.payments ?? []).map((p) => (
                   <li key={p.id} className="flex items-baseline justify-between gap-3 text-theme-sm">
                     <span className="text-gray-600 dark:text-gray-400">
-                      {new Date(p.paid_at).toLocaleDateString()}
+                      {shopDate(p.paid_at)}
                       <span className="text-gray-400"> · {methodLabel(p.method)}</span>
                     </span>
                     <span className="tabular-nums text-gray-800 dark:text-white/90">{money(p.amount)}</span>

@@ -51,6 +51,26 @@ afterEach(() => {
 });
 
 describe("reconnecting", () => {
+  it("is not what opening the till with a line is — the boot pulls for that", async () => {
+    // The mount is not a reconnection. Pulling here too raced the boot on
+    // every page: three catalogue requests where one was meant.
+    renderHook(() => useKeepInSync(true));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(pull).not.toHaveBeenCalled();
+  });
+
+  it("pulls once for one reconnection, however often the hook redraws", async () => {
+    useConnectionStore.setState({ reachable: false });
+    const { rerender } = renderHook(() => useKeepInSync(true));
+
+    await act(async () => { useConnectionStore.setState({ reachable: true }); });
+    rerender();
+    rerender();
+
+    expect(pull).toHaveBeenCalledTimes(1);
+  });
+
   it("pulls the moment the till can reach the server again", async () => {
     useConnectionStore.setState({ reachable: false });
     renderHook(() => useKeepInSync(true));

@@ -19,6 +19,7 @@ import Pager from "../../../components/ui/pager";
 import { useStockCounts, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCount } from "../services/stocktakeService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 const STATUS: Record<StockCount["status"], { label: string; color: "success" | "info" | "light" }> = {
   counting: { label: "Counting", color: "info" },
@@ -26,7 +27,7 @@ const STATUS: Record<StockCount["status"], { label: string; color: "success" | "
   cancelled: { label: "Cancelled", color: "light" },
 };
 
-const when = (t: string | null) => (t ? new Date(t).toLocaleDateString() : "—");
+const when = (t: string | null) => (t ? shopDate(t) : "—");
 
 /**
  * Stocktakes.

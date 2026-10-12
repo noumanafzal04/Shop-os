@@ -17,6 +17,7 @@ import {
 } from "../hooks/useMarketplace";
 import { StarIcon } from "./MarketIcons";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopDate } from "../../../common/format/date";
 
 export function Stars({ value, onChange }: { value: number; onChange?: (v: number) => void }) {
   return (
@@ -151,7 +152,7 @@ export function ShopReviews({ slug, shopName }: { slug: string | undefined; shop
                   </div>
                 )}
                 <p className="mt-2 text-[11px] text-gray-400">
-                  {new Date(r.created_at).toLocaleDateString()}
+                  {shopDate(r.created_at)}
                 </p>
               </div>
             ))}

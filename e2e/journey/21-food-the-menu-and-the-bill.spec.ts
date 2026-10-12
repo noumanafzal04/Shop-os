@@ -41,7 +41,7 @@ test.skip(TRADE !== "food", "a restaurant's stage — run with JOURNEY_TRADE=foo
 test.beforeAll(async ({ browser }) => { await session(browser, "owner"); });
 test.use({ storageState: OWNER_STATE });
 
-const TAX = 5;
+// The shop's tax is the 5% stage H set; the figures in the header are worked out at it.
 const BIRYANI = "QA Chicken Biryani";
 const LEMONADE = "QA Mint Lemonade";
 const KARAHI = {
@@ -492,8 +492,8 @@ test("J8 · the bill is shared: two of them pay for theirs now", async ({ page, 
   await expect(sheet.getByRole("button", { name: `Settle more ${KARAHI_HALF}` })).toBeEnabled();
 
   // 1,660 + 450, and the tax on exactly that.
-  expect(await figure(sheet, "2 item(s)")).toBe(2110);
-  expect(await figure(sheet, `Tax (${TAX}%)`)).toBe(105.5);
+  expect(await figure(sheet, /^2 items$/)).toBe(2110);
+  expect(await figure(sheet, /^Tax$/)).toBe(105.5);
   expect(await figure(sheet, /^Bill$/)).toBe(2215.5);
 
   await sheet.locator("select").first().selectOption({ label: "Card" });
@@ -532,7 +532,7 @@ test("J9 · the rest is paid part in cash and part by card, and the table is fre
     // Only what is still owed is on the sheet: one Full, the Half, one
     // biryani and the lemonade.
     expect(await figure(sheet, "Whole bill")).toBe(3190);
-    expect(await figure(sheet, `Tax (${TAX}%)`)).toBe(159.5);
+    expect(await figure(sheet, /^Tax$/)).toBe(159.5);
     expect(await figure(sheet, /^Bill$/)).toBe(3349.5);
 
     // ONE bill, two ways of paying it.

@@ -13,8 +13,8 @@ import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { sellingPrice } from "../../catalog/pricing";
 import type { Product, ProductVariant } from "../../catalog/types";
-import { useSaleMutations } from "../hooks/useSales";
-import type { PaymentMethod, SaleChannel } from "../types";
+import { useSaleMutations, useSaleWorth } from "../hooks/useSales";
+import type { PaymentMethod, SaleChannel, SaleInput } from "../types";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 
 interface CartLine {
@@ -73,12 +73,49 @@ export default function NewSalePage() {
   const idemRef = useRef<string>(uuid());
   useEffect(() => { idemRef.current = uuid(); }, [cart]);
 
-  const subtotal = useMemo(
-    () => cart.reduce((sum, line) => sum + lineUnit(line) * line.quantity, 0),
-    [cart],
-  );
-  const total = Math.max(0, subtotal - (Number(discount) || 0));
-  const changeDue = Math.max(0, (Number(amountPaid) || 0) - total);
+  // ── WHAT IT COMES TO IS ASKED, NOT ADDED UP ──────────────────────────
+  //
+  //     "Complete Sale · Rs 4,200" — pressed — "Amount paid (4,200.00) is
+  //      less than the total (4,956.00)."
+  //
+  // This screen multiplied price by quantity, took the discount off, and
+  // called that the total. There was no tax in it at all, so an item with tax
+  // on it could not be sold here for the figure on the button: the button
+  // would not light until the cash covered the wrong number, and the server
+  // then refused the right one. The change it showed was wrong by the same
+  // amount.
+  //
+  // The sale is described once — `theSale` — and that one description is both
+  // what is asked about and what is rung, so the two cannot be about
+  // different bills.
+  const theSale = useMemo((): SaleInput => ({
+    channel,
+    customer_phone: customerPhone.trim() || undefined,
+    items: cart.map((l) => ({
+      product_id: l.product.id,
+      variant_id: l.variant?.id ?? undefined,
+      quantity: l.quantity,
+    })),
+    discount: Number(discount) || undefined,
+    payment_method: paymentMethod,
+  }), [channel, customerPhone, cart, discount, paymentMethod]);
+  const askKey = JSON.stringify({ ...theSale, amount_paid: 0 });
+  // Each digit of a discount is a different bill; the one asked about is the
+  // one the hand has stopped on.
+  const askedKey = useDebouncedValue(askKey, 300);
+  const worthQ = useSaleWorth(askedKey, cart.length > 0);
+  // The answer to THIS bill, or nothing — never the figure for the bill before.
+  const worth = cart.length > 0 && worthQ.data !== undefined && !worthQ.isFetching && askedKey === askKey ? worthQ.data : null;
+  const worthRefused = cart.length > 0 && askedKey === askKey && !worthQ.isFetching && worthQ.error
+    ? (worthQ.error instanceof ApiError
+        ? (worthQ.error.status === 403 && (Number(discount) || 0) > 0
+            ? "You are not allowed to give a discount. Clear it, or ask somebody who can."
+            : worthQ.error.firstFieldError() ?? worthQ.error.message)
+        : "The bill could not be worked out — check the connection and try again.")
+    : null;
+  const paid = Math.round((Number(amountPaid) || 0) * 100) / 100;
+  const changeDue = worth ? Math.max(0, Math.round((paid - worth.due) * 100) / 100) : 0;
+  const covered = worth !== null && paid >= worth.due;
 
   const addLine = (product: Product, variant: ProductVariant | null = null) => {
     const key = `${product.id}:${variant?.id ?? "base"}`;
@@ -112,20 +149,16 @@ export default function NewSalePage() {
   const errorMessage = apiError ? apiError.firstFieldError() ?? apiError.message : null;
 
   const complete = () => {
-    if (cart.length === 0 || create.isPending) return;
+    // Nothing is rung until the server has said what it will take.
+    if (cart.length === 0 || worth === null || !covered || create.isPending) return;
     create.mutate(
       {
-        channel,
+        ...theSale,
         customer_name: customerName.trim() || undefined,
-        customer_phone: customerPhone.trim() || undefined,
-        items: cart.map((l) => ({
-          product_id: l.product.id,
-          variant_id: l.variant?.id ?? undefined,
-          quantity: l.quantity,
-        })),
-        discount: Number(discount) || undefined,
-        payment_method: paymentMethod,
-        amount_paid: Number(amountPaid) || 0,
+        amount_paid: paid,
+        // Rung at the figure that was shown, or refused with the real one: a
+        // price that moved since it was asked is said, not charged.
+        expected_payable: worth.payable,
         idempotency_key: idemRef.current,
       },
       {
@@ -133,6 +166,8 @@ export default function NewSalePage() {
           idemRef.current = uuid();
           navigate("/tenant/sales");
         },
+        // Refused — so the bill is not what this screen was told. Ask again.
+        onError: () => void worthQ.refetch(),
       },
     );
   };
@@ -312,10 +347,12 @@ export default function NewSalePage() {
             </div>
           </div>
 
-          <div className="space-y-2 border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
+          {/* THE SERVER'S FIGURES — and nothing while they are being asked for.
+              A sum drawn a moment early is a sum somebody reads out. */}
+          <div data-testid="sale-worth" aria-live="polite" className="space-y-2 border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
             <div className="flex justify-between text-gray-600 dark:text-gray-400">
               <span>Subtotal</span>
-              <span>{money(subtotal)}</span>
+              <span className="tabular-nums">{worth ? money(worth.subtotal) : "—"}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-gray-600 dark:text-gray-400">Discount</span>
@@ -333,40 +370,80 @@ export default function NewSalePage() {
                 placeholder="0"
               />
             </div>
+            {worth !== null && worth.tax > 0 && (
+              <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                <span>Tax</span>
+                <span data-testid="sale-tax" className="tabular-nums">{money(worth.tax)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-bold text-gray-800 dark:text-white/90">
               <span>Total</span>
-              <span>{money(total)}</span>
+              <span data-testid="sale-total" className="tabular-nums">
+                {worth ? money(worth.total) : cart.length === 0 ? money(0) : worthRefused ? "—" : "…"}
+              </span>
             </div>
+            {worth !== null && worth.rounding !== 0 && (
+              <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                <span>Rounded for cash</span>
+                <span className="tabular-nums">{worth.rounding > 0 ? "+" : "−"}{money(Math.abs(worth.rounding))}</span>
+              </div>
+            )}
+            {worth !== null && worth.due !== worth.total && (
+              <div className="flex justify-between font-semibold text-gray-800 dark:text-white/90">
+                <span>To collect</span>
+                <span className="tabular-nums">{money(worth.due)}</span>
+              </div>
+            )}
+            {worthRefused && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-error-50 px-3 py-2 dark:bg-error-500/10">
+                <p className="text-theme-sm text-error-600 dark:text-error-400">{worthRefused}</p>
+                <button type="button" onClick={() => void worthQ.refetch()} className="text-theme-sm font-semibold text-brand-600 hover:underline dark:text-brand-400">
+                  Try again
+                </button>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-gray-600 dark:text-gray-400">Amount paid</span>
-              <input
-                type="number"
-                aria-label="Amount paid"
-                min={0}
-                className="w-28 rounded border border-gray-300 px-2 py-1 text-right dark:border-gray-700 dark:bg-gray-900"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                placeholder="0"
-              />
+              <span className="flex items-center gap-2">
+                {/* What the customer most often hands over: exactly it. */}
+                {worth !== null && paid !== worth.due && (
+                  <button
+                    type="button"
+                    onClick={() => setAmountPaid(String(worth.due))}
+                    className="text-theme-xs font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    Exact
+                  </button>
+                )}
+                <input
+                  type="number"
+                  aria-label="Amount paid"
+                  min={0}
+                  className="w-28 rounded border border-gray-300 px-2 py-1 text-right dark:border-gray-700 dark:bg-gray-900"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  placeholder="0"
+                />
+              </span>
             </div>
             {changeDue > 0 && (
               <div className="flex justify-between text-gray-600 dark:text-gray-400">
                 <span>Change</span>
-                <span>{money(changeDue)}</span>
+                <span data-testid="sale-change" className="tabular-nums">{money(changeDue)}</span>
               </div>
             )}
           </div>
 
           <Button
             className="w-full"
-            disabled={create.isPending || cart.length === 0 || (Number(amountPaid) || 0) < total}
+            disabled={create.isPending || cart.length === 0 || !covered}
             onClick={complete}
           >
-            {create.isPending ? "Completing…" : `Complete Sale ${total > 0 ? "· " + money(total) : ""}`}
+            {create.isPending ? "Completing…" : worth ? `Complete Sale · ${money(worth.due)}` : "Complete Sale"}
           </Button>
-          {cart.length > 0 && (Number(amountPaid) || 0) < total && (
+          {worth !== null && !covered && (
             <p className="text-center text-theme-xs text-gray-400">
-              Amount paid must cover the total.
+              Amount paid must cover {money(worth.due)}.
             </p>
           )}
         </div>

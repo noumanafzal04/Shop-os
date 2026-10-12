@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useOfflineStore } from "../offlineStore";
@@ -40,10 +40,23 @@ export function useKeepInSync(enabled: boolean): void {
   const connected = online && reachable;
 
   // ── 1. Reconnected ────────────────────────────────────────────────
+  //
+  // A line that CAME BACK — not a till that opened with one. This used to
+  // fire on mount too, and so raced the boot on every page of the panel: a
+  // pull that began before the device had announced itself, then the boot's
+  // own pull straight after it, and a "still here" sent to a server that had
+  // been told so a tenth of a second before. Three catalogue requests and two
+  // device posts to open the Coupons page. The boot does the first pull.
+  const wasConnected = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!enabled || !connected) return;
+    if (!enabled) {
+      wasConnected.current = null;
 
-    void pullNow().catch(() => {});
+      return;
+    }
+    const before = wasConnected.current;
+    wasConnected.current = connected;
+    if (before === false && connected) void pullNow().catch(() => {});
   }, [enabled, connected]);
 
   // ── 2. Heartbeat ──────────────────────────────────────────────────

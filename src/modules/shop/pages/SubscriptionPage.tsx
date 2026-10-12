@@ -11,16 +11,18 @@ import { formatRange } from "../../../components/ui/filters";
 import { offlineRules, planSays, subscriptionWords, usageRows } from "../subscriptionRows";
 import { everyPeriod, whatYouPay } from "../whatYouPay";
 import { PRODUCT, productSlug } from "../../../common/brand";
+import { platformMoney } from "../../../common/format/currency";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * Platform billing is in rupees regardless of what the shop sells in —
  * `currency_symbol` is a per-tenant SHOP setting and means nothing about what
  * this business pays True Serve. Same reasoning as the admin console's `money`.
  */
-const money = (n: string | number) => `Rs ${Number(n).toLocaleString()}`;
+const money = (n: string | number) => platformMoney(n);
 
 const day = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  shopDate(iso);
 
 /** Whole days from today to `iso`. Negative = it has already passed. */
 function daysUntil(iso: string): number {
@@ -497,7 +499,7 @@ function Payments({ payments }: { payments: SubscriptionInfo["payments"] }) {
       `${productSlug()}-payments.csv`,
       ["Paid", "Plan", "Period start", "Period end", "Method", "Reference", "Amount"],
       payments.map((p) => [
-        new Date(p.paid_at).toLocaleDateString(),
+        shopDate(p.paid_at),
         p.plan_name,
         p.period_start,
         p.period_end,

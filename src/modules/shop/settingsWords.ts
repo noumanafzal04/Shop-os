@@ -34,6 +34,18 @@ export function settingsWords(kind: Pick<KindOfBusiness, "noun" | "sells">) {
       ? "Search or drop a pin — sets your city and powers delivery + “shops near me”."
       : "Search or drop a pin — sets your city and where your business is.",
     /**
+     * The currency and the date format sit on this tab too — moved here from
+     * Tax, with wording written for a shop: "prices, receipts", "receipts,
+     * invoices". An office that only keeps books has none of those, and was
+     * told about all of them the day the cards arrived.
+     */
+    currency: shop
+      ? "The money your prices, receipts and reports are written in."
+      : "The money your books and reports are written in.",
+    dates: shop
+      ? "How a date is written on every screen, and on receipts, invoices and reports."
+      : "How a date is written on every screen and in every report.",
+    /**
      * A storefront needs something to sell on it. Offered to every shop — on
      * or off — and not at all to a business with no catalogue to list.
      */

@@ -122,7 +122,9 @@ export default function BrowsePage() {
     filters.rating_min && { key: "rating_min", label: `${filters.rating_min}★ & up` },
     (filters.min_price !== undefined || filters.max_price !== undefined) && {
       key: "price",
-      label: `Rs ${filters.min_price ?? 0} – ${filters.max_price ?? "∞"}`,
+      // No mark: the aisle holds many shops' goods, and a filter on the
+      // figure is on the figure in whatever money each shop trades in.
+      label: `Price ${filters.min_price ?? 0} – ${filters.max_price ?? "∞"}`,
     },
   ].filter(Boolean) as Array<{ key: string; label: string }>;
 

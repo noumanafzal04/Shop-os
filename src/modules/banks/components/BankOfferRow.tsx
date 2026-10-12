@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useBankQuote, useLiveBanks } from "../hooks/useBanks";
 import type { CardType } from "../services/banksService";
+import { useMoney } from "../../shop/hooks/useShop";
 
 /**
  * A bank funding part of its own card's transaction, at the tender screen.
@@ -42,7 +43,6 @@ interface Props {
   onQuote: (discount: number) => void;
 }
 
-const money = (n: number) => `Rs ${n.toLocaleString()}`;
 
 export function BankOfferRow({
   cardAmount,
@@ -54,6 +54,7 @@ export function BankOfferRow({
   onCardType,
   onQuote,
 }: Props) {
+  const money = useMoney();
   const banks = useLiveBanks(cardAmount > 0);
   const quote = useBankQuote();
   const [shown, setShown] = useState<{ label: string; discount: number } | null>(null);

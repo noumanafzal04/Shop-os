@@ -1,3 +1,5 @@
+import { shopDate, shopShortDateTime } from "../../../../common/format/date";
+
 const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /**
@@ -21,9 +23,7 @@ function parse(value: string | null | undefined): Date | null {
 export function formatDate(value: string | null | undefined): string {
   const date = parse(value);
 
-  return date
-    ? date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
-    : "—";
+  return date ? shopDate(date) : "—";
 }
 
 /** "5 Aug, 14:32" — the timeline wants the clock, not the year. */
@@ -31,9 +31,6 @@ export function formatDateTime(value: string | null | undefined): string {
   const date = parse(value);
   if (!date) return "—";
 
-  return `${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${date.toLocaleTimeString(
-    undefined,
-    { hour: "2-digit", minute: "2-digit" },
-  )}`;
+  return shopShortDateTime(date);
 }
 

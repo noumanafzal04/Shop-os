@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DateRangeFilter } from "./DateRangeFilter";
 import { EMPTY_RANGE, type DateRange } from "./dateRanges";
+import { spokenDate } from "../../../common/format/date";
 
 /**
  * The behaviours somebody would actually notice, and that the arithmetic tests
@@ -37,18 +38,13 @@ afterEach(() => {
 /**
  * A day cell, addressed the way a screen reader hears it.
  *
- * Formatted with the same call the component uses rather than a hardcoded
- * string: the accessible name is deliberately locale-dependent — that is the
- * point of it — and pinning "10 August 2026" here would make the suite fail
- * for anyone whose machine is set to a locale that writes it the other way
- * round, which proves nothing about the component.
+ * "10 August 2026" — every word a word, so there is no order to get wrong and
+ * no machine on which it reads differently. It used to be whatever the
+ * browser's own language made of the day ("August 10, 2026" on one laptop),
+ * and this helper had to ask the browser the same question to find its cell.
+ * Named by the same function the component uses, so the two cannot part.
  */
-const dayCell = (year: number, month: number, day: number): string =>
-  new Date(year, month, day).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+const dayCell = (year: number, month: number, day: number): string => spokenDate(new Date(year, month, day));
 
 const open = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(screen.getByRole("button", { name: /any date|aug/i }));

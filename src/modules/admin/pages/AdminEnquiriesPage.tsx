@@ -16,6 +16,7 @@ import { PageHeader } from "../components/kit";
 import { Waiting } from "../components/Waiting";
 import { howLong } from "../components/waitingTime";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopShortDateTime, weekdayOf } from "../../../common/format/date";
 
 /**
  * PEOPLE WHO ASKED FOR A PERSON.
@@ -52,10 +53,7 @@ type Filter = "open" | "walkthrough" | "question" | "all";
 
 /** A wanted time, printed the way somebody would say it out loud. */
 const when = (iso: string) =>
-  new Date(iso).toLocaleString("en-PK", {
-    weekday: "short", day: "numeric", month: "short",
-    hour: "numeric", minute: "2-digit",
-  });
+  `${weekdayOf(iso)}, ${shopShortDateTime(iso)}`;
 
 const QUEUES = [
   { value: "open" as const, label: "Open" },

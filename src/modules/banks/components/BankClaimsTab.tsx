@@ -7,6 +7,8 @@ import { downloadFile } from "../../../common/api/download";
 import Button from "../../../components/ui/button/Button";
 import { useToast } from "../../../components/ui/toast";
 import Badge from "../../../components/ui/badge/Badge";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * What the banks owe this shop.
@@ -58,12 +60,12 @@ interface BankClaimsReport {
   claims: Claim[];
 }
 
-const money = (n: number) => `Rs ${Number(n).toLocaleString()}`;
 
 const day = (iso: string | null) =>
-  iso === null ? "—" : new Date(iso).toLocaleDateString();
+  iso === null ? "—" : shopDate(iso);
 
 export function BankClaimsTab({ range }: { range: { from: string; to: string } }) {
+  const money = useMoney();
   const toast = useToast();
   const [downloading, setDownloading] = useState(false);
 

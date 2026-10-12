@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { elapsedLabel, minutesSince, urgencyOf } from "./elapsed";
+import { elapsedAgo, elapsedLabel, minutesSince, urgencyOf } from "./elapsed";
 
 const NOW = new Date(2026, 7, 26, 14, 0, 0);
 const agoMinutes = (n: number) => new Date(NOW.getTime() - n * 60_000).toISOString();
@@ -60,5 +60,13 @@ describe("urgencyOf", () => {
       expect(urgencyOf(agoMinutes(9999), stage), stage).toBe("late");
       expect(urgencyOf(agoMinutes(0), stage), stage).toBe("calm");
     }
+  });
+});
+
+describe("elapsedAgo", () => {
+  it("says how long ago — and does not say \"just now ago\"", () => {
+    expect(elapsedAgo(agoMinutes(0))).toBe("just now");
+    expect(elapsedAgo(agoMinutes(12))).toBe("12m ago");
+    expect(elapsedAgo(agoMinutes(65))).toBe("1h 05m ago");
   });
 });

@@ -31,10 +31,14 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import VariantMatrixEditor from "../components/VariantMatrixEditor";
 import { axesFromRows, toPayload, type Axis, type MatrixRow } from "../variantMatrix";
 import { PriceHistory } from "../components/PriceHistory";
+import { formatQuantity } from "../../../common/format/quantity";
 import { TAB_LABEL, refusalsOutOfSight, tabOfField, tabsFor, type FormTab } from "../formTabs";
 import { GoesOnShelf } from "../../branches/components/StandingAt";
 
 /** The on/off pill — inside a Toggle, and beside the title of a section that can be switched off. */
+/** "food_item" → "Food item": what a kind of item is called until the server's own name for it arrives. */
+const plainCode = (code: string): string => code.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
 function Pill({ on }: { on: boolean }) {
   return (
     <span className={`block h-6 w-11 shrink-0 rounded-full p-0.5 transition ${on ? "bg-brand-500" : "bg-gray-300 dark:bg-gray-700"}`}>
@@ -215,7 +219,22 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const [duration, setDuration] = useState("");
   const [availableFrom, setAvailableFrom] = useState("");
   const [availableUntil, setAvailableUntil] = useState("");
-  const [trackStock, setTrackStock] = useState(true);
+  /**
+   * Whether this item is counted — as somebody CHOSE it, or `null` while
+   * nobody has.
+   *
+   * It was a plain `true`, put right by an effect once the item types had
+   * arrived. So a dish created before they arrived — a quick hand, a slow
+   * line — was sent as counted, at a stock of nothing, and read "none left"
+   * at every table from the moment it was made. The first dish of a new
+   * restaurant was the one most likely to be.
+   *
+   * What nobody chose is not sent: the item type's own default stands, here
+   * as soon as the form has been told it, and on the server if it never is.
+   */
+  const [trackChoice, setTrackChoice] = useState<boolean | null>(null);
+  /** What the item was when it was opened for editing — an edit sends the switch only when it moved. */
+  const wasCounted = useRef<boolean | null>(null);
   // Whether the shop still sells this at all. Distinct from `visibleOnline`,
   // which only hides it from the storefront — an inactive item is off the till
   // too. Without this the only way to stop selling something was to DELETE it,
@@ -264,6 +283,13 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const stations = (shopSettings.data?.kitchen_stations ?? []) as string[];
   const isPhysical = itemType === "physical_product";
   const canTrackStock = typeInfo ? typeInfo.inventory !== "never" : !isService;
+  /** What this KIND of item does when nobody says: a packet is counted, a dish is not. Unknown until the types arrive. */
+  const typeCounts = typeInfo ? typeInfo.inventory === "required" : null;
+  const trackStock = trackChoice ?? typeCounts ?? false;
+  /** Is there anything to SEND? Not while it is neither chosen nor known. */
+  const trackSaid = trackChoice !== null || typeCounts !== null;
+  /** On an item that exists: has the switch been moved from what the item is? */
+  const countingChanges = isEdit && trackChoice !== null && wasCounted.current !== null && trackChoice !== wasCounted.current;
   const showVariants = typeInfo ? typeInfo.variants !== false : !isService;
   const supportsModifiers = !!typeInfo?.modifiers; // food items
   // Stock is only managed when the item type allows it AND the shop runs the
@@ -305,10 +331,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   /** The sizes a chosen component comes in — empty when it has none. */
   const comboSizes = (productId: string) =>
     (pickable.find((p) => p.id === productId)?.variants ?? []).filter((v) => v.is_active);
-  // When switching type on create, reset the stock-tracking default sensibly.
+  // A different kind of thing is counted differently: what was chosen for the
+  // last kind does not carry over to this one.
   useEffect(() => {
-    if (!isEdit && typeInfo) setTrackStock(typeInfo.inventory === "required");
-  }, [itemType, typeInfo, isEdit]);
+    if (!isEdit) setTrackChoice(null);
+  }, [itemType, isEdit]);
   // Default the item type to the FIRST the business supports (create only).
   //
   // "First", not "any it is allowed": this used to leave the form on
@@ -447,7 +474,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setDuration(p.duration_minutes != null ? String(p.duration_minutes) : "");
       setAvailableFrom(p.available_from ? p.available_from.slice(0, 5) : "");
       setAvailableUntil(p.available_until ? p.available_until.slice(0, 5) : "");
-      setTrackStock(p.track_inventory);
+      setTrackChoice(p.track_inventory);
+      wasCounted.current = p.track_inventory;
       setIsActive(p.is_active);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
@@ -589,6 +617,10 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           // Sent only when this item type has sizes at all, so a bare field edit
           // on something else cannot wipe a collection it never showed.
           ...(showVariants ? { variants: toPayload(variants), variant_axes: axes } : {}),
+          // Whether it is counted — sent when the switch was MOVED. It was
+          // never sent at all: the switch flipped, the form saved, and the
+          // item was what it had been.
+          ...(stockManaged && countingChanges ? { track_inventory: trackStock } : {}),
         },
         { onSuccess: (res) => finish(warningsOf(res)) },
       );
@@ -599,7 +631,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           item_type: itemType,
           ...(stockManaged
             ? {
-                track_inventory: trackStock,
+                ...(trackSaid ? { track_inventory: trackStock } : {}),
                 stock_quantity: trackStock ? Number(stock) || 0 : 0,
               }
             : {}),
@@ -797,7 +829,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                         : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
                     }`}
                   >
-                    {info?.label ?? code}
+                    {info?.label ?? plainCode(code)}
                   </button>
                 );
               })}
@@ -1298,12 +1330,27 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 type="button"
                 aria-pressed={trackStock}
                 aria-label="Track stock for this item"
-                onClick={() => setTrackStock(!trackStock)}
+                onClick={() => setTrackChoice(!trackStock)}
               >
                 <Pill on={trackStock} />
               </button>
             }
           >
+            {/* What moving the switch will do, said before Save is pressed.
+                Starting to count a dish with nothing on the books takes it
+                off every table until stock is added — nobody should find
+                that out from a waiter. */}
+            {countingChanges && (
+              <p data-testid="counting-change" className="rounded-lg bg-warning-50 px-3 py-2 text-theme-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                {trackStock
+                  ? Number(stock) > 0
+                    ? `When you save, this is counted again from the ${formatQuantity(Number(stock))} on the books.`
+                    : "When you save, this is counted from nothing — it will be out of stock until you add some on the Inventory screen."
+                  : Number(stock) !== 0
+                    ? `When you save, this is always available, whatever the shelf says. The ${formatQuantity(Number(stock))} on the books stay on record.`
+                    : "When you save, this is always available, whatever the shelf says."}
+              </p>
+            )}
             {trackStock && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>

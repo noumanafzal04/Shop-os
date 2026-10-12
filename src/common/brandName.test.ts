@@ -83,6 +83,8 @@ describe("the name lives in one place", () => {
     "shopos-theme",
     // When this shop's day turns, so the first "Today" of a session is right — shopDay.ts.
     "shopos-day",
+    // How this shop writes a date, kept so the first paint is already right.
+    "shopos-dates",
     // What a person put on their own Simple view — layout/simpleMenuStore.ts.
     "shopos-simple-menu",
     // A CSS class the map library is told to use.

@@ -16,6 +16,7 @@ import type { Reservation, ReservationStatus } from "../services/reservationsSer
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { shopDateTime } from "../../../common/format/date";
 
 
 const STATUS_COLOR: Record<ReservationStatus, "success" | "warning" | "error" | "info" | "light"> = {
@@ -169,7 +170,7 @@ export default function ReservationsPage() {
                     <td className="px-6 py-4">{r.quantity}</td>
                     <td className="px-6 py-4">{money(Number(r.unit_price) * r.quantity)}</td>
                     <td className="px-6 py-4 text-theme-xs">
-                      {new Date(r.expires_at).toLocaleString()}
+                      {shopDateTime(r.expires_at)}
                     </td>
                     <td className="px-6 py-4">
                       <Badge size="sm" color={STATUS_COLOR[r.status]}>{r.status}</Badge>

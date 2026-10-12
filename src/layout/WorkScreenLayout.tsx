@@ -1,4 +1,5 @@
 import { Outlet } from "react-router";
+import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import { SidebarProvider } from "../context/SidebarContext";
 import AppSidebar from "./AppSidebar";
 import Backdrop from "./Backdrop";
@@ -33,9 +34,11 @@ export default function WorkScreenLayout() {
       <Backdrop />
       {/* `min-w-0` for the reason AppLayout's page has it: without it one wide
           child pushes the whole screen past the edge of the window. */}
-      <div className="min-w-0 lg:pl-[90px]">
-        <Outlet />
-      </div>
+      <main className="min-w-0 lg:pl-[90px]">
+        <WrittenTheShopsWay>
+          <Outlet />
+        </WrittenTheShopsWay>
+      </main>
     </SidebarProvider>
   );
 }

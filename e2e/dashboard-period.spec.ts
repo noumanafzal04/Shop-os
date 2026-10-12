@@ -2,6 +2,9 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from "@
 
 import { API, ownerAuth } from "./api";
 
+/** The months, in words — written here and not borrowed from the app, which is what is being checked. */
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 /**
  * THE DASHBOARD IS ASKED ABOUT A PERIOD — through the screen.
  *
@@ -126,11 +129,9 @@ test("the dashboard is asked about a period, and every figure on it says which",
   // ── two picked dates are a period like any other ──────────────────
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const cell = (day: number) =>
-    page.evaluate(
-      ([y, m, d]) => new Date(y, m, d).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }),
-      [lastMonth.getFullYear(), lastMonth.getMonth(), day],
-    );
+  // A day in the calendar is named in words — "12 October 2026" — whatever the
+  // browser's own language would have made of it.
+  const cell = (day: number) => `${day} ${MONTHS_LONG[lastMonth.getMonth()]} ${lastMonth.getFullYear()}`;
 
   await menu(page).click();
   await page.getByRole("button", { name: /Custom range/ }).click();
@@ -139,12 +140,12 @@ test("the dashboard is asked about a period, and every figure on it says which",
   const apply = dialog.getByRole("button", { name: "Apply range" });
 
   // Back to the month before this one, if the dialog did not open on it.
-  const tenth = dialog.getByRole("button", { name: await cell(10), exact: true });
+  const tenth = dialog.getByRole("button", { name: cell(10), exact: true });
   if ((await tenth.count()) === 0) await dialog.getByRole("button", { name: "Previous month" }).click();
   await tenth.click();
   // Half a period is not one: nothing can be applied yet.
   await expect(apply).toBeDisabled();
-  await dialog.getByRole("button", { name: await cell(20), exact: true }).click();
+  await dialog.getByRole("button", { name: cell(20), exact: true }).click();
   await apply.click();
 
   // The panel's own three letters — a locale's "Sept" is not what it prints.

@@ -149,7 +149,9 @@ async function settingsTab(page: Page, tab: string): Promise<void> {
   await page.getByRole("button", { name: tab, exact: true }).click();
 }
 
-const orderRow = (page: Page, number: string): Locator => page.getByRole("row").filter({ hasText: number });
+/** An order on the Orders page: its card on the board while it is being worked, its row under "Finished today" after. */
+const orderRow = (page: Page, number: string): Locator =>
+  page.locator(`[data-order="${number}"]`).or(page.getByRole("row").filter({ hasText: number }));
 const orderSheet = (page: Page): Locator => page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Close" }) });
 
 async function openOrder(page: Page, number: string): Promise<Locator> {
@@ -205,7 +207,11 @@ test("P2 · a stranger finds the shop, and can read its terms before ordering an
   const search = page.getByLabel("Search products and shops", { exact: true });
   await search.fill(BROWNIES.name);
   await search.press("Enter");
-  const found = card(page, BROWNIES.name);
+  // THIS shop's brownies. The marketplace is every shop's shelf, and every
+  // run of this journey opens another shop selling a box by the same name:
+  // "the first card that says brownies" was a shop from six days earlier, and
+  // the case then looked inside it for a link to today's.
+  const found = page.locator("article").filter({ hasText: BROWNIES.name }).filter({ has: page.locator(`a[href="${shopPath()}"]`) }).first();
   await expect(found, "the shop's brownies cannot be found on the marketplace").toBeVisible({ timeout: 20_000 });
   await found.locator(`a[href="${shopPath()}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`${shopPath()}$`), { timeout: 20_000 });

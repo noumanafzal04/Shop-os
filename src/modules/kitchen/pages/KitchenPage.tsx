@@ -9,6 +9,7 @@ import { KotCardTile, formatAge, urgencyOf } from "../components/KotCard";
 import type { BoardView, KotCard } from "../services/kitchenService";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { shopShortDateTime } from "../../../common/format/date";
 
 /** A screen bolted over the grill is the grill screen forever. */
 const STATION_KEY = "shopos-kitchen-station";
@@ -68,7 +69,7 @@ function whenWasIt(iso: string | null | undefined): string | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
 
-  return d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  return shopShortDateTime(d);
 }
 
 const tickets = (n: number) => `${n} ${n === 1 ? "ticket" : "tickets"}`;
@@ -397,7 +398,7 @@ export default function KitchenPage() {
         </div>
       )}
 
-      <main className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden">
         {board.isLoading ? (
           <div className={`${GRID} p-4`}>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -499,7 +500,7 @@ export default function KitchenPage() {
             </div>
           </>
         )}
-      </main>
+      </div>
     </div>
   );
 }

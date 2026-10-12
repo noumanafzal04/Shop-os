@@ -37,6 +37,7 @@
  * empty list. Every default below is that day; a caller with no shop open
  * gets the device's date, as before.
  */
+import { monthYear, shopDate, shopDateFormat, shopShortDate } from "../../../common/format/date";
 import { shopTodayDate } from "../../../common/shopDay";
 
 /** A range as the API takes it: inclusive `yyyy-mm-dd` ends, null = open. */
@@ -190,13 +191,14 @@ export function matchPreset(range: DateRange, today: Date = shopTodayDate()): Ra
   }) ?? null;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "26 Aug" — the month named, because 08/09 is a different day in two countries. */
+/**
+ * "26 Aug" — or however this shop writes a day when the year goes without
+ * saying. It used to name the month whatever anybody wanted, "because 08/09 is
+ * a different day in two countries"; that is still where a shop starts, and a
+ * shop that has chosen 26/08 has chosen it for these as well.
+ */
 export function formatDay(iso: string): string {
-  const date = fromIsoDate(iso);
-
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+  return shopShortDate(iso);
 }
 
 /**
@@ -232,9 +234,8 @@ export function formatEntryDate(
     if (day === toIsoDate(shift(today, -1))) return "Yesterday";
   }
 
-  const year = date.getFullYear() === today.getFullYear() ? "" : ` ${date.getFullYear()}`;
-
-  return `${date.getDate()} ${MONTHS[date.getMonth()]}${year}`;
+  // This year's days go without their year; any other year's carry it.
+  return date.getFullYear() === today.getFullYear() ? shopShortDate(day) : shopDate(day);
 }
 
 /**
@@ -258,15 +259,17 @@ export function formatRange(range: DateRange, today: Date = shopTodayDate()): st
   const thisYear = today.getFullYear();
   const spansYears = start.getFullYear() !== end.getFullYear();
   // A year is only worth the space when it is not the one we are standing in.
-  const year = (date: Date): string => (date.getFullYear() === thisYear && !spansYears ? "" : ` ${date.getFullYear()}`);
+  const day = (iso: string, date: Date): string => (date.getFullYear() === thisYear && !spansYears ? shopShortDate(iso) : shopDate(iso));
 
-  if (from === to) return `${formatDay(from)}${year(start)}`;
+  if (from === to) return day(from, start);
 
-  if (!spansYears && start.getMonth() === end.getMonth()) {
-    return `${start.getDate()} – ${formatDay(to)}${year(end)}`;
+  // "5 – 12 Aug": the month said once. Only where the month is a NAME — in
+  // numbers, "05 – 12/08" is not a thing anybody writes.
+  if (!spansYears && start.getMonth() === end.getMonth() && shopDateFormat() === "dmy_text") {
+    return `${start.getDate()} – ${day(to, end)}`;
   }
 
-  return `${formatDay(from)}${year(start)} – ${formatDay(to)}${year(end)}`;
+  return `${day(from, start)} – ${day(to, end)}`;
 }
 
 /**
@@ -366,5 +369,5 @@ export function monthGrid(year: number, month: number): Array<{ iso: string; day
 }
 
 export function monthName(year: number, month: number): string {
-  return `${new Date(year, month, 1).toLocaleDateString(undefined, { month: "long" })} ${year}`;
+  return monthYear(new Date(year, month, 1));
 }

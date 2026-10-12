@@ -9,6 +9,7 @@ import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
 import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
+import { useCan } from "../../stores/useCan";
 import { useMe } from "../../modules/auth/hooks/useAuth";
 import type { UserRole } from "../../modules/auth/types";
 import { canVisitAdmin } from "./adminScreenPermissions";
@@ -219,7 +220,15 @@ export function TenantThemed() {
   // module map from its last sign-in for as long as nobody visited another
   // screen. Every "does this shop have X" check on the till read that copy.
   useMe();
-  const hasTill = useAuthStore((st) => st.user?.tenant?.features?.pos ?? false);
+  const shopHasTill = useAuthStore((st) => st.user?.tenant?.features?.pos ?? false);
+  // …AND ONLY FOR SOMEBODY WHO MAY RING ON IT. Every one of those routes
+  // rides `sales.manage`, and the question asked here was only whether the
+  // SHOP has a till. So a cook signed in on the kitchen tablet — or a stock
+  // keeper, or an accountant — announced a till they may not use and asked
+  // for its catalogue on every screen, and was refused each time: five 403s
+  // to open the kitchen board, in the log of a shop where nothing is wrong.
+  const can = useCan();
+  const hasTill = shopHasTill && can("sales.manage");
   useOfflineBoot(hasTill);
   // …and keeps it current afterwards: on reconnect, on a slow heartbeat, and
   // when the tab comes back to the front.

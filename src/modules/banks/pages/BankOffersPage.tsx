@@ -16,6 +16,7 @@ import type { Bank, BankCardOffer } from "../services/banksService";
 import { BankOfferForm } from "../components/BankOfferForm";
 import { BankForm } from "../components/BankForm";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useMoney } from "../../shop/hooks/useShop";
 
 /**
  * Banks, and the campaigns they fund on their own cards.
@@ -35,11 +36,10 @@ import { ListEmpty } from "../../../common/ui/ListEmpty";
  * uncapped percentage nobody pictured on a large sale. Both are called out.
  */
 
-const money = (n: string | number | null) =>
-  n === null ? "—" : `Rs ${Number(n).toLocaleString()}`;
+type Money = (n: string | number | null) => string;
 
 /** What an offer is worth, in the words the contract used. */
-function terms(offer: BankCardOffer): string {
+function terms(offer: BankCardOffer, money: Money): string {
   const head = offer.type === "percent" ? `${Number(offer.value)}%` : money(offer.value);
   const parts = [head];
 
@@ -56,6 +56,8 @@ function hasEnded(offer: BankCardOffer): boolean {
 }
 
 export default function BankOffersPage() {
+  const shopMoney = useMoney();
+  const money: Money = (n) => (n === null ? "—" : shopMoney(n));
   const banks = useBanks();
   const saveBank = useSaveBank();
   const deleteBank = useDeleteBank();
@@ -216,7 +218,7 @@ export default function BankOffersPage() {
                                 <Badge color="warning">No cap</Badge>
                               )}
                             </div>
-                            <p className="text-theme-xs text-gray-500 dark:text-gray-400">{terms(offer)}</p>
+                            <p className="text-theme-xs text-gray-500 dark:text-gray-400">{terms(offer, money)}</p>
                           </div>
 
                           {/* What the bank pays, as a FIGURE.

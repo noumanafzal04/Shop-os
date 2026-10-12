@@ -50,6 +50,7 @@ import {
   whatCanBeDone,
   type Counted,
 } from "../transferWords";
+import { shopDateTime } from "../../../common/format/date";
 
 /** One thing being sent: a product, or one size of it. */
 interface Line {
@@ -412,7 +413,7 @@ export default function TransfersPage() {
                         <span title={says.hint}><Badge size="sm" color={says.color}>{says.label}</Badge></span>
                       </td>
                       <td className={`${CELL} whitespace-nowrap text-gray-500 dark:text-gray-400`}>
-                        <span className="block">{new Date(t.sent_at ?? t.created_at).toLocaleString()}</span>
+                        <span className="block">{shopDateTime(t.sent_at ?? t.created_at)}</span>
                         {t.status === "requested"
                           ? t.requester?.name && <span className="block text-theme-xs text-gray-400">asked by {t.requester.name}</span>
                           : t.sender?.name && <span className="block text-theme-xs text-gray-400">by {t.sender.name}</span>}

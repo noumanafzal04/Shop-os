@@ -1,11 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { applyTenantTheme, DEFAULT_SIDEBAR } from "../../../common/theme/tenantTheme";
 import { recallTenantTheme, rememberTenantTheme } from "../../../common/theme/rememberedTheme";
 import { useAuthStore } from "../../../stores/authStore";
 import { shopService, type SetupPayload, type ShopSettings } from "../services/shopService";
-import { formatMoney } from "../../../common/format/money";
+import { currencyOf, formatIn, type CurrencyFormat } from "../../../common/format/currency";
+import {
+  DEFAULT_DATE_FORMAT, dateFormatOf, dateIn, dateTimeIn, setShopDateFormat, shopDateFormat, shopDateFormatIsRemembered, shortDateIn, shortDateTimeIn, timeOf, typedDayIn,
+  type DateFormatCode, type Datish,
+} from "../../../common/format/date";
 import { setShopDayRule } from "../../../common/shopDay";
 
 /**
@@ -43,6 +47,14 @@ export function useShopSettings() {
     if (!isShop) setShopDayRule(null);
     else if (zone !== null && turnsAt !== null) setShopDayRule({ zone, turnsAtMinutes: turnsAt });
   }, [isShop, zone, turnsAt]);
+
+  // HOW A DATE IS WRITTEN HERE — told the same way, from the same hook, for the
+  // same reason (common/format/date.ts). Nobody's shop forgets it.
+  const dates = query.data ? dateFormatOf(query.data.date_format) : null;
+  useEffect(() => {
+    if (!isShop) setShopDateFormat(null);
+    else if (dates !== null) setShopDateFormat(dates);
+  }, [isShop, dates]);
 
   return query;
 }
@@ -88,15 +100,116 @@ export function useTenantTheme() {
 }
 
 /**
- * A currency formatter bound to the tenant's configured symbol (settings →
- * currency_symbol, default "Rs"). Use everywhere money is shown so a shop that
- * sets AED/₹/$ sees it consistently. Returns a stable `money(n)` function.
+ * The currencies a shop may choose, and whether it still may.
+ *
+ * Asked by the settings screen alone — "has this business begun to trade?"
+ * looks at the books, and is not a question for every page. Kept under the
+ * settings key, so saving a new currency asks again.
+ */
+export function useShopCurrencies(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["shop-settings", "currencies"],
+    queryFn: async () => (await shopService.currencies()).data,
+    enabled,
+  });
+}
+
+/**
+ * The shop's currency as the server describes it — its mark, where its commas
+ * go, whether a whole amount carries ".00". The default (rupees) until the
+ * settings have loaded.
+ */
+export function useCurrency(): CurrencyFormat {
+  const settings = useShopSettings();
+
+  return currencyOf(settings.data?.currency_format);
+}
+
+/**
+ * `money(n)` — an amount written in THIS SHOP's money: "Rs 4,000",
+ * "₹12,34,567", "$4,000.00". Use it everywhere a shop's own figure is shown.
+ *
+ * It was bound to a symbol only, so every currency was written by the rupee's
+ * rules and the browser's commas. The format comes from the server now, with
+ * the shop's settings.
  */
 export function useMoney() {
-  const settings = useShopSettings();
-  const symbol = settings.data?.currency_symbol ?? "Rs";
+  const currency = useCurrency();
 
-  return (n: string | number) => formatMoney(symbol, n);
+  return (n: string | number | null | undefined, places?: number) => formatIn(currency, n, places);
+}
+
+/**
+ * How this shop writes a date. Until its settings have loaded it is what this
+ * device remembers of it — so a reload does not write one frame in the default
+ * and the next in the shop's own — and for nobody's shop it is the default.
+ */
+export function useDateFormat(): DateFormatCode {
+  const settings = useShopSettings();
+  const role = useAuthStore((s) => s.user?.role);
+
+  if (settings.data) return dateFormatOf(settings.data.date_format);
+
+  return role === "shop_owner" || role === "staff" ? shopDateFormat() : DEFAULT_DATE_FORMAT;
+}
+
+/**
+ * Is it KNOWN yet how this shop writes a date?
+ *
+ * It is known once its settings have answered, or when this device remembers
+ * it from the last visit, or when there is no shop to ask (the console). On
+ * the very first visit of a device it is not — for the fraction of a second
+ * the settings take — and a page drawn then would be drawn in the default and
+ * drawn again a moment later, with whatever had been pressed in between
+ * thrown away.
+ *
+ * It does not wait for ever: a settings request that fails, or cannot be made
+ * because the line is down, leaves the default, which is a date nobody can
+ * misread.
+ */
+export function useDateFormatIsKnown(): boolean {
+  const settings = useShopSettings();
+  const role = useAuthStore((s) => s.user?.role);
+  const [waitedLongEnough, setWaited] = useState(false);
+  const isShop = role === "shop_owner" || role === "staff";
+  const answered = settings.data !== undefined || settings.isError || settings.fetchStatus === "paused";
+  const known = !isShop || answered || shopDateFormatIsRemembered();
+
+  useEffect(() => {
+    if (known) return;
+    const giveUp = setTimeout(() => setWaited(true), 2_000);
+
+    return () => clearTimeout(giveUp);
+  }, [known]);
+
+  return known || waitedLongEnough;
+}
+
+/**
+ * Dates and times written THIS SHOP's way — `dates.date(sale.created_at)`,
+ * `dates.dateTime(…)`, `dates.shortDate(…)`. Use it wherever a shop's own
+ * screen shows when something happened; never `toLocaleDateString()`, which is
+ * the browser's opinion of how a date is written and differs from one laptop
+ * to the next. (The console uses `platformDate`.)
+ */
+export function useDates() {
+  const code = useDateFormat();
+
+  return useMemo(() => ({
+    code,
+    /** "12 Oct 2026" */
+    date: (value: Datish) => dateIn(code, value),
+    /** "12 Oct" — where the year goes without saying. */
+    shortDate: (value: Datish) => shortDateIn(code, value),
+    /** "12 Oct 2026, 5:14 PM" */
+    dateTime: (value: Datish) => dateTimeIn(code, value),
+    /** "12 Oct, 5:14 PM" */
+    shortDateTime: (value: Datish) => shortDateTimeIn(code, value),
+    /** "5:14 PM" */
+    time: (value: Datish) => timeOf(value),
+    /** What somebody typed, as a day — or null. */
+    typed: (text: string) => typedDayIn(code, text),
+  }), [code]);
 }
 
 export function useUpdateShopSettings() {

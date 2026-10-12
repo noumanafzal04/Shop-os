@@ -111,6 +111,46 @@ describe("every shop screen boots the till", () => {
     expect(getByText("till")).toBeInTheDocument();
   });
 
+  it("does not boot a till for somebody who may not ring on one", async () => {
+    // A cook, on the kitchen tablet of a shop that HAS a till. Every `pos`
+    // route rides sales.manage, so the boot was five refused requests on
+    // every screen they opened.
+    useAuthStore.setState({ user: { role: "staff", permissions: ["kitchen.view"], tenant: { features: { pos: true, kitchen: true } } } } as never);
+    await new Promise((r) => setTimeout(r, 300));
+    vi.mocked(deviceService.register).mockClear();
+
+    render(
+      <MemoryRouter initialEntries={["/tenant/kitchen"]}>
+        <Routes>
+          <Route element={<TenantThemed />}>
+            <Route path="/tenant/kitchen" element={<div>board</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect(deviceService.register).not.toHaveBeenCalled();
+  });
+
+  it("boots it for a cashier, who holds no other key", async () => {
+    useAuthStore.setState({ user: { role: "staff", permissions: ["sales.manage"], tenant: { features: { pos: true } } } } as never);
+    await new Promise((r) => setTimeout(r, 300));
+    vi.mocked(deviceService.register).mockClear();
+
+    render(
+      <MemoryRouter initialEntries={["/tenant/pos"]}>
+        <Routes>
+          <Route element={<TenantThemed />}>
+            <Route path="/tenant/pos" element={<div>till</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(deviceService.register).toHaveBeenCalledTimes(1));
+  });
+
   it("does not boot a till for a shop that has none", async () => {
     // An online-only or books-only shop fired three refused `pos` requests on
     // every screen: device registration, the device list and the bootstrap.

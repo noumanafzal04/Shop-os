@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { ownerAuth, roomToWork } from "./api";
 import { openTill } from "./till";
 import { TAXED, completeAndFetch, openTender, ring, rupees, saleWithLines, shopDefaultRate, stockTaxedShelf, withTax } from "./taxedShelf";
 
@@ -29,6 +30,12 @@ import { TAXED, completeAndFetch, openTender, ring, rupees, saleWithLines, shopD
 
 test.beforeAll(async ({ request }) => {
   await stockTaxedShelf(request);
+});
+
+// Each case here loads the till twice. Run straight after the till specs
+// before it, as the same owner, that is most of the API's minute.
+test.beforeEach(async ({ request }) => {
+  await roomToWork(request, ownerAuth(), 130, "/auth/me");
 });
 
 const rows = (page: Page) => page.locator("[data-cart-row]");

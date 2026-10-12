@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 
 import { fuelService } from "../services/fuelService";
+import { useMoney } from "../../shop/hooks/useShop";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * A MONTH OF THE FORECOURT.
@@ -28,8 +30,7 @@ import { fuelService } from "../services/fuelService";
  */
 
 const litres = (n: number) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 3 })} L`;
-const money = (n: number) => `Rs ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-const day = (iso: string | null) => (iso === null ? "—" : new Date(iso).toLocaleDateString());
+const day = (iso: string | null) => (iso === null ? "—" : shopDate(iso));
 
 /**
  * A variance card. `tone` is the SUBJECT, not the sentiment — a shortfall is
@@ -42,6 +43,7 @@ function Variance({ title, hint, amount, value }: {
   amount: number;
   value: number;
 }) {
+  const money = useMoney();
   const off = Math.abs(amount) > 0.0005;
 
   return (
@@ -63,6 +65,7 @@ function Variance({ title, hint, amount, value }: {
 }
 
 export function FuelReportTab({ range }: { range: { from: string; to: string } }) {
+  const money = useMoney();
   const report = useQuery({
     queryKey: ["reports", "fuel", range.from, range.to],
     queryFn: async () => (await fuelService.report(range)).data,

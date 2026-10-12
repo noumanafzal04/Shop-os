@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { currencyOf, type CurrencyFormat } from "../../common/format/currency";
+import { useShopSettings } from "../shop/hooks/useShop";
 import { getSingleton } from "./db/repo";
 import { STORE } from "./db/schema";
 
@@ -63,3 +65,21 @@ export function tillFlag(settings: TillSettings, key: string, fallback: boolean)
 
   return typeof value === "boolean" ? value : value === undefined ? fallback : Boolean(value);
 }
+
+/**
+ * The money the till rings in.
+ *
+ * The server's answer where there is one. With no server the settings request
+ * never comes back, and a till that fell back to the product's default would
+ * ring a dollar shop's sales under a rupee mark for as long as the line was
+ * down — so the device's own copy is read second, the one that came down with
+ * the catalogue. The default is last, and only for a till that has never
+ * pulled at all.
+ */
+export function useTillCurrency(): CurrencyFormat {
+  const settings = useShopSettings();
+  const cached = useTillSettings(settings.data === undefined);
+
+  return currencyOf(settings.data?.currency_format ?? cached?.currency_format);
+}
+

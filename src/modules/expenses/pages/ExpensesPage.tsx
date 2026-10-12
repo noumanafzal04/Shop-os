@@ -43,6 +43,7 @@ import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
 import { SavedNotice } from "../components/SavedNotice";
 import { savedNotes } from "../savedNotes";
+import { monthName, monthYear } from "../../../common/format/date";
 
 // The shop's business day for the date an entry opens on — tonight's gas
 // cylinder belongs on the same cashbook row as tonight's sales — and the date
@@ -1016,9 +1017,9 @@ function RunPill({ running, onToggle }: { running: boolean; onToggle: () => void
 /** The first of a month, as the API wants it. */
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const monthLabel = (key: string) =>
-  new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  monthYear(`${key}-01`);
 const shortMonth = (key: string) =>
-  new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "short" });
+  monthName(`${key}-01`);
 const shiftMonth = (key: string, by: number) => {
   const [y, m] = key.split("-").map(Number);
 
