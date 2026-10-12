@@ -63,8 +63,23 @@ class ExpenseBudget extends Model
      */
     public static function inForce(string $categoryId, Carbon $month, ?string $branchId = null): array
     {
-        $rows = self::query()
-            ->where('expense_category_id', $categoryId)
+        return self::inForceForMany([$categoryId], $month, $branchId)[$categoryId];
+    }
+
+    /**
+     * The same answer for MANY categories, from one query.
+     *
+     * The budgets page and the dashboard both ask it of every category the
+     * shop has, and asked one category at a time: eight categories, eight
+     * queries, on the first screen an owner opens.
+     *
+     * @param  list<string>  $categoryIds
+     * @return array<string, array{amount: ?float, standing: ?float, is_override: bool}>
+     */
+    public static function inForceForMany(array $categoryIds, Carbon $month, ?string $branchId = null): array
+    {
+        $rows = $categoryIds === [] ? collect() : self::query()
+            ->whereIn('expense_category_id', $categoryIds)
             ->when(
                 $branchId !== null,
                 // Standing at a branch: its own ceiling, falling back to the
@@ -78,12 +93,36 @@ class ExpenseBudget extends Model
                 fn ($q) => $q->whereNull('branch_id'),
             )
             ->where(fn ($q) => $q->whereNull('month')->orWhereDate('month', $month->copy()->startOfMonth()))
-            // A dated row sorts after a NULL one, so the override wins.
-            ->orderByRaw('month is null desc')
-            ->get();
+            ->get()
+            ->groupBy('expense_category_id');
 
-        $specific = $rows->firstWhere(fn (self $b) => $b->month !== null);
-        $standing = $rows->firstWhere(fn (self $b) => $b->month === null);
+        $answers = [];
+        foreach ($categoryIds as $id) {
+            $answers[$id] = self::chosenFrom($rows->get($id, collect()));
+        }
+
+        return $answers;
+    }
+
+    /**
+     * Which of a category's rows is in force.
+     *
+     * The month's own row beats the standing one. And of two rows of the same
+     * kind, THE BRANCH'S OWN beats the company's — "its own ceiling, falling
+     * back to the company-wide one". That second half was a sentence in a
+     * comment and nothing in the code: the rows came back in whatever order
+     * the database had them, so a branch that set its own rent ceiling after
+     * the company set one was still held to the company's.
+     *
+     * @param  \Illuminate\Support\Collection<int, self>  $rows
+     * @return array{amount: ?float, standing: ?float, is_override: bool}
+     */
+    private static function chosenFrom($rows): array
+    {
+        $ownFirst = fn (self $b): int => $b->branch_id !== null ? 0 : 1;
+
+        $specific = $rows->filter(fn (self $b) => $b->month !== null)->sortBy($ownFirst)->first();
+        $standing = $rows->filter(fn (self $b) => $b->month === null)->sortBy($ownFirst)->first();
 
         $chosen = $specific ?? $standing;
 

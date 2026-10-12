@@ -17,7 +17,11 @@
     $roll    = in_array($width, ['thermal_58', 'thermal_80'], true);
     $rollMm  = $width === 'thermal_58' ? '48mm' : '72mm';
 
-    $cur     = $settings['currency_symbol'] ?? 'Rs';
+    // The shop's currency, by its CODE: the mark, where the commas go and
+    // how an amount is joined to its mark all come from the one list
+    // (App\Support\Currencies) — "Rs 1,234.00", "₹1,234.00", "$1,234.00".
+    $code    = \App\Support\Currencies::code($settings['currency'] ?? null);
+    $cur     = \App\Support\Currencies::symbol($code);
     $kind    = $kind ?? 'original';
     $copyNo  = $copyNo ?? 1;
     $cashier = $cashier ?? null;
@@ -30,7 +34,9 @@
     // is how obviously it says otherwise.
     $training = (bool) ($sale->is_training ?? false);
 
-    $money = fn ($n) => number_format((float) $n, 2);
+    // A bare figure in a column, and a figure with its mark. Paper is always to the paisa.
+    $money  = fn ($n) => \App\Support\Currencies::number((float) $n, $code, 2);
+    $amount = fn ($n) => \App\Support\Currencies::paper((float) $n, $code);
     // 2.000 kg reads wrong on a receipt; 2 does. Keep real fractions.
     $qty   = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.') ?: '0';
 
@@ -490,18 +496,18 @@
     @unless($gift)
         <hr class="rule">
         <table class="totals">
-            <tr><td class="soft">Subtotal</td><td class="num">{{ $cur }} {{ $money($sale->subtotal) }}</td></tr>
+            <tr><td class="soft">Subtotal</td><td class="num">{{ $amount($sale->subtotal) }}</td></tr>
 
             @if((float) $sale->promo_discount > 0)
                 <tr>
                     <td class="soft">{{ $sale->promo_name ?: 'Promotion' }}</td>
-                    <td class="num">− {{ $cur }} {{ $money($sale->promo_discount) }}</td>
+                    <td class="num">− {{ $amount($sale->promo_discount) }}</td>
                 </tr>
             @endif
             @if((float) $sale->discount > 0)
                 <tr>
                     <td class="soft">Discount{{ $sale->coupon_code ? ' ('.$sale->coupon_code.')' : '' }}</td>
-                    <td class="num">− {{ $cur }} {{ $money($sale->discount) }}</td>
+                    <td class="num">− {{ $amount($sale->discount) }}</td>
                 </tr>
             @endif
 
@@ -510,17 +516,17 @@
                     {{-- Inclusive tax is already inside the line prices: showing
                          it as an addition would double-count it on the paper. --}}
                     <td class="soft">{{ $sale->tax_inclusive ? 'Sales tax (included)' : 'Sales tax' }}</td>
-                    <td class="num">{{ $sale->tax_inclusive ? '' : '+ ' }}{{ $cur }} {{ $money($sale->tax) }}</td>
+                    <td class="num">{{ $sale->tax_inclusive ? '' : '+ ' }}{{ $amount($sale->tax) }}</td>
                 </tr>
             @endif
 
-            <tr class="grand"><td>Total</td><td class="num">{{ $cur }} {{ $money($sale->total) }}</td></tr>
+            <tr class="grand"><td>Total</td><td class="num">{{ $amount($sale->total) }}</td></tr>
 
             {{-- A tip sits BELOW the total on purpose: it is not part of the
                  bill, and a customer disputing the charge needs to see the two
                  figures separately. --}}
             @if((float) ($sale->tip_amount ?? 0) > 0)
-                <tr class="tender change"><td>Tip</td><td class="num">{{ $cur }} {{ $money($sale->tip_amount) }}</td></tr>
+                <tr class="tender change"><td>Tip</td><td class="num">{{ $amount($sale->tip_amount) }}</td></tr>
             @endif
 
             {{-- Rounding sits below the total for the same reason as the tip:
@@ -532,11 +538,11 @@
                 @php($round = (float) $sale->rounding_adjustment)
                 <tr class="tender change">
                     <td>Rounding</td>
-                    <td class="num">{{ $round < 0 ? '− ' : '+ ' }}{{ $cur }} {{ $money(abs($round)) }}</td>
+                    <td class="num">{{ $round < 0 ? '− ' : '+ ' }}{{ $amount(abs($round)) }}</td>
                 </tr>
                 <tr class="grand">
                     <td>To pay</td>
-                    <td class="num">{{ $cur }} {{ $money((float) $sale->total + (float) ($sale->tip_amount ?? 0) + $round) }}</td>
+                    <td class="num">{{ $amount((float) $sale->total + (float) ($sale->tip_amount ?? 0) + $round) }}</td>
                 </tr>
             @endif
 
@@ -546,13 +552,13 @@
                 @foreach($payments as $p)
                     <tr class="tender">
                         <td>{{ $methodLabel[$p->method] ?? ucfirst(str_replace('_', ' ', (string) $p->method)) }}{{ $p->reference ? ' · '.$p->reference : '' }}</td>
-                        <td class="num">{{ $cur }} {{ $money($p->amount) }}</td>
+                        <td class="num">{{ $amount($p->amount) }}</td>
                     </tr>
                 @endforeach
             @else
                 <tr class="tender">
                     <td>{{ $methodLabel[$sale->payment_method?->value] ?? 'Paid' }}</td>
-                    <td class="num">{{ $cur }} {{ $money($sale->amount_paid) }}</td>
+                    <td class="num">{{ $amount($sale->amount_paid) }}</td>
                 </tr>
             @endif
 
@@ -563,23 +569,23 @@
             @foreach($tradeIns as $t)
                 <tr class="tender">
                     <td style="padding-left:10px">↳ {{ $t->description ?: $t->product_name }}@if((float) $t->quantity != 1.0) × {{ rtrim(rtrim(number_format((float) $t->quantity, 3), '0'), '.') }}@endif</td>
-                    <td class="num">− {{ $cur }} {{ $money($t->total_allowance) }}</td>
+                    <td class="num">− {{ $amount($t->total_allowance) }}</td>
                 </tr>
             @endforeach
 
             @if((float) $sale->change_due > 0)
-                <tr class="tender change"><td>Change</td><td class="num">{{ $cur }} {{ $money($sale->change_due) }}</td></tr>
+                <tr class="tender change"><td>Change</td><td class="num">{{ $amount($sale->change_due) }}</td></tr>
             @endif
 
             @php($due = round((float) $sale->total - (float) $sale->amount_paid, 2))
             @if($due > 0)
-                <tr class="tender change"><td>Balance due</td><td class="num">{{ $cur }} {{ $money($due) }}</td></tr>
+                <tr class="tender change"><td>Balance due</td><td class="num">{{ $amount($due) }}</td></tr>
             @endif
         </table>
 
         @if($anyDiscount)
             <div class="lmeta {{ $roll ? '' : 'r' }}" style="margin-top:6px">
-                You saved {{ $cur }} {{ $money($lineDiscounts + (float) $sale->discount + (float) $sale->promo_discount) }}
+                You saved {{ $amount($lineDiscounts + (float) $sale->discount + (float) $sale->promo_discount) }}
             </div>
         @endif
     @endunless
@@ -594,7 +600,7 @@
                     <td>{{ $s->product_name }}<div class="lmeta num">{{ $s->serial }}</div></td>
                     <td class="r lmeta">
                         @if($s->warranty_expires_at)
-                            Warranty to {{ $s->warranty_expires_at->format('d M Y') }}
+                            Warranty to {{ \App\Support\ShopTime::day($s->warranty_expires_at, $tenant ?? null) }}
                         @else
                             No warranty
                         @endif

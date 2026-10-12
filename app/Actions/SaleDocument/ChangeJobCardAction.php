@@ -6,6 +6,7 @@ use App\Exceptions\DomainException;
 use App\Models\SaleDocument;
 use App\Models\SaleDocumentItem;
 use App\Support\BranchContext;
+use App\Support\Currencies;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
@@ -233,9 +234,8 @@ class ChangeJobCardAction
         $total = $inclusive ? round($subtotal - $discount, 2) : round($subtotal - $discount + $tax, 2);
 
         if ($total + 0.001 < (float) $job->deposit_paid) {
-            $sym = $this->context->get()?->currencySymbol() ?? 'Rs';
             throw DomainException::unprocessable(
-                "The job would come to less than the {$sym} ".number_format((float) $job->deposit_paid, 2).' already paid on it.',
+                'The job would come to less than the '.Currencies::format($job->deposit_paid, $this->context->get()?->currency(), 2).' already paid on it.',
                 'JOB_BELOW_ADVANCE',
             );
         }

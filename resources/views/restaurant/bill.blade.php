@@ -13,8 +13,14 @@
     $width  = $settings['receipt_width'] ?? 'thermal_80';
     $roll   = in_array($width, ['thermal_58', 'thermal_80'], true);
     $column = $width === 'thermal_58' ? '48mm' : '72mm';
-    $cur    = $settings['currency_symbol'] ?? 'Rs';
-    $money  = fn ($n) => number_format((float) $n, 2);
+    // The shop's currency, by its CODE: the mark, where the commas go and
+    // how an amount is joined to its mark all come from the one list
+    // (App\Support\Currencies) — "Rs 1,234.00", "₹1,234.00", "$1,234.00".
+    $code    = \App\Support\Currencies::code($settings['currency'] ?? null);
+    $cur     = \App\Support\Currencies::symbol($code);
+    // A bare figure in a column, and a figure with its mark. Paper is always to the paisa.
+    $money  = fn ($n) => \App\Support\Currencies::number((float) $n, $code, 2);
+    $amount = fn ($n) => \App\Support\Currencies::paper((float) $n, $code);
     // 2.000 reads wrong on a bill; 2 does. Real fractions are kept.
     $qty    = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.') ?: '0';
     // A takeaway has no table to be called by; it is called by who is waiting for it.
@@ -107,11 +113,11 @@
 
     <div class="rule"></div>
 
-    <div class="row"><span>Subtotal</span><span>{{ $cur }} {{ $money($bill['subtotal']) }}</span></div>
+    <div class="row"><span>Subtotal</span><span>{{ $amount($bill['subtotal']) }}</span></div>
     @if ($bill['tax'] > 0)
-        <div class="row"><span>Tax</span><span>+ {{ $cur }} {{ $money($bill['tax']) }}</span></div>
+        <div class="row"><span>Tax</span><span>+ {{ $amount($bill['tax']) }}</span></div>
     @endif
-    <div class="row total"><span>TO PAY</span><span>{{ $cur }} {{ $money($bill['total']) }}</span></div>
+    <div class="row total"><span>TO PAY</span><span>{{ $amount($bill['total']) }}</span></div>
 
     @if ($bill['paid_earlier'] > 0)
         <div class="rule"></div>

@@ -8,6 +8,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\SaleChannel;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Exceptions\SaleQuoted;
 use App\Models\BankCardOffer;
 use App\Models\Branch;
 use App\Models\BranchPrice;
@@ -82,6 +83,46 @@ class CreateSaleAction
      * @var array{ticket_id: string, ticket_number: string, kots: array<int, array{id: string, kot_number: int, station: ?string}>}|null
      */
     public ?array $kitchenTicket = null;
+
+    /**
+     * WHAT THIS SALE WOULD COME TO — asked of the path that rings it.
+     *
+     *     "Complete Sale · Rs 4,200" — pressed — "Amount paid (4,200.00) is
+     *      less than the total (4,956.00)."
+     *
+     * The hand-written sale screen added its bill up without tax; the settle
+     * sheet of a tab added its own at the wrong rate. Every screen that has
+     * done this sum for itself has been wrong by an amount a customer was
+     * asked for, so a screen can ask instead. This runs the sale exactly as it
+     * would be rung and stops at the first line the bill is known, before
+     * anything has been written (see SaleQuoted). What comes back is what the
+     * sale would refuse to take less than.
+     *
+     * What the sale refuses BEFORE it knows the bill is refused here too, in
+     * the same words — an item that is gone, a discount past the ceiling, a
+     * coupon that is spent. What it refuses while WRITING is not: a shelf with
+     * too few on it is found when the stock is moved, which is after this
+     * stops, and that one is still said when the sale is rung. (Stopping later
+     * would mean stopping after the kitchen had been told and the customer
+     * texted.)
+     *
+     * @param  array<string, mixed>  $data  the sale, as it would be sent
+     * @return array<string, float>
+     */
+    public function worth(array $data): array
+    {
+        // A question is not a retry of anything. With a key on it, a sale
+        // already rung under that key would be handed back as the answer.
+        unset($data['idempotency_key']);
+
+        try {
+            $this->execute(['quote_only' => true] + $data);
+        } catch (SaleQuoted $asked) {
+            return $asked->figures;
+        }
+
+        throw new \LogicException('A sale was rung while it was only being asked about.');
+    }
 
     public function execute(array $data): Sale
     {
@@ -1066,6 +1107,16 @@ class CreateSaleAction
                     'total' => $total,
                     'tax' => $tax,
                 ];
+
+                // ── ASKED, NOT RUNG ─────────────────────────────────────
+                // Nothing has been written yet, and this is the first line at
+                // which the bill is known. A caller that only wanted to know
+                // it is answered here — see SaleQuoted. `quote_only` is set by
+                // our own code (SettleTicketAction::worth) and is in no
+                // request's rules, so no client can send it.
+                if (! empty($data['quote_only'])) {
+                    throw new SaleQuoted($figures + ['tip' => $tip]);
+                }
 
                 /**
                  * THE CASHIER TAKES THE FIGURE ON THE SCREEN.

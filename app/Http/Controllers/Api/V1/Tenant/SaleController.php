@@ -89,6 +89,32 @@ class SaleController extends Controller
     }
 
     /**
+     * What a sale would come to, before it is rung — the figures a screen shows
+     * beside its button. The same request as the sale itself, so it is refused
+     * for the same reasons and by the same rules; nothing is written.
+     */
+    public function worth(StoreSaleRequest $request, CreateSaleAction $action): JsonResponse
+    {
+        $worth = $action->worth($request->validated());
+
+        return ApiResponse::ok([
+            'subtotal' => (float) $worth['subtotal'],
+            'discount' => (float) $worth['discount'],
+            'tax' => (float) $worth['tax'],
+            // The bill: what the invoice will say.
+            'total' => (float) $worth['total'],
+            'tip' => (float) $worth['tip'],
+            'rounding' => (float) $worth['rounding'],
+            // What has to cross the counter: the bill, the tip, and the coin.
+            'due' => (float) $worth['amount_due'],
+            // The same, as a till holds it — sent back as `expected_payable`
+            // so a price that moved between asking and ringing is refused in
+            // words instead of charged in silence.
+            'payable' => (float) $worth['payable'],
+        ]);
+    }
+
+    /**
      * THE LEDGER'S FILTERS, WRITTEN ONCE.
      *
      * The list and the CSV export had the same seven-line chain typed out

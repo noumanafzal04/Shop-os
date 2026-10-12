@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\BusinessDay;
 use App\Models\User;
 use App\Support\ShopDay;
+use App\Support\ShopTime;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -64,7 +65,7 @@ class ReopenBusinessDayAction
             }
 
             $date = $locked->trading_date->toDateString();
-            $nice = $locked->trading_date->format('j M Y');
+            $nice = ShopTime::day($locked->trading_date);
 
             if ($date < ShopDay::today($user->tenant)) {
                 throw DomainException::conflict(
@@ -81,7 +82,7 @@ class ReopenBusinessDayAction
 
             if ($later !== null) {
                 throw DomainException::conflict(
-                    "Trading has already moved on to {$later->trading_date->format('j M Y')}. "
+                    'Trading has already moved on to '.ShopTime::day($later->trading_date).'. '
                     ."Opening {$nice} again would leave two days running at one counter.",
                     'BUSINESS_DAY_MOVED_ON',
                 );

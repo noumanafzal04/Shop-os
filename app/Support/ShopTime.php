@@ -51,6 +51,23 @@ final class ShopTime
             return '';
         }
 
-        return Carbon::instance($moment)->setTimezone(self::zone($tenant))->format($format);
+        $tenant ??= app(TenantContext::class)->get();
+
+        // The date in it is written the way this shop writes dates — see
+        // DateFormats::localise. The clock beside it is the paper's own.
+        return Carbon::instance($moment)
+            ->setTimezone(self::zone($tenant))
+            ->format(DateFormats::localise($format, $tenant?->dateFormat()));
+    }
+
+    /**
+     * A calendar day — "valid until", "warranty to", a batch's expiry —
+     * written the shop's way. Never moved to a zone: see the rule above.
+     */
+    public static function day(DateTimeInterface|string|null $day, ?Tenant $tenant = null, bool $withYear = true): string
+    {
+        $tenant ??= app(TenantContext::class)->get();
+
+        return DateFormats::day($day, $tenant?->dateFormat(), $withYear);
     }
 }

@@ -7,6 +7,7 @@ use App\Models\Tenant;
 use App\Services\NotificationService;
 use App\Support\Permissions;
 use App\Support\ShopSettings;
+use App\Support\ShopTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -136,7 +137,7 @@ class NotifyExpiringStock
             ? " (batch {$batch->batch_number})"
             : '';
         $qty = rtrim(rtrim(number_format((float) $batch->quantity, 3, '.', ''), '0'), '.');
-        $on = $batch->expiry_date->format('j M Y');
+        $on = ShopTime::day($batch->expiry_date, $tenant);
 
         [$title, $body] = $stage === 'expired'
             ? [

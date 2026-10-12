@@ -90,7 +90,7 @@ class ThePaperReadsTheShopsClockTest extends TestCase
         // 07:47 UTC is 12:47 in Lahore.
         $html = $this->receiptRungAt('2026-10-06 07:47:00');
 
-        $this->assertStringContainsString('06 Oct 2026 · 12:47 PM', $html);
+        $this->assertStringContainsString('6 Oct 2026 · 12:47 PM', $html);
         $this->assertStringNotContainsString('07:47 AM', $html, 'the receipt printed the time in UTC');
     }
 
@@ -100,8 +100,8 @@ class ThePaperReadsTheShopsClockTest extends TestCase
         // was in the shop on the 7th, and that is the date on a return slip.
         $html = $this->receiptRungAt('2026-10-06 21:00:00');
 
-        $this->assertStringContainsString('07 Oct 2026 · 02:00 AM', $html);
-        $this->assertStringNotContainsString('06 Oct 2026', $html, 'the receipt is dated the day before the sale');
+        $this->assertStringContainsString('7 Oct 2026 · 02:00 AM', $html);
+        $this->assertStringNotContainsString('6 Oct 2026', $html, 'the receipt is dated the day before the sale');
     }
 
     public function test_the_zone_is_the_shops_own_and_not_the_countrys(): void
@@ -109,7 +109,7 @@ class ThePaperReadsTheShopsClockTest extends TestCase
         $this->tenant->forceFill(['timezone' => 'Asia/Dubai'])->save();
 
         // 07:47 UTC is 11:47 in Dubai.
-        $this->assertStringContainsString('06 Oct 2026 · 11:47 AM', $this->receiptRungAt('2026-10-06 07:47:00'));
+        $this->assertStringContainsString('6 Oct 2026 · 11:47 AM', $this->receiptRungAt('2026-10-06 07:47:00'));
     }
 
     public function test_a_quotation_is_dated_by_the_shops_clock_and_its_last_day_is_not_moved(): void
@@ -123,7 +123,7 @@ class ThePaperReadsTheShopsClockTest extends TestCase
 
         $html = (string) $this->as()->get("/api/v1/sale-documents/{$doc['id']}/print")->assertOk()->getContent();
 
-        $this->assertStringContainsString('07 Oct 2026, 02:30 AM', $html);
+        $this->assertStringContainsString('7 Oct 2026, 02:30 AM', $html);
         // A calendar date is not a moment. The 20th is the 20th.
         $this->assertStringContainsString('20 Oct 2026', $html);
         $this->assertStringNotContainsString('19 Oct 2026', $html);
@@ -140,8 +140,8 @@ class ThePaperReadsTheShopsClockTest extends TestCase
 
         $html = (string) $this->as()->get("/api/v1/pos/sessions/{$closed['id']}/z-report/print")->assertOk()->getContent();
 
-        $this->assertStringContainsString('06 Oct 2026, 09:02', $html);
-        $this->assertStringContainsString('06 Oct 2026, 21:15', $html);
+        $this->assertStringContainsString('6 Oct 2026, 09:02', $html);
+        $this->assertStringContainsString('6 Oct 2026, 21:15', $html);
         $this->assertStringNotContainsString('04:02', $html);
     }
 

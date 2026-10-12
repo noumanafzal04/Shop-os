@@ -53,6 +53,11 @@ class CreateTenantAction
                 $this->applyDefaults->execute($tenant, $data['business_type']);
             }
 
+            // The money it trades in, where the admin said. Left unsaid it is
+            // the product's default, and the owner may still choose until the
+            // business has traded.
+            $tenant->refresh()->tradeIn($data['currency'] ?? null);
+
             User::query()->create([
                 'tenant_id' => $tenant->id,
                 'name' => $data['owner']['name'],

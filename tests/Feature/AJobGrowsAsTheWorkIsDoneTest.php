@@ -412,7 +412,7 @@ class AJobGrowsAsTheWorkIsDoneTest extends TestCase
         $this->assertStringContainsString('84,500 km', $html);
         $this->assertStringContainsString('Noise from front left when braking', $html);
         // On the shop's clock — not noon, which is what the server's says.
-        $this->assertStringContainsString('08 Oct 2026, 5:00 PM', $html);
+        $this->assertStringContainsString('8 Oct 2026, 5:00 PM', $html);
         $this->assertStringContainsString('Total so far', $html);
         $this->assertStringContainsString('not the final bill', $html);
 

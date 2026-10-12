@@ -19,6 +19,7 @@ use App\Models\RiderSettlement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\Currencies;
 use App\Support\Geo;
 use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Collection;
@@ -1365,10 +1366,11 @@ class RiderService
      */
     private function offerLine(Order $order): string
     {
-        $order->loadMissing('tenant:id,business_name');
-        $fee = number_format((float) $order->delivery_fee, 0);
+        // `settings` with it: the fee is in the SHOP's money, and a rider who
+        // carries for two shops is told each in its own.
+        $order->loadMissing('tenant:id,business_name,settings');
 
-        return "Rs {$fee} · {$order->tenant?->business_name}";
+        return Currencies::format($order->delivery_fee, $order->tenant?->currency(), 0)." · {$order->tenant?->business_name}";
     }
 
     private function tellCustomer(Order $order, string $type, string $title, string $body): void

@@ -10,6 +10,7 @@ use App\Models\RiderProfile;
 use App\Models\Tenant;
 use App\Services\OrderService;
 use App\Support\ApiResponse;
+use App\Support\Currencies;
 use App\Support\Geo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,7 +22,7 @@ class CustomerOrderController extends Controller
     {
         $orders = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->orderByDesc('placed_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
@@ -33,7 +34,7 @@ class CustomerOrderController extends Controller
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($order));
@@ -64,7 +65,7 @@ class CustomerOrderController extends Controller
 
         $order = $service->place($request->user(), $shop, $data);
 
-        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
+        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug,settings', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
     }
 
     public function cancel(Request $request, string $id, OrderService $service): JsonResponse
@@ -165,7 +166,9 @@ class CustomerOrderController extends Controller
         return [
             'id' => $o->id,
             'order_number' => $o->order_number,
-            'shop' => ['slug' => $o->tenant?->slug, 'business_name' => $o->tenant?->business_name],
+            // With the currency its total is in: a customer's orders can be from
+            // shops that trade in different money.
+            'shop' => ['slug' => $o->tenant?->slug, 'business_name' => $o->tenant?->business_name, 'currency' => Currencies::describe($o->tenant?->currency())],
             'status' => $o->status,
             'fulfillment_type' => $o->fulfillment_type,
             'payment_method' => $o->payment_method,

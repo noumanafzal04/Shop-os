@@ -231,25 +231,40 @@ class StockReportService
             ->where('is_default', true)
             ->value('id');
 
-        $stock = BranchStock::withoutTenancy()
+        // ADDED UP FIRST, NAMED AFTER.
+        //
+        // This was one query that joined every shelf row to its product, its
+        // size and its category and THEN grouped — by eleven columns, nine of
+        // them text, so that the names could ride along. On a shop of six
+        // thousand items the database built and sorted that whole wide table
+        // to add up one number a row: 230 ms of a 570 ms report.
+        //
+        // The shelf is summed on its own two ids, and the handful of names are
+        // joined to the answer. Same rows, same figures.
+        $onShelf = BranchStock::withoutTenancy()
             ->where('branch_stock.tenant_id', $tenantId)
             ->when($branchId, fn ($q) => $q->where('branch_stock.branch_id', $branchId))
+            ->groupBy('branch_stock.product_id', 'branch_stock.variant_id')
+            ->selectRaw('branch_stock.product_id, branch_stock.variant_id, SUM(branch_stock.quantity) as quantity');
+
+        $stock = DB::query()
+            ->fromSub($onShelf, 'branch_stock')
             ->join('products', 'products.id', '=', 'branch_stock.product_id')
             ->leftJoin('product_variants', 'product_variants.id', '=', 'branch_stock.variant_id')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            // The shop's OWN products, said out loud. The join already keeps
+            // other shops' rows out of the answer — but with nothing here to
+            // start from, the database read the product table of EVERY shop
+            // on the platform to find this one's. A report that slows down as
+            // other shops sign up.
+            ->where('products.tenant_id', $tenantId)
             ->whereNull('products.deleted_at')
             ->where('products.type', ItemType::Product->value)
             ->where('products.track_inventory', true)
-            ->groupBy(
-                'branch_stock.product_id', 'branch_stock.variant_id',
-                'products.name', 'products.sku', 'products.cost', 'products.price',
-                'product_variants.name', 'product_variants.sku', 'product_variants.cost', 'product_variants.price',
-                'categories.name',
-            )
             ->selectRaw(implode(', ', [
                 'branch_stock.product_id as product_id',
                 'branch_stock.variant_id as variant_id',
-                'SUM(branch_stock.quantity) as quantity',
+                'branch_stock.quantity as quantity',
                 'products.name as product_name',
                 'products.sku as sku',
                 'product_variants.name as variant_name',

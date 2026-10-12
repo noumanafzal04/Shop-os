@@ -660,7 +660,9 @@ class PosController extends Controller
             'blind_close' => $blind,
             'denomination_count' => (bool) $this->context->get()?->setting('pos_denomination_count', true),
             'declare_tenders' => (bool) $this->context->get()?->setting('pos_declare_tenders', false),
-            'denominations' => DenominationCount::PKR,
+            // What THIS shop's drawer is counted in — its currency's notes
+            // and coins, not rupees for everybody.
+            'denominations' => DenominationCount::for($this->context->get()?->currency()),
             // Who else rang on this drawer while the cashier was away. Without
             // it a variance is one undifferentiated number covering a stretch
             // the cashier wasn't even standing there for.

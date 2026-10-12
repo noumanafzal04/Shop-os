@@ -95,7 +95,7 @@ class PosCatalogController extends Controller
      * one more thing sitting on a tablet that gets lent out.
      */
     private const TILL_SETTINGS = [
-        'currency', 'currency_symbol', 'default_tax_rate', 'tax_inclusive',
+        'currency', 'currency_symbol', 'currency_format', 'default_tax_rate', 'tax_inclusive',
         'cash_rounding', 'max_discount_percent', 'max_discount_amount',
         'receipt_width', 'invoice_header', 'invoice_footer', 'invoice_show_logo',
         'receipt_show_cashier', 'invoice_ntn', 'invoice_strn',

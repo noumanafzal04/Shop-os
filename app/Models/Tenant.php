@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\TenantStatus;
+use App\Exceptions\DomainException;
 use App\Models\Concerns\Auditable;
+use App\Support\Currencies;
+use App\Support\DateFormats;
 use App\Support\Geo;
 use App\Support\Modules;
 use App\Support\ShopSettings;
@@ -589,7 +592,20 @@ class Tenant extends BaseModel
     /** Effective config = ShopSettings defaults merged with saved overrides. */
     public function allSettings(): array
     {
-        return array_merge(ShopSettings::defaults(), $this->settings ?? []);
+        $all = array_merge(ShopSettings::defaults(), $this->settings ?? []);
+
+        // The currency's MARK is read from its code, never from a second
+        // setting kept beside it: "Rs" stored next to "USD" was a shop ringing
+        // dollars under a rupee sign. And `currency_format` is everything a
+        // screen needs to write an amount for itself — see App\Support\Currencies.
+        $all['currency'] = Currencies::code($all['currency'] ?? null);
+        // How this shop writes a date — a code from App\Support\DateFormats,
+        // and never anything but one of them.
+        $all['date_format'] = DateFormats::code($all['date_format'] ?? null);
+        $all['currency_symbol'] = Currencies::symbol($all['currency']);
+        $all['currency_format'] = Currencies::describe($all['currency']);
+
+        return $all;
     }
 
     public function setting(string $key, mixed $default = null): mixed
@@ -597,10 +613,97 @@ class Tenant extends BaseModel
         return $this->allSettings()[$key] ?? $default;
     }
 
-    /** The shop's currency symbol (settings → currency_symbol, default "Rs"). */
-    public function currencySymbol(): string
+    /** How this shop writes a date — a code from App\Support\DateFormats. */
+    public function dateFormat(): string
     {
-        return (string) $this->setting('currency_symbol', 'Rs');
+        return DateFormats::code(($this->settings ?? [])['date_format'] ?? null);
+    }
+
+    /** The currency this shop trades in — a code from App\Support\Currencies. */
+    public function currency(): string
+    {
+        return Currencies::code(($this->settings ?? [])['currency'] ?? null);
+    }
+
+    /**
+     * An amount as this shop writes it: "Rs 4,000", "₹12,34,567", "$4,000.00".
+     *
+     * Every message, text and notice that names a figure goes through here.
+     * They used to glue a symbol to `number_format()` each for themselves.
+     */
+    public function money(float|int|string|null $amount, ?int $places = null): string
+    {
+        return Currencies::format($amount, $this->currency(), $places);
+    }
+
+    /**
+     * Put this business on a currency.
+     *
+     * The one door. The admin's form, the owner's setup and the settings
+     * screen all come through `mayTradeIn()`, so "may it still change?" is
+     * asked in one place and answered the same way to all three.
+     */
+    public function tradeIn(?string $code): void
+    {
+        if ($code === null || $code === '') {
+            return;
+        }
+
+        $this->mayTradeIn($code);
+
+        if (Currencies::code($code) === $this->currency()) {
+            return;
+        }
+
+        $settings = $this->settings ?? [];
+        $settings['currency'] = Currencies::code($code);
+        // The mark is read from the code; one stored beside it is not kept to disagree.
+        unset($settings['currency_symbol'], $settings['currency_format']);
+
+        $this->forceFill(['settings' => $settings])->save();
+    }
+
+    /**
+     * Refuses a CHANGE of currency once there is money on the books. The same
+     * currency sent again is not a change — a settings screen saves all it holds.
+     */
+    public function mayTradeIn(string $code): void
+    {
+        if (Currencies::code($code) !== $this->currency() && $this->hasMoneyOnItsBooks()) {
+            throw DomainException::conflict($this->whyItsCurrencyIsFixed(), 'CURRENCY_LOCKED');
+        }
+    }
+
+    /** Why a business that has traded keeps its currency — in words a shopkeeper can act on. */
+    public function whyItsCurrencyIsFixed(): string
+    {
+        $now = Currencies::describe($this->currency());
+
+        return "This business already has money on its books in {$now['name']} ({$now['code']}). "
+            .'Changing the currency converts nothing — every amount would keep its number and change its meaning — '
+            .'so it is fixed once trading has begun.';
+    }
+
+    /**
+     * HAS THIS BUSINESS BEGUN TO TRADE?
+     *
+     * A currency says what the numbers on the books MEAN. Changing it converts
+     * nothing — Rs 500 simply starts reading $500 — so once there is money on
+     * the books it is fixed, the way every till that lets a shop choose a
+     * currency fixes it after the first sale. Before that, it is a setting
+     * like any other.
+     *
+     * Cheapest and likeliest first: a shop that trades has sales.
+     */
+    public function hasMoneyOnItsBooks(): bool
+    {
+        foreach ([Sale::class, Order::class, PurchaseOrder::class, Expense::class, Income::class, SaleDocument::class] as $books) {
+            if ($books::withoutTenancy()->where('tenant_id', $this->id)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

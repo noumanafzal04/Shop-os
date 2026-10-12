@@ -52,11 +52,13 @@ class CloseCashSessionAction
         return DB::transaction(function () use ($session, $countedCash, $notes, $closedBy, $extra): CashSession {
             $drawer = DrawerMath::for($session);
 
-            $denominations = DenominationCount::clean($extra['denominations'] ?? null);
+            // Counted in the shop's own notes and coins.
+            $cash = DenominationCount::for($session->tenant?->currency());
+            $denominations = DenominationCount::clean($extra['denominations'] ?? null, $cash);
             // The breakdown wins where there is one. It is the only figure a
             // second person can verify against the drawer itself.
             $counted = $denominations !== null
-                ? DenominationCount::total($denominations)
+                ? DenominationCount::total($denominations, $cash)
                 : round($countedCash, 2);
 
             $declared = $this->cleanTenders($extra['declared_tenders'] ?? null);

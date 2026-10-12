@@ -57,14 +57,20 @@ class BudgetStanding
         // actually spent, with nothing to click and no hint anything was
         // missing. A retired category earns its row for exactly as long as it
         // has money against it — soft-deleted ones too, for the same reason.
-        return ExpenseCategory::withoutTenancy()
+        $categories = ExpenseCategory::withoutTenancy()
             ->withTrashed()
             ->where('tenant_id', $tenantId)
             ->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', $spentAgainst))
             ->orderBy('name')
-            ->get()
-            ->map(function (ExpenseCategory $c) use ($month, $branchScope, $spend): array {
-                $inForce = ExpenseBudget::inForce($c->id, $month, $branchScope);
+            ->get();
+
+        // Every category's ceiling in ONE question. It was asked once a
+        // category, inside the loop below.
+        $ceilings = ExpenseBudget::inForceForMany($categories->pluck('id')->all(), $month, $branchScope);
+
+        return $categories
+            ->map(function (ExpenseCategory $c) use ($spend, $ceilings): array {
+                $inForce = $ceilings[$c->id];
                 $ceiling = $inForce['amount'];
                 $spent = round((float) ($spend[$c->id] ?? 0), 2);
 

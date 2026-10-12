@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\ShopRequest;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
+use App\Support\Currencies;
 use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
@@ -26,6 +27,10 @@ class TenantResource extends JsonResource
             'email' => $this->email,
             'phone' => $this->phone,
             'business_type' => $this->business_type,
+            // The money this business trades in — its mark and how its amounts are
+            // written. Read from its settings; the admin's screens write a shop's own
+            // figures with it, and the platform's charges without.
+            'currency' => Currencies::describe($this->currency()),
             // The current type this shop's code stands for. Identical to
             // business_type for every type in the picker; for an older code
             // (clinic, workshop, grocery…) it is the type that absorbed it.

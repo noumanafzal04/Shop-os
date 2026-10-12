@@ -29,14 +29,20 @@
     $roll    = in_array($width, ['thermal_58', 'thermal_80'], true);
     $rollMm  = $width === 'thermal_58' ? '48mm' : '72mm';
 
-    $cur     = $settings['currency_symbol'] ?? 'Rs';
+    // The shop's currency, by its CODE: the mark, where the commas go and
+    // how an amount is joined to its mark all come from the one list
+    // (App\Support\Currencies) — "Rs 1,234.00", "₹1,234.00", "$1,234.00".
+    $code    = \App\Support\Currencies::code($settings['currency'] ?? null);
+    $cur     = \App\Support\Currencies::symbol($code);
     $layaway = $document->isLayaway();
     $job     = $document->isJobCard();
     $vehicle = $job ? $document->vehicle : null;
     $lapsed  = $document->hasLapsed();
     $balance = $document->balance();
 
-    $money = fn ($n) => number_format((float) $n, 2);
+    // A bare figure in a column, and a figure with its mark. Paper is always to the paisa.
+    $money  = fn ($n) => \App\Support\Currencies::number((float) $n, $code, 2);
+    $amount = fn ($n) => \App\Support\Currencies::paper((float) $n, $code);
     $qty   = fn ($n) => rtrim(rtrim(number_format((float) $n, 3, '.', ''), '0'), '.') ?: '0';
 
     $methodLabel = [
@@ -225,7 +231,7 @@
         <div style="margin-top:{{ $roll ? '8px' : '16px' }}" class="{{ $roll ? 'c' : '' }}">
             <span class="validity {{ $lapsed ? 'lapsed' : '' }}">
                 {{ $lapsed ? ($layaway || $job ? 'Overdue since' : 'Expired on') : $dateLabel }}
-                {{ $document->expires_at->format('d M Y') }}
+                {{ \App\Support\ShopTime::day($document->expires_at, $tenant ?? null) }}
             </span>
         </div>
     @endif
@@ -255,7 +261,7 @@
                     @endif
                     @if((float) $item->line_discount > 0)
                         <div class="soft" style="font-size:{{ $roll ? '10px' : '11px' }}">
-                            less {{ $cur }} {{ $money($item->line_discount) }}
+                            less {{ $amount($item->line_discount) }}
                         </div>
                     @endif
                 </td>
@@ -273,12 +279,12 @@
     <table class="totals">
         <tr>
             <td class="soft">Subtotal</td>
-            <td class="r num">{{ $cur }} {{ $money($document->subtotal) }}</td>
+            <td class="r num">{{ $amount($document->subtotal) }}</td>
         </tr>
         @if($anyDiscount)
             <tr>
                 <td class="soft">Discount</td>
-                <td class="r num">− {{ $cur }} {{ $money((float) $document->discount + $lineDiscounts) }}</td>
+                <td class="r num">− {{ $amount((float) $document->discount + $lineDiscounts) }}</td>
             </tr>
         @endif
         @if((float) $document->tax > 0)
@@ -286,13 +292,13 @@
                 <td class="soft">
                     Tax{{ $document->tax_inclusive ? ' (included)' : '' }}
                 </td>
-                <td class="r num">{{ $cur }} {{ $money($document->tax) }}</td>
+                <td class="r num">{{ $amount($document->tax) }}</td>
             </tr>
         @endif
         <tr class="grand">
             {{-- An open job is unfinished by design: the figure is the work so far. --}}
             <td>{{ $job && $document->status === \App\Models\SaleDocument::STATUS_OPEN ? 'Total so far' : 'Total' }}</td>
-            <td class="r num">{{ $cur }} {{ $money($document->total) }}</td>
+            <td class="r num">{{ $amount($document->total) }}</td>
         </tr>
 
         {{-- The money panel — layaway only. A quotation has no money on it,
@@ -300,11 +306,11 @@
         @if($holdsMoney)
             <tr>
                 <td class="soft">Advance paid</td>
-                <td class="r num">− {{ $cur }} {{ $money($document->deposit_paid) }}</td>
+                <td class="r num">− {{ $amount($document->deposit_paid) }}</td>
             </tr>
             <tr class="due">
                 <td>Balance due</td>
-                <td class="r num">{{ $cur }} {{ $money($balance) }}</td>
+                <td class="r num">{{ $amount($balance) }}</td>
             </tr>
         @endif
     </table>
@@ -324,7 +330,7 @@
                         <span class="soft">· {{ $methodLabel[$payment->method] ?? $payment->method }}</span>
                         @if($payment->reference)<span class="soft"> · {{ $payment->reference }}</span>@endif
                     </td>
-                    <td class="r num">{{ $cur }} {{ $money($payment->amount) }}</td>
+                    <td class="r num">{{ $amount($payment->amount) }}</td>
                 </tr>
             @endforeach
             </tbody>

@@ -4,6 +4,7 @@ namespace App\Actions\Sale;
 
 use App\Models\Sale;
 use App\Services\SmsSender;
+use App\Support\Currencies;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -43,9 +44,8 @@ class SendSaleReceiptAction
         }
 
         $shop = $sale->tenant?->business_name ?? 'Your shop';
-        $symbol = (string) ($sale->tenant?->setting('currency_symbol', 'Rs') ?? 'Rs');
-        $total = number_format((float) $sale->total, 2);
-        $message = "{$shop}\nReceipt {$sale->invoice_number}\nTotal: {$symbol} {$total}\nThank you for your purchase!";
+        $total = Currencies::paper($sale->total, $sale->tenant?->currency());
+        $message = "{$shop}\nReceipt {$sale->invoice_number}\nTotal: {$total}\nThank you for your purchase!";
 
         // Deferred: log the intent instead of sending. Remove this log and
         // uncomment the blocks below once credentials are in place.

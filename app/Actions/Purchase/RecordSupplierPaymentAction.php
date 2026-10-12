@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Support\BranchContext;
+use App\Support\Currencies;
 use App\Support\Payable;
 use App\Support\TenantContext;
 use Illuminate\Support\Collection;
@@ -142,12 +143,10 @@ class RecordSupplierPaymentAction
             return;
         }
 
-        $sym = app(TenantContext::class)->get()?->currencySymbol() ?? 'Rs';
-
         throw DomainException::unprocessable(
             $due <= 0
                 ? 'Nothing has been delivered against this order yet — pay on account instead.'
-                : "Payment exceeds what has been delivered on this order ({$sym} ".number_format($due, 2).').',
+                : 'Payment exceeds what has been delivered on this order ('.Currencies::format($due, app(TenantContext::class)->get()?->currency(), 2).').',
             'PAYMENT_EXCEEDS_DUE',
         );
     }

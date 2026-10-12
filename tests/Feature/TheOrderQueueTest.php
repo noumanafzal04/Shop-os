@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Rider;
 use App\Models\Tenant;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -193,6 +194,60 @@ class TheOrderQueueTest extends TestCase
         // A `to` compared against midnight would drop every order placed
         // during the day it names — the range this screen opens with.
         $this->assertCount(1, $this->numbers('to='.now()->toDateString()));
+    }
+
+    // ── Today's, and the ones before it ────────────────────────────────
+
+    public function test_todays_orders_and_the_past_ones_are_two_lists_that_share_nothing(): void
+    {
+        $now = $this->order(['placed_at' => now()]);
+        $yesterday = $this->order(['placed_at' => now()->subDay()]);
+        $lastWeek = $this->order(['placed_at' => now()->subDays(7), 'status' => 'completed']);
+
+        $this->assertSame([$now->order_number], $this->numbers('when=today'));
+        $this->assertSame([$yesterday->order_number, $lastWeek->order_number], $this->numbers('when=past'));
+        // Neither word narrows nothing: every order is in one list or the other.
+        $this->assertCount(3, $this->numbers());
+    }
+
+    public function test_today_is_the_shops_day_not_the_calendars(): void
+    {
+        // A restaurant that closes at two: its day turns at three.
+        $this->tenant->update(['timezone' => 'Asia/Karachi', 'settings' => array_merge($this->tenant->settings ?? [], ['day_turns_at' => 3])]);
+
+        $onTheWall = fn (string $at) => CarbonImmutable::parse($at, 'Asia/Karachi')->utc();
+
+        // Half past one on the 12th, on the shop's wall — still the 11th's service.
+        $this->travelTo($onTheWall('2026-10-12 01:30:00'));
+
+        $tonight = $this->order(['placed_at' => $onTheWall('2026-10-11 22:10:00')]);
+        $justNow = $this->order(['placed_at' => $onTheWall('2026-10-12 01:20:00')]);
+        $atFour = $this->order(['placed_at' => $onTheWall('2026-10-11 04:00:00')]);
+        $lastNight = $this->order(['placed_at' => $onTheWall('2026-10-11 02:00:00')]);
+
+        // Ten at night and twenty past one are the SAME evening's service: a
+        // cut at the wall's midnight would have put the first under "past"
+        // while its food was still on the pass. And four in the morning is
+        // after THIS shop's day turned, wherever the server's own midnight is.
+        $this->assertSame(
+            [$justNow->order_number, $tonight->order_number, $atFour->order_number],
+            $this->numbers('when=today'),
+        );
+        $this->assertSame([$lastNight->order_number], $this->numbers('when=past'));
+    }
+
+    public function test_what_is_finished_can_be_asked_for_on_its_own(): void
+    {
+        $this->order(['status' => 'preparing']);
+        $done = $this->order(['status' => 'completed', 'placed_at' => now()->subMinutes(5)]);
+        $called = $this->order(['status' => 'cancelled', 'placed_at' => now()->subMinutes(9)]);
+        $this->order(['status' => 'completed', 'placed_at' => now()->subDays(3)]);
+
+        // "Finished today" — the list under the board.
+        $this->assertSame([$done->order_number, $called->order_number], $this->numbers('when=today&closed_only=1'));
+        // …and the two halves never overlap.
+        $this->assertCount(1, $this->numbers('open_only=1'));
+        $this->assertCount(3, $this->numbers('closed_only=1'));
     }
 
     public function test_the_queue_can_be_narrowed_to_which_door_it_came_through(): void

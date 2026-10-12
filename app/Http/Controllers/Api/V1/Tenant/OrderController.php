@@ -84,7 +84,16 @@ class OrderController extends Controller
             // The whole of the day it names — "today" is the range this screen
             // is opened with, and midnight would drop every order in it.
             ->when($request->query('to'), fn ($q, $to) => $q->where('placed_at', '<=', ShopDay::endOf($to)))
-            ->when($request->boolean('open_only'), fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']));
+            ->when($request->boolean('open_only'), fn ($q) => $q->whereNotIn('status', ['completed', 'cancelled']))
+            // TODAY'S, AND THE ONES BEFORE IT. The screen has two tabs and
+            // does not work out where one day ends for itself: a restaurant's
+            // day runs past midnight, and the order taken at one in the
+            // morning belongs to the evening it was cooked in. The day is the
+            // shop's, cut where every other figure of this shop cuts it.
+            ->when($request->query('when') === 'today', fn ($q) => $q->where('placed_at', '>=', ShopDay::startOf(ShopDay::today())))
+            ->when($request->query('when') === 'past', fn ($q) => $q->where('placed_at', '<', ShopDay::startOf(ShopDay::today())))
+            // The other half of `open_only`: what is finished, either way.
+            ->when($request->boolean('closed_only'), fn ($q) => $q->whereIn('status', ['completed', 'cancelled']));
 
         $orders = $scoped()
             ->with('items', 'rider', 'branch')
@@ -160,16 +169,49 @@ class OrderController extends Controller
      */
     public function store(Request $request, OrderService $service, TenantContext $context): JsonResponse
     {
-        $data = $request->validate([
+        $data = $this->theOrderAsTaken($request);
+
+        $order = $service->place(
+            customer: null,
+            shop: $context->get(),
+            data: $data,
+            staff: $request->user(),
+        );
+
+        // Said by the person taking it: the kitchen starts now. The order
+        // skips the two presses that only an order from a stranger needs.
+        if ($request->boolean('send_to_kitchen')) {
+            $order = $service->straightToTheKitchen($order);
+        }
+
+        return ApiResponse::created(
+            $order->load('items')->toArray() + ['kitchen_ticket' => $service->kitchenTicket],
+            "Order {$order->order_number} taken",
+        );
+    }
+
+    /**
+     * What a member of staff may say about an order they are taking — one set
+     * of rules for the question ("what will it come to?") and for the order.
+     *
+     * @return array<string, mixed>
+     */
+    private function theOrderAsTaken(Request $request, bool $onlyAsking = false): array
+    {
+        // WHO it is for is not needed to say what it comes to: the figure is
+        // asked for while the caller is still giving their name.
+        $whoIsRequired = $onlyAsking ? 'nullable' : 'required';
+
+        return $request->validate([
             'channel' => ['sometimes', Rule::in(['phone', 'whatsapp', 'walk_in'])],
-            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_name' => [$whoIsRequired, 'string', 'max:255'],
             // The number is how the rider reaches them and how the CRM
             // recognises them next time. Not strictly required — a regular
             // standing at the counter may not give one — but nearly always
             // there on a phone order.
             'customer_phone' => ['nullable', 'string', 'max:32'],
             'fulfillment_type' => ['required', Rule::enum(FulfillmentType::class)],
-            'delivery_address' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'max:500'],
+            'delivery_address' => [...($onlyAsking ? [] : ['required_if:fulfillment_type,delivery']), 'nullable', 'string', 'max:500'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'payment_method' => ['sometimes', Rule::in(['cod', 'paid'])],
@@ -183,19 +225,26 @@ class OrderController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
+            // Whether the kitchen is to start on it now. Read by the door that
+            // TAKES an order; it means nothing to the question of its price.
+            'send_to_kitchen' => ['sometimes', 'boolean'],
         ]);
+    }
 
-        $order = $service->place(
+    /**
+     * What the order would come to, asked before it is taken. Nothing is
+     * written. See OrderService::worth.
+     */
+    public function worth(Request $request, OrderService $service, TenantContext $context): JsonResponse
+    {
+        $data = $this->theOrderAsTaken($request, onlyAsking: true);
+
+        return ApiResponse::ok($service->worth(
             customer: null,
             shop: $context->get(),
             data: $data,
             staff: $request->user(),
-        );
-
-        return ApiResponse::created(
-            $order->load('items'),
-            "Order {$order->order_number} taken",
-        );
+        ));
     }
 
     public function assignRider(Request $request, string $id, OrderService $service): JsonResponse
@@ -228,7 +277,12 @@ class OrderController extends Controller
             OrderStatus::from($data['status']),
         );
 
-        return ApiResponse::ok($order, "Order {$order->order_number} → {$order->status->value}");
+        // With the kitchen ticket this step sent, if it sent one — the screen
+        // prints the slip from it.
+        return ApiResponse::ok(
+            $order->toArray() + ['kitchen_ticket' => $service->kitchenTicket],
+            "Order {$order->order_number} → {$order->status->value}",
+        );
     }
 
     public function cancel(Request $request, string $id, OrderService $service): JsonResponse

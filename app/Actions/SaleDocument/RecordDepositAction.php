@@ -6,6 +6,7 @@ use App\Actions\Pos\RecordCashMovementAction;
 use App\Exceptions\DomainException;
 use App\Models\SaleDocument;
 use App\Models\SaleDocumentPayment;
+use App\Support\Currencies;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -85,9 +86,8 @@ class RecordDepositAction
             $balance = $locked->balance();
 
             if ($amount > $balance + 0.001) {
-                $sym = $locked->tenant?->currencySymbol() ?? 'Rs';
                 throw DomainException::unprocessable(
-                    'Only '.$sym.' '.number_format($balance, 2)." is still owed on this {$what}.",
+                    'Only '.Currencies::format($balance, $locked->tenant?->currency(), 2)." is still owed on this {$what}.",
                     'DEPOSIT_EXCEEDS_BALANCE',
                 );
             }

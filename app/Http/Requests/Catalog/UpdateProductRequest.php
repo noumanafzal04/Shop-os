@@ -29,7 +29,12 @@ class UpdateProductRequest extends FormRequest
             'type' => ['prohibited'],
             'item_type' => ['prohibited'],
             'stock_quantity' => ['prohibited'],
-            'track_inventory' => ['prohibited'],
+            // Whether the item is counted — and only that. The NUMBER still
+            // moves through the Inventory screen (`stock_quantity` above), so
+            // every change to it has a reason and a name on it. Whether this
+            // item may stop or start being counted is ChangeStockTrackingAction's
+            // rule, which answers in words.
+            'track_inventory' => ['sometimes', 'boolean'],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'category_id' => [

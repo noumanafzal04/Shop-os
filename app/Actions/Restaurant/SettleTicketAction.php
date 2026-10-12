@@ -5,6 +5,7 @@ namespace App\Actions\Restaurant;
 use App\Actions\Sale\CreateSaleAction;
 use App\Enums\RestaurantTicketStatus;
 use App\Exceptions\DomainException;
+use App\Exceptions\SaleQuoted;
 use App\Models\RestaurantTicket;
 use App\Models\RestaurantTicketItem;
 use App\Models\Sale;
@@ -126,6 +127,8 @@ class SettleTicketAction
                 // already. See CreateSaleAction — a sale is otherwise sent to
                 // the pass whether it was rung to take away or for here.
                 'settles_tab' => true,
+                // Asked about, not settled — see worth().
+                'quote_only' => ! empty($data['quote_only']),
             ]);
 
             // Mark exactly the settled items as paid by this sale.
@@ -153,6 +156,42 @@ class SettleTicketAction
 
             return ['sale' => $sale->load('items', 'payments'), 'ticket' => $ticket->fresh(['table', 'items'])];
         });
+    }
+
+    /**
+     * WHAT THIS PART OF THE TAB WILL COME TO — asked of the path that charges it.
+     *
+     *     "Take Rs 4,485" — and the till refused it: "Amount paid (4,485.00)
+     *      is less than the total (4,611.90)."
+     *
+     * The settle sheet added the bill up itself, at the shop's default rate.
+     * A table with tea at its own 18% owed more than the sheet said, the sheet
+     * sent its own figure as the cash handed over, and the tab could not be
+     * settled from the screen at all. (An over-estimate was called "safe" in
+     * the screen's own comment. An under-estimate is a refusal.)
+     *
+     * The printed bill was fixed by writing the sale's rule out again
+     * (TabBill). A second copy of a rule is one more thing to drift, and this
+     * figure has more in it than the bill has: a part of a line, a tip, the
+     * coin a cash bill settles to. So this does not compute anything. It runs
+     * the settlement itself with `quote_only`, the sale path stops at the
+     * moment it knows what is due, and the transaction is rolled back — the
+     * line it carved in two for a split is whole again, and no number was
+     * taken.
+     *
+     * @return array<string, float>
+     */
+    public function worth(RestaurantTicket $ticket, array $data): array
+    {
+        try {
+            $this->execute($ticket, ['quote_only' => true, 'amount_paid' => 0] + $data);
+        } catch (SaleQuoted $asked) {
+            return $asked->figures;
+        }
+
+        // The sale path stops before it writes when it is only asked. If it
+        // ever does not, a tab has just been settled by a question.
+        throw new \LogicException('A tab was settled while it was only being asked about.');
     }
 
     /**

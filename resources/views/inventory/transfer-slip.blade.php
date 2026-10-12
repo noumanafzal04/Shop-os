@@ -108,7 +108,7 @@
                 </span>
             </div>
             @foreach ($item->lots ?? [] as $lot)
-                <div class="sub">Batch {{ $lot['batch_number'] }}@if (!empty($lot['expiry_date'])) · exp {{ \Illuminate\Support\Carbon::parse($lot['expiry_date'])->format('d M Y') }}@endif · {{ $qty($lot['quantity']) }}</div>
+                <div class="sub">Batch {{ $lot['batch_number'] }}@if (!empty($lot['expiry_date'])) · exp {{ \App\Support\ShopTime::day($lot['expiry_date'], $tenant ?? null) }}@endif · {{ $qty($lot['quantity']) }}</div>
             @endforeach
             @if ($counted && $item->short() > 0)
                 <div class="sub"><strong>{{ $qty($item->short()) }} did not arrive</strong> — {{ $item->short_reason === 'damaged' ? 'damaged' : 'missing' }}@if ($item->short_outcome === 'returned'), put back at {{ $transfer->fromBranch?->name }}@elseif ($item->short_outcome === 'written_off'), written off @else, not yet settled @endif</div>

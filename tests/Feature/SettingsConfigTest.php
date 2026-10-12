@@ -53,6 +53,8 @@ class SettingsConfigTest extends TestCase
 
     public function test_partial_update_merges_over_defaults(): void
     {
+        // A mark sent beside the code is not a setting any more: the mark is
+        // read from the code, so the two cannot be saved disagreeing.
         $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', [
             'currency' => 'AED', 'currency_symbol' => 'د.إ', 'default_tax_rate' => 5,
             'invoice_footer' => 'Come again!',
@@ -63,7 +65,7 @@ class SettingsConfigTest extends TestCase
             ->assertJsonPath('data.pos_default_payment', 'cash')
             ->assertJsonPath('data.invoice_footer', 'Come again!');
 
-        $this->assertSame('د.إ', $this->shop->fresh()->setting('currency_symbol'));
+        $this->assertSame('AED', $this->shop->fresh()->setting('currency_symbol'));
     }
 
     public function test_update_validates(): void
@@ -76,7 +78,7 @@ class SettingsConfigTest extends TestCase
     public function test_staff_without_settings_permission_cannot_update(): void
     {
         $staff = User::factory()->tenantStaff($this->shop, ['sales.manage'])->create();
-        $this->actingAsUser($staff)->putJson('/api/v1/shop/settings', ['currency_symbol' => '$'])
+        $this->actingAsUser($staff)->putJson('/api/v1/shop/settings', ['currency' => 'USD'])
             ->assertStatus(403);
         // …but may read.
         $this->actingAsUser($staff)->getJson('/api/v1/shop/settings')->assertOk();
@@ -85,7 +87,7 @@ class SettingsConfigTest extends TestCase
     public function test_invoice_reflects_currency_and_footer(): void
     {
         $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', [
-            'currency_symbol' => 'AED', 'invoice_footer' => 'Visit us again',
+            'currency' => 'AED', 'invoice_footer' => 'Visit us again',
         ])->assertOk();
 
         $product = Product::withoutTenancy()->create([

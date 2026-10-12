@@ -32,6 +32,10 @@ class CompleteShopSetupAction
             $tenant->setup_completed = true;
             $tenant->save();
 
+            // The currency, where the setup form asked. A business that has
+            // already traded keeps the one it has — and is told why.
+            $tenant->tradeIn($data['currency'] ?? null);
+
             // The type is set by the admin at creation (already seeded there).
             // Re-apply here for legacy tenants that predate that — idempotent,
             // so it never duplicates categories or overwrites the owner's edits.

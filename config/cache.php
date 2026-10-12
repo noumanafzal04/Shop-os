@@ -19,6 +19,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Where the rate limiter counts
+    |--------------------------------------------------------------------------
+    |
+    | Every API request is counted — 240 a minute a person, 600 at a till. With
+    | the cache in the DATABASE that count was six queries on every request a
+    | shop makes: four reads of the `cache` table, a row lock and a write. A
+    | list of suppliers ran thirteen queries, and two of them were about
+    | suppliers.
+    |
+    | So where the cache is the database, the limiter counts in FILES: on one
+    | server that is a lock on a local file, and it asks MySQL nothing. Name a
+    | store with CACHE_LIMITER to choose another — `redis` where there is one,
+    | which is the right answer the day the app runs on two servers, since a
+    | file is counted per machine.
+    |
+    | Anything else the app caches stays where CACHE_STORE says.
+    |
+    */
+
+    'limiter' => env('CACHE_LIMITER', env('CACHE_STORE', 'database') === 'database' ? 'file' : null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
     |

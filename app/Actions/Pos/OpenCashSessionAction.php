@@ -136,7 +136,10 @@ class OpenCashSessionAction
             // takings — it was never in them.
             $day = $training ? null : $this->days->open($user, $branchId);
 
-            $counted = DenominationCount::clean($denominations);
+            // In the shop's OWN notes and coins: a five-thousand-rupee note
+            // is not something a dollar drawer can hold.
+            $cash = DenominationCount::for($user->tenant?->currency());
+            $counted = DenominationCount::clean($denominations, $cash);
 
             return CashSession::query()->create([
                 'tenant_id' => $user->tenant_id,
@@ -151,7 +154,7 @@ class OpenCashSessionAction
                 'is_training' => $training,
                 // A counted float wins over a typed one, same as at close.
                 'opening_float' => $counted !== null
-                    ? DenominationCount::total($counted)
+                    ? DenominationCount::total($counted, $cash)
                     : round($openingFloat, 2),
                 'opening_denominations' => $counted,
                 'opened_at' => now(),

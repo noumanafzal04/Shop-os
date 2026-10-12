@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\SaleDocument;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
+use App\Support\Currencies;
 use App\Support\DocumentCounter;
 use App\Support\Permissions;
 use App\Support\RegisterContext;
@@ -168,9 +169,8 @@ class CreateSaleDocumentAction
             $minimum = round($total * $minPct / 100, 2);
 
             if ($minPct > 0 && $deposit + 0.001 < $minimum) {
-                $sym = $tenant?->currencySymbol() ?? 'Rs';
                 throw DomainException::unprocessable(
-                    "This shop asks for at least {$minPct}% down — {$sym} ".number_format($minimum, 2).'.',
+                    "This shop asks for at least {$minPct}% down — ".Currencies::format($minimum, $tenant?->currency(), 2).'.',
                     'DEPOSIT_BELOW_MINIMUM',
                 );
             }
@@ -371,7 +371,7 @@ class CreateSaleDocumentAction
         }
 
         $pct = $subtotal > 0 ? round(($discount / $subtotal) * 100, 2) : 0.0;
-        $sym = $settings?->currencySymbol() ?? 'Rs';
+        $money = static fn (float $n): string => Currencies::format($n, $settings?->currency(), 2);
 
         if ($maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001) {
             throw DomainException::forbidden(
@@ -382,8 +382,8 @@ class CreateSaleDocumentAction
 
         if ($maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001) {
             throw DomainException::forbidden(
-                "This discount is {$sym} ".number_format($discount, 2)
-                    ." — above the {$sym} ".number_format((float) $maxAmt, 2)
+                'This discount is '.$money($discount)
+                    .' — above the '.$money((float) $maxAmt)
                     .' limit. A manager has to approve it.',
                 'DISCOUNT_LIMIT_EXCEEDED',
             );

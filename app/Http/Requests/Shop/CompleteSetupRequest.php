@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Shop;
 
+use App\Support\Currencies;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,6 +29,8 @@ class CompleteSetupRequest extends FormRequest
             'business_category' => ['sometimes', 'nullable', 'string', 'max:100'],
             // Edge case: inactive/unknown city rejected.
             'city_id' => ['required', 'uuid', Rule::exists('cities', 'id')->where('is_active', true)],
+            // The money the shop trades in — asked at setup, while nothing is on its books.
+            'currency' => ['sometimes', 'nullable', 'string', Rule::in(Currencies::codes())],
             'address' => ['nullable', 'string', 'max:500'],
             // Edge case: invalid location — coordinates must be a valid pair in range.
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],

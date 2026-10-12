@@ -13,6 +13,7 @@ class UpdateProductAction
         private readonly SyncComboItemsAction $syncCombo,
         private readonly SyncRecipeItemsAction $syncRecipe,
         private readonly SyncProductVariantsAction $syncVariants,
+        private readonly ChangeStockTrackingAction $stockTracking,
     ) {}
 
     /**
@@ -48,9 +49,14 @@ class UpdateProductAction
         $axes = array_key_exists('variant_axes', $data) ? ($data['variant_axes'] ?? []) : null;
         unset($data['variant_axes']);
 
+        // Whether it is counted. Taken out of the fill for the same reason the
+        // number is not in it: this has a rule of its own, and refusals.
+        $counted = array_key_exists('track_inventory', $data) ? (bool) $data['track_inventory'] : null;
+        unset($data['track_inventory']);
+
         $warnings = [];
 
-        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems, $variants, $axes, &$warnings): void {
+        DB::transaction(function () use ($product, $data, $collectionIds, $barcodes, $units, $comboItems, $recipeItems, $variants, $axes, $counted, &$warnings): void {
             if ($axes !== null) {
                 // `attributes` is a `'array'` cast on a real json column, so this
                 // reads the column and not Eloquent's internal attribute bag —
@@ -87,6 +93,12 @@ class UpdateProductAction
                 // Saving a recipe can switch stock tracking on for an
                 // ingredient — the merchant is told which ones.
                 $warnings = $this->syncRecipe->execute($product, $recipeItems);
+            }
+
+            // Last, and inside the transaction: a refusal here undoes the rest
+            // of the edit, so the form is never half-saved behind an error.
+            if ($counted !== null) {
+                $warnings = [...$warnings, ...$this->stockTracking->execute($product, $counted)];
             }
         });
 

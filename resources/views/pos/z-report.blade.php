@@ -26,8 +26,14 @@
     $roll   = in_array($width, ['thermal_58', 'thermal_80'], true);
     $rollMm = $width === 'thermal_58' ? '48mm' : '72mm';
 
-    $cur   = $settings['currency_symbol'] ?? 'Rs';
-    $money = fn ($n) => number_format((float) $n, 2);
+    // The shop's currency, by its CODE: the mark, where the commas go and
+    // how an amount is joined to its mark all come from the one list
+    // (App\Support\Currencies) — "Rs 1,234.00", "₹1,234.00", "$1,234.00".
+    $code    = \App\Support\Currencies::code($settings['currency'] ?? null);
+    $cur     = \App\Support\Currencies::symbol($code);
+    // A bare figure in a column, and a figure with its mark. Paper is always to the paisa.
+    $money  = fn ($n) => \App\Support\Currencies::number((float) $n, $code, 2);
+    $amount = fn ($n) => \App\Support\Currencies::paper((float) $n, $code);
 
     $variance   = (float) $session->variance;
     $over       = $variance > 0.001;
@@ -35,6 +41,9 @@
     $balanced   = ! $over && ! $short;
 
     $denoms   = $session->closing_denominations ?? [];
+    // Largest first, the way it was counted. The database keeps a JSON
+    // object's keys in an order of its own ("1", "5", "10", "100", "0.25").
+    uksort($denoms, fn ($a, $b) => (float) $b <=> (float) $a);
     $declared = $session->declared_tenders ?? [];
     $tenderVar = $session->tender_variances ?? [];
 
@@ -127,7 +136,7 @@
     <div class="section-title">Trading</div>
     <table>
         <tr><td>Sales</td><td class="num">{{ (int) $session->sales_count }}</td></tr>
-        <tr><td>Sales total</td><td class="num">{{ $cur }} {{ $money($session->sales_total) }}</td></tr>
+        <tr><td>Sales total</td><td class="num">{{ $amount($session->sales_total) }}</td></tr>
     </table>
 </div>
 
@@ -138,8 +147,8 @@
         <tr><td>Cash sales</td><td class="num">{{ $money($session->cash_sales) }}</td></tr>
         <tr><td>Paid in</td><td class="num">{{ $money($session->cash_in) }}</td></tr>
         <tr><td>Paid out</td><td class="num">−{{ $money($session->cash_out) }}</td></tr>
-        <tr class="total"><td>Expected</td><td class="num">{{ $cur }} {{ $money($session->expected_cash) }}</td></tr>
-        <tr class="total"><td>Counted</td><td class="num">{{ $cur }} {{ $money($session->counted_cash) }}</td></tr>
+        <tr class="total"><td>Expected</td><td class="num">{{ $amount($session->expected_cash) }}</td></tr>
+        <tr class="total"><td>Counted</td><td class="num">{{ $amount($session->counted_cash) }}</td></tr>
     </table>
 </div>
 
@@ -151,8 +160,8 @@
         <table>
             @foreach ($denoms as $value => $qty)
                 <tr>
-                    <td>{{ $cur }} {{ number_format((int) $value) }} × {{ (int) $qty }}</td>
-                    <td class="num">{{ $money((int) $value * (int) $qty) }}</td>
+                    <td>{{ \App\Support\Currencies::format((float) $value, $code) }} × {{ (int) $qty }}</td>
+                    <td class="num">{{ $money((float) $value * (int) $qty) }}</td>
                 </tr>
             @endforeach
             <tr class="total">
@@ -166,7 +175,7 @@
 <div class="variance">
     <div>{{ $balanced ? 'DRAWER BALANCED' : ($over ? 'OVER' : 'SHORT') }}</div>
     @unless ($balanced)
-        <div class="figure">{{ $cur }} {{ $money(abs($variance)) }}</div>
+        <div class="figure">{{ $amount(abs($variance)) }}</div>
     @endunless
 </div>
 

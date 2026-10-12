@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
 use App\Support\BusinessTypes;
+use App\Support\Currencies;
 use App\Support\Geo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -366,6 +367,8 @@ class MarketplaceController extends Controller
                 'city' => $shop->city?->only(['id', 'name']),
                 'rating' => $shop->rating_avg !== null ? round((float) $shop->rating_avg, 1) : null,
                 'delivery_fee' => (float) $shop->delivery_fee,
+                // An aisle holds many shops' goods: each price is in its own shop's money.
+                'currency' => Currencies::describe($shop->currency()),
             ],
         ]);
 
@@ -875,7 +878,7 @@ class MarketplaceController extends Controller
             ->get();
 
         $shopsById = Tenant::query()->whereIn('id', $products->pluck('tenant_id')->unique())
-            ->get(['id', 'slug', 'business_name', 'business_type', 'latitude', 'longitude'])
+            ->get(['id', 'slug', 'business_name', 'business_type', 'latitude', 'longitude', 'settings'])
             ->keyBy('id');
 
         $productResults = $products->map(function (Product $p) use ($shopsById, $near, $data) {
@@ -888,7 +891,8 @@ class MarketplaceController extends Controller
                 'price' => $p->sellingPrice(),
                 'original_price' => $p->sellingPrice() < (float) $p->price ? (float) $p->price : null,
                 'image' => $p->images->first()?->url,
-                'shop' => $shop?->only(['slug', 'business_name', 'business_type']),
+                // With its currency: the price beside it is in this shop's money.
+                'shop' => $shop === null ? null : [...$shop->only(['slug', 'business_name', 'business_type']), 'currency' => Currencies::describe($shop->currency())],
                 'distance_km' => $near && $shop?->latitude !== null && $shop?->longitude !== null
                     ? Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
                     : null,
@@ -1115,7 +1119,7 @@ class MarketplaceController extends Controller
             ->when($data['city_id'] ?? null, fn ($q, $id) => $q->where('city_id', $id))
             ->pluck('id');
         $dealShops = Tenant::query()->whereIn('id', $visibleIds)
-            ->get(['id', 'slug', 'business_name', 'business_type', 'latitude', 'longitude'])
+            ->get(['id', 'slug', 'business_name', 'business_type', 'latitude', 'longitude', 'settings'])
             ->keyBy('id');
         $deals = Product::withoutTenancy()
             ->whereIn('tenant_id', $visibleIds)
@@ -1137,7 +1141,8 @@ class MarketplaceController extends Controller
                     'original_price' => (float) $p->price,
                     'percent_off' => (int) round((1 - $p->sellingPrice() / (float) $p->price) * 100),
                     'image' => $p->images->first()?->url,
-                    'shop' => $shop?->only(['slug', 'business_name', 'business_type']),
+                    // With its currency: the price beside it is in this shop's money.
+                    'shop' => $shop === null ? null : [...$shop->only(['slug', 'business_name', 'business_type']), 'currency' => Currencies::describe($shop->currency())],
                     'distance_km' => $near && $shop?->latitude !== null && $shop?->longitude !== null
                         ? Geo::distanceKm((float) $data['lat'], (float) $data['lng'], (float) $shop->latitude, (float) $shop->longitude)
                         : null,
@@ -1366,6 +1371,10 @@ class MarketplaceController extends Controller
             'slug' => $tenant->slug,
             'business_name' => $tenant->business_name,
             'business_type' => $tenant->business_type,
+            // The money this shop's prices are IN — its mark and how its
+            // amounts are written. Every price a customer is shown belongs to
+            // some shop, and was being written in rupees whichever it was.
+            'currency' => Currencies::describe($tenant->currency()),
             'business_category' => $tenant->business_category,
             // What the key is called — the key is for filters, never for a reader.
             'business_category_label' => BusinessTypes::categoryLabel($tenant->business_type, $tenant->business_category),

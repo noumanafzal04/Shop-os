@@ -430,7 +430,7 @@ class CounterOrderReachesTheKitchenTest extends TestCase
 
         $this->assertStringContainsString('Gulberg Biryani House', $slip, 'the kitchen slip does not say whose kitchen it is');
         $this->assertStringContainsString('Chicken Biryani', $slip);
-        $this->assertStringContainsString('06 Oct, 20:20', $slip);
+        $this->assertStringContainsString('6 Oct, 20:20', $slip);
         $this->assertStringNotContainsString('15:20', $slip, 'the kitchen slip printed the time in UTC');
     }
 

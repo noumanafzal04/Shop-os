@@ -104,6 +104,7 @@ use App\Http\Controllers\Api\V1\Tenant\TransferController;
 use App\Http\Controllers\Api\V1\Tenant\VehicleController;
 use App\Http\Controllers\Api\V1\Tenant\WarrantyController;
 use App\Support\ApiResponse;
+use App\Support\Currencies;
 use App\Support\Permissions;
 use Illuminate\Support\Facades\Route;
 
@@ -155,6 +156,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // ── Public lookups ───────────────────────────────────────────────
     Route::get('/cities', [CityController::class, 'index']);
     Route::get('/business-types', [BusinessTypeController::class, 'index']);
+    // The currencies a business can be put on — a list, like the two above.
+    Route::get('/currencies', fn () => ApiResponse::ok(Currencies::options()));
     Route::get('/item-types', [BusinessTypeController::class, 'itemTypes']);
 
     // ── Public marketplace (Online-Shop tenants only) ────────────────
@@ -217,6 +220,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('/shop/setup', [ShopController::class, 'setup'])->middleware('permission:settings.manage');
             Route::put('/shop', [ShopController::class, 'update'])->middleware('permission:settings.manage');
             Route::get('/shop/settings', [ShopController::class, 'settings']);
+            // Which currencies there are, which this shop is on, and whether
+            // it may still change. Asked by the settings screen only.
+            Route::get('/shop/currencies', [ShopController::class, 'currencies']);
             // WHAT THIS SHOP HAS, and what it does not.
             //
             // Read-only, and behind no permission beyond being in the shop: it
@@ -656,6 +662,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // Ringing up a counter sale needs the POS module; viewing and
                     // refunding sales stays open (online sales appear here too).
                     Route::post('/', [SaleController::class, 'store'])->middleware('feature:pos');
+                    // What it would come to, asked before it is rung. Writes nothing.
+                    Route::post('/worth', [SaleController::class, 'worth'])->middleware('feature:pos');
                     Route::get('/{sale}', [SaleController::class, 'show']);
                     // Voiding and refunding are separated from ringing sales: they
                     // restore stock and reverse money, so a cashier holding only
@@ -945,6 +953,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // A call, a WhatsApp message, someone at the counter asking for
                 // delivery. Server-priced like any other order.
                 Route::post('/', [OrderController::class, 'store']);
+                // What it will come to, asked before it is taken: the screen
+                // shows this figure and not one it added up itself.
+                Route::post('/worth', [OrderController::class, 'worth']);
                 Route::get('/{id}', [OrderController::class, 'show']);
                 Route::post('/{id}/advance', [OrderController::class, 'advance']);
                 Route::post('/{id}/assign-rider', [OrderController::class, 'assignRider']);
@@ -1065,6 +1076,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('tickets/{ticket}/fire', [RestaurantTicketController::class, 'fire']);
                     // kotPrint moved up into the `feature:kitchen` group — a
                     // takeaway counter with no floor still has to print.
+                    // What settling this much will ask for — a read, in the
+                    // sale path's own figures. See SettleTicketAction::worth.
+                    Route::post('tickets/{ticket}/settle/worth', [RestaurantTicketController::class, 'settleWorth']);
                     Route::post('tickets/{ticket}/settle', [RestaurantTicketController::class, 'settle']);
                     Route::post('tickets/{ticket}/cancel', [RestaurantTicketController::class, 'cancel']);
                     // The floor moves: a party changes table, two tabs become

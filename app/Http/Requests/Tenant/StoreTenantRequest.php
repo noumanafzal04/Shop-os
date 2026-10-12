@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Tenant;
 
 use App\Support\BusinessTypes;
+use App\Support\Currencies;
 use App\Support\Modules;
 use App\Support\Permissions;
 use App\Support\PlanLimits;
@@ -39,6 +40,9 @@ class StoreTenantRequest extends FormRequest
             'business_type' => ['required', 'string', Rule::in(BusinessTypes::codes())],
             'business_category' => ['nullable', 'string', 'max:100'],
             'city_id' => ['nullable', 'uuid', Rule::exists('cities', 'id')->where('is_active', true)],
+            // The money this business trades in. Chosen here because it is
+            // fixed once the business has traded — see Tenant::hasMoneyOnItsBooks().
+            'currency' => ['sometimes', 'nullable', 'string', Rule::in(Currencies::codes())],
             // Required. A tenant with no plan has no product ceiling and no
             // billing period — a state nobody chose, and the reason a shop
             // created "for now" could never be corrected afterwards.

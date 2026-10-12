@@ -7,6 +7,7 @@ use App\Models\Reservation;
 use App\Models\Tenant;
 use App\Services\ReservationService;
 use App\Support\ApiResponse;
+use App\Support\Currencies;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,7 @@ class CustomerReservationController extends Controller
     {
         $reservations = Reservation::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with('tenant:id,business_name,slug')
+            ->with('tenant:id,business_name,slug,settings')
             ->orderByDesc('created_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Reservation $r) => [
@@ -24,6 +25,7 @@ class CustomerReservationController extends Controller
                 'shop' => [
                     'slug' => $r->tenant?->slug,
                     'business_name' => $r->tenant?->business_name,
+                    'currency' => Currencies::describe($r->tenant?->currency()),
                 ],
                 'product_name' => $r->product_name,
                 'variant_name' => $r->variant_name,

@@ -13,6 +13,7 @@ use App\Models\SalePayment;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\Currencies;
 use App\Support\RegisterContext;
 use App\Support\ShopDay;
 use App\Support\TenantContext;
@@ -174,7 +175,7 @@ class ReceiptController extends Controller
             'invoice_ntn' => ['sometimes', 'nullable', 'string', 'max:30'],
             'invoice_strn' => ['sometimes', 'nullable', 'string', 'max:30'],
             'invoice_fbr_pos_id' => ['sometimes', 'nullable', 'string', 'max:30'],
-            'currency_symbol' => ['sometimes', 'string', 'max:5'],
+            'currency' => ['sometimes', 'string', Rule::in(Currencies::codes())],
             'tax_inclusive' => ['sometimes', 'boolean'],
             'kind' => ['sometimes', Rule::in(ReceiptPrint::KINDS)],
         ]);

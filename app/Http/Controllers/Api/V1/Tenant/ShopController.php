@@ -14,6 +14,7 @@ use App\Http\Resources\TenantResource;
 use App\Models\Branch;
 use App\Models\Tenant;
 use App\Support\ApiResponse;
+use App\Support\Currencies;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use App\Support\ShopDay;
@@ -140,10 +141,43 @@ class ShopController extends Controller
     }
 
     /** Persist a partial settings update (merged over what's stored). */
+    /**
+     * The currencies a shop may trade in, which one it is on, and whether it
+     * may still change.
+     *
+     * Its own question, asked by the settings screen alone. "Has this business
+     * begun to trade?" looks at the books, and the settings payload is read
+     * on every page of the panel — the answer does not belong on every page.
+     */
+    public function currencies(): JsonResponse
+    {
+        $tenant = $this->context->get();
+        $locked = $tenant->hasMoneyOnItsBooks();
+
+        return ApiResponse::ok([
+            'current' => Currencies::describe($tenant->currency()),
+            'locked' => $locked,
+            'why' => $locked ? $tenant->whyItsCurrencyIsFixed() : null,
+            'options' => Currencies::options(),
+        ]);
+    }
+
     public function updateSettings(UpdateShopSettingsRequest $request): JsonResponse
     {
         $tenant = $this->context->get();
-        $merged = array_merge($tenant->settings ?? [], $request->validated());
+        $asked = $request->validated();
+
+        // A currency is chosen before a business trades, not after. Sent
+        // unchanged — the settings screen saves everything it holds — it is
+        // not a change and is not refused. See Tenant::mayTradeIn().
+        if (isset($asked['currency'])) {
+            $tenant->mayTradeIn($asked['currency']);
+        }
+
+        $merged = array_merge($tenant->settings ?? [], $asked);
+        // The mark is read from the code now. One stored beside it — "Rs",
+        // from when it was a setting of its own — is not kept to disagree.
+        unset($merged['currency_symbol'], $merged['currency_format']);
 
         // A shop must be orderable SOMEHOW: pickup and delivery can't both be off.
         $pickupOn = (bool) ($merged['pickup_enabled'] ?? true);

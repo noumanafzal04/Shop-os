@@ -65,7 +65,8 @@ class DiscountCeiling
         }
 
         $pct = $subtotal > 0 ? round(($discount / $subtotal) * 100, 2) : 0.0;
-        $sym = $settings?->currencySymbol() ?? 'Rs';
+        // In the shop's own money, to the paisa: a limit is a figure somebody is held to.
+        $money = static fn (float $n): string => Currencies::format($n, $settings?->currency(), 2);
 
         if ($maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001) {
             throw DomainException::forbidden(
@@ -76,8 +77,8 @@ class DiscountCeiling
 
         if ($maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001) {
             throw DomainException::forbidden(
-                "This discount is {$sym} ".number_format($discount, 2)
-                    ." — above the {$sym} ".number_format((float) $maxAmt, 2)
+                'This discount is '.$money($discount)
+                    .' — above the '.$money((float) $maxAmt)
                     .' limit. A manager has to approve it.',
                 'DISCOUNT_LIMIT_EXCEEDED',
             );

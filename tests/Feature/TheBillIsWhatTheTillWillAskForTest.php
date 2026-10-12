@@ -266,12 +266,14 @@ class TheBillIsWhatTheTillWillAskForTest extends TestCase
 
     public function test_it_is_drawn_for_the_shops_own_paper_and_money(): void
     {
-        $this->asOwner()->putJson('/api/v1/shop/settings', ['receipt_width' => 'thermal_58', 'currency_symbol' => 'PKR'])->assertOk();
+        $this->asOwner()->putJson('/api/v1/shop/settings', ['receipt_width' => 'thermal_58', 'currency' => 'AED'])->assertOk();
         $id = $this->tab([['product_id' => $this->menu['naan']->id, 'quantity' => 2]]);
 
         $html = $this->billHtml($id);
 
-        $this->assertStringContainsString('PKR 110.00', $html);
+        // The shop's own money — a dirham shop's bill is in dirhams, not in rupees.
+        $this->assertStringContainsString('AED 110.00', $html);
+        $this->assertStringNotContainsString('Rs 110.00', $html);
         $this->assertStringContainsString('width: 58mm', $html);
         // No tax line for a table that owes none.
         $this->assertStringNotContainsString('>Tax<', $html);

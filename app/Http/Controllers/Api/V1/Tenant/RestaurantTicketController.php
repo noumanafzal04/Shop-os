@@ -9,6 +9,7 @@ use App\Actions\Restaurant\MoveTicketAction;
 use App\Actions\Restaurant\OpenTicketAction;
 use App\Actions\Restaurant\SettleTicketAction;
 use App\Actions\Restaurant\UpdateTicketItemAction;
+use App\Enums\PaymentMethod;
 use App\Enums\RestaurantTicketStatus;
 use App\Enums\SaleStatus;
 use App\Enums\UserRole;
@@ -197,6 +198,49 @@ class RestaurantTicketController extends Controller
             'settings' => $tenant?->allSettings() ?? [],
             'ticket' => $ticket->load(['table', 'waiter:id,name']),
             'bill' => $bill,
+        ]);
+    }
+
+    /**
+     * What settling this much of the tab will ask for — the figure the settle
+     * sheet shows, from the path that will charge it. Nothing is written.
+     *
+     * `methods` is HOW it will be paid, because a bill paid wholly in cash
+     * settles to the coin the shop handles and a card bill does not.
+     */
+    public function settleWorth(Request $request, RestaurantTicket $ticket, SettleTicketAction $action)
+    {
+        $this->assertMayWork($ticket);
+
+        $data = $request->validate([
+            'splits' => ['nullable', 'array', 'max:200'],
+            'splits.*.id' => ['required_with:splits', 'uuid'],
+            'splits.*.quantity' => ['required_with:splits', 'numeric', 'gt:0'],
+            'methods' => ['required', 'array', 'min:1', 'max:10'],
+            'methods.*' => [Rule::in(PaymentMethod::counterOrCredit())],
+            'tip_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:999999'],
+        ]);
+
+        $methods = array_values(array_unique($data['methods']));
+        $worth = $action->worth($ticket, [
+            'splits' => $data['splits'] ?? [],
+            'tip_amount' => $data['tip_amount'] ?? 0,
+        ] + (count($methods) === 1
+            ? ['payment_method' => $methods[0]]
+            // Which methods, not how much on each: the split is typed against
+            // the figure this is about to return.
+            : ['payments' => array_map(fn (string $m) => ['method' => $m, 'amount' => 0.01], $methods)]));
+
+        return ApiResponse::ok([
+            'subtotal' => (float) $worth['subtotal'],
+            'discount' => (float) $worth['discount'],
+            'tax' => (float) $worth['tax'],
+            // The bill: what the invoice will say.
+            'total' => (float) $worth['total'],
+            'tip' => (float) $worth['tip'],
+            'rounding' => (float) $worth['rounding'],
+            // What has to cross the counter: the bill, the tip, and the coin.
+            'due' => (float) $worth['amount_due'],
         ]);
     }
 

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Validation\Rule;
 
 /**
  * Tenant configuration registry — the single source of truth for shop
@@ -16,8 +17,14 @@ class ShopSettings
     {
         return [
             // General
-            'currency' => 'PKR',
-            'currency_symbol' => 'Rs',
+            // A code from App\Support\Currencies. Its mark, and how its
+            // amounts are written, are read from the code — `currency_symbol`
+            // and `currency_format` are given by Tenant::allSettings() and are
+            // never stored.
+            'currency' => Currencies::DEFAULT,
+            // How a date is written, on every screen and every paper — a code
+            // from App\Support\DateFormats. The default cannot be misread.
+            'date_format' => DateFormats::DEFAULT,
             'language' => 'en',
             'default_tax_rate' => 0,        // percent, applied at POS/checkout
             // Tax mode. false (default) = EXCLUSIVE: tax is added on top of the
@@ -295,8 +302,13 @@ class ShopSettings
     public static function rules(): array
     {
         return [
-            'currency' => ['sometimes', 'string', 'size:3'],
-            'currency_symbol' => ['sometimes', 'string', 'max:5'],
+            // One of the currencies the product can WRITE — its mark, its
+            // commas, its notes. It took any three letters and a mark of the
+            // caller's choosing beside it, and nothing held the two together.
+            // Whether it may still be changed is the shop's own question:
+            // see ShopController::updateSettings.
+            'currency' => ['sometimes', 'string', Rule::in(Currencies::codes())],
+            'date_format' => ['sometimes', 'string', Rule::in(DateFormats::codes())],
             'language' => ['sometimes', 'string', 'max:5'],
             'default_tax_rate' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'tax_inclusive' => ['sometimes', 'boolean'],

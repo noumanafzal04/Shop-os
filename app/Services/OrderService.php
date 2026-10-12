@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Actions\Restaurant\SendAnOrderToTheKitchen;
 use App\Actions\Sale\CreateSaleAction;
 use App\Enums\FulfillmentType;
 use App\Enums\ItemType;
 use App\Enums\OrderStatus;
 use App\Exceptions\DomainException;
+use App\Exceptions\OrderQuoted;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\Order;
@@ -163,6 +165,33 @@ class OrderService
      * differently from an online one would need its own second implementation
      * of all of it, and the two would drift.
      */
+    /**
+     * WHAT THIS ORDER WOULD COME TO — without placing it.
+     *
+     * The Take-order page added its lines up itself and called the answer
+     * "Approximately": it knew nothing of the delivery fee, the free-delivery
+     * threshold, a coupon, a size's own price or what an extra costs. This runs
+     * the path that places the order and stops it at the first line the bill
+     * is known, so the figure on the screen is the figure the order will carry.
+     *
+     * A refusal is still a refusal — a dish taken off for today, a size not
+     * chosen — and comes back in the same words placing it would use.
+     *
+     * @return array{subtotal: float, discount: float, coupon_code: ?string, delivery_fee: float, total: float, lines: list<array<string, mixed>>}
+     */
+    public function worth(?User $customer, Tenant $shop, array $data, ?User $staff = null): array
+    {
+        unset($data['idempotency_key']); // a question is never a replay of an order
+
+        try {
+            $this->place($customer, $shop, ['quote_only' => true] + $data, $staff);
+        } catch (OrderQuoted $said) {
+            return $said->figures;
+        }
+
+        throw new \LogicException('An order that was only asked about was placed.');
+    }
+
     public function place(?User $customer, Tenant $shop, array $data, ?User $staff = null): Order
     {
         $counter = $staff !== null;
@@ -270,6 +299,20 @@ class OrderService
                         }
                     }
 
+                    // A DISH THAT COMES IN SIZES IS ORDERED IN ONE.
+                    //
+                    // Without this an order for "a karahi" was taken at the
+                    // parent row's price — the Half's — whichever the caller
+                    // wanted, and the kitchen was sent a karahi of no size at
+                    // all. The till and the table both ask; this door did not.
+                    if ($variant === null && ProductVariant::withoutTenancy()
+                        ->where('product_id', $product->id)->where('is_active', true)->exists()) {
+                        throw DomainException::unprocessable(
+                            "{$product->name} comes in sizes — choose one.",
+                            'VARIANT_REQUIRED',
+                        );
+                    }
+
                     // Prescription items are dispensed in person — a pharmacist
                     // must sight the script. They can be BROWSED online (so the
                     // customer knows the shop stocks them) but never checked out.
@@ -371,8 +414,8 @@ class OrderService
                     $minOrder = $counter ? null : $lockedShop->setting('min_order_amount');
                     if ($minOrder !== null && $subtotal < (float) $minOrder) {
                         throw DomainException::unprocessable(
-                            'Minimum order for delivery is '.$lockedShop->currencySymbol().' '.number_format((float) $minOrder)
-                                .' — add '.$lockedShop->currencySymbol().' '.number_format((float) $minOrder - $subtotal).' more, or collect it.',
+                            'Minimum order for delivery is '.$lockedShop->money($minOrder)
+                                .' — add '.$lockedShop->money((float) $minOrder - $subtotal).' more, or collect it.',
                             'MIN_ORDER_AMOUNT',
                         );
                     }
@@ -448,6 +491,27 @@ class OrderService
                 // exemption is only safe if placement refused first.
                 foreach ($lines as $line) {
                     SoldOut::assertSellable($line['product'], $line['variant'], $branch?->id);
+                }
+
+                // ASKED, NOT PLACED. Everything above has been said — the price
+                // of each line, the delivery, the coupon — and nothing below
+                // has happened: no order, no stock held. The transaction rolls
+                // back, so a coupon looked at here is not a coupon spent.
+                if (! empty($data['quote_only'])) {
+                    throw new OrderQuoted([
+                        'subtotal' => $subtotal,
+                        'discount' => $discount,
+                        'coupon_code' => $couponCode,
+                        'delivery_fee' => $deliveryFee,
+                        'total' => round($subtotal - $discount + $deliveryFee, 2),
+                        'lines' => array_map(fn (array $l): array => [
+                            'product_id' => $l['product']->id,
+                            'variant_id' => $l['variant']?->id,
+                            'quantity' => $l['qty'],
+                            'unit_price' => $l['unit_price'],
+                            'line_total' => $l['line_total'],
+                        ], $lines),
+                    ]);
                 }
 
                 $seq = Order::withoutTenancy()->where('tenant_id', $shop->id)->count() + 1;
@@ -557,7 +621,7 @@ class OrderService
                     Permissions::ORDERS_MANAGE,
                     'order.placed',
                     $counter ? 'New '.($order->channel === 'whatsapp' ? 'WhatsApp' : 'phone').' order' : 'New online order',
-                    "{$order->customer_name} — order {$order->order_number} — {$shop->currencySymbol()} ".number_format($order->total, 0).'.',
+                    "{$order->customer_name} — order {$order->order_number} — {$shop->money($order->total)}.",
                     ['order_id' => $order->id],
                     "order-placed-{$order->id}",
                     $order->branch_id,
@@ -581,8 +645,42 @@ class OrderService
         }
     }
 
+    /**
+     * The kitchen ticket the last `advance()` sent, if it sent one — for the
+     * screen to print. The same shape a counter sale hands back
+     * (`CreateSaleAction::$kitchenTicket`).
+     *
+     * @var array{ticket_id: string, ticket_number: string, kots: list<array{id: string, kot_number: int, station: ?string}>}|null
+     */
+    public ?array $kitchenTicket = null;
+
+    /**
+     * TAKEN BY THE SHOP ITSELF, AND COOKED NOW.
+     *
+     * An order the shop took on the phone was put in the queue as "new —
+     * waiting to be accepted", by the very people who had just accepted it, and
+     * needed two more presses before a cook heard of it. This is those two
+     * presses: accepted, and being prepared, in the breath it was taken.
+     *
+     * Only where there is a kitchen to tell. Anywhere else the order is left
+     * as it was taken — there is no "being prepared" to announce.
+     */
+    public function straightToTheKitchen(Order $order): Order
+    {
+        $shop = Tenant::query()->find($order->tenant_id);
+        if ($shop === null || ! $shop->featureEnabled('kitchen')) {
+            return $order;
+        }
+
+        $order = $this->advance($order, OrderStatus::Confirmed);
+
+        return $this->advance($order->refresh(), OrderStatus::Preparing);
+    }
+
     public function advance(Order $order, OrderStatus $to): Order
     {
+        $this->kitchenTicket = null;
+
         $allowed = $order->status->nextStates($order->fulfillment_type->value);
 
         if (! in_array($to, $allowed, strict: true)) {
@@ -600,6 +698,28 @@ class OrderService
         }
 
         $order->forceFill(['status' => $to])->save();
+
+        // THE KITCHEN IS TOLD. "Being prepared" is the shop saying the cooking
+        // starts now — and until this line, it said so to nobody: an order
+        // from the phone or the online shop never reached the pass. Sent once,
+        // at whichever of these the order reaches first (a pickup can go
+        // straight to "ready"); a shop with no kitchen has nothing to send to.
+        if (in_array($to, [OrderStatus::Preparing, OrderStatus::Ready, OrderStatus::OutForDelivery], strict: true)) {
+            $sent = $this->asShopOf($order, fn () => app(SendAnOrderToTheKitchen::class)->execute($order));
+
+            // …and the screen that pressed the button is handed what it needs
+            // to PRINT the slip: half of "sent to the kitchen" is paper, and a
+            // browser prints, not a server.
+            $this->kitchenTicket = $sent === null ? null : [
+                'ticket_id' => $sent->id,
+                'ticket_number' => $sent->ticket_number,
+                'kots' => $sent->kitchenTickets
+                    ->map(fn ($kot): array => ['id' => $kot->id, 'kot_number' => $kot->kot_number, 'station' => $kot->station])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
         $this->notifyCustomer($order, "order.{$to->value}", 'Order update',
             "Your order {$order->order_number} is now: ".str_replace('_', ' ', $to->value).'.');
 
@@ -675,6 +795,10 @@ class OrderService
                 'status' => OrderStatus::Cancelled,
                 'cancel_reason' => $reason,
             ])->save();
+
+            // …and whatever of it is still cooking comes off the pass. A cook
+            // is otherwise making a meal nobody will collect or pay for.
+            app(SendAnOrderToTheKitchen::class)->takeBack($order);
 
             $this->notifyCustomer($order, 'order.cancelled', 'Order cancelled',
                 "Your order {$order->order_number} was cancelled. {$reason}");
