@@ -9,6 +9,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -248,6 +249,57 @@ class TheOrderQueueTest extends TestCase
         // …and the two halves never overlap.
         $this->assertCount(1, $this->numbers('open_only=1'));
         $this->assertCount(3, $this->numbers('closed_only=1'));
+    }
+
+    // ── The count beside "Orders" on the menu ──────────────────────────
+
+    public function test_the_menu_is_told_how_many_are_new_and_how_many_are_being_worked(): void
+    {
+        $this->order(['status' => 'pending']);
+        $this->order(['status' => 'pending', 'placed_at' => now()->subDays(2)]);
+        $this->order(['status' => 'confirmed']);
+        $this->order(['status' => 'out_for_delivery']);
+        $this->order(['status' => 'completed']);
+        $this->order(['status' => 'cancelled']);
+
+        // Two nobody has accepted — one of them from the day before
+        // yesterday, and no less waiting for it. Four not finished.
+        $this->assertSame(
+            ['new' => 2, 'being_worked' => 4],
+            $this->asOwner()->getJson('/api/v1/orders/waiting')->assertOk()->json('data'),
+        );
+    }
+
+    public function test_a_shop_with_nothing_waiting_is_told_nought_and_never_another_shops_orders(): void
+    {
+        $other = Tenant::factory()->provisioned()->create();
+        Order::withoutTenancy()->create([
+            'tenant_id' => $other->id, 'order_number' => 'THEIRS-9', 'status' => 'pending',
+            'fulfillment_type' => 'pickup', 'payment_method' => 'cod', 'payment_status' => 'unpaid',
+            'customer_name' => 'Nobody', 'channel' => 'online',
+            'subtotal' => 100, 'delivery_fee' => 0, 'total' => 100, 'placed_at' => now(),
+        ]);
+        $this->order(['status' => 'completed']);
+
+        $this->assertSame(['new' => 0, 'being_worked' => 0], $this->asOwner()->getJson('/api/v1/orders/waiting')->assertOk()->json('data'));
+    }
+
+    public function test_the_count_is_one_question_to_the_database(): void
+    {
+        $this->order(['status' => 'pending']);
+        $token = $this->owner->createToken('t', ['access'])->plainTextToken;
+        $this->app['auth']->forgetGuards();
+
+        $asked = [];
+        DB::listen(function ($query) use (&$asked): void {
+            if (str_contains($query->sql, 'from "orders"') || str_contains($query->sql, 'from `orders`')) {
+                $asked[] = $query->sql;
+            }
+        });
+        $this->withToken($token)->getJson('/api/v1/orders/waiting')->assertOk();
+
+        // The menu asks this from every screen: it is not the list in disguise.
+        $this->assertCount(1, $asked, implode("\n", $asked));
     }
 
     public function test_the_queue_can_be_narrowed_to_which_door_it_came_through(): void

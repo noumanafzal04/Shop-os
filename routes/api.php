@@ -956,6 +956,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // What it will come to, asked before it is taken: the screen
                 // shows this figure and not one it added up itself.
                 Route::post('/worth', [OrderController::class, 'worth']);
+                // How many are waiting — two numbers, for the menu's own
+                // count. Before `/{id}`, which would otherwise answer it.
+                Route::get('/waiting', [OrderController::class, 'waiting']);
                 Route::get('/{id}', [OrderController::class, 'show']);
                 Route::post('/{id}/advance', [OrderController::class, 'advance']);
                 Route::post('/{id}/assign-rider', [OrderController::class, 'assignRider']);

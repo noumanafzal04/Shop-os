@@ -113,6 +113,34 @@ class OrderController extends Controller
     }
 
     /**
+     * HOW MANY ARE WAITING — for the count beside "Orders" on the menu.
+     *
+     * The menu is on every screen, so this is the smallest thing that
+     * answers: one aggregate over the orders still open, no rows, no
+     * relations — not the list with a page size of one, which costs four
+     * queries to say two numbers.
+     *
+     * It is not asked on every load. The panel keeps the last answer on the
+     * device and asks again on news of an order — its own work, or the bell —
+     * and otherwise once in two minutes (`panel: orders/waitingCount.ts`).
+     *
+     * `new` is what nobody has accepted yet — the number that should make
+     * somebody look up. `being_worked` is everything not finished, the same
+     * figure the Orders page puts on its Today tab.
+     */
+    public function waiting(): JsonResponse
+    {
+        $counts = $this->stageCounts(
+            Order::query()->whereNotIn('status', [OrderStatus::Completed->value, OrderStatus::Cancelled->value]),
+        );
+
+        return ApiResponse::ok([
+            'new' => $counts[OrderStatus::Pending->value],
+            'being_worked' => $counts['all'],
+        ]);
+    }
+
+    /**
      * How many orders sit at each stage, in one query rather than seven.
      *
      * Conditional sums rather than a GROUP BY, because the answer must contain
