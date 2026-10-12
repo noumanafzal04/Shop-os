@@ -568,3 +568,125 @@ server's to put right: no compression on JS/CSS/JSON (824 KB where 225 KB
 would do), no cache headers, CORS `*`, `APP_NAME` still the old name. Wrong,
 and fixed in code: `cartze.shop/` was the framework's welcome page.
 
+## A shop that trades in dollars (2026-10-11, late night)
+
+Asked for after the push: *"abhi currency type add kro — Pakistan main PKR, USA
+main Dollar, India main INR — to wo select kr sky."*
+
+| Run | Trade | Stages | Cases | Result |
+|---|---|---|---|---|
+| V | a grocer in dollars | 01, 02, 33 | 6 | 6 / 6 from a clean start |
+
+What it found, before a line of it was lived: there was no control for a
+currency at all (Help said to set one, on two pages); eleven places on the
+server and sixty-two in the panel wrote "Rs" by hand; the browser's language
+decided the commas; every drawer was counted in rupee notes. Decision and
+detail: `docs/decisions/shopos-a-shop-trades-in-its-own-money.md`.
+
+| # | Found while building it | Now |
+|---|---|---|
+| 149 | `formatMoney` was left with no caller but its own test once every screen used the shop's format — the reachability rule said so | retired; its cases live in `currency.test.ts` |
+| 150 | Three older tests set a currency MARK by hand ("PKR", "AED", "د.إ") and expected it back | they choose a currency, and the mark follows |
+| 151 | The Z-read printed a note count in the order the database keeps JSON keys ("1", "5", "10", "100", "0.25") | largest first |
+| 152 | `/pos/sessions` answers `{sessions: […]}`; the new stage read it as a list | read as it is |
+
+Asked on the same evening — *"lazmi ni branches warehouse main e stock rkhain…
+hr branch ka apna stock udhe b pra ho skta"*: `EachBranchKeepsItsOwnStockTest`
+(two shops, no warehouse) — 5 / 5 on its first run, nothing changed.
+
+## A restaurant, from an empty shop — every page, every sheet (2026-10-12)
+
+Asked for by the owner, who was testing by hand and finding what the suites had
+not: *"aik complete flow bnao jis main hr page, hr module, hr modal sb kuch test
+ho, kisi aik business type ko leke, real time data k sth … hr flow jo aik QA
+human flow hai."* And: *"app slow to ni, queries optimize hain?"*
+
+| Run | Trade | Stages | Cases | Result |
+|---|---|---|---|---|
+| W | a new restaurant | 01, 02, 20, 21, 40 | 26 + 10 | green, on the fourth restaurant — the first three each stopped on a fault below, or on the lid |
+| Z | the same restaurant | 43 | 49 screens · 86 buttons · 27 sheets | 373 requests, the slowest 286 ms on a busy laptop; no layout fault, no refusal |
+
+| # | Found | Now |
+|---|---|---|
+| 153 | The FIRST dish of a new restaurant was born stock-counted at nought — "none left" at every table. The item form sent its own default before the item types arrived | the form says nothing about counting until chosen or known; `AnItemIsCountedOrNotTest`, `e2e/food.first-dish.spec.ts` |
+| 154 | …and the "Track stock" switch on an existing item flipped, saved, and changed nothing (never sent; the server prohibited it) | `ChangeStockTrackingAction`: it changes, with three refusals in words |
+| 155 | Take order: every dish without sizes read "none left" and could not be pressed | `orders/whatIsLeft.ts` asks what the server asks |
+| 156 | Take order: a dish in sizes went on with no size, at the Half's price; a dish with a question was refused on sending, with nowhere to answer it | the size-and-extras sheet; `VARIANT_REQUIRED` on the server |
+| 157 | Take order printed "Approximately" over its own sum | `POST /orders/worth` |
+| 158 | A phone or online order never reached the kitchen's pass | `SendAnOrderToTheKitchen`, when it is being prepared |
+| 159 | "Cancel order" cancelled at one press, and told the customer "Cancelled by shop" | asks, with a reason that is sent |
+| 160 | A cook's sign-in fired five refused requests on every screen (a till was booted for somebody who may not ring on one) | booted for `sales.manage` only |
+| 161 | Every screen asked for the till's catalogue 2–3 times, and announced the device twice, to draw once | "reconnected" means a line that came back |
+| 162 | The till logged "No queryFn" 48 times as it opened | both hooks share one function |
+| 163 | The rate limiter was six queries on every request (13 for a list of suppliers) | counts in files where the cache is the database: 7 |
+| 164 | The stock value report read the product table of EVERY shop to find this one's | summed first, named after, fenced to the shop |
+| 165 | Budgets were read once a category; and a branch's own ceiling lost to the company's when the company's was written first | one read; the branch's own wins |
+| 166 | The app's shell had no `<main>` — and one spec looked for words "in main", so it could not fail | the page is the main landmark |
+| 167 | "Cancel this tab?" offered [Cancel] [Cancel tab] | the no says "Keep it" |
+| 168 | "3 item(s)", "1 member(s)", "just now ago", "cod unpaid" | written as a person writes them |
+| 169 | Currency and Dates on the Business tab told an office about "receipts, invoices" — my own wording, caught by stage Q | in `settingsWords`, where an office's wording is tested |
+
+Stale specs corrected on the way (each agreed with a fault, or with a screen
+that had since changed): H6 / J8 / J9 and `food.tab-order` read the Settle
+sheet's old rows ("Tax (5%)", "2 item(s)"); Q8 looked for a sheet by the name
+it had before it saved; three workshop checks expected a padded clock
+("05:00"); two calendar specs asked the browser to name a day.
+
+**Not verdicts:** a shut lid (15:08–15:20) cut the six-trades group and one
+restaurant run — `net::ERR_NETWORK_IO_SUSPENDED` in the trace. Run again, green.
+
+**For the owner to decide** (`docs/decisions/shopos-an-order-reaches-the-kitchen.md`):
+an order is not taxed and takes no offer; raw ingredients are offered for sale;
+"Reservations" in a restaurant is item holds, not tables.
+
+## One press to the kitchen, two tabs, and an order page that holds still (2026-10-12, night)
+
+The owner, looking at the screens built that afternoon: *"take order ka process
+flow kya hai — order lia, kitchen ticket? send to kitchen? print for kitchen?"*,
+*"new take order ka UI abhi b acha ni hai — POS ki screen dekhlo — cheezaion bht
+zyeda scroll main ja rhi"*, and *"make tab — Today and Past orders, past orders
+in table form"*.
+
+| # | Found | Now |
+|---|---|---|
+| 170 | A restaurant's own phone order needed three presses — taken, Confirm, Start preparing — before a cook heard of it | **Send to the kitchen now**, ticked where there is a kitchen: taken and being prepared in one press |
+| 171 | An order reached the kitchen's *screen* and never its printer: the server made the ticket and no screen was told which | the answer names the ticket; the screen that sent it prints the slip, and says if it could not |
+| 172 | The order sat under the menu and sank with every "Show more"; then in a tall panel that scrolled the customer away | laid out like the till — the page does not scroll, the panes do; total and button along the bottom |
+| 173 | One list held today's queue and last month's orders, newest first | **Today** (a board of what is being worked + "Finished today") and **Past orders** (a table) |
+| 174 | "Today" would have ended at midnight, in the middle of a restaurant's evening | `when=today|past` is cut by the shop's day, on the server |
+| 175 | The orders table ran off a phone's right edge — and what was off the edge was the total and the stage | below `sm` a row is two columns of the same cells |
+| 176 | The board's "Nothing is waiting" would have been said over a request that failed — caught by the standing guard before it was ever run | `<ListEmpty from>`: refused, failed, or empty |
+| 177 | The new spec waited for "a ninth button in the menu" — which the section chips and the bar already were — and measured the page while the menu was still arriving (a dish "under the install card" on a tablet) | it counts dishes, waits for more, and lets the page come to rest |
+
+**The pre-push regression** (real tree, after everything was landed):
+
+| Group | Result |
+|---|---|
+| restaurant · tablet · phone | 48 passed |
+| desktop | 177 passed, 15 failed → **27 of 27 passed alone** |
+| six trades | 47 passed, 3 failed → **12 of 12 passed alone** |
+| admin | 44 passed, 1 failed → **passed alone** |
+| storefront · doors | 41 passed |
+| phone | 128 passed, 1 failed → **14 of 14 passed alone** |
+| a new restaurant — stages 01 02 20 21 40 43 | 38 passed |
+| finance (28) · pharmacy (01 02 22) · mart (01–13) | 13 · 16 · 110 passed |
+| after the orders screens changed: `food.take-order` ×3 sizes · the screen walker · sheets · online (01 02 27) · at volume | 16 · 17 · 22 · 14 of 15 · 3 passed |
+
+**Not verdicts.** The 20 failures fell between 20:03 and 20:40. One (a 300 s
+timeout on a phone) sat inside a shut lid, 20:34–20:40. For the other 19 —
+fifteen tills that rang their sales *offline*, three serial-number checks, one
+admin screen — the server's log has no error in those minutes, and every one
+passes run alone with one worker. In those minutes the copy stack was running
+331 backend tests, a type check and screenshot scripts on the same laptop:
+likely, not proven. The online journey's A6 ("the Audit Log says who created
+it") failed while the mart journey's volume stage was filling the same log;
+stage 01 run alone afterwards: 6 of 6.
+
+**Gates on the real tree, after all of it:** backend 3,745 tests (3,723 passed,
+22 skipped); panel 251 files · 3,017 tests; `npm run build` exit 0; eslint 0
+errors; both type checks clean.
+
+**For the owner to decide** — unchanged: an order is not taxed and takes no
+offer; raw ingredients are offered for sale; "Reservations" in a restaurant is
+item holds, not tables.
+

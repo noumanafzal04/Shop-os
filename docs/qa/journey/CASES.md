@@ -438,6 +438,56 @@ floor.
 | U8 | Till | A note too small | "Still to pay Rs 182.50", not "Change due Rs 0"; nothing is sold |
 | U9 | Reports | The books | two sales, 1,911 taken, 91 of tax that is not the shop's |
 
+## Stage V — a shop that trades in dollars (`33-a-shop-that-trades-in-dollars.spec.ts`, `JOURNEY_TRADE=dollars`)
+
+After stages A and B for that trade (a grocer). One currency per shop, chosen
+before it trades; nothing is ever converted.
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| V1 | Settings → Tax & Delivery | The owner chooses dollars | the card starts on rupees; India reads ₹12,34,567.50, dollars $1,234,567.50 and $4,000.00 — shown before saving; saved, kept after a reload, still free to change |
+| V2 | Products | Two items | the list writes $19.99 and $1,250.00; no "Rs" anywhere on it |
+| V3 | Till | The counter is opened | a float of a hundred dollars, written in dollars |
+| V4 | Till | A pound of coffee | Grand Total $19.99; a twenty handed over, $0.01 back; the receipt is in dollars with no rupee mark |
+| V5 | Settings | Now it has traded | no drop-down: the card names the currency and says it is fixed and why; the server refuses a change (409 `CURRENCY_LOCKED`) |
+| V6 | Till → Close shift | The drawer | counted in 100 … 1 and 0.25, 0.10, 0.05, 0.01 — not rupee notes; $119.99 counted against $119.99 expected, variance 0 |
+
+## Stage W — the back of a restaurant's house (`40-food-the-back-of-the-house.spec.ts`, `JOURNEY_TRADE=food`)
+
+After stages H and J: it buys their ingredients. Everything a restaurant's
+owner types in the afternoon, each sheet opened by its own button and looked at
+once while it is open (nothing may be written under a button).
+
+| # | Where | Case | Correct means |
+|---|---|---|---|
+| W1 | Suppliers | Two suppliers | listed; "Settled" while nothing has been bought |
+| W2 | Purchase orders | 20 kg chicken × 680 and 25 kg rice × 290 | the form adds 20,850 before it is sent; ordered ≠ received; received, the shelf is up by exactly that and each cost is the average of what was there and what arrived — and a plate of biryani costs 0.25 kg + 0.2 kg at those costs |
+| W3 | Suppliers → Pay | 10,000 by bank transfer | the sheet says 20,850 owed; after it, 10,850 on the list and on the server; the other supplier is still owed nothing |
+| W4 | Disposals | A kilo of rice has gone off | the sheet says what is on the shelf first; written off as Expired, binned; the shelf is a kilo down and the list shows it at what a kilo cost |
+| W5 | Staff | A waiter, a cook, a cashier | each from their own job: a waiter rings a bill at their OWN tables (no "Serve any table"), a cook has the board and nothing about the takings, the counter may settle any table and hire nobody |
+| W6 | Customers | A regular on account | a group that takes 10% off; a credit limit; the till is told all three |
+| W7 | Coupons, Promotions | A house coupon and a lunch offer | read back as typed; the offer says "1 product" |
+| W8 | Riders | The shop's own rider | cannot be added with no name; listed |
+| W9 | Expenses | The gas and the rent | the rent's date TYPED the shop's way ("1 Oct 2026") and kept as that day |
+| W10 | Sign-in | The cook, then the waiter | the cook has the Kitchen and none of POS, Sales, Reports, Settings, Staff — and is refused nothing on the way in; the waiter has the floor and not the books |
+
+## Stage Z — every screen, and every sheet a screen can open (`43-food-every-screen-and-every-sheet.spec.ts`, `JOURNEY_TRADE=food`)
+
+The walk with no story. Writes `e2e/.journey/<record>-screens.json`: per
+screen what it asked the server and how long each answer took; per sheet what
+was found. `JOURNEY_DUMP=<folder>` also writes what each screen and sheet says.
+
+| # | Case | Correct means |
+|---|---|---|
+| Z1 | Every entry in the menu, and the two screens beside it | opens on its own address; draws; breaks no layout rule; nothing in the console; refused nothing; no request slower than 4 s; no more than 30 requests to draw once; nothing READ twice to draw once |
+| Z2 | Every button that opens a form, the buttons on a list's first row, and the row itself | the sheet opens whole, nothing is written under a button, it closes on its ✕, opens a second time, and closes on Escape — and the walk found the sheets every restaurant has, by name |
+
+**A second restaurant.** `JOURNEY_RECORD=house` keeps another record for the
+same trade, so a whole new restaurant can be lived beside the standing food
+journey: `JOURNEY_TRADE=food JOURNEY_RECORD=house … e2e/journey/01 02 20 21 40 43`.
+A food journey cannot be RESUMED once stage J has seated its table — stage H
+asserts both tables are free. After a cut run, start a new record.
+
 ## Results
 
 Recorded per run in `docs/qa/journey/RUNS.md`: date, type, cases passed,

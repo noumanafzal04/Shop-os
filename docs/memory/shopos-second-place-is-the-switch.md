@@ -18,3 +18,13 @@ metadata:
 **Why this bit me:** I had decided "may have a godown" was the right question in six files during the warehouse work; every plan allows one, so every one-shop business got the multi-place UI and an extra `/branches` request per page.
 
 Related: [[shopos-warehouse-and-wholesale]], [[shopos-menu-in-shopkeepers-words]], [[shopos-books-only-business]], [[shopos-half-a-rule]]
+
+**USER again, 2026-10-11 night (their words):** "lazmi ni branches warehouse main e
+stock rkhain — kuch shops hoti jo rkhti — warehouse optional hai kuch bri shops k
+liye — hr branch ka apna stock udhe b pra ho skta lazmi ni warehouse." They read my
+sentence "warehouse ka maal transfer ke baad bikta hai" as "branches stock through a
+warehouse". It was only ever about stock held IN a warehouse. When describing this to
+them, lead with: each branch receives, holds and sells its OWN stock; a warehouse is
+one more place for whoever wants one. Proven by `EachBranchKeepsItsOwnStockTest`
+(two shops, no warehouse; 5/5 on first run, no code change).
+

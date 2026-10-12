@@ -1,6 +1,6 @@
 ---
 name: shopos-multi-currency-later
-description: LATER (user asked 2026-10-11, "keep this in memory, isko b dekhna hai bad main") — multi-currency (PKR now; dollar, pound, several). What exists today and what each level would cost
+description: Multi-currency — level 1 (one currency per shop) BUILT 2026-10-11, see shopos-a-shop-trades-in-its-own-money; levels 2 (platform bills in several) and 3 (two currencies in one shop) still LATER, only when asked
 metadata:
   type: project
 ---
@@ -17,3 +17,5 @@ metadata:
 1. One currency per shop, any currency — mostly there: a real currency CODE setting (PKR/USD/GBP…), decimals by currency, and the ~70 literal "Rs"/"PKR" swept. Small.
 2. The platform bills shops in more than one currency — plan prices per currency. Medium.
 3. True multi-currency inside one shop — a till taking dollars and rupees, a rate on every sale/payment, reports in a base currency. Large: currency + rate on sales, payments, purchases, cashbook, khata.
+
+**2026-10-11 (late night): level 1 is BUILT** at the user's word — [[shopos-a-shop-trades-in-its-own-money]]. Levels 2 and 3 below are still later, and only when asked.

@@ -307,6 +307,150 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+
+### 2026-10-12 (night) — one press to the kitchen, its slip, Today / Past orders, and a Take-order page laid out like the till
+
+The owner looked at the afternoon's screens and sent three things back:
+*"order lia — kitchen ticket? send to kitchen? print for kitchen?"*, *"take
+order ka UI abhi b acha ni hai — POS ki screen dekhlo, cheezaion bht zyeda
+scroll main ja rhi"*, and *"make tab — Today and Past orders, past in table
+form"*. Decisions: `docs/decisions/shopos-an-order-reaches-the-kitchen.md`
+("Later the same day"). Findings #170–177 in `docs/qa/journey/RUNS.md`.
+
+- **Send to the kitchen now.** `send_to_kitchen` on `POST /orders` →
+  `OrderService::straightToTheKitchen()` (confirmed → preparing through the
+  ordinary `advance()`), only where the shop has a kitchen. The Take-order page
+  ticks it by default. A customer's online order still arrives as New.
+- **The slip prints.** Taking an order and moving one on answer with
+  `kitchen_ticket`; `panel/src/modules/orders/kitchenSlip.ts` prints it with
+  the table's own `printKots`, under the shop's `kot_auto_print`, and says
+  which of four things happened.
+- **Orders = two tabs** (`?show=past`). Today: `OrderBoard` (everything still
+  open, any day) + "Finished today". Past orders: `OrdersTable`. The day is cut
+  on the server — `GET /orders?when=today|past` by `ShopDay`; `closed_only`
+  mirrors `open_only`. On a phone a row is a two-column grid of the same cells.
+- **Take-order like the till.** Menu pane | order pane, each scrolling inside;
+  the page does not scroll from `lg`; who-it-is-for in two rows; figures, total
+  and the one button in a strip along the bottom. The order pane uses a
+  container query.
+- **Tests:** `TheOrderQueueTest` +3 (the shop's day, not the server's midnight
+  — mutation caught), `AnOrderReachesTheKitchenTest` 11, `kitchenSlip.test` 5,
+  `orderBoard.test` 6, `e2e/food.take-order.spec.ts` 4 tests × 3 sizes (three
+  faults put in on the copy, three caught). Help and QA text rewritten for
+  both screens.
+- **Gates:** backend 3,745 (3,723 passed, 22 skipped) · panel 251 files / 3,017
+  · build 0 · eslint 0 errors. **Browser:** the whole pre-push regression (see
+  RUNS — 20 failures in one 40-minute window, all green run alone; one was a
+  shut lid, the rest unexplained by the server log) and everything that opens
+  the orders screens.
+
+**Pushed:** backend `bf4a060` (`offline/v1/backend`), panel `83f5691`
+(`offline/v1/admin-panel`); docs on `main` after them. Nothing is on the live
+box — deploy backend first, then the panel.
+
+**Next, asked for the same night and not yet built:** a clear Delivery / Pickup
+badge on the Orders page, and "Out for delivery" asking who carries it —
+always asked, never required (a shop may have made no rider).
+
+**Still the owner's to decide:** orders are untaxed and take no promotion; raw
+ingredients are sold; "Reservations" in a restaurant is item holds.
+
+
+### 2026-10-12 (evening) — a restaurant lived from an empty shop: every page, every sheet
+
+The owner asked for one complete flow of one business type through the real
+screens — every page, module and sheet, with real data entry — and whether the
+app is slow. A new restaurant was made by the admin and lived by its owner.
+
+- **Two new journey stages** (`JOURNEY_TRADE=food`): `40` the back of the house
+  (suppliers, a delivery and what it does to a plate's cost, paying a supplier,
+  a write-off, staff at their own doors, a regular on account, offers, a rider,
+  expenses with a typed date) and `43` every screen and every sheet a screen
+  can open (49 screens, 27 sheets, with what each asked the server and how long
+  it took). `JOURNEY_RECORD=<name>` keeps a second restaurant's record.
+- **What it found, and fixed** — the list is `docs/qa/journey/RUNS.md` #153–169.
+  The ones a restaurant would have met on its first day: the first dish born
+  stock-counted at nought ("none left" at every table) with a switch that could
+  not put it right; Take order refusing every made-to-order dish, taking a
+  sized dish with no size, and guessing its total; a phone or online order
+  never reaching the kitchen; "Cancel order" at one press.
+  → `docs/decisions/shopos-an-item-is-counted-or-not.md`,
+  `docs/decisions/shopos-an-order-reaches-the-kitchen.md`
+- **Is it slow?** No; six things were worth changing (the rate limiter was six
+  queries on every request). → `docs/decisions/shopos-what-a-request-costs.md`
+- **How it was worked on.** The owner tests by hand on the dev servers and a
+  whole browser regression takes two hours, so changes were made on a COPY
+  stack (panel :5198 → backend :8001, same dev database) and copied into the
+  tree once no suite was running. `docs/memory/shopos-develop-on-a-copy-stack.md`
+- **For the owner to decide:** an order is not taxed (the till charges 5% on
+  the same dish) and takes no promotion; raw ingredients are offered for sale
+  on the till and on Take order; "Reservations" in a restaurant is item holds.
+- Gates after landing: backend 3,738 tests / 3,716 passed / 22 skipped
+  (exit 0); vitest 248 files / 2,999; `npm run build` 0; lint 0 errors.
+- Still owed: the service-day and books stages for the restaurant (khata,
+  coupon, refund, drawer, day close — the mart journey has them, a restaurant's
+  does not yet); the Orders list's own look; the rest of the money audit (tab
+  footer, purchase-order rounding, customer checkout); `offline-shift.spec` on
+  the built preview; the modules guide.
+
+### 2026-10-12 (later) — a shop writes its dates its own way, and types them
+
+**Not pushed.** The owner asked for a date picker that can also be typed into,
+then for the date format to be a setting, then for Currency and Dates to sit on
+the first Settings tab.
+
+- **One format per shop** from a list of four (`App\Support\DateFormats`;
+  default "12 Oct 2026", the day never padded in words). Code stored in
+  `tenants.settings.date_format`. Not locked, unlike the currency.
+- **One date field** (`panel/src/components/form/DateField.tsx`) behind the
+  shared `Input` for `type="date"` ONLY — 34 date boxes changed, no other input
+  did (`InputField.test.tsx`). Typed in the shop's order or picked from a
+  calendar; the value stays ISO, so no caller changed.
+- **77 places that asked the browser how to write a date** now use
+  `panel/src/common/format/date.ts`; papers follow through `ShopTime::show` /
+  `ShopTime::day`. Two guards fail the 78th (`noOwnDateFormat.test.ts`,
+  `AShopWritesItsDatesItsOwnWayTest`).
+- **Currency and Dates are on Settings → Business**; that tab's "Save profile"
+  saves the profile and the preferences.
+- Three browser specs agreed with the old fault by construction (they asked the
+  browser to name a calendar day, or padded a printed day) and were corrected.
+- Still the browser's: 3 `datetime-local` and 7 `time` boxes.
+- Gates: backend 3,704 tests / 3,682 passed / 22 skipped (exit 0); vitest 245
+  files / 2,979; `npm run build` 0; lint 0 errors.
+- → `docs/decisions/shopos-a-shop-writes-its-dates-its-own-way.md`
+- `docs/memory/MEMORY.md` was split: it had outgrown what loads, and twenty
+  standing rules were invisible at the start of a session. Older FIXED / SHIPPED
+  records are listed in `docs/memory/shopos-older-records.md`.
+
+### 2026-10-12 — the owner tests by hand: a print killed the app, two screens could not take their own figure
+
+**Not pushed** (nor is the currency work below it). The owner was pressing
+buttons while this was written, so mutations ran on COPIES of the panel and of
+the backend, never in the tree their servers serve.
+
+- **One print left every screen dead** until a reload — `common/print.ts`
+  settled its promise inside `afterprint`, while Chrome still held the page;
+  React's render microtask was dropped. Fixed; and print is now tested in a
+  browser with a real print window (project `print-window`, 5 cases). →
+  `docs/decisions/shopos-the-print-window-holds-the-page.md`
+- **A tab's Settle sheet and the hand-written New sale added the bill up
+  themselves, wrongly**, and the till refused the amount on their own buttons.
+  Both ask the sale path now (`SaleQuoted`, `POST /sales/worth`,
+  `POST /restaurant/tickets/{ticket}/settle/worth`). →
+  `docs/decisions/shopos-what-the-screen-adds-up.md`
+- **A sheet's ✕ hangs on its corner** instead of sitting on the first row of
+  its content (an order's stage read "Waiting to be conf…"). New rule in
+  `e2e/rules.ts`: nothing is written under a button in an open sheet;
+  `e2e/sheet-corner.spec.ts`.
+- One browser for headed checks: "Chrome for Testing" on port 9333 at the right
+  edge of the screen; specs attach with `PRINT_WINDOW_CDP`.
+- Gates at this point: backend 3,681 (exit 0) before the sale-worth tests were
+  added; vitest 242 files / 2,862; `npm run build` 0; lint 0 errors.
+- **Owed, in the owner's words** — see `docs/memory/shopos-resume-here.md`:
+  a date field with a per-shop date format, the Orders and Take-order screens,
+  one complete QA walk of one business type (every page, module and sheet, with
+  request times and query counts), and three loose ends from the regression.
+
 ### 2026-09-15 (last) — the shop hands out the rider id
 
 A shop wanting its own rider on the app had to wait for that rider to install
@@ -9275,4 +9419,37 @@ the till — rightly — kept the next sale on the device.
 **Migrations waiting for the server** (a fresh migrate takes all of them):
 `2026_10_10_000002_a_warehouse_is_a_place`, `2026_10_11_000001…`,
 `…000002_two_links_that_are_searched_by`, `…000003_sizes_keep_the_order_they_were_typed_in`.
+
+---
+
+## 2026-10-11, late night — a shop chooses its currency
+
+**Built and tested; NOT pushed** (everything before this section was pushed
+that night: backend `4b42792`, panel `6871883`, docs `f3bb794`).
+
+The owner asked for a currency type a shop can select — PKR, USD, INR. One
+currency per shop, from a list of eight, chosen in Settings (or at setup, or by
+the admin at creation) and **fixed once the business has traded**, because
+nothing is ever converted. Read
+`docs/decisions/shopos-a-shop-trades-in-its-own-money.md` before touching any
+money that is written on a screen or a paper:
+
+- the list is `App\Support\Currencies`; a shop's amount is `Tenant::money()`
+  on the server and `useMoney()` in the panel; the platform's own charges are
+  `platformMoney`; a marketplace price is `money(n, shop.currency)`
+- **never write a currency mark in a file** — two tests fail if one is
+- the panel's formatter is held to the server's by
+  `tests/fixtures/currency-format.json` (regenerate + `cp` when the list changes)
+- no migration: the code lives in `tenants.settings`
+
+**Not done:** a currency is not a country (cities, tax year and phone rules are
+still Pakistan's); the platform bills in one currency; one currency per shop;
+mobile apps untouched.
+
+**Also answered that night:** a branch does not need a warehouse — each keeps
+and receives its own stock (`EachBranchKeepsItsOwnStockTest`). And five open
+product questions were answered with a recommendation each (pro-rating: a light
+version; an "ingredient — not sold" kind: yes; duplicate columns: two now;
+dealer rates before challans; godown stock at the till: not yet) — **none is
+built; they wait for the owner's yes.**
 

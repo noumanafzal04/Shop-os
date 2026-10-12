@@ -30,6 +30,14 @@ project and failed on the next, minutes apart.
   did not" and "this run outlived its own login". Neither fails the run —
   their job is to stop a red run being MISREAD.
 - Run long suites as `caffeinate -i npx playwright test`.
+- **`caffeinate -i` does not hold a SHUT LID on battery** (2026-10-12: 'Clamshell
+  Sleep' at 00:33, then one dark wake every ~16 minutes for nine hours — phone,
+  mart, billing and online journeys all 'failed' on timeouts; the four groups
+  before 00:33 were green). Before a long run ask the lid:
+  `ioreg -r -k AppleClamshellState -d 4 | grep AppleClamshellState` (Yes = shut).
+  A runner that WAITS for the lid and writes `lid-at-end=` beside each exit code
+  is `scratchpad/rerun.sh`. With the lid shut every Bash call of mine also takes
+  hours of wall clock — do file work, do not start browsers.
 - Second instance of [[shopos-token-lives-one-hour]] (97 sweep "bugs" = one
   dead credential). Fourth entry in [[shopos-measurement-that-lied]]: wrong
   cwd, unquoted heredoc, soft-deleted target, **machine asleep**.
