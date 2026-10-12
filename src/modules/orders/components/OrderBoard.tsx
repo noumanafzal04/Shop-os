@@ -2,6 +2,7 @@ import { shopDateTime } from "../../../common/format/date";
 import { elapsedLabel, urgencyOf } from "../../../common/time/elapsed";
 import { BOARD, cameBy, linesOf, onTheBoard, type BoardColumn } from "../orderBoard";
 import { nextStep } from "../orderFlow";
+import { HowItReaches } from "./HowItReaches";
 import type { OrderStatus, OwnerOrder } from "../services/ordersService";
 
 /**
@@ -117,13 +118,17 @@ function OrderCard({ order, money, busy, onOpen, onAdvance }: {
       className="cursor-pointer rounded-xl border border-gray-200 bg-white p-3.5 shadow-theme-xs transition hover:border-brand-300 hover:shadow-theme-sm dark:border-gray-800 dark:bg-gray-900"
     >
       <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onOpen(); }}
-          className="-ml-1 min-h-9 rounded-lg px-1 text-theme-sm font-semibold text-brand-600 transition hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
-        >
-          {order.order_number}
-        </button>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onOpen(); }}
+            className="-ml-1 min-h-9 rounded-lg px-1 text-theme-sm font-semibold text-brand-600 transition hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
+          >
+            {order.order_number}
+          </button>
+          {/* A rider's bag, or the counter — beside the number, where it is read first. */}
+          <HowItReaches how={delivery ? "delivery" : "pickup"} />
+        </span>
         {/* How long it has waited — coloured when that is too long for where it is. */}
         <span
           title={shopDateTime(order.placed_at)}
@@ -155,16 +160,16 @@ function OrderCard({ order, money, busy, onOpen, onAdvance }: {
         <p className="mt-1.5 line-clamp-2 text-theme-xs italic text-gray-600 dark:text-gray-400">“{order.notes}”</p>
       )}
 
-      <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-theme-xs text-gray-600 dark:text-gray-400">
-        <span className="font-medium text-gray-700 dark:text-gray-300">{delivery ? "Delivery" : "Pickup"}</span>
-        {delivery && (
-          order.rider ? (
-            <span>· {order.rider.name}</span>
+      {/* WHO IS CARRYING IT — a delivery's own line; a pickup has nobody to name. */}
+      {delivery && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-theme-xs text-gray-600 dark:text-gray-400">
+          {order.rider ? (
+            <><span>Rider</span><span className="font-medium text-gray-800 dark:text-gray-200">{order.rider.name}</span></>
           ) : (
             <span className="rounded-md bg-warning-50 px-1.5 py-0.5 font-medium text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">no rider</span>
-          )
-        )}
-      </p>
+          )}
+        </p>
+      )}
 
       <div className="mt-3 flex items-end justify-between gap-2 border-t border-gray-100 pt-2.5 dark:border-gray-800">
         <span className="text-base font-bold tabular-nums text-gray-900 dark:text-white">{money(order.total)}</span>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuthStore } from "../../../stores/authStore";
 import { Link, useSearchParams } from "react-router";
 
@@ -26,7 +26,9 @@ import { printTheSlip, slipSays } from "../kitchenSlip";
 import { OrderBoard } from "../components/OrderBoard";
 import { OrderDetail } from "../components/OrderDetail";
 import { OrdersTable } from "../components/OrdersTable";
-import { useOrderActions, useRiders, useShopOrders } from "../hooks/useOrders";
+import { WhoCarriesIt } from "../components/WhoCarriesIt";
+import { asksWhoCarries } from "../whoCarries";
+import { useOrderActions, useRiders, useShopOrders, useTellTheMenu } from "../hooks/useOrders";
 import type { OrderStatus, OwnerOrder } from "../services/ordersService";
 
 /**
@@ -145,9 +147,24 @@ export default function OwnerOrdersPage() {
       else toast.success(says);
     });
   };
-  const move = (order: OwnerOrder, to: OrderStatus) => {
+  const send = (order: OwnerOrder, to: OrderStatus) => {
     setError(null);
     advance.mutate({ id: order.id, status: to }, { onError, onSuccess: onMoved });
+  };
+  /**
+   * A STEP — from a card, a row or the order's sheet, all through here, so
+   * "Out for delivery" asks who is carrying it wherever it is pressed.
+   * Asked always, required never: see `whoCarries.ts`.
+   */
+  const [leaving, setLeaving] = useState<{ id: string; to: OrderStatus } | null>(null);
+  const move = (order: OwnerOrder, to: OrderStatus) => {
+    if (asksWhoCarries(order, to)) {
+      setError(null);
+      setLeaving({ id: order.id, to });
+
+      return;
+    }
+    send(order, to);
   };
   const busy = advance.isPending || cancel.isPending || assignRider.isPending;
 
@@ -161,6 +178,7 @@ export default function OwnerOrdersPage() {
    * already made.
    */
   const opened: OwnerOrder | null = [...onBoard, ...doneRows, ...pastRows].find((o) => o.id === openId) ?? null;
+  const leavingOrder: OwnerOrder | null = leaving === null ? null : [...onBoard, ...doneRows, ...pastRows].find((o) => o.id === leaving.id) ?? null;
 
   /** Change one filter. Any change returns to page one — page 4 of a different
    *  filter is a page that usually does not exist. */
@@ -215,6 +233,17 @@ export default function OwnerOrdersPage() {
    */
   const pulse = useShopOrders({ open_only: true, per_page: 1, page: 1 }, !today || narrowed);
   const whole = today && !narrowed ? working : pulse;
+  // The whole shop's open orders, counted by stage — the very figures the
+  // menu's count is made of. Told to it here, so it is not asked for there.
+  const tellTheMenu = useTellTheMenu();
+  const stages = whole.data?.meta.status_counts as { all?: number; pending?: number } | undefined;
+  const beingWorkedNow = stages?.all;
+  const newNow = stages?.pending;
+  const toldAt = whole.dataUpdatedAt;
+  useEffect(() => {
+    if (beingWorkedNow === undefined || newNow === undefined) return;
+    tellTheMenu({ new: newNow, being_worked: beingWorkedNow });
+  }, [beingWorkedNow, newNow, toldAt, tellTheMenu]);
   const beingWorked = whole.data?.meta.pagination?.total;
   const waitingForARider = (whole.data?.meta.unassigned as number | undefined) ?? 0;
 
@@ -521,6 +550,23 @@ export default function OwnerOrdersPage() {
           if (opened === null) return;
           setError(null);
           assignRider.mutate({ id: opened.id, riderId }, { onError });
+        }}
+      />
+
+      <WhoCarriesIt
+        order={leavingOrder}
+        riders={activeRiders}
+        busy={busy}
+        onClose={() => setLeaving(null)}
+        onSend={(riderId) => {
+          if (leavingOrder === null || leaving === null) return;
+          const order = leavingOrder;
+          const to = leaving.to;
+          const gone = () => { setLeaving(null); send(order, to); };
+          // With a name on it first — and if the name will not go on, the
+          // order does not leave: the sheet closes on what the server said.
+          if (riderId === null) gone();
+          else assignRider.mutate({ id: order.id, riderId }, { onSuccess: gone, onError: (e) => { setLeaving(null); onError(e); } });
         }}
       />
 

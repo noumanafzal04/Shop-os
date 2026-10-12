@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { OWNER_STATE, ask, expect, record, remember, session, settled, signIn, test } from "./kit";
+import { OWNER_STATE, ask, expect, record, remember, roomForACase, session, settled, signIn, test } from "./kit";
 
 /**
  * STAGE B (first half) — THE OWNER WALKS IN.
@@ -51,7 +51,7 @@ test.describe("inside the shop", () => {
   });
   test.use({ storageState: OWNER_STATE });
 
-  test("B2 · every entry in the menu opens its own screen, and nothing is refused", async ({ page }) => {
+  test("B2 · every entry in the menu opens its own screen, and nothing is refused", async ({ page, request }) => {
     test.setTimeout(600_000);
 
     await page.goto("/tenant");
@@ -79,7 +79,13 @@ test.describe("inside the shop", () => {
 
     const bounced: string[] = [];
     const blank: string[] = [];
-    for (const href of links) {
+    for (const [i, href] of links.entries()) {
+      // Thirty-odd whole reloads in under a minute is no person's use of the
+      // app, and each reload asks seven things before the screen asks its
+      // own: on a quick machine the walk was refused by the limit (429), not
+      // by anything a screen did. Every eighth screen it makes room.
+      if (i > 0 && i % 8 === 0) await roomForACase(request);
+
       await page.goto(href);
       await settled(page);
       await page.waitForTimeout(350);

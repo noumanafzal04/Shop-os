@@ -1,4 +1,5 @@
 import { formatQuantity } from "../../../common/format/quantity";
+import { HowItReaches } from "./HowItReaches";
 import { STAGE } from "./orderStage";
 import type { OwnerOrder } from "../services/ordersService";
 import { shopDateTime, shopShortDateTime, timeOf } from "../../../common/format/date";
@@ -108,11 +109,11 @@ export function OrderRow({
         </span>
         {/* On a phone the "how" and "items" columns are gone, so the two
             facts worth keeping move under the name rather than being lost. */}
-        <span className="block truncate text-theme-xs text-gray-400">
+        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-theme-xs text-gray-400">
           {/* Each separator belongs to the fragment it precedes, so a hidden
               fragment takes its own "·" with it. Written the other way round,
               1024px read "Pickup · " with nothing after the dot. */}
-          <span className="xl:hidden">{delivery ? "Delivery" : "Pickup"}</span>
+          <HowItReaches how={delivery ? "delivery" : "pickup"} className="xl:hidden" />
           <span className="sm:hidden"> · {items} {items === 1 ? "item" : "items"}</span>
           {order.channel && order.channel !== "online" && (
             // From `xl` up "Delivery" and the items have columns of their own,
@@ -127,9 +128,7 @@ export function OrderRow({
       </td>
 
       <td role="cell" className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
-        <span className="text-theme-xs text-gray-600 dark:text-gray-300">
-          {delivery ? "Delivery" : "Pickup"}
-        </span>
+        <HowItReaches how={delivery ? "delivery" : "pickup"} />
         {needsRider && (
           // The one row-level warning worth the space: an order out for
           // delivery with nobody carrying it is a customer waiting for a bike

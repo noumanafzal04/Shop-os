@@ -1012,6 +1012,28 @@ span.flatpickr-weekday,
 }
 .breathes { animation: breathes 6s ease-in-out infinite; }
 
+/* ── THE LANDING PAGE'S DARK BANDS: the brand's own night ─────────
+   The hero, the till's section and the closing band stood on gray-950 with
+   an indigo light (rgba(70,95,255)) — the colour of a brand this product no
+   longer has. Under ocean buttons and an ocean logo it read as a second
+   palette: "hero pe blue background aa raha … apne primary color se".
+
+   So the ground is the brand's darkest step taken further down, and the
+   light is the brand's 400. Both are read from the ramp — never a hex here —
+   so the three bands and the footer are one colour, and move with it. */
+.landing-night {
+  --night-light: var(--color-brand-400);
+  background-color: color-mix(in srgb, var(--color-brand-950) 86%, black);
+}
+/* Where the light comes from: the band says, the colour is always the brand's. */
+.landing-night-light {
+  background-image: radial-gradient(
+    var(--light-size, 60% 50%) at var(--light-at, 50% 0%),
+    color-mix(in srgb, var(--night-light) var(--light-strength, 30%), transparent),
+    transparent var(--light-ends, 68%)
+  );
+}
+
 /* A line item landing in the cart, one after another. */
 @keyframes rings-up {
   from { opacity: 0; transform: translateX(-10px); }
@@ -1022,6 +1044,13 @@ span.flatpickr-weekday,
   animation: rings-up 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--ring-delay, 0ms);
 }
+
+/* One picture taking another's place, in the same frame. */
+@keyframes fades-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fades-in { animation: fades-in 360ms ease-out both; }
 
 /* THE ONE BUTTON THAT ASKS FOR ATTENTION.
    A ring that expands out of the button and fades, every few seconds, plus a
@@ -1090,6 +1119,7 @@ span.flatpickr-weekday,
   .settling .settles.is-in { animation: none; }
   .breathes { animation: none; }
   .rings-up { opacity: 1; animation: none; }
+  .fades-in { animation: none; }
   .calls-you-over::after { animation: none; opacity: 0; }
   .ring-expands::before { animation: none; opacity: 0; }
   .shine-crosses { animation: none; opacity: 0; }
@@ -1228,6 +1258,21 @@ span.flatpickr-weekday,
   background-color: #fff;
   color: var(--rail-primary, var(--color-brand-600));
   --tw-ring-color: var(--rail-primary, var(--color-brand-600));
+}
+/* SOMETHING NEW IS WAITING — an order nobody has accepted. The colour of a
+   notification on every rail and on the row you are on, so it is never a
+   brand dot on a brand ground; and the ring that blinks behind it. */
+.rail-count.rail-alert,
+.menu-item-active .rail-count.rail-alert,
+.rail-primary .rail-count.rail-alert,
+.rail-primary .menu-item-active .rail-count.rail-alert {
+  background-color: var(--color-orange-500);
+  color: #fff;
+  --tw-ring-color: #fff;
+}
+.rail-blink {
+  background-color: var(--color-orange-500);
+  opacity: 0.7;
 }
 .rail-primary .rail-switch {
   background-color: rgb(0 0 0 / 0.16);

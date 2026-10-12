@@ -6,6 +6,7 @@ import { EnquiryForm } from "../components/EnquiryForm";
 import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { TradeSwitcher } from "../components/TradeSwitcher";
+import { PLANS, pointsOf, priceOf } from "../plans";
 import { TryDemo } from "../components/TryDemo";
 import { useSettlesIn } from "../components/useSettlesIn";
 
@@ -113,30 +114,6 @@ const STEPS: Array<{ title: string; body: string }> = [
   },
 ];
 
-const PLANS: Array<{
-  name: string; price: string; line: string; points: string[]; featured?: boolean;
-}> = [
-  {
-    name: "Basic",
-    price: "2,500",
-    line: "One counter, one shop.",
-    points: ["One branch", "Up to 2 tills", "All your products & stock", "Khata and daily close", "Help centre in the app"],
-  },
-  {
-    name: "Premium",
-    price: "6,000",
-    line: "The shop that has outgrown one till.",
-    points: ["Up to 3 branches", "More tills per branch", "Selling with no internet", "Staff jobs & permissions", "Online orders & delivery"],
-    featured: true,
-  },
-  {
-    name: "Enterprise",
-    price: "15,000",
-    line: "A chain, with a head office.",
-    points: ["Branches as you need them", "Cross-branch stock & transfers", "HQ reporting", "Priority support", "Anything above, without a ceiling"],
-  },
-];
-
 /** Answers, including to the questions that are awkward for us. */
 const FAQ: Array<{ q: string; a: string }> = [
   {
@@ -195,17 +172,22 @@ export default function LandingPage() {
           pill, and wrapping the two in one dark box instead broke `sticky`.
           See `SiteHeader`. */}
       <section
-        className="relative overflow-hidden bg-gray-950 text-white"
+        className="landing-night relative overflow-hidden text-white"
         style={{
           marginTop: "calc(var(--landing-header, 0px) * -1)",
           paddingTop: "var(--landing-header, 0px)",
         }}
       >
-        {/* The room. A wash from the top, a faint grid to give the dark some
-            texture, and a brand glow where the till stands. Decorative. */}
+        {/* The room. A light from the top, a faint grid to give the dark some
+            texture, and a second light where the screen stands. Decorative.
+
+            Both lights are the brand's (see `.landing-night`), and both are
+            on the centre line: everything in this band is centred, and a
+            glow in one corner with another in the opposite corner made the
+            band lean. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_75%_10%,rgba(70,95,255,0.28),transparent_65%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(50%_40%_at_10%_100%,rgba(70,95,255,0.14),transparent_70%)]" />
+          <div className="landing-night-light absolute inset-0 [--light-size:75%_48%] [--light-strength:36%] [--light-ends:70%]" />
+          <div className="landing-night-light absolute inset-0 [--light-size:60%_34%] [--light-at:50%_64%] [--light-strength:16%] [--light-ends:72%]" />
           <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:56px_56px]" />
         </div>
 
@@ -275,7 +257,7 @@ export default function LandingPage() {
               picture ends in these four facts rather than in a line and a gap. */}
           <dl className="settles relative mt-6 grid grid-cols-2 gap-x-8 gap-y-8 text-center sm:mt-8 sm:grid-cols-4">
             {[
-              ["8", "trades, each with its own rules"],
+              ["9", "trades, each with its own rules"],
               ["0", "sales lost when the line drops"],
               ["12", "parts of a shop, not twelve subscriptions"],
               ["24h", "demo shop, yours alone"],
@@ -292,7 +274,12 @@ export default function LandingPage() {
       {/* ══ THE OFFLINE ARGUMENT ═════════════════════════════════════ */}
       <section id="offline" className="border-b border-gray-200 bg-white dark:border-white/10 dark:bg-gray-950">
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28">
-          <div className="settles max-w-3xl">
+          {/* CENTRED, like every heading that stands over a full-width row.
+              This one and "What is inside" hung off the left edge above three
+              equal columns, between sections whose headings were centred —
+              the page changed its mind about where a heading goes four times
+              on the way down. A heading beside a picture keeps the left. */}
+          <div className="settles mx-auto max-w-3xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-500">
               Why it is different
             </p>
@@ -338,7 +325,7 @@ export default function LandingPage() {
             ))}
           </ol>
 
-          <p className="settles mt-10 max-w-3xl text-[15px] leading-relaxed text-gray-500 dark:text-gray-400">
+          <p className="settles mx-auto mt-10 max-w-3xl text-center text-[15px] leading-relaxed text-gray-500 dark:text-gray-400">
             One honest caveat: for the till to keep working with no line at all,
             it has to be installed on the device first, and a browser will only
             install it over a secure address. Yours, on your own domain — we set
@@ -352,9 +339,9 @@ export default function LandingPage() {
           lights, and its picture fades out at the bottom into whatever is
           behind it. On white that fade is a grey smear. `overflow-hidden`
           for the phone, which stands a little outside the column. */}
-      <section id="counter" className="relative overflow-hidden border-b border-white/10 bg-gray-950 text-white">
+      <section id="counter" className="landing-night relative overflow-hidden border-b border-white/10 text-white">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(55%_45%_at_50%_0%,rgba(70,95,255,0.22),transparent_70%)]" />
+          <div className="landing-night-light absolute inset-0 [--light-size:55%_45%] [--light-strength:28%] [--light-ends:70%]" />
           <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,white_1px,transparent_1px),linear-gradient(to_bottom,white_1px,transparent_1px)] [background-size:56px_56px]" />
         </div>
 
@@ -492,7 +479,7 @@ export default function LandingPage() {
       {/* ══ WHAT IS INSIDE ═══════════════════════════════════════════ */}
       <section id="inside" className="border-b border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/[0.02]">
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:py-28">
-          <div className="settles max-w-3xl">
+          <div className="settles mx-auto max-w-3xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-500">
               What is inside
             </p>
@@ -542,22 +529,25 @@ export default function LandingPage() {
             {STEPS.map((step, i) => (
               <li
                 key={step.title}
-                className="settles relative"
+                className="settles relative text-center"
                 style={{ "--settle-delay": `${i * 120}ms` } as React.CSSProperties}
               >
                 {/* The rule between steps — it is a sequence, so it is drawn
-                    as one. Hidden on a phone, where they stack instead. */}
+                    as one. Hidden on a phone, where they stack instead.
+                    From one number to the next, the same gap either side:
+                    it ran from each number to the column's right edge and
+                    faded out, under a heading that was centred. */}
                 {i < STEPS.length - 1 && (
                   <span
                     aria-hidden="true"
-                    className="absolute left-[3.5rem] top-6 hidden h-px w-[calc(100%-2rem)] bg-gradient-to-r from-brand-200 to-transparent lg:block dark:from-white/15"
+                    className="absolute left-[calc(50%+2.25rem)] top-6 hidden h-px w-[calc(100%-2.5rem)] bg-brand-200 lg:block dark:bg-white/15"
                   />
                 )}
-                <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-brand-500 bg-white text-lg font-bold tabular-nums text-brand-600 dark:bg-gray-950 dark:text-brand-300">
+                <span className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-brand-500 bg-white text-lg font-bold tabular-nums text-brand-600 dark:bg-gray-950 dark:text-brand-300">
                   {i + 1}
                 </span>
                 <h3 className="mt-6 text-xl font-semibold">{step.title}</h3>
-                <p className="mt-3 text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">{step.body}</p>
+                <p className="mx-auto mt-3 max-w-xs text-[15px] leading-relaxed text-gray-600 dark:text-gray-400">{step.body}</p>
               </li>
             ))}
           </ol>
@@ -583,19 +573,25 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mx-auto mt-14 grid max-w-6xl items-start gap-6 lg:grid-cols-3">
+          {/* FOUR CARDS, THE SAME HEIGHT, THE SAME SEVEN LINES — so a figure
+              can be read straight across the row. The recommended one is
+              marked by its border and its button, not by standing taller
+              than its neighbours: three cards with the middle one raised was
+              a shape; four with the second raised is a mistake. See
+              `plans.ts` for where every figure comes from. */}
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {PLANS.map((plan, i) => (
               <div
-                key={plan.name}
-                className={`settles relative rounded-3xl border p-8 ${
+                key={plan.code}
+                className={`settles relative flex flex-col rounded-3xl border p-7 ${
                   plan.featured
-                    ? "border-brand-500 bg-white shadow-2xl shadow-brand-500/10 lg:-mt-5 lg:pb-12 dark:bg-gray-900"
+                    ? "border-brand-500 bg-white shadow-2xl shadow-brand-500/10 ring-1 ring-brand-500 dark:bg-gray-900"
                     : "border-gray-200 bg-white dark:border-white/10 dark:bg-gray-900"
                 }`}
-                style={{ "--settle-delay": `${i * 110}ms` } as React.CSSProperties}
+                style={{ "--settle-delay": `${i * 90}ms` } as React.CSSProperties}
               >
                 {plan.featured && (
-                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-brand-500 px-4 py-1.5 text-xs font-semibold text-white">
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-brand-500 px-4 py-1.5 text-xs font-semibold text-white">
                     Most shops
                   </span>
                 )}
@@ -603,26 +599,40 @@ export default function LandingPage() {
                 <h3 className="text-lg font-semibold">{plan.name}</h3>
                 <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">{plan.line}</p>
 
-                <p className="mt-7 flex items-baseline gap-1.5">
+                <p className="mt-6 flex items-baseline gap-1.5">
                   <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Rs</span>
-                  <span className="text-5xl font-bold tabular-nums tracking-[-0.03em]">{plan.price}</span>
+                  <span className="text-[2.6rem] font-bold leading-none tabular-nums tracking-[-0.03em]">{priceOf(plan)}</span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">/month</span>
                 </p>
 
-                <ul className="mt-8 space-y-3.5">
-                  {plan.points.map((point) => (
-                    <li key={point} className="flex gap-3 text-[15px] text-gray-600 dark:text-gray-300">
-                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-brand-500">
-                        <path d="m4.5 10.5 3.5 3.5 7.5-8" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      {point}
+                <ul className="mt-7 space-y-3 border-t border-gray-100 pb-8 pt-6 dark:border-white/10">
+                  {pointsOf(plan).map((point) => (
+                    <li
+                      key={point.text}
+                      className={`flex gap-3 text-[14.5px] leading-snug ${
+                        point.off ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"
+                      }`}
+                    >
+                      {point.off ? (
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-gray-300 dark:text-gray-600">
+                          <path d="M5.5 10h9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-brand-500">
+                          <path d="m4.5 10.5 3.5 3.5 7.5-8" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      <span>
+                        {point.text}
+                        {point.off && <span className="sr-only"> — not in this plan</span>}
+                      </span>
                     </li>
                   ))}
                 </ul>
 
                 <Link
                   to="/demo"
-                  className={`mt-9 block rounded-xl py-3.5 text-center text-sm font-semibold transition ${
+                  className={`mt-auto block rounded-xl py-3.5 text-center text-sm font-semibold transition ${
                     plan.featured
                       ? "bg-brand-500 text-white hover:bg-brand-600"
                       : "border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
@@ -634,7 +644,35 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <p className="settles mt-10 text-center text-sm text-gray-500 dark:text-gray-400">
+          {/* WHAT EVERY PLAN COMES WITH. A plan sells room — branches, tills,
+              bills — and never a part of the product: the parts are switched
+              on by the shop's trade. They were scattered across three cards
+              as if Basic lacked them ("Online orders & delivery" stood on the
+              middle one). Said once, under all four, in the names the
+              section above gave them. */}
+          <div className="settles mt-6 rounded-3xl border border-gray-200 bg-white p-7 sm:p-9 dark:border-white/10 dark:bg-gray-900">
+            <div className="mx-auto max-w-2xl text-center">
+              <h3 className="text-lg font-semibold">On every plan</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                A plan sells room, never a feature. Every part your trade needs is
+                on Basic too — and so are updates, the help centre and your own data, to take away whenever you like.
+              </p>
+            </div>
+            <ul className="mt-7 grid grid-cols-2 gap-x-6 gap-y-3.5 sm:grid-cols-3 xl:grid-cols-4">
+              {INSIDE.map((item) => (
+                <li key={item.title} className="flex items-center gap-2.5 text-[14.5px] font-medium text-gray-700 dark:text-gray-300">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" className="h-3 w-3">
+                      <path d="m4.5 10.5 3.5 3.5 7.5-8" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </span>
+                  {item.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="settles mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
             Running something bigger, or something odd?{" "}
             <a href="#talk" className="font-semibold text-brand-500 hover:text-brand-600">Tell us about it</a>{" "}
             — plans are set per shop.
@@ -730,8 +768,8 @@ export default function LandingPage() {
       </section>
 
       {/* ══ CLOSE ════════════════════════════════════════════════════ */}
-      <section className="relative overflow-hidden bg-gray-950 text-white">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_70%_at_50%_0%,rgba(70,95,255,0.28),transparent_70%)]" />
+      <section className="landing-night relative overflow-hidden text-white">
+        <div aria-hidden="true" className="landing-night-light pointer-events-none absolute inset-0 [--light-size:60%_70%] [--light-strength:32%] [--light-ends:70%]" />
         <div className="relative mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 lg:py-32">
           <div className="settles">
             <h2 className="text-4xl font-bold leading-[1.06] tracking-[-0.02em] text-balance sm:text-5xl">

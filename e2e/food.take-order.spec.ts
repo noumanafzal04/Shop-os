@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
-import { API, foodAuth } from "./api";
+import { API, foodAuth, roomToWork } from "./api";
 import { everyRule, nothingIsWrittenUnderAButton, report } from "./rules";
 
 /**
@@ -27,6 +28,12 @@ import { everyRule, nothingIsWrittenUnderAButton, report } from "./rules";
  *   the order sank     the order sat UNDER the menu, further down with every
  *                      "Show more" — then in a tall panel that scrolled
  *                      its own customer away
+ *   which is which     delivery or pickup was two grey words at the foot of a
+ *                      card, and a column only a wide screen drew
+ *   nobody's name      "Out for delivery" sent an order out of the door
+ *                      without asking who had it
+ *   nothing said       a new order waited on a screen nobody was looking at:
+ *                      no other screen said one had arrived
  *
  * Fixed names; the dishes are carded once and left, and an order this takes
  * is cancelled by its own last step — and by the next run's first, if a run
@@ -43,6 +50,8 @@ const SIZED = {
   ],
 };
 const CALLER = "E2E Mrs. Khan";
+/** Whoever rings the OTHER counter — an order this screen had no hand in. */
+const ELSEWHERE = "E2E Mr. Elsewhere";
 
 type Row = Record<string, unknown>;
 
@@ -76,14 +85,24 @@ async function theDishes(request: APIRequestContext): Promise<void> {
   }
 }
 
-/** Any order of this caller's still being worked — left by a run that was cut short — is called off. */
+/** Any order of these callers' still being worked — left by a run that was cut short — is called off. */
 async function nobodyIsWaiting(request: APIRequestContext): Promise<void> {
-  const open = await get<Array<Row & { id: string }>>(request, `/orders?search=${encodeURIComponent(CALLER)}&open_only=1&per_page=50`);
-  for (const order of open) {
-    const res = await request.post(`${API}/orders/${order.id}/cancel`, { headers: foodAuth(), data: { reason: "A test's own order, left behind" } });
-    expect(res.ok(), `a left-over order could not be called off (${res.status()})`).toBeTruthy();
+  for (const who of [CALLER, ELSEWHERE]) {
+    const open = await get<Array<Row & { id: string }>>(request, `/orders?search=${encodeURIComponent(who)}&open_only=1&per_page=50`);
+    for (const order of open) {
+      const res = await request.post(`${API}/orders/${order.id}/cancel`, { headers: foodAuth(), data: { reason: "A test's own order, left behind" } });
+      expect(res.ok(), `a left-over order could not be called off (${res.status()})`).toBeTruthy();
+    }
   }
 }
+
+/** What this device has kept of the menu's count — `orders/waitingStore.ts`. */
+const keptOnTheDevice = (page: Page) =>
+  page.evaluate(() => {
+    const raw = localStorage.getItem("shopos-orders-waiting");
+
+    return (raw ? (JSON.parse(raw) as { state: { kept: { heard?: string | null; count?: { new: number; being_worked: number } } | null } }).state.kept : null);
+  });
 
 /** The caller's newest order, as the server has it. */
 async function theirOrder(request: APIRequestContext): Promise<Row & { id: string; order_number: string; status: string }> {
@@ -96,6 +115,12 @@ async function theirOrder(request: APIRequestContext): Promise<Row & { id: strin
 /** What is on the kitchen's pass for one order. */
 const onThePass = async (request: APIRequestContext, number: string) =>
   (await get<{ kots: Array<Row & { ticket_number: string; items: Array<{ name: string }> }> }>(request, "/restaurant/kitchen")).kots.filter((k) => k.ticket_number === number);
+
+/** What the menu is told: how many nobody has accepted, and how many are not finished. */
+const waiting = (request: APIRequestContext) => get<{ new: number; being_worked: number }>(request, "/orders/waiting");
+/** What the count beside "Orders" should be saying, for those two numbers. */
+const railSays = (w: { new: number; being_worked: number }): string =>
+  `${w.being_worked} ${w.being_worked === 1 ? "order" : "orders"} being worked${w.new > 0 ? `, ${w.new} new` : ""}`;
 
 /** An order's card on the board, and the column it is in. */
 const card = (page: Page, number: string): Locator => page.locator(`[data-order="${number}"]`);
@@ -126,6 +151,9 @@ async function aFullKarahi(page: Page): Promise<void> {
 }
 
 test.beforeEach(async ({ request }) => {
+  // One owner, three screen sizes, fifteen tests one after another: the last
+  // of them was refused its own shelf (429) by the limit every person is under.
+  await roomToWork(request, foodAuth(), 130, "/auth/me");
   await theDishes(request);
   await nobodyIsWaiting(request);
 });
@@ -364,11 +392,83 @@ test("taken for later, it waits as New — the kitchen hears at Start preparing,
   expect(number).toMatch(/^ORD-\d+$/);
   await expect(column(page, "New").locator(card(page, number))).toContainText("Rs 1,460", { timeout: 20_000 });
   await expect(card(page, number)).toContainText(CALLER);
+  // Which it is, as a badge beside the number — and a pickup has no rider to be without.
+  await expect(card(page, number).locator('[data-how="pickup"]')).toHaveText("Pickup");
+  await expect(card(page, number).getByText("no rider")).toHaveCount(0);
+
+  // ── THE MENU SAYS SO, on every screen: counted, and blinking for a new one ──
+  const railCount = page.getByTestId("orders-waiting");
+  const unanswered = await waiting(request);
+  expect(unanswered.new, "an order nobody has accepted is not counted as new").toBeGreaterThan(0);
+  await expect(railCount, "nothing beside Orders says an order is waiting").toHaveText(String(unanswered.being_worked), { timeout: 15_000 });
+  await expect(railCount).toHaveAttribute("aria-label", railSays(unanswered));
+  await expect(railCount, "a new order does not blink").toHaveAttribute("data-alert", "");
+  expect(await page.locator(".rail-blink").first().evaluate((el) => getComputedStyle(el).animationName), "the blink is not an animation").toBe("ping");
+  // ── THE COUNT IS KEPT, NOT ASKED FOR ───────────────────────────────
+  // It was asked on every load and every half minute. Now the device keeps
+  // what it was last told, and asks again only on news of an order.
+  const asks: string[] = [];
+  let asking = 0;
+  // The server's address, whole: the dev server also serves two source files
+  // named `orders/waiting…`, and the first count of "asks" was of those.
+  const theAsk = (url: string) => url.startsWith(`${API}/orders/waiting`);
+  page.on("request", (r) => { if (theAsk(r.url())) { asks.push(r.url()); asking += 1; } });
+  page.on("requestfinished", (r) => { if (theAsk(r.url())) asking -= 1; });
+  page.on("requestfailed", (r) => { if (theAsk(r.url())) asking -= 1; });
+  // Taking the order rang this shop's own bell, and the bell's news is one
+  // more asking. Waited for by what the device has HEARD, not by the clock:
+  // the first run of this waited for "the next answer from the bell" and
+  // counted the asking that answer caused.
+  const rung = (await get<Array<{ id: string; type: string }>>(request, "/notifications?page=1")).find((n) => n.type.startsWith("order."));
+  expect(rung, "taking an order rang nobody's bell").toBeTruthy();
+  await expect.poll(async () => (await keptOnTheDevice(page))?.heard, { timeout: 45_000, message: "the bell's news of the order just taken was never acted on" }).toBe(rung!.id);
+  await expect.poll(() => asking, { message: "the count was still being asked for" }).toBe(0);
+  expect((await keptOnTheDevice(page))?.count, "the device has not kept what the menu shows").toMatchObject(unanswered);
+  asks.length = 0;
+
+  // …from a screen that is not Orders, too — the app opened afresh, and the
+  // count is there without the server being asked for it.
+  await page.goto("/tenant");
+  await expect(railCount).toHaveAttribute("aria-label", railSays(unanswered), { timeout: 15_000 });
+  await page.waitForLoadState("networkidle");
+  expect(asks, "opening the app again asked for a count the device already had").toHaveLength(0);
+
+  // An order taken at ANOTHER counter. This screen did nothing and is on
+  // another page: it is the bell that says so, and only then is the count
+  // asked for — once.
+  const menu = await get<Array<Row & { name: string; id: string }>>(request, `/products?search=${encodeURIComponent("E2E Phone")}&per_page=20`);
+  const taken = await request.post(`${API}/orders`, {
+    headers: foodAuth(),
+    data: {
+      channel: "phone", fulfillment_type: "pickup", customer_name: ELSEWHERE, customer_phone: "03001230001",
+      items: [{ product_id: menu.find((p) => p.name === PLAIN.name)!.id, quantity: 1 }], idempotency_key: randomUUID(),
+    },
+  });
+  expect(taken.ok(), `the other counter's order could not be taken (${taken.status()} ${await taken.text()})`).toBeTruthy();
+  const elsewhere = ((await taken.json()) as { data: { id: string } }).data.id;
+  const both = await waiting(request);
+  expect(both).toEqual({ new: unanswered.new + 1, being_worked: unanswered.being_worked + 1 });
+  await expect(railCount, "an order taken at another counter never reached this menu").toHaveAttribute("aria-label", railSays(both), { timeout: 50_000 });
+  expect(asks.length, "one piece of news on the bell was asked about more than once").toBe(1);
+
+  // Called off there, too — and back on the Orders screen the menu is told
+  // by the screen's own list, which is where the two must agree.
+  const off = await request.post(`${API}/orders/${elsewhere}/cancel`, { headers: foodAuth(), data: { reason: "The other counter's test order" } });
+  expect(off.ok(), `the other counter's order could not be called off (${off.status()})`).toBeTruthy();
+  await page.goto("/tenant/orders");
+  await expect(railCount, "the menu and the Orders screen disagree about how many orders there are").toHaveAttribute("aria-label", railSays(unanswered), { timeout: 15_000 });
 
   // ── confirmed is not cooking ───────────────────────────────────────
   await card(page, number).getByRole("button", { name: "Confirm" }).click();
   await expect(column(page, "Accepted").locator(card(page, number))).toBeVisible({ timeout: 15_000 });
   expect(await onThePass(request, number), "the kitchen was told to cook an order nobody had started").toHaveLength(0);
+  // Accepted, it is still being worked — and no longer new: the count moves
+  // with the press, not half a minute after it, and stops blinking when the
+  // last new one is answered.
+  const answered = await waiting(request);
+  expect(answered).toEqual({ new: unanswered.new - 1, being_worked: unanswered.being_worked });
+  await expect(railCount).toHaveAttribute("aria-label", railSays(answered), { timeout: 10_000 });
+  if (answered.new === 0) await expect(railCount, "it still blinks with nothing new").not.toHaveAttribute("data-alert", "");
 
   // ── "Start preparing" tells the kitchen ────────────────────────────
   await card(page, number).getByRole("button", { name: number, exact: true }).click();
@@ -404,4 +504,84 @@ test("taken for later, it waits as New — the kitchen hears at Start preparing,
   expect(mine.cancel_reason, "the customer is told a reason nobody typed").toBe("The caller rang back");
   await expect.poll(async () => (await onThePass(request, number)).length, { message: "a cook is making a meal nobody will collect" }).toBe(0);
   await expect(card(page, number), "a cancelled order is still on the board").toHaveCount(0, { timeout: 15_000 });
+});
+
+test("a delivery says it is one — and going out asks who is carrying it, without insisting", async ({ page, request }, info) => {
+  test.skip(info.project.name !== "restaurant", "one pair of orders out of the door is enough; the sheet is a sheet on every size");
+
+  const dishes = await get<Array<Row & { name: string; id: string }>>(request, `/products?search=${encodeURIComponent("E2E Phone")}&per_page=20`);
+  const biryani = dishes.find((p) => p.name === PLAIN.name)!;
+  /** A delivery, taken and already being prepared — the step before the door. */
+  const aDelivery = async (): Promise<Row & { id: string; order_number: string }> => {
+    const res = await request.post(`${API}/orders`, {
+      headers: foodAuth(),
+      data: {
+        channel: "phone", fulfillment_type: "delivery", customer_name: CALLER, customer_phone: "03001230000",
+        delivery_address: "12-B, Johar Town", items: [{ product_id: biryani.id, quantity: 1 }], send_to_kitchen: true,
+        idempotency_key: randomUUID(),
+      },
+    });
+    expect(res.ok(), `a delivery could not be taken (${res.status()} ${await res.text()})`).toBeTruthy();
+
+    return ((await res.json()) as { data: Row & { id: string; order_number: string } }).data;
+  };
+  const now = async (id: string) => get<Row & { status: string; rider_id: string | null }>(request, `/orders/${id}`);
+  const riders = await get<Array<Row & { id: string; name: string; is_active: boolean }>>(request, "/riders");
+  expect(riders.some((r) => r.is_active), "this restaurant has no rider to give an order to").toBeTruthy();
+
+  const first = await aDelivery();
+  const second = await aDelivery();
+  await page.goto("/tenant/orders");
+
+  // ── a delivery says it is one, and that nobody has it ──────────────
+  const one = card(page, first.order_number);
+  await expect(column(page, "Being prepared").locator(one)).toBeVisible({ timeout: 20_000 });
+  await expect(one.locator('[data-how="delivery"]')).toHaveText("Delivery");
+  await expect(one.getByText("no rider")).toBeVisible();
+
+  // ── the step asks ──────────────────────────────────────────────────
+  await one.getByRole("button", { name: "Out for delivery" }).click();
+  const asked = page.getByRole("dialog", { name: `Who is carrying ${first.order_number}?` });
+  await expect(asked, "an order left the shop without anybody being asked who had it").toBeVisible();
+  await expect(asked).toContainText("12-B, Johar Town");
+  report([...(await nothingIsWrittenUnderAButton(page)), ...(await everyRule(page))], "the rider question");
+
+  // Closing it is not an answer: the order has not left.
+  await page.keyboard.press("Escape");
+  await expect(asked).toBeHidden();
+  expect((await now(first.id)).status, "closing the question sent the order out").toBe("preparing");
+
+  // ── …and does not insist ───────────────────────────────────────────
+  await one.getByRole("button", { name: "Out for delivery" }).click();
+  await asked.getByRole("button", { name: "Send without a rider" }).click();
+  await expect(asked).toBeHidden({ timeout: 15_000 });
+  await expect.poll(async () => (await now(first.id)).status, { message: "it would not go without a rider" }).toBe("out_for_delivery");
+  expect((await now(first.id)).rider_id).toBeNull();
+  await expect(column(page, "Ready · on the way").locator(one)).toBeVisible({ timeout: 15_000 });
+
+  // ── with a name on it: the rider is on the order BEFORE it leaves ──
+  const two = card(page, second.order_number);
+  await two.getByRole("button", { name: "Out for delivery" }).click();
+  const again = page.getByRole("dialog", { name: `Who is carrying ${second.order_number}?` });
+  // ("Send with …", not "Send without a rider" — one is the other's first nine letters.)
+  const send = again.getByRole("button", { name: /^(Send with\s|Choose a rider)/ });
+  const offered = again.getByRole("radio");
+  if ((await offered.count()) > 1) await expect(send, "a rider is chosen for a shop that has several").toBeDisabled();
+  await offered.first().click();
+  await expect(send).toHaveText(/^Send with\s/);
+  await send.click();
+  await expect(again).toBeHidden({ timeout: 15_000 });
+  await expect.poll(async () => (await now(second.id)).status).toBe("out_for_delivery");
+  const carried = await now(second.id);
+  expect(carried.rider_id, "it left with a rider chosen and nobody's name on it").not.toBeNull();
+  expect(riders.map((r) => r.id)).toContain(carried.rider_id);
+  await expect(two.getByText("no rider")).toHaveCount(0);
+  await expect(two).toContainText("Rider");
+
+  // Asked once: somebody is on it now, so the next step is not a question.
+  await two.getByRole("button", { name: "Complete" }).click();
+  await expect.poll(async () => (await now(second.id)).status).toBe("completed");
+  await expect(page.getByRole("dialog", { name: /Who is carrying/ })).toHaveCount(0);
+
+  await nobodyIsWaiting(request);
 });

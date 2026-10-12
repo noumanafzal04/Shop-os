@@ -29,6 +29,8 @@ import { useAuthStore } from "../stores/authStore";
 import { homeForRole } from "../common/routing/guards";
 import { canVisitAdmin } from "../common/routing/adminScreenPermissions";
 import { useAdminInbox } from "../modules/admin/hooks/useAdmin";
+import { useOrdersWaiting } from "../modules/orders/hooks/useOrders";
+import { ORDERS_PATH, withOrdersWaiting } from "./ordersWaiting";
 import { usePrimaryBusinessType } from "../common/tenant/businessType";
 import { kindOfBusiness } from "../common/tenant/kindOfBusiness";
 import { DEFAULT_SIDEBAR } from "../common/theme/tenantTheme";
@@ -196,9 +198,13 @@ const AppSidebar: React.FC = () => {
   // Only asked for on the platform side, and only then — the shop rail has no
   // use for it and an enabled:false query is how a hook stays a hook.
   const inbox = useAdminInbox(isAdmin);
+  const shopItems = isAdmin ? [] : shopNav(features, businessType, mode, multiBranch, can, mine, secondPlace);
+  // The count beside Orders — asked only by a rail that HAS that row, so a
+  // shop that takes no orders, or a person who may not work them, asks nothing.
+  const waiting = useOrdersWaiting(shopItems.some((item) => item.path === ORDERS_PATH));
   const navItems = isAdmin
     ? adminNav(adminMainItems, role === "super_admin", permissions, inbox.data)
-    : shopNav(features, businessType, mode, multiBranch, can, mine, secondPlace);
+    : withOrdersWaiting(shopItems, waiting.data);
   // Second group: platform config for admins; unused on the shop side.
   const othersItems: NavItem[] = isAdmin
     ? adminNav(adminPlatformItems, role === "super_admin", permissions)
@@ -431,16 +437,31 @@ const AppSidebar: React.FC = () => {
                         the icon carries a dot. Losing the count is fine;
                         losing the fact that somebody is waiting is not. */}
                     {!showLabels && (nav.badge ?? 0) > 0 && (
-                      <span className="rail-count absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-gray-900" />
+                      <span
+                        // Named here too: on a rail of icons this dot is all there is.
+                        role="img"
+                        aria-label={nav.badgeSays ?? `${nav.badge} waiting`}
+                        className={`rail-count absolute -right-1 -top-0.5 size-2 rounded-full bg-brand-500 ring-2 ring-white dark:ring-gray-900 ${nav.alert ? "rail-alert" : ""}`}
+                      >
+                        {nav.alert && <span aria-hidden="true" className="rail-blink absolute inset-0 rounded-full motion-safe:animate-ping" />}
+                      </span>
                     )}
                   </span>
                   {showLabels && <span className="menu-item-text truncate">{nav.name}</span>}
                   {showLabels && (nav.badge ?? 0) > 0 && (
-                    <span
-                      className="rail-count ml-auto grid min-w-5 shrink-0 place-items-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white"
-                      aria-label={`${nav.badge} waiting`}
-                    >
-                      {(nav.badge ?? 0) > 99 ? "99+" : nav.badge}
+                    <span className="relative ml-auto grid shrink-0 place-items-center">
+                      {/* THE BLINK — a ring that spreads from the count and
+                          fades, as the bell's does. Only for something NEW,
+                          and never for a reader who asked for no motion. */}
+                      {nav.alert && <span aria-hidden="true" className="rail-blink absolute inset-0 rounded-full motion-safe:animate-ping" />}
+                      <span
+                        data-testid={nav.path === ORDERS_PATH ? "orders-waiting" : undefined}
+                        data-alert={nav.alert ? "" : undefined}
+                        className={`rail-count relative grid min-w-5 place-items-center rounded-full bg-brand-500 px-1.5 text-[11px] font-bold tabular-nums text-white ${nav.alert ? "rail-alert" : ""}`}
+                        aria-label={nav.badgeSays ?? `${nav.badge} waiting`}
+                      >
+                        {(nav.badge ?? 0) > 99 ? "99+" : nav.badge}
+                      </span>
                     </span>
                   )}
                 </Link>

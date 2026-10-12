@@ -25,7 +25,7 @@ const TRADES: TradeCode[] = [
  */
 export function SiteFooter() {
   return (
-    <footer className="border-t border-white/10 bg-gray-950 text-gray-400">
+    <footer className="landing-night border-t border-white/10 text-gray-400">
       <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
           <div>

@@ -255,6 +255,8 @@ export const ordersService = {
         page: params.page ?? 1,
       },
     }),
+  /** Two numbers for the menu's count — one small query, not the list. */
+  waiting: () => apiGet<{ new: number; being_worked: number }>("/orders/waiting"),
   takeOrder: (payload: CounterOrderPayload) => apiPost<OwnerOrder>("/orders", payload),
   /** What it will come to. Nothing is written — see OrderService::worth. */
   worth: (asked: OrderAsked) => apiPost<OrderWorth>("/orders/worth", asked),

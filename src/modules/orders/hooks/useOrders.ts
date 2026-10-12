@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from "react";
 import {
   keepPreviousData,
   useMutation,
@@ -13,6 +14,11 @@ import {
   type PlaceOrderPayload,
 } from "../services/ordersService";
 import { uuid } from "../../../common/uuid";
+import type { OrdersWaiting } from "../../../layout/ordersWaiting";
+import { useAuthStore } from "../../../stores/authStore";
+import { useNotifications } from "../../notifications/hooks/useNotifications";
+import { HEAL_AFTER, heardAt, isNews, keptFor, newestOrderNews, ownerOf } from "../waitingCount";
+import { useWaitingStore } from "../waitingStore";
 
 export function useMyOrders(page = 1) {
   return useQuery({
@@ -88,6 +94,80 @@ export function useShopOrders(params: OrderQueueFilters, enabled = true) {
     placeholderData: keepPreviousData,
     refetchInterval: 30_000, // new orders surface without manual refresh
   });
+}
+
+/** Where the count beside "Orders" lives in the cache. Under `["orders"]`, on purpose. */
+const WAITING = ["orders", "shop", "waiting"] as const;
+
+/**
+ * How many orders are waiting — for the count beside "Orders" on the menu.
+ *
+ * KEPT, and asked for again only when an order was made or has moved; why,
+ * and the one exception, are in `waitingCount.ts`. In short:
+ *
+ *   a reload           shows what was kept and asks nothing, inside two minutes
+ *   this device        its own taking, confirming and cancelling invalidate
+ *                      the `["orders"]` key this lives under
+ *   another device     a new order rings the bell, and the bell's news asks
+ *   the Orders screen  tells it directly — `useTellTheMenu`
+ *   nobody             after two minutes with no word, it asks once
+ */
+export function useOrdersWaiting(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const owner = useAuthStore((s) => ownerOf(s.user?.tenant?.id, s.user?.id));
+  const kept = useWaitingStore((s) => keptFor(s.kept, owner));
+  const keep = useWaitingStore((s) => s.keep);
+  const hear = useWaitingStore((s) => s.hear);
+  const on = enabled && owner !== null;
+  const held = on ? kept?.count : undefined;
+
+  const query = useQuery({
+    queryKey: WAITING,
+    queryFn: async () => (await ordersService.waiting()).data,
+    enabled: on,
+    // What the device kept is what the menu opens with — and how old it is
+    // decides whether the server is asked at all.
+    initialData: held ? { new: held.new, being_worked: held.being_worked } : undefined,
+    initialDataUpdatedAt: () => (held ? heardAt(held, Date.now()) : undefined),
+    staleTime: HEAL_AFTER,
+    // The exception: two minutes with no word from anywhere. Any answer —
+    // asked for, or told by the Orders screen — starts the two minutes again.
+    refetchInterval: HEAL_AFTER,
+  });
+
+  // Whatever was last said is kept, whoever said it.
+  const { data, dataUpdatedAt } = query;
+  const keptAt = kept?.count?.at;
+  useEffect(() => {
+    if (!on || owner === null || data === undefined || dataUpdatedAt === 0 || keptAt === dataUpdatedAt) return;
+    keep(owner, { new: data.new, being_worked: data.being_worked, at: dataUpdatedAt });
+  }, [on, owner, data, dataUpdatedAt, keptAt, keep]);
+
+  // The bell. It is asked by the header anyway; this only reads what it said.
+  const bell = useNotifications(1);
+  const news = on ? newestOrderNews(bell.data?.data) : undefined;
+  const heard = kept?.heard;
+  useEffect(() => {
+    if (!on || owner === null || news === undefined || heard === news) return;
+    if (isNews(heard, news)) queryClient.invalidateQueries({ queryKey: WAITING });
+    hear(owner, news);
+  }, [on, owner, news, heard, hear, queryClient]);
+
+  return query;
+}
+
+/**
+ * The Orders screen has the figure in its own list — the same count of the
+ * same orders — so it tells the menu, and the menu does not ask.
+ *
+ * It is also what keeps the two from disagreeing on one screen: the board is
+ * asked every half minute while it is open, and a count beside it that was
+ * two minutes old would say four over three cards.
+ */
+export function useTellTheMenu(): (waiting: OrdersWaiting) => void {
+  const queryClient = useQueryClient();
+
+  return useCallback((waiting: OrdersWaiting) => { queryClient.setQueryData(WAITING, waiting); }, [queryClient]);
 }
 
 export function useOrderActions() {

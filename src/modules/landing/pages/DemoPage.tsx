@@ -30,7 +30,7 @@ const TRADES: Array<{ code: TradeCode; label: string; blurb: string }> = [
   { code: "pharmacy", label: "Pharmacy", blurb: "Batches, expiry, prescriptions" },
   { code: "retail", label: "Retail store", blurb: "Sizes, colours, warranty" },
   { code: "wholesale", label: "Wholesale & distribution", blurb: "Cartons, dealer accounts, a warehouse" },
-  { code: "services", label: "Salon & services", blurb: "Selling an hour, not a thing" },
+  { code: "services", label: "Services", blurb: "Selling a job, not a thing" },
   { code: "automotive", label: "Auto & tyre", blurb: "Bay board, vehicle history" },
   { code: "petroleum", label: "Petrol pump", blurb: "Meter rolls, dips, shifts" },
   { code: "finance", label: "Finance", blurb: "Every rupee, in and out" },

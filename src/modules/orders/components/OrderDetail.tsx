@@ -8,6 +8,7 @@ import { Modal } from "../../../components/ui/modal";
 import { nextStep } from "../orderFlow";
 import { STAGE } from "./orderStage";
 import type { OrderStatus, OwnerOrder, Rider } from "../services/ordersService";
+import { HowItReaches } from "./HowItReaches";
 import { shopDateTime } from "../../../common/format/date";
 
 /**
@@ -77,8 +78,11 @@ export function OrderDetail({
               </span>
             </p>
           </div>
-          <span className={`shrink-0 rounded-lg px-2.5 py-1 text-theme-xs font-semibold ${stage.chip}`}>
-            {stage.label}
+          <span className="flex shrink-0 flex-col items-end gap-1.5">
+            <span className={`rounded-lg px-2.5 py-1 text-theme-xs font-semibold ${stage.chip}`}>
+              {stage.label}
+            </span>
+            <HowItReaches how={delivery ? "delivery" : "pickup"} />
           </span>
         </div>
       </header>

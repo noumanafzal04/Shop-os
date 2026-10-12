@@ -47,6 +47,15 @@ export type NavItem = {
    */
   badge?: number;
   /**
+   * The count is of something NEW that nobody has answered — an order placed
+   * and not yet accepted. It is drawn the colour of a notification and blinks
+   * (never for a reader who has asked for no motion). Without it a count is
+   * steady. See `ordersWaiting.ts`.
+   */
+  alert?: boolean;
+  /** What the count means, for a screen reader — "4 orders being worked, 1 new". "N waiting" when left out. */
+  badgeSays?: string;
+  /**
    * Which part of the rail this row belongs to. Rows that share one are drawn
    * together under its heading; a change of section is a heading (or, on a
    * rail of icons, a hairline).
