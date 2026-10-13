@@ -685,24 +685,16 @@ class DashboardService
      */
     private function outOfStockCount(Tenant $tenant, ?string $branchId): int
     {
-        if ($branchId === null) {
-            return Product::query()
-                ->where('tenant_id', $tenant->id)
-                ->where('track_inventory', true)
-                ->where('stock_quantity', '<=', 0)
-                ->count();
-        }
-
-        return Product::query()
-            ->where('products.tenant_id', $tenant->id)
-            ->where('track_inventory', true)
-            ->leftJoin('branch_stock', function ($join) use ($branchId): void {
-                $join->on('branch_stock.product_id', '=', 'products.id')
-                    ->whereNull('branch_stock.variant_id')
-                    ->where('branch_stock.branch_id', '=', $branchId);
-            })
-            ->whereRaw('COALESCE(branch_stock.quantity, 0) <= 0')
-            ->count();
+        // THE SAME "ON HAND" AS THE COUNT ABOVE — see LowStock::soldOut.
+        //
+        // This method kept both of the blind arms that one was cured of: the
+        // product's own column, which is nought for anything sold in sizes,
+        // and a join that skipped the very rows a size's stock lives on. A
+        // rail of forty kurtas read as a kurta that had run out.
+        return LowStock::soldOut(
+            Product::query()->where('products.tenant_id', $tenant->id),
+            $branchId,
+        )->count();
     }
 
     private function expiringSoonCount(Tenant $tenant, ?string $branchId): int

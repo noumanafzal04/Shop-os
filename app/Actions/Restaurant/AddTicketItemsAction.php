@@ -11,6 +11,7 @@ use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
+use App\Support\UnitCost;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -119,8 +120,6 @@ class AddTicketItemsAction
                     (float) ($item['line_discount'] ?? 0),
                 );
 
-                $source = $variant ?? $product;
-
                 $ticket->items()->create([
                     'tenant_id' => $tenantId,
                     // Raw selection (replayed at settlement).
@@ -139,7 +138,7 @@ class AddTicketItemsAction
                     'sku' => $variant?->sku ?? $product->sku,
                     'modifiers' => $modifierSnapshot ?: null,
                     'unit_price' => $unitPrice,
-                    'unit_cost' => $source->cost !== null ? round((float) $source->cost * $factor, 2) : null,
+                    'unit_cost' => UnitCost::ofPack($product, $variant, $factor),
                     'unit_factor' => $factor,
                     'line_total' => round($gross - $lineDiscount, 2),
                     'kot_status' => 'pending',

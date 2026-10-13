@@ -67,6 +67,22 @@ class Plan extends Model
         ];
     }
 
+    /**
+     * A PLAN'S TERMS CHANGING IS NEWS FOR EVERY SHOP ON IT.
+     *
+     * What a shop may have — branches, staff, lanes, offline selling — is read
+     * from its plan, and each of its devices keeps that answer. They learn
+     * that something changed from the shop's own row (`StampTheShell`); the
+     * plan is another row, so editing it touches the shops that are on it.
+     * One update, on an action an admin takes a few times a year.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (self $plan): void {
+            Tenant::query()->where('plan_id', $plan->getKey())->toBase()->update(['updated_at' => now()]);
+        });
+    }
+
     public function tenants(): HasMany
     {
         return $this->hasMany(Tenant::class);

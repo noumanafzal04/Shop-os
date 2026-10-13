@@ -27,6 +27,7 @@ use App\Support\ModifierResolver;
 use App\Support\Permissions;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
+use App\Support\UnitCost;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -347,7 +348,6 @@ class OrderService
 
                     // 86 is asked AFTER the branch is chosen — see below.
 
-                    $source = $variant ?? $product;
                     $qty = (float) $item['quantity'];
 
                     // Pack-breaking (parity with the POS): an online line may be a
@@ -399,7 +399,7 @@ class OrderService
                     $lines[] = compact('product', 'variant', 'unit', 'factor', 'qty') + [
                         'unit_price' => $unitPrice,
                         // Cost tracks base units — a pack's cost is base cost × factor.
-                        'unit_cost' => $source->cost !== null ? round((float) $source->cost * $factor, 2) : null,
+                        'unit_cost' => UnitCost::ofPack($product, $variant, $factor),
                         'line_total' => $lineTotal,
                         'modifiers' => $modifierSnapshot,
                     ];

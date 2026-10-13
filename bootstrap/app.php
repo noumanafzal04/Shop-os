@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\ResolveBranch;
 use App\Http\Middleware\ResolveRegister;
 use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\StampTheShell;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -107,6 +108,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(
             fn (Request $request) => $request->is('api/*') ? null : '/',
         );
+
+        // Every signed-in answer says whether the handful of answers a device
+        // keeps for the shell still stand — see the middleware. Appended to
+        // the group, so it wraps the route's own middleware and reads the
+        // person and their shop once those have been resolved.
+        $middleware->api(append: [StampTheShell::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

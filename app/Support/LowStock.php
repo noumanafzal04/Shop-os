@@ -56,6 +56,51 @@ final class LowStock
     }
 
     /**
+     * Narrow `$query` to the products with NOTHING left to sell.
+     *
+     * No reorder level is needed for this one: an item nobody set a level for
+     * is still out at zero. What it does need is the same idea of "on hand"
+     * as everything else in this class — and it did not have it. The
+     * dashboard's count read `products.stock_quantity`, which for a design
+     * sold in sizes is always nought, so a clothing shop with forty kurtas on
+     * the rail was told across the top of its dashboard that the kurta had
+     * run out. Every design, every day: "4 items have run out" in a shop
+     * where one had. It was the fault `apply` was written to end, left
+     * standing in the method beside it.
+     *
+     * A design is out when ALL of it is — the sum of its sizes. One size
+     * gone is a gap on the rail, and the till says so where the size is
+     * chosen; the design still sells.
+     *
+     * @param  Builder<\App\Models\Product>  $query
+     * @param  string|null  $branchId  the branch being operated, or null for the whole shop
+     * @return Builder<\App\Models\Product>
+     */
+    public static function soldOut(Builder $query, ?string $branchId = null): Builder
+    {
+        return $query
+            ->where('track_inventory', true)
+            ->when(
+                $branchId !== null,
+                fn (Builder $q): Builder => $q->whereRaw(
+                    '(select coalesce(sum(bs.quantity), 0) from branch_stock bs'
+                    .' where bs.product_id = products.id and bs.branch_id = ?) <= 0',
+                    [$branchId],
+                ),
+                fn (Builder $q): Builder => $q->where(fn (BuilderContract $where) => $where
+                    ->where(fn (BuilderContract $x) => $x
+                        ->whereDoesntHave('variants')
+                        ->where('stock_quantity', '<=', 0))
+                    ->orWhere(fn (BuilderContract $x) => $x
+                        ->whereHas('variants')
+                        ->whereRaw(
+                            '(select coalesce(sum(pv.stock_quantity), 0) from product_variants pv'
+                            .' where pv.product_id = products.id and pv.deleted_at is null) <= 0',
+                        ))),
+            );
+    }
+
+    /**
      * On hand across the whole shop: the sizes if there are any, else the
      * product's own column. Split in two rather than written as one
      * `coalesce`, because "has no variants" and "has variants summing to zero"

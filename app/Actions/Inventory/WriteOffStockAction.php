@@ -10,6 +10,7 @@ use App\Models\StockDisposal;
 use App\Models\User;
 use App\Services\InventoryService;
 use App\Support\DocumentCounter;
+use App\Support\UnitCost;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -91,9 +92,7 @@ class WriteOffStockAction
                 );
             }
 
-            $unitCost = $variant?->cost !== null
-                ? (float) $variant->cost
-                : ($product->cost === null ? null : (float) $product->cost);
+            $unitCost = UnitCost::of($product, $variant);
 
             $disposal = StockDisposal::query()->create([
                 'branch_id' => $branchId,

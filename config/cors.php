@@ -46,7 +46,11 @@ return [
      * `export (1).csv`, then `export (2).csv`. Nine screens' worth of files
      * nobody could tell apart in a downloads folder.
      */
-    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper', 'Content-Disposition'],
+    // …and X-Shell-Stamp, which every signed-in answer carries so a device
+    // knows when to ask again for what it keeps (StampTheShell). Hidden, the
+    // panel still works — it falls back to trusting kept answers for a few
+    // minutes — but a change made elsewhere then takes those minutes to show.
+    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper', 'Content-Disposition', 'X-Shell-Stamp'],
 
     'max_age' => 0,
 

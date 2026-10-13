@@ -354,6 +354,24 @@ class ReportService
 
         $kept = 'sale_items.quantity - COALESCE(returned.qty, 0)';
 
+        // ── AND THE TAX INSIDE THE PRICE COMES OFF ──────────────────
+        //
+        // What an item EARNED is what the shop keeps of its price. Where tax
+        // is added on top, a line's total has never had the tax in it and the
+        // margin was right. Where the shelf price INCLUDES the tax — a
+        // clothing shop, a bakery, most retail — the line's total is the
+        // shelf price, tax and all, and this report struck its profit straight
+        // from it: a suit sold at 5,490 that cost 3,200 "made 2,290, a 41.7%
+        // margin", with 837 of that 2,290 belonging to the government. The
+        // Overview tab beside it had been cured of exactly this
+        // (`ProfitIsNotTheTaxTest`); the two tabs disagreed by the day's tax.
+        //
+        // Each line carries the rate it was sold at, so its own tax is taken
+        // back out of it. Both kinds of shop then read the same thing here:
+        // what was charged for the goods, before tax.
+        $line = 'sale_items.line_total - COALESCE(returned.total, 0)';
+        $earned = "CASE WHEN sales.tax_inclusive = 1 THEN ({$line}) / (1 + COALESCE(sale_items.tax_rate, 0) / 100.0) ELSE ({$line}) END";
+
         $rows = SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->leftJoin('products', 'products.id', '=', 'sale_items.product_id')
@@ -370,7 +388,7 @@ class ReportService
                 'sale_items.variant_name as variant_name',
                 "COALESCE(categories.name, 'Uncategorized') as category_name",
                 "SUM({$kept}) as units",
-                'SUM(sale_items.line_total - COALESCE(returned.total, 0)) as revenue',
+                "SUM({$earned}) as revenue",
                 "SUM(sale_items.unit_cost * ({$kept})) as cogs",
             ]))
             ->get();
@@ -619,7 +637,16 @@ class ReportService
             'period' => ['from' => $from, 'to' => $to],
             'totals' => [
                 'taxable_sales' => (clone $sales)->where('tax', '>', 0)->count(),
-                'net_sales' => round((float) (clone $sales)->sum('subtotal') - (float) (clone $sales)->sum('discount'), 2),
+                // BEFORE tax, whichever way the shop prices. Where tax goes on
+                // top, the subtotal never had it. Where the shelf price
+                // includes it, the subtotal IS the shelf price — and this read
+                // "net sales 30,060" beside "gross sales 30,060" with four
+                // thousand of tax collected between them.
+                'net_sales' => round(
+                    (float) (clone $sales)->sum('subtotal') - (float) (clone $sales)->sum('discount')
+                    - (float) (clone $sales)->where('tax_inclusive', true)->sum('tax'),
+                    2,
+                ),
                 'tax_collected' => $collected,
                 'tax_refunded' => $refunded,
                 'tax_payable' => round($collected - $refunded, 2),

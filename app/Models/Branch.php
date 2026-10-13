@@ -79,6 +79,25 @@ class Branch extends BaseModel
     protected static function booted(): void
     {
         /**
+         * A PLACE OPENED, RENAMED OR CLOSED IS NEWS FOR THE WHOLE SHOP.
+         *
+         * Every device in the shop keeps the list of places, and how many
+         * there are decides which screens its menu shows. They learn that
+         * something changed from the shop's own row (`StampTheShell`), and a
+         * branch is not a column on it — so the shop is touched here.
+         *
+         * By a plain update, not `$touches`: that would load the shop and
+         * fire its `saved` listeners for a change nobody made to it.
+         */
+        $shopChanged = function (self $branch): void {
+            if ($branch->tenant_id !== null) {
+                Tenant::query()->whereKey($branch->tenant_id)->toBase()->update(['updated_at' => now()]);
+            }
+        };
+        static::saved($shopChanged);
+        static::deleted($shopChanged);
+
+        /**
          * MAIN IS A SHOP, ALWAYS.
          *
          * Every write that names no branch lands on the default one — a sale

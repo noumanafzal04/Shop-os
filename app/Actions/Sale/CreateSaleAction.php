@@ -38,6 +38,7 @@ use App\Support\RegisterContext;
 use App\Support\ShopDay;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
+use App\Support\UnitCost;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -2111,11 +2112,10 @@ class CreateSaleAction
             return round($recipe * $factor, 2);
         }
 
-        // Nothing cookable here: fall back to what was PAID for it, and a
-        // size's own purchase cost beats the parent's.
-        $bought = $variant ?? $product;
-
-        return $bought->cost !== null ? round((float) $bought->cost * $factor, 2) : null;
+        // Nothing cookable here: fall back to what was PAID for it. A size's
+        // own purchase cost beats the design's — and a size with none of its
+        // own costs what the design costs, not nothing (UnitCost).
+        return UnitCost::ofPack($product, $variant, $factor);
     }
 
     private function bankOffer(
