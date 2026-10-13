@@ -32,4 +32,6 @@ the stored reading, and cannot refuse a stored reading nobody took.
 - count went 19 → 11 → 5 over two passes; the survivors all have plausible
   column defaults.
 
+**4th, 2026-10-13 — a line ABSENT from a list.** Receiving a PO: a line left out of `items` meant "all of it arrived"; the sheet leaves out a line set to 0, so goods still at the mill went into stock and were owed for. Same family: an absence read as the generous default. A sent list is the whole answer; only NO list means "everything" (`AReceiptSaysWhatArrivedTest`).
+
 Related: [[shopos-edit-matrix]], [[shopos-silent-nulls]], [[shopos-detector-vs-rule]].

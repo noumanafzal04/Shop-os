@@ -1,0 +1,269 @@
+# System test, phase by phase — start here
+
+**For a new chat:** "Read `docs/qa/SYSTEM-TEST.md`. Follow its rules. Continue
+from the first phase that is not PASS. After every thing you test, add a line
+to the log at the bottom of this file."
+
+The whole system is NOT tested in one go. One phase per session; a phase ends
+with its checklist ticked, its bugs fixed (or written down), and the log updated.
+
+Older guides this file builds on (read only when a phase points to them):
+`FULL-TEST-FLOW.md` (layers and gates), `QA-SWEEP-RUNBOOK.md` (cross-trade
+sweep), `TRADE-DAY-PLAN.md` (one day per trade), `journey/CASES.md` + `journey/RUNS.md`
+(the Playwright journey and its run list).
+
+---
+
+## 1. Rules
+
+| Rule | Why |
+|---|---|
+| Nothing on live (`panel.cartze.shop`, `cartze.shop`, the droplet). The user deploys. | Real shops. |
+| Dev data (`shopos` DB) is made and changed only through the app (screens or API). Never SQL, never `migrate:fresh`. `shopos_test` is the only DB a test may wipe. | The user tests on the same DB. |
+| Do not stop the user's servers: backend `:8000`, panel `:5177`. (`:5173`, `:5180` are other projects.) | They are testing by hand. |
+| Changing code while the user tests or a suite runs → change a copy (backend `:8001`, panel `:5198`) and land it later. | A half-made change must not reach their screen. |
+| **HR is out**: Basic HR module, attendance, biometric, payroll — do not test, do not build. | Not in this version. |
+| There are no roles, only permissions. Cashier, stock keeper, manager… are permission SETS (`backend/app/Support/StaffPresets.php`). Test the permission, not the name. | A role check would be the wrong fix. |
+| Never run phpunit / the whole vitest / a build beside a Playwright suite. | They fight for the machine and fail for no reason. |
+| `./vendor/bin/pint <changed files>` — never the whole repo. No currency mark (Rs/PKR) in a PHP/TS file. Never rename `shopos-*` storage keys. Never format a date the browser's way. | Standing guards in the code. |
+| No secret in a commit (tokens, keys, passwords). Scan the diff before every commit. | The repo is public. |
+| Push only when the user asks, and only after all five gates pass (section 3). | A broken build would go live. |
+
+## 2. How a check is proven
+
+A page that opens is not a PASS. Each thing tested is proven five ways:
+
+| What | How |
+|---|---|
+| The screen says it | what the person sees after the action (and after a reload) |
+| The server took it | the status code is the expected one (2xx — or the 403 / 422 the case expects) |
+| It is stored as typed | ask the API again (`qa.ask`) — every field read back, every figure to the paisa |
+| Everything that should follow did | stock, khata, cashbook, drawer, reports, dashboard all say the same figure ("the chorus") |
+| Nothing else happened | 0 console errors, no unexpected 4xx/5xx, no request repeated in one step, nothing slower than 1.2 s (`qa.report()`) |
+
+Offline: after the line comes back, check BOTH the device and the server, and
+that each sale arrived exactly once.
+
+**Results** are one of: PASS · FAIL · BLOCKED (say by what) · NOT BUILT · NOT TESTED.
+
+**A bug:** write it in the log with a priority —
+P0 data loss / one shop sees another / money or stock counted twice ·
+P1 a core flow broken, wrong money/stock/tax, a permission bypass ·
+P2 a module or sync defect · P3 looks, words, speed.
+Fix the smallest thing, add a test, and prove the test FAILS when the fix is
+taken out (mutation) — then run it again green.
+
+## 3. Tools and commands
+
+**The hand-QA kit** — `panel/e2e/qa-kit/kit.mjs` (one person, one browser, every
+API call recorded). Copy `example-walk.mjs`, name it after the phase, then:
+
+```sh
+cd panel
+node e2e/qa-kit/p1-returns.mjs                                  # against :5177 / :8000
+BASE=http://localhost:5198 API=http://localhost:8001/api/v1 node e2e/qa-kit/p1-returns.mjs   # against a copy
+```
+
+`open(email, {password, stage})` → `{page, step, shot, ask, report, close}`.
+Shots, HAR files and saved sign-ins go to `panel/test-results/qa/` (not committed).
+Sign-in allows 5 a minute; the API 240 a minute per person; a session lasts 60 minutes.
+
+**Playwright** (from `panel/`; the projects are in `playwright.config.ts`):
+
+```sh
+E2E_BASE_URL=http://localhost:5177 E2E_API_URL=http://localhost:8000/api/v1 npx playwright test --project=desktop
+npx playwright test --project=journey          # one business from empty, stage by stage
+npx playwright test e2e/offline-shift.spec.ts  # offline needs the BUILT app: leave E2E_BASE_URL unset (it builds and serves :4173)
+```
+
+Other projects: `tablet-portrait`, `tablet-landscape`, `phone`, `restaurant`,
+`restaurant-tablet`, `restaurant-phone`, `admin`, `storefront`, `doors`,
+`print-window`, `volume*`.
+
+**The five gates** (all must exit 0 before a push):
+
+```sh
+cd backend && php artisan test; echo "exit=$?"
+cd panel && npx vitest run; echo "exit=$?"
+cd panel && npm run build; echo "exit=$?"
+cd panel && npx eslint .; echo "exit=$?"
+cd panel && npx tsc -p tsconfig.e2e.json --noEmit; echo "exit=$?"
+```
+
+Judge by the exit code, not the summary line.
+
+**Volume:** `php artisan loadtest:shops` (seed 9 load-test shops) ·
+`php artisan loadtest:audit` (every figure worked out a second way) ·
+`php artisan loadtest:timings` (screen times).
+
+## 4. Shops and logins (dev DB only — none of these exist on live)
+
+| Shop | Login | Notes |
+|---|---|---|
+| **Zari Clothing** — retail, garments, plan Pro, all 21 modules | owner `sana@zariclothing.test` / `Zari-pass-1` · staff `bilal@` cashier, `usman@` stock keeper, `farah@` accounts, `hina@` manager — all `@zariclothing.test` / `Staff-pass-1` | Made by hand 2026-10-13; 9 sales; two shifts left OPEN (Sana float 5,000, Bilal 2,000). Its dashboard shows tables and kitchen because every module was given — expected. |
+| Sweep Mart (grocery) | `sweep-mart@qa.test` / `password` | Used by the desktop Playwright project. Paid to 2026-11-10. |
+| Sweep Food Restaurant | `sweep-food-restaurant@qa.test` / `password` | Restaurant projects. Paid to 2026-11-10. |
+| Sweep pharmacy / petroleum / automotive / … | `sweep-<trade>@qa.test` / `password` | Lapsed: their writes answer 403 until extended. |
+| Platform admin | ask the user | Not written here — this repo is public. |
+
+## 5. The phases
+
+| # | Phase | Status |
+|---|---|---|
+| 0 | Decisions A–D | PASS (built 2026-10-13; gates before push) |
+| 1 | A clothing shop's whole life (Zari) | PART — the first day done |
+| 2 | Who may do what | PART — 3 bugs fixed on Zari |
+| 3 | Offline and sync, the hard cases | PART — the easy cases PASS |
+| 4 | A mart (grocery) | NOT TESTED by hand |
+| 5 | Restaurant and café | PART — stages 41/42 owed |
+| 6 | Pharmacy | NOT TESTED by hand |
+| 7 | The other trades, one pass each | NOT TESTED by hand |
+| 8 | Platform admin, plans, billing | NOT TESTED by hand |
+| 9 | Bad network, errors, security | NOT TESTED |
+| 10 | Volume and speed | NOT TESTED this month |
+| 11 | Phone, tablet, keyboard | NOT TESTED against the latest code |
+| 12 | Full regression, then release | — |
+
+Order matters: money and stock first (0–3), then each kind of shop (4–7), then
+the platform (8), then the hard edges (9–11), then everything once more (12).
+
+### Phase 0 — Decisions A–D (the user answered 2026-10-13) — PASS
+
+Built and proven; full record in `docs/decisions/shopos-four-answers-from-the-owner.md`.
+Walk scripts: `panel/e2e/qa-kit/p0-cashier.mjs`, `p0-owner.mjs`.
+
+- [x] **A — a size on sale.** The bill charges the chosen size's selling price, and the list, till tile and bill say the same figure. *Answered by the user 2026-10-13:* a size with its own price → that price; a size WITHOUT its own price → the design's selling price, sale included (4,990, not 5,490). Today `Product::sellingPrice()` never discounts a size.
+- [x] **B — profit and expenses.** Today's Profit and Expenses on the dashboard only for people with a permission for it (given to the owner, manager and accounts sets; not cashier or stock keeper). Checked by the SERVER — the figure must not even be sent.
+- [x] **C — old costs.** Fill `sale_items.unit_cost` for sized lines sold before the fix ONLY from a recorded purchase or stock movement for that size. No record → stays unknown, and the margin report says so. Never guessed.
+- [x] **D — hold label.** The hold label names the ticket only. The sale's customer is set only when a customer is chosen.
+- Done when: each has a backend test and a panel test that fail with the fix taken out, and Zari shows the right figures by hand. ✔
+- Found on the way and fixed: a receipt that left a line out (a size set to 0) booked that line in full.
+- Before running C on live: deploy, note the time, run `php artisan shopos:size-costs-from-purchases --until="<that time>"` WITHOUT `--apply`, read the list, then add `--apply`.
+
+### Phase 1 — A clothing shop's whole life (Zari)
+
+Day one (made, stocked, sold, offline) is done — see the log. Still to walk, as
+the person who would really do it:
+
+- [ ] Return a size for cash: refund figure shown BEFORE the press; stock of that size back; drawer, cashbook, sale, report agree.
+- [ ] Exchange one size for another (dearer and cheaper): the difference paid / given back; both sizes' stock right.
+- [ ] Khata: sell on credit, take part payment, take the rest; customer balance, khata page, cashbook agree.
+- [ ] Purchase order raised by the manager, received by the stock keeper (`usman@`) at a chosen place; cost per size lands; supplier owed; pay the supplier. Include a size that did NOT arrive (set to 0) — fixed in Phase 0, check it by hand.
+- [ ] Move stock between two places; sell from the second; both balances right.
+- [ ] Expenses and income with categories; cashbook and reports show them.
+- [ ] Close both open shifts (counted cash vs expected), then close the day; day report = sum of the day.
+- [ ] Coupon, promotion and bank card offer at the till; the receipt and the report show the discount.
+- [ ] Quote → advance → turned into a sale.
+- [ ] Barcode labels for sizes; stocktake with a difference; a disposal.
+- [ ] Phone / online order taken and delivered.
+- [ ] The chorus: one question ("how much was sold today, and what is left of design X size M?") asked of every screen that answers it — all agree.
+
+### Phase 2 — Who may do what
+
+For each staff set in `StaffPresets.php` (Cashier, Shift supervisor, Waiter,
+Kitchen, Stock keeper, Purchasing, Online orders, Accounts, Forecourt attendant,
+Pharmacist, Manager):
+
+- [ ] The menu shows only what the set allows; hidden screens refuse when typed into the address bar.
+- [ ] The API refuses the same things directly (403), whatever the screen shows.
+- [ ] Money and cost: cost prices, profit, supplier balances not sent to those without the permission.
+- [ ] Refund, void, discount above the limit, price override — each refused without its permission, allowed with it.
+- [ ] `inventory.any_place` and the place walls: a person tied to one place cannot read or move another place's stock.
+- [ ] One shop against another: swap an id from shop B into a request from shop A (read, edit, delete) → 404/403, nothing changed.
+- [ ] Sending fields the form does not have (`tenant_id`, `cost`, `price` on a sale line, `status`) → ignored or refused.
+- [ ] A module switched off: its screens gone, its API refuses, its old records still readable where they should be.
+
+### Phase 3 — Offline and sync, the hard cases
+
+Already PASS (2026-10-13): new product reaches the device in seconds, list,
+search, scan (plain and size), unknown tag, two offline sales, tab closed,
+line back → synced once, stock down. Still to do:
+
+- [ ] The sale reached the server but the answer was lost → sent again → ONE sale.
+- [ ] Two tills sell the last piece while offline → what the server does, what each till then shows.
+- [ ] Price changed on the server while the till was offline → which price the offline sale keeps, and the bill says so.
+- [ ] Product deleted or switched off while offline → the sale still syncs or is refused clearly, never lost.
+- [ ] Session expired / staff switched off while offline → sales kept and sent when someone signs in.
+- [ ] Device storage full → a clear message, nothing lost.
+- [ ] Sign out with sales still waiting → warned; nothing lost.
+- [ ] Same device, another shop signs in → the first shop's catalogue and waiting sales never shown or sent to it.
+- [ ] Refused at sync (bad data) → shown as failed, with a reason, and can be fixed or removed.
+
+### Phase 4 — A mart (grocery)
+
+- [ ] Fast scanning; a pack and a carton (own barcode, own price); loose / weighed items.
+- [ ] Wholesale price tiers by quantity vs a sale price — the customer pays the lower.
+- [ ] Low stock → purchase order → receive → labels.
+- [ ] Expiry dates on a batch, if the shop keeps them.
+- [ ] A busy day (100+ sales) and the day close.
+
+### Phase 5 — Restaurant and café
+
+- [ ] Stage 41 and 42 of the journey (owed).
+- [ ] Waiter on a phone: table → order → kitchen ticket → kitchen screen → served → bill → split → paid.
+- [ ] Sizes and questions (modifiers) reach the kitchen and the bill; recipe stock goes down.
+- [ ] Void after the kitchen has it; a dish refused; table moved; reservations.
+- [ ] Delivery with a rider; takeaway; café counter.
+- [ ] Open questions first (section 6): orders untaxed, no offers on orders, ingredients sold.
+
+### Phase 6 — Pharmacy
+
+- [ ] Batches with expiry: the oldest risk goes first (FEFO); an expired batch is not sold.
+- [ ] Near-expiry list; return to supplier; disposal of expired stock.
+- [ ] Pharmacist set's permissions.
+
+### Phase 7 — The other trades, one pass each
+
+Services · automotive / workshop · petroleum (forecourt) · wholesale (distributor) ·
+online store · finance / books-only · a shop that trades in dollars.
+For each: make the shop, check its default modules, do its main flow once by
+hand, run its journey stage, and ask the chorus question.
+
+### Phase 8 — Platform admin, plans, billing
+
+- [ ] Make a shop of each type; the plan decides its modules; changing the plan changes what the shop sees.
+- [ ] Suspend / resume; a lapsed shop can read but not write; grace period.
+- [ ] Payments for three months; commission; announcements and banners.
+- [ ] Admin staff permissions.
+
+### Phase 9 — Bad network, errors, security
+
+- [ ] Slow network: buttons do not double-submit; Pay twice = one sale.
+- [ ] Server 500 / 503 mid-sale: nothing half-saved; a clear message.
+- [ ] 401 mid-work (session ended): back to sign-in, work not lost.
+- [ ] 429: the screen waits and says so.
+- [ ] Headers, CORS, and `X-Shell-Stamp` exposed on the live nginx (check with the user).
+
+### Phase 10 — Volume and speed
+
+- [ ] `loadtest:shops`, `loadtest:audit` (all checks pass), `loadtest:timings` — p50 / p95 per screen.
+- [ ] Requests per reload per screen (HAR): nothing asked twice.
+- [ ] A till with thousands of products offline: open time, search time.
+
+### Phase 11 — Phone, tablet, keyboard
+
+- [ ] Playwright `phone`, `tablet-portrait`, `tablet-landscape`, `restaurant-phone` on the latest code.
+- [ ] The till by keyboard only (F-keys); labels on every form field.
+
+### Phase 12 — Full regression, then release
+
+- [ ] Every Playwright project, the five gates, the offline specs on the built app.
+- [ ] A release note: what passed, what failed, what was not tested, and why.
+
+## 6. Waiting on the user
+
+- (A answered 2026-10-13 — built in Phase 0.)
+- Restaurant: orders carry no tax; no promotions on orders; an "ingredient — not sold" item can be sold; are Reservations tables?
+
+## 7. Log — newest first
+
+Format: `date · phase · shop / who · what · how · result · bugs (commit) · not done`
+
+- **2026-10-13 · 0 · Zari / bilal, sana, farah, usman (copy stack :5198/:8001)** · built A–D; walked by hand: cashier's dashboard (profit/expenses null in the answer, no tiles), the suit's sizes 4,990 on sheet/cart/bill with no server correction, held as "QA blue shirt" → resumed → paid → sale has no customer (INV-000010); owner + accounts see both figures, stock keeper neither · `p0-cashier.mjs`, `p0-owner.mjs`; specs `till-tenders`, `labels-sheet`, `dashboard-period` (20 passed); 4 new backend tests (26 cases), 7 panel test files; 41 mutations all caught · PASS · found + fixed: a receipt with a line left out booked it in full (P1, stock + money) · not done: journey stage 07 (only its selector changed) not re-run; C not applied anywhere (dev dry run: 2,438 lines, 0 would change — no receipts for those sizes).
+- **2026-10-13 · 0 · —** · the user answered A: a size with no price of its own takes the design's sale price (4,990).
+- **2026-10-13 · tools · Zari / sana** · the hand-QA kit moved into the repo (`panel/e2e/qa-kit/`) · example walk against :5177 · PASS (6 requests, 0 refused, 0 console errors).
+- **2026-10-13 · 3 · Zari / bilal** · offline: new product on the device without a reload; list, name search, scan (plain + size), empty size refused, unknown tag message; two sales rung offline (OFF-TILL-C8U7-000001/2); tab closed; line back on Products · kit scripts, checked on the device and through the API · PASS: both synced once, stock down · —
+- **2026-10-13 · 1, 2 · Zari / all five people** · shop made by the admin (retail, garments, Pro, 21 modules); categories, sizes, designs, stock, 4 staff from the sets; 7 sales by hand (Rs 30,060; cash 13,180; drawer 18,180; tax 4,186.73; khata 2,950) · kit scripts + HAR + every figure asked of the API · 7 bugs FIXED (backend `a710e42`, panel `d176571`): size cost, margins with tax included, tax report net sales, out-of-stock count, stock keeper walled out of purchases, cashier offered refund/cancel, Subscription 403 · 4 decisions → Phase 0 · not walked: everything in the Phase 1 list.
+- **2026-10-13 · 10 · all screens** · a reload asks nothing it already has; server stamp tells the device when to ask again · HAR per screen · dashboard 8 → 1 requests, products 9 → 2, sales 10 → 3, till 14 → 8 · pushed `a710e42` / `d176571`.
+
+Full write-up of the Zari day: `docs/decisions/shopos-a-clothing-shop-lived-by-hand.md`; earlier runs: `journey/RUNS.md`.

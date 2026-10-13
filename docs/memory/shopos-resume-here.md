@@ -1,12 +1,16 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-13 (afternoon) — THIRD PUSH: a reload asks nothing (kept + server stamp) and seven bugs from a clothing shop lived by hand. FOUR DECISIONS AWAIT THE USER. NEXT = the rest of that shop's life (returns, PO received, day close, orders, expenses)
+description: RESUME POINT 2026-10-13 (evening) — Phase 0 (decisions A–D + a receipt bug) BUILT and landed, gates run, NOT pushed. NEXT = docs/qa/SYSTEM-TEST.md Phase 1 (rest of Zari's life) ONLY when the user says; one phase then stop
 metadata:
   type: project
 ---
 
 **2026-10-13 (afternoon) — THIRD PUSH, at the user's word** ("session limit and weekly limit kam reh gai hai, koi code changes / bug hain to commit and push kar do … stop working"). What went in: [[shopos-kept-not-asked]] (reload: dashboard 8 requests → 1; server `X-Shell-Stamp`) and [[shopos-zari-clothing-qa]] (7 bugs fixed). Hashes are in HANDOVER's session log and `git log`. Deploy: BACKEND FIRST, no migration; nginx must expose `X-Shell-Stamp` if it sets CORS itself.
 **AWAITING THE USER (asked in the closing message):** the four decisions in [[shopos-zari-clothing-qa]]; plus the older ones (orders untaxed, no offers on orders, "ingredient — not sold", Reservations = tables?).
+**2026-10-13 evening, later:** Phase 0 done (A size-on-sale, B profit/expenses permission, C `shopos:size-costs-from-purchases`, D hold label; + receipt booked an omitted line in full). Landed, not pushed. Wait for the user's word before Phase 1.
+
+**2026-10-13 evening:** the user wants testing ONE PHASE at a time from `docs/qa/SYSTEM-TEST.md` with a log written as it goes ([[shopos-system-test-in-phases]]). The list below is now that file's Phase 1.
+
 **NEXT, when they return:** finish Zari's life — returns/exchange, khata payment, PO received as the stock keeper, expenses + cashbook, both shifts and the day closed, phone/online orders, coupons; then the smaller findings in the decision doc; then restaurant stages 41/42. Run tablet/phone/trades/admin/journey against this code — only desktop + the preview offline specs were.
 **Fixture state I changed and left:** Sweep Mart `service_area` = "E2E Gulberg and DHA" (the kept spec alternates it); its `date_format` was left on `dmy` by a probe of mine and PUT BACK to `dmy_text`.
 

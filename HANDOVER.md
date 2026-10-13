@@ -308,6 +308,22 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-13 (evening) — four answers from the owner; testing goes phase by phase
+
+The owner answered Zari's four questions, and asked that the system be tested
+one phase at a time from `docs/qa/SYSTEM-TEST.md`, each test written into its
+log so a new chat can carry on from the file. Phase 0 is those four answers:
+
+- **A** a size priced as its design takes the design's sale (`Product::priceOfSize`, `sizePrice`).
+- **B** profit and expenses reach only `reports.view` / `expenses.manage` — the server sends null.
+- **C** `shopos:size-costs-from-purchases` re-costs old size lines from purchase receipts only (dry run unless `--apply`).
+- **D** the hold label names the ticket, never the customer.
+
+On the way: a receipt that left a line out booked that line IN FULL — goods
+still at the mill went into stock and were owed for. Fixed.
+`docs/decisions/shopos-four-answers-from-the-owner.md`.
+
+
 ### 2026-10-13 (afternoon) — a reload asks nothing; a clothing shop lived by hand
 
 Two things, asked together by the owner.

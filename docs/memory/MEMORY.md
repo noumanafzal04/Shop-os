@@ -1,7 +1,8 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 afternoon: THIRD PUSH (reload asks nothing + server stamp; 7 bugs from a clothing shop lived by hand); 4 decisions await the user; NEXT = the rest of Zari's life, then stages 41/42
-- [Zari Clothing QA](shopos-zari-clothing-qa.md) — 2026-10-13: a clothing shop made + lived by hand in dev; 7 fixed, 4 DECISIONS OPEN (sale price vs sizes, profit on cashier dashboard, cost backfill, hold label); logins + what was NOT walked
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 evening: Phase 0 (A–D + receipt bug) BUILT + landed, NOT pushed; NEXT = SYSTEM-TEST.md Phase 1 only when the user says (one phase, then stop)
+- [System Test In Phases](shopos-system-test-in-phases.md) — STANDING (USER 2026-10-13): one phase per session from docs/qa/SYSTEM-TEST.md; log every test there for a new chat; kit in panel/e2e/qa-kit; HR out
+- [Zari Clothing QA](shopos-zari-clothing-qa.md) — 2026-10-13: a clothing shop made + lived by hand in dev; 7 fixed; 4 decisions answered AND BUILT in Phase 0 (sale price vs sizes, profit permission, cost backfill from records only, hold label); logins + what was NOT walked
 - [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): shell answers are kept on the device, asked on news; DONE with a SERVER STAMP — kept without a way to hear a change made elsewhere is stale; test add/change/remove → the device holds it
 - [An Order Reaches The Kitchen](shopos-an-order-reaches-the-kitchen.md) — FIXED 2026-10-12: orders never reached the pass; Take order rebuilt (size, questions, server's total); 4 things await the USER (orders untaxed, no offers, ingredients sold, Reservations ≠ tables)
 - [An Item Is Counted Or Not](shopos-an-item-is-counted-or-not.md) — FIXED 2026-10-12: first dish born stock-counted at 0; edit switch saved nothing; STANDING: a request-dependent default is "unknown", never the harmful value

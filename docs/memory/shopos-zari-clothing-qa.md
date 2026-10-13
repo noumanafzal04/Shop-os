@@ -1,6 +1,6 @@
 ---
 name: shopos-zari-clothing-qa
-description: 2026-10-13 — a clothing shop (Zari Clothing) made and lived by hand in the dev DB; 7 bugs fixed, 4 DECISIONS AWAIT THE USER (sale price ignored by sizes, profit on a cashier's dashboard, backfill of missed costs, hold label = customer), and the rest of its life NOT yet walked
+description: 2026-10-13 — a clothing shop (Zari Clothing) made and lived by hand in the dev DB; 7 bugs fixed, 4 decisions ANSWERED and BUILT 2026-10-13 evening (sale price ignored by sizes, profit on a cashier's dashboard, backfill of missed costs, hold label = customer), and the rest of its life NOT yet walked
 metadata:
   type: project
 ---
@@ -9,7 +9,13 @@ Zari Clothing — tenant `01a13400-93e4-7396-9310-d3c516185859`, retail · garme
 
 Record: `docs/decisions/shopos-a-clothing-shop-lived-by-hand.md`; list `docs/qa/journey/RUNS.md` #195–211. Scratch scripts: `scratchpad/dev/panel/e2e/.qa*.mjs` (kit `.qa.mjs` records every API call and can ask the server as the signed-in person); findings `scratchpad/qa/FINDINGS.md`.
 
-**Awaiting the user's decision (asked 2026-10-13):**
+**ANSWERED by the user 2026-10-13 evening, and BUILT the same evening as Phase 0 (landed in the real tree; push only when asked) — `docs/decisions/shopos-four-answers-from-the-owner.md`:**
+- A: the bill charges the chosen size's configured selling price; fix the list/bill mismatch. CONFIRMED by the user 2026-10-13: a size with its own price → that price; a size without one takes the design's SELLING price, sale included (4,990). Do not start until the user says. Code: `Product::sellingPrice()` says "variant prices are not discounted".
+- B: only owner/manager/accountant see Today's Profit + Expenses, cashier/stock keeper not unless permitted → build as a PERMISSION (no roles here, [[shopos-no-roles]]), checked server-side.
+- C: backfill `unit_cost` ONLY from verified purchase/stock-movement records; never guess; unknown stays unknown.
+- D: hold label is only the ticket's name; never the sale's customer unless a customer is explicitly chosen.
+
+**Originally asked (2026-10-13):**
 1. A design "on sale" with sizes is charged FULL price (list and till tile say 4,990, the bill is 5,490). Make the sale reach the sizes, or stop showing/accepting it?
 2. Cashier / stock keeper see Today's Profit + Expenses on the dashboard (no permission check there at all).
 3. Backfill `sale_items.unit_cost` for sized lines sold before the fix, from today's cost?
