@@ -193,7 +193,7 @@ class AddTicketItemsAction
         $levelUnit = $product->priceForLevel($level, $quantity);
         $basePrice = $unit !== null
             ? $unit->priceUsing($levelUnit)
-            : ($variant !== null ? (float) $variant->price : $levelUnit);
+            : ($variant !== null ? $product->priceOfSize($variant) : $levelUnit);
 
         [$modifierDelta, $modifierSnapshot] = ModifierResolver::resolve($product, $modifierOptionIds);
 

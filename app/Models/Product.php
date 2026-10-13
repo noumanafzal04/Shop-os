@@ -306,6 +306,25 @@ class Product extends BaseModel
     }
 
     /**
+     * What one size of this item sells for.
+     *
+     * Every size carries a price — the size grid fills a new one with the
+     * design's — so "a size with no price of its own" is a size priced the same
+     * as the design. That size follows the design, sale included: put a kurta
+     * on sale at 4,990 and its S, M and L ring up at 4,990, as the list and
+     * the till tile already said. A size priced differently (an XL at 5,990)
+     * is its own price and is not discounted by the design's sale.
+     *
+     * The till works the same out in `panel/src/modules/catalog/sizePrice.ts`.
+     */
+    public function priceOfSize(ProductVariant $variant): float
+    {
+        $own = round((float) $variant->price, 2);
+
+        return $own === round((float) $this->price, 2) ? $this->sellingPrice() : $own;
+    }
+
+    /**
      * Quantity-aware price: the deepest price_tiers break the quantity
      * qualifies for ([{min_qty, price}], wholesale), otherwise sellingPrice().
      */

@@ -323,6 +323,58 @@ class DashboardService
     }
 
     /**
+     * What THIS person may read of the dashboard.
+     *
+     * Profit is sales less what the goods cost — the cost price in another
+     * form — so it goes to whoever may read the reports (`reports.view`: the
+     * owner, a manager, the accounts desk, a shift supervisor). Expenses go to
+     * them and to whoever keeps the expense book (`expenses.manage`). A cashier
+     * and a stock keeper hold neither and are sent null: not zero, which is a
+     * figure, and not merely hidden by the screen, which would leave it in the
+     * answer for anybody who opens the network tab.
+     *
+     * @param  array<string, mixed>  $figures  what forTenant() worked out
+     * @return array<string, mixed>
+     */
+    public static function asSeenBy(array $figures, User $viewer): array
+    {
+        $profit = $viewer->hasPermission('reports.view');
+        $expenses = $profit || $viewer->hasPermission('expenses.manage');
+
+        foreach (['today', 'period'] as $block) {
+            if (! $profit) {
+                $figures[$block]['profit'] = null;
+                $figures[$block]['deltas']['profit'] = null;
+            }
+            if (! $expenses) {
+                $figures[$block]['expenses'] = null;
+                $figures[$block]['deltas']['expenses'] = null;
+            }
+        }
+
+        $figures['sales_series'] = array_map(function (array $point) use ($profit, $expenses): array {
+            if (! $profit) {
+                $point['profit'] = null;
+            }
+            if (! $expenses) {
+                $point['expenses'] = null;
+            }
+
+            return $point;
+        }, $figures['sales_series']);
+
+        if (! $expenses) {
+            $figures['expense_breakdown'] = [];
+            $figures['recent_expenses'] = [];
+            $figures['books'] = null;
+        }
+
+        $figures['sees'] = ['profit' => $profit, 'expenses' => $expenses];
+
+        return $figures;
+    }
+
+    /**
      * Everything that is bucketed by day, for a run of dates: one grouped
      * query each, keyed `Y-m-d`.
      *

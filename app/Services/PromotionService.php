@@ -183,7 +183,7 @@ class PromotionService
             if (! empty($item['variant_id'])) {
                 $variant = $product->variants()->whereKey($item['variant_id'])->first();
                 if ($variant !== null) {
-                    $unit = (float) $variant->price;
+                    $unit = $product->priceOfSize($variant);
                 }
             }
             /*

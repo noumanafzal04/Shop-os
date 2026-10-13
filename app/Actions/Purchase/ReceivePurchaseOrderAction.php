@@ -89,10 +89,10 @@ class ReceivePurchaseOrderAction
     }
 
     /**
-     * @param  array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}>  $receiveMap
-     *                                                                                                          poItemId => receipt line. Empty → receive all outstanding.
+     * @param  array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string}>|null  $receiveMap
+     *                                                                                                               poItemId => receipt line. Null → receive all outstanding; a list → exactly those lines.
      */
-    public function execute(PurchaseOrder $po, array $receiveMap = [], ?string $idempotencyKey = null, ?string $intoBranchId = null): PurchaseOrder
+    public function execute(PurchaseOrder $po, ?array $receiveMap = null, ?string $idempotencyKey = null, ?string $intoBranchId = null): PurchaseOrder
     {
         $this->into = $this->placeToReceiveInto($intoBranchId);
 
@@ -121,6 +121,15 @@ class ReceivePurchaseOrderAction
             foreach ($po->items as $item) {
                 $row = $receiveMap[$item->id] ?? null;
 
+                // A receipt that lists what arrived has said everything: a line
+                // it leaves out did not come. The receive sheet leaves out a
+                // line set to 0 (the server takes nothing below 0.001), and that
+                // line used to be booked in FULL — stock for goods still at the
+                // mill, owed to the supplier, and blended into the cost.
+                if ($receiveMap !== null && $row === null) {
+                    continue;
+                }
+
                 // Exactly-once per receipt attempt: if this line already went
                 // through under this key, a retry must not touch it again
                 // (stock, quantity_received, or batches).
@@ -139,7 +148,7 @@ class ReceivePurchaseOrderAction
                     continue;
                 }
 
-                // Explicit map wins; otherwise receive all outstanding.
+                // Listed: what the list says. Not listed at all: all outstanding.
                 $qty = $row !== null ? (float) $row['quantity'] : $outstanding;
                 $qty = max(0, min($qty, $outstanding));
                 if ($qty <= 0) {

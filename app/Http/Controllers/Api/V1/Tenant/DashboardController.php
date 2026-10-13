@@ -23,11 +23,11 @@ class DashboardController extends Controller
         $asked = $request->validate(DashboardPeriod::rules());
 
         // scopeId() = the chosen branch, or null for an owner's All-Branches view.
-        return ApiResponse::ok($service->forTenant(
+        return ApiResponse::ok(DashboardService::asSeenBy($service->forTenant(
             $context->get(),
             $branch->scopeId(),
             $asked['from'] ?? null,
             $asked['to'] ?? null,
-        ));
+        ), $request->user()));
     }
 }

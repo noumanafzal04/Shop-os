@@ -390,7 +390,7 @@ class OrderService
                     // Sale/tier price wins for product-priced lines (qty breaks
                     // apply); a pack multiplies the per-base rate (or its own price).
                     $basePrice = $variant !== null
-                        ? (float) $variant->price
+                        ? $product->priceOfSize($variant)
                         : ($unit !== null ? $unit->priceUsing($product->priceForQty($qty)) : $product->priceForQty($qty));
                     $unitPrice = round($basePrice + $modifierDelta, 2);
                     $lineTotal = round($unitPrice * $qty, 2);

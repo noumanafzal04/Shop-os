@@ -92,7 +92,7 @@ final class DocumentPricing
 
         $unitPrice = round($unit !== null
             ? $unit->priceUsing($levelUnit)
-            : ($variant !== null ? ($override ?? (float) $variant->price) : $levelUnit), 2);
+            : ($variant !== null ? ($override ?? $product->priceOfSize($variant)) : $levelUnit), 2);
 
         $gross = round($unitPrice * $quantity, 2);
 

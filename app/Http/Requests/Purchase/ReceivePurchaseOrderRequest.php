@@ -41,9 +41,15 @@ class ReceivePurchaseOrderRequest extends FormRequest
         ];
     }
 
-    /** @return array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string, serials: array<int,string>}> */
-    public function receiveMap(): array
+    /** @return array<string, array{quantity: float, batch_number: ?string, expiry_date: ?string, serials: array<int,string>}>|null */
+    public function receiveMap(): ?array
     {
+        // No list at all: everything still owed arrived (the one-press receive).
+        // A list — even an empty one — is the whole of what arrived.
+        if (! is_array($this->input('items'))) {
+            return null;
+        }
+
         $map = [];
         foreach ($this->input('items', []) as $row) {
             $map[$row['id']] = [

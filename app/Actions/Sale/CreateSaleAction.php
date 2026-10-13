@@ -1775,7 +1775,7 @@ class CreateSaleAction
         }
 
         if ($variant !== null) {
-            return $override ?? (float) $variant->price;
+            return $override ?? $product->priceOfSize($variant);
         }
 
         return $levelUnit;

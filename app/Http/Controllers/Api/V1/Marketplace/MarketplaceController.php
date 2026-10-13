@@ -1552,7 +1552,9 @@ class MarketplaceController extends Controller
             'variants' => $product->variants->map(fn ($v) => [
                 'id' => $v->id,
                 'name' => $v->name,
-                'price' => $v->price,
+                // What the customer will be charged for it — the design's sale
+                // reaches a size priced as the design. See Product::priceOfSize.
+                'price' => $product->priceOfSize($v),
                 'in_stock' => $v->stock_quantity > 0,
             ])->all(),
             'modifier_groups' => $product->modifierGroups->map(fn ($g) => [
