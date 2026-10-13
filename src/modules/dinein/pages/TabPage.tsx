@@ -14,6 +14,7 @@ import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useConfirm } from "../../../components/ui/confirm";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { sizePrice } from "../../catalog/pricing";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup, ProductVariant } from "../../catalog/types";
 import { usePickableProducts } from "../../catalog/hooks/useCatalog";
@@ -983,7 +984,7 @@ export default function TabPage() {
                     className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-gray-200 px-4 py-3 text-left text-sm font-semibold text-gray-800 transition hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-white/90"
                   >
                     <span>{v.name}</span>
-                    <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(Number(v.price))}</span>
+                    <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(sizePrice(sizeFor, v))}</span>
                   </button>
                 );
               })}

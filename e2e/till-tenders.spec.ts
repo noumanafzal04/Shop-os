@@ -173,7 +173,7 @@ test("a parked ticket comes back knowing what it will be taxed at", async ({ pag
   // or Alt+H"), and a test hanging off a title broke the day it was reworded.
   await page.getByRole("button", { name: /^Hold\b/ }).click();
   const label = "E2E tax ticket";
-  await page.getByPlaceholder(/Customer name, or/).fill(label);
+  await page.getByPlaceholder(/blue shirt/).fill(label);
   await page.getByRole("button", { name: "Hold ticket" }).click();
 
   // Parked: the cart is empty and the ticket is in the drafts.
@@ -195,4 +195,7 @@ test("a parked ticket comes back knowing what it will be taxed at", async ({ pag
   // 4,200 + 756, 6,310 + 631.
   expect(due).toBe(11897);
   expect(Number(sale.total)).toBe(due);
+  // The label found the ticket; it is not who bought it.
+  // toHaveProperty, not `?? null`: a sale sent without the field would pass that.
+  expect(sale, "the hold label became the sale's customer").toHaveProperty("customer_name", null);
 });

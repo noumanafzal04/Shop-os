@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { onSale, sellingPrice } from "./pricing";
+import { onSale, sellingPrice, sizePrice } from "./pricing";
 
 describe("sellingPrice", () => {
   it("takes the sale price when there is a real one", () => {
@@ -35,5 +35,26 @@ describe("onSale", () => {
     expect(onSale({ price: "500", discount_price: "600" })).toBe(false);
     expect(onSale({ price: "500", discount_price: "0" })).toBe(false);
     expect(onSale({ price: "500" })).toBe(false);
+  });
+});
+
+describe("sizePrice", () => {
+  // The user's rule (2026-10-13): a size with no price of its own takes the
+  // design's sale; one priced differently keeps its own. Server: Product::priceOfSize.
+  const suit = { price: "5490.00", discount_price: "4990.00" };
+
+  it("a size priced as the design follows the design's sale", () => {
+    expect(sizePrice(suit, { price: "5490.00" })).toBe(4990);
+    expect(sizePrice(suit, { price: 5490 })).toBe(4990);
+  });
+
+  it("a size with a price of its own keeps it, above the sale or below it", () => {
+    expect(sizePrice(suit, { price: "5990.00" })).toBe(5990);
+    expect(sizePrice(suit, { price: "4500" })).toBe(4500);
+  });
+
+  it("changes nothing when the design is not on sale", () => {
+    expect(sizePrice({ price: "5490" }, { price: "5490" })).toBe(5490);
+    expect(sizePrice({ price: "5490", discount_price: "6000" }, { price: "5490" })).toBe(5490);
   });
 });

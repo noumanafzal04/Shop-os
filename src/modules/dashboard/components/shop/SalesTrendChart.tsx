@@ -49,8 +49,8 @@ export function SalesTrendChart({ series, period, money, showRevenue, showExpens
 
   const chartSeries = [
     showRevenue && { name: "Revenue", data: days.map((d) => d.revenue), color: colors["brand-500"] },
-    showExpenses && { name: "Expenses", data: days.map((d) => d.expenses), color: colors["warning-500"] },
-    showProfit && { name: "Profit", data: days.map((d) => d.profit), color: colors["success-500"] },
+    showExpenses && { name: "Expenses", data: days.map((d) => d.expenses ?? 0), color: colors["warning-500"] },
+    showProfit && { name: "Profit", data: days.map((d) => d.profit ?? 0), color: colors["success-500"] },
   ].filter((s): s is { name: string; data: number[]; color: string } => Boolean(s));
 
   const allZero = chartSeries.every((s) => s.data.every((v) => v === 0));

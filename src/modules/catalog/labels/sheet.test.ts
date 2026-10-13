@@ -102,6 +102,20 @@ describe("what there is to print for a product", () => {
     ]);
   });
 
+  it("a size priced as its design carries the design's sale, the old price struck", () => {
+    const suit = {
+      id: "p5", name: "Lawn Suit", barcode: null, price: "5490", discount_price: "4990", sold_by: "unit",
+      variants: [{ id: "m", name: "M", price: "5490", is_active: true }, { id: "xl", name: "XL", price: "5990", is_active: true }],
+      barcodes: [{ id: "b1", barcode: "501", variant_id: "m" }, { id: "b2", barcode: "502", variant_id: "xl" }],
+      units: [],
+    } as unknown as Product;
+
+    expect(printables(suit).map((l) => [l.name, l.price, l.was])).toEqual([
+      ["Lawn Suit M", 4990, 5490],
+      ["Lawn Suit XL", 5990, null],
+    ]);
+  });
+
   it("an item on sale is priced at the sale price, and says what it was", () => {
     const soap = { id: "p3", name: "Soap", barcode: "333", price: "120", discount_price: "99", sold_by: "unit", variants: [], barcodes: [], units: [] } as unknown as Product;
 

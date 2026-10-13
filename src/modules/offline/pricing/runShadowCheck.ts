@@ -1,3 +1,4 @@
+import { sizePrice } from "../../catalog/pricing";
 import { get, getAll, getSingleton, putMany, remove } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
@@ -128,9 +129,9 @@ async function evaluate(
           // the other, and a line that cannot say what it is matches nothing.
           id: item.id,
           category_id: item.category_id,
-          price: variant ? variant.price : item.price,
-          // A sale price is product-level and does not apply to a variant,
-          // which is the server's rule and not an approximation of it.
+          price: variant ? sizePrice(item, variant) : item.price,
+          // A size's price already carries the design's sale when it follows
+          // the design (sizePrice) — the server's rule, not an approximation.
           discount_price: variant ? null : item.discount_price,
           wholesale_price: variant ? null : item.wholesale_price,
           price_tiers: variant ? null : item.price_tiers,

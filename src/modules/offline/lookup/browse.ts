@@ -1,3 +1,4 @@
+import { sizePrice } from "../../catalog/pricing";
 import type { Product as CatalogProduct } from "../../catalog/types";
 import { getAll } from "../db/repo";
 import { STORE } from "../db/schema";
@@ -125,7 +126,7 @@ export function asProduct(item: CatalogItem, taxRates?: ReadonlyMap<string, numb
       id: v.id,
       name: v.name,
       sku: v.sku,
-      price: v.price,
+      price: sizePrice(item, v),
       // Not on the device on purpose — see PosProjection.
       cost: null,
       stock_quantity: v.stock,

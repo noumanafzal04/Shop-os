@@ -11,7 +11,7 @@ import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useProducts } from "../../catalog/hooks/useCatalog";
-import { sellingPrice } from "../../catalog/pricing";
+import { sellingPrice, sizePrice } from "../../catalog/pricing";
 import type { Product, ProductVariant } from "../../catalog/types";
 import { useSaleMutations, useSaleWorth } from "../hooks/useSales";
 import type { PaymentMethod, SaleChannel, SaleInput } from "../types";
@@ -131,7 +131,7 @@ export default function NewSalePage() {
           product,
           variant,
           quantity: 1,
-          unitPrice: variant ? Number(variant.price) : sellingPrice(product),
+          unitPrice: variant ? sizePrice(product, variant) : sellingPrice(product),
           priceTiers: variant ? null : product.price_tiers,
         },
       ];
@@ -236,7 +236,7 @@ export default function NewSalePage() {
                             {p.name} <span className="text-gray-400">/ {v.name}</span>
                             <span className="ml-2 text-theme-xs text-gray-400">stock {v.stock_quantity}</span>
                           </span>
-                          <span className="text-gray-500">{money(Number(v.price))}</span>
+                          <span className="text-gray-500">{money(sizePrice(p, v))}</span>
                         </button>
                       ))
                     )}

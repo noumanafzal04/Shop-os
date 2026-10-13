@@ -1,3 +1,4 @@
+import { sizePrice } from "../pricing";
 import type { Product } from "../types";
 
 /**
@@ -136,8 +137,8 @@ export function printables(p: Product): Printable[] {
       name: `${p.name} ${v.name}`,
       part: v.name,
       barcode: code,
-      price: num(v.price),
-      was: null,
+      price: sizePrice(p, v),
+      was: sizePrice(p, v) < num(v.price) ? num(v.price) : null,
       perUnit: "",
       packLine: null,
     });

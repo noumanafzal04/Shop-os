@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import Button from "../../../components/ui/button/Button";
 import { Modal, ModalForm } from "../../../components/ui/modal";
+import { sizePrice } from "../../catalog/pricing";
 import type { Product } from "../../catalog/types";
 import { sizesOf } from "../../pos/availability";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -83,7 +84,7 @@ export function ChooseHow({ product, onClose, onAdd }: {
                   >
                     <span className="text-theme-sm font-semibold text-gray-800 dark:text-white/90">{v.name}</span>
                     <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
-                      {off ? "off today" : money(Number(v.price))}
+                      {off ? "off today" : money(sizePrice(product, v))}
                     </span>
                   </button>
                 );

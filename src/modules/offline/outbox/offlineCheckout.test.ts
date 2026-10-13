@@ -392,6 +392,27 @@ describe("the figures", () => {
 
     expect(sale.total).toBe(400);
   });
+
+  it("a size priced as its design takes the design's sale, offline as at the counter", async () => {
+    // Zari: the suit is 5,490, on sale at 4,990; M is priced as the suit, XL at 5,990.
+    await seed([
+      item({
+        id: "p1",
+        price: 5490,
+        discount_price: 4990,
+        variants: [
+          { id: "m", name: "M", sku: null, price: 5490, stock: 3 },
+          { id: "xl", name: "XL", sku: null, price: 5990, stock: 3 },
+        ],
+      } as Partial<CatalogItem> & { id: string }),
+    ]);
+
+    const m = await completeOffline(input({ lines: (await linesFromCatalog([{ product_id: "p1", variant_id: "m", quantity: 1 }])).lines }));
+    expect(m.total, "offline, the size was charged above what the tile said").toBe(4990);
+
+    const xl = await completeOffline(input({ lines: (await linesFromCatalog([{ product_id: "p1", variant_id: "xl", quantity: 1 }])).lines }));
+    expect(xl.total, "a size with its own price was given the design's sale").toBe(5990);
+  });
 });
 
 describe("the allow-list's view of the cart", () => {

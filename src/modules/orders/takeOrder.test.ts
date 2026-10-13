@@ -60,6 +60,13 @@ describe("a line of an order being taken", () => {
     expect(unitPriceOf(dish({ price: "450.00", discount_price: "400.00" }), null, [])).toBe(400);
   });
 
+  it("a size priced as the dish takes the dish's sale; one priced its own way keeps it", () => {
+    const onSale = { ...karahi, discount_price: "800.00" } as unknown as Product;
+
+    expect(unitPriceOf(onSale, karahi.variants![0], [])).toBe(800);
+    expect(unitPriceOf(onSale, karahi.variants![1], [])).toBe(1600);
+  });
+
   it("is written the way a waiter writes it", () => {
     const line = lineOf(karahi, { variantId: "v-full", byGroup: { "g-spice": ["o-hot"], "g-extras": ["o-naan"] } });
 

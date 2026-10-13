@@ -14,7 +14,7 @@ import { SearchGlyph } from "../../../components/ui/filters";
 import { useToast } from "../../../components/ui/toast";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import { leftOf, whyNotOrderable } from "../whatIsLeft";
-import { sellingPrice } from "../../catalog/pricing";
+import { sellingPrice, sizePrice } from "../../catalog/pricing";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { printTheSlip, slipSays } from "../kitchenSlip";
 import { useOrderWorth, useTakeOrder } from "../hooks/useOrders";
@@ -357,7 +357,7 @@ export default function TakeOrderPage() {
                           <span className="mt-1.5 flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
                             <span className="whitespace-nowrap text-theme-sm font-bold tabular-nums text-brand-200">
                               {/* A dish in sizes has no one price: it starts from its smallest. */}
-                              {sizes.length > 0 ? `from ${money(Math.min(...sizes.map((v) => Number(v.price))))}` : money(sellingPrice(p))}
+                              {sizes.length > 0 ? `from ${money(Math.min(...sizes.map((v) => sizePrice(p, v))))}` : money(sellingPrice(p))}
                             </span>
                             {/* WHAT IS ON THE SHELF, before the order is sent
                                 rather than in the refusal that comes back. */}

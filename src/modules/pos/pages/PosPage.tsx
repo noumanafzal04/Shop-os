@@ -83,7 +83,7 @@ import { promotionsService, type PromoPreview } from "../../promotions/services/
 import { memberDiscountFor, memberGroupFor } from "../../offline/lookup/memberDiscount";
 import { asProduct, loadShelf, loadTaxRates, shelfRows } from "../../offline/lookup/browse";
 import { findByCode } from "../../offline/lookup/findByCode";
-import { onSale, sellingPrice } from "../../catalog/pricing";
+import { onSale, sellingPrice, sizePrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { shopDateTime } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
@@ -1922,7 +1922,7 @@ export default function PosPage() {
     if (p.modifier_groups?.length) {
       openConfig(p, v);
     } else {
-      addLine(p, v.id, v.name, v.price);
+      addLine(p, v.id, v.name, sizePrice(p, v));
     }
     posSound.success();
     setSearch("");
@@ -2220,10 +2220,11 @@ export default function PosPage() {
         // Park the WHOLE ticket so nothing is lost on resume.
         cart: {
           items: cart.map((l) => { const copy = { ...l }; delete (copy as Partial<CartLine>).key; return copy; }),
-          // The name typed at the hold prompt becomes the cart's customer when
-          // the cart had none — otherwise resuming loses the one piece of
-          // information the cashier just took the trouble to record.
-          customer_name: customer.trim() || holdLabel.trim() || undefined,
+          // Only the customer the cashier actually gave. The hold label names
+          // the TICKET ("table 4", "man in the blue shirt") so it can be found
+          // again; carried into customer_name it was printed on the bill and
+          // kept on the sale as the buyer's name.
+          customer_name: customer.trim() || undefined,
           customer_phone: customerPhone || undefined,
           discount: Number(discount) || 0,
           order_type: orderType,
@@ -4184,7 +4185,7 @@ export default function PosPage() {
           {cart.length} item{cart.length === 1 ? "" : "s"} · {money(total)}
         </p>
         <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
-          Whose ticket is it?
+          Name this ticket
         </label>
         {/* A plain input rather than the shared one: this field wants focus the
             moment the prompt opens and Enter to commit, and the shared Input
@@ -4194,12 +4195,13 @@ export default function PosPage() {
           value={holdLabel}
           onChange={(e) => setHoldLabel(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") doHold(); }}
-          placeholder="Customer name, or 'blue shirt'"
+          placeholder="Their name, table 4, or 'blue shirt'"
           className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
         />
         <p className="mt-1.5 text-theme-xs text-gray-400">
-          Anything that identifies them. A drafts list of unnamed tickets means opening each one
-          to find the right customer — in front of the customer.
+          Anything that identifies it. A drafts list of unnamed tickets means opening each one
+          to find the right customer — in front of the customer. It only finds the ticket again;
+          it is not saved as the sale's customer.
         </p>
         {/* Said BEFORE it is parked, not only afterwards. A cashier who knows
             this is about to happen can tell the customer which counter to come
@@ -4998,7 +5000,7 @@ export default function PosPage() {
                           {gone ? "none left" : `${fmtQty(sizeStock(sizeFor, v))} left`}
                         </span>
                       )}
-                      <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(Number(v.price))}</span>
+                      <span className="tabular-nums text-brand-600 dark:text-brand-400">{money(sizePrice(sizeFor, v))}</span>
                     </span>
                   </button>
                 );

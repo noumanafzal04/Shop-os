@@ -37,8 +37,9 @@ export interface SeriesDay {
   other_income: number;
   /** Handed back over the counter that day. Already subtracted from `profit`. */
   refunds: number;
-  expenses: number;
-  profit: number;
+  /** Null for a person who may not see it — see `TenantDashboard.sees`. */
+  expenses: number | null;
+  profit: number | null;
 }
 
 export interface ExpenseSlice {
@@ -97,8 +98,9 @@ export interface ShopFigures {
    * be closed and banked. `profit` has it subtracted.
    */
   refunds: number;
-  expenses: number;
-  profit: number;
+  /** Null for a person who may not see it — see `TenantDashboard.sees`. */
+  expenses: number | null;
+  profit: number | null;
   /** Buyers served, not tickets rung — one customer once, however often they came. */
   customers_count: number;
   /** Signed % against what the period is compared with; null when that was zero. */
@@ -110,6 +112,13 @@ export interface ShopFigures {
 }
 
 export interface TenantDashboard {
+  /**
+   * What THIS person may read. Profit is sales less what the goods cost, so it
+   * goes to whoever may read the reports; expenses to them and to whoever keeps
+   * the expense book. The server sends null for the rest — the screen only
+   * leaves out what never arrived. Absent from an older server.
+   */
+  sees?: { profit: boolean; expenses: boolean };
   setup_completed: boolean;
   online_shop_enabled: boolean;
   subscription_expired: boolean;

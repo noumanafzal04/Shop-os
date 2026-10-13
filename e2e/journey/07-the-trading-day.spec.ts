@@ -221,7 +221,7 @@ test("C4 · a ticket is held, comes back the same, and is paid", async ({ page, 
 
   // The bottom bar's Hold — "Hold F4". The legend's chip reads "F4 Hold".
   await page.getByRole("button", { name: /^Hold\b/ }).click();
-  await page.getByPlaceholder(/Customer name, or/).fill("QA held ticket");
+  await page.getByPlaceholder(/blue shirt/).fill("QA held ticket");
   await page.getByRole("button", { name: "Hold ticket" }).click();
   await expect(page.locator("[data-cart-row]")).toHaveCount(0, { timeout: 15_000 });
 

@@ -30,6 +30,13 @@ describe("what a product offers to an exchange", () => {
     expect(new Set(offers.map((o) => o.key)).size).toBe(3);
   });
 
+  it("a size priced as its design goes out at the design's sale price", () => {
+    // Exchanged INTO a size on sale, the customer pays what the till charges.
+    const onSale = { ...KURTA, price: 5490, discount_price: 4990, variants: [size("M", 5490, 3), size("XL", 5990, 3)] };
+
+    expect(offersOf(onSale).map((o) => o.price)).toEqual([4990, 5990]);
+  });
+
   it("says how many of each are left, and why the one that is gone cannot go", () => {
     const [small, medium, large] = offersOf(KURTA);
 

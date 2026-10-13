@@ -207,6 +207,16 @@ describe("a shop that sells keeps its own strip", () => {
     expect(screen.getByText("Rs 900")).toBeInTheDocument();
   });
 
+  it("draws no profit or expenses for somebody the server did not send them to", () => {
+    // A cashier: DashboardService::asSeenBy sends null for both.
+    draw(dashboard(TODAY, { ...TRADE, profit: null, expenses: null }), selling);
+
+    expect(screen.getByText("Today's Sales")).toBeInTheDocument();
+    expect(screen.queryByText("Today's Profit"), "a profit tile was drawn with no profit sent").not.toBeInTheDocument();
+    expect(screen.queryByText("Today's Expenses")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rs 0"), "a figure that never came was shown as nothing").not.toBeInTheDocument();
+  });
+
   it("shows expenses only when the shop keeps books", () => {
     draw(dashboard(TODAY, TRADE), caps({ sells: true, pos: true, canSell: true, keepsBooks: false, expenses: false }));
 

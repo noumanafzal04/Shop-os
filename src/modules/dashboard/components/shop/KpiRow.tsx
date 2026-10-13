@@ -149,7 +149,9 @@ export function KpiRow({ data, caps, money, compact }: Props) {
   // A shop that sells. The books-only strip below says the same figure as
   // "Money Out", in its own order — and used to carry this tile as well, so
   // the one number stood on the row twice under two names.
-  if (caps.sells && caps.keepsBooks) {
+  // Expenses and profit are drawn only when the server sent them: a cashier
+  // or a stock keeper is sent null for both (DashboardService::asSeenBy).
+  if (caps.sells && caps.keepsBooks && today.expenses !== null) {
     tiles.push({
       key: "expenses",
       label: words.expenses,
@@ -159,25 +161,27 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       invertDelta: true,
       icon: <FileIcon className="size-5" />,
       tone: "warning",
-      spark: spark((d) => d.expenses),
+      spark: spark((d) => d.expenses ?? 0),
     });
   }
 
   if (caps.sells) {
-    tiles.push({
-      key: "profit",
-      label: words.profit,
-      value: money(today.profit),
-      delta: today.deltas.profit,
-      deltaTitle,
-      icon: <PieChartIcon className="size-5" />,
-      tone: "brand",
-      emphasis: true,
-      caption: today.refunds > 0
-        ? "Sales − refunds − cost of goods − expenses"
-        : "Sales − cost of goods − expenses",
-      spark: spark((d) => d.profit),
-    });
+    if (today.profit !== null) {
+      tiles.push({
+        key: "profit",
+        label: words.profit,
+        value: money(today.profit),
+        delta: today.deltas.profit,
+        deltaTitle,
+        icon: <PieChartIcon className="size-5" />,
+        tone: "brand",
+        emphasis: true,
+        caption: today.refunds > 0
+          ? "Sales − refunds − cost of goods − expenses"
+          : "Sales − cost of goods − expenses",
+        spark: spark((d) => d.profit ?? 0),
+      });
+    }
 
     if (!compact) {
       tiles.push({
@@ -267,7 +271,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       caption: barsCaption,
     });
 
-    tiles.push({
+    if (today.expenses !== null) tiles.push({
       key: "spend",
       label: words.moneyOut,
       value: money(today.expenses),
@@ -276,7 +280,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       invertDelta: true,
       icon: <FileIcon className="size-5" />,
       tone: "warning",
-      spark: spark((d) => d.expenses),
+      spark: spark((d) => d.expenses ?? 0),
       caption: `${data.expense_breakdown.length} ${
         data.expense_breakdown.length === 1 ? "category" : "categories"
       }`,
@@ -284,7 +288,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
 
     // The bottom line, and the reason the other tiles are here. Same figure the
     // Cashbook and the Reports summary print, to the rupee.
-    tiles.push({
+    if (today.profit !== null) tiles.push({
       key: "net",
       label: words.net,
       value: money(today.profit),
@@ -294,7 +298,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
       tone: today.profit < 0 ? "error" : "brand",
       emphasis: true,
       caption: "Money in − money out",
-      spark: spark((d) => d.profit),
+      spark: spark((d) => d.profit ?? 0),
     });
 
     if (!compact && biggest) {

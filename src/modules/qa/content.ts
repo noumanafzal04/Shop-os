@@ -54,6 +54,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Open DevTools \u2192 Network, load any shop screen, then reload it within five minutes.", expect: "The reload asks only for that screen. No /auth/me, /shop/settings, /branches, /pos/devices, /pos-devices or /pos/catalog \u2014 those are kept on the device. The bell (/notifications) still asks every half minute." },
           { do: "With a shop screen open, have an admin switch one of this shop\u2019s modules off, then reload the shop screen once.", expect: "The module\u2019s menu row is gone on that reload \u2014 not five minutes later. (Every answer carries a stamp; the device asks again only when it moves.)" },
           { do: "Sign in as the shop owner of the shop you are testing.", expect: "You land on that shop's dashboard, with that shop's name in the header." },
+          { do: "Sign in as a Cashier, then as a Stock keeper, and open the dashboard; open the network tab and look at /dashboard.", expect: "Sales are there; Profit and Expenses are not on the screen, and the answer carries null for both. A Manager and Accounts see both." },
           { do: "Read the shop name and, if the shop has more than one branch, the branch shown in the header.", expect: "Both match the shop you meant to sign into. Write them down — every figure you check later belongs to this shop and this branch." },
           { do: "Sign out and sign in as a cashier of the same shop (ask for one, or make one under Staff).", expect: "A much shorter menu. This is the PERMISSION axis and you will use it repeatedly." },
         ],
@@ -188,6 +189,7 @@ export const QA_SECTIONS: QaSection[] = [
         checks: [
           { do: "Add a plain product with a name, a price and a cost.", expect: "It appears in the list and, if the shop has a till, on the till within a few seconds." },
           { do: "Add a product with two sizes at different prices.", expect: "The till asks WHICH size when you tap it, and refuses to sell the parent on its own. Selling a sized product without choosing a size would be a bug." },
+          { do: "Put a design with sizes on sale (5,490 → 4,990), leaving one size at the design's price and giving another its own (5,990). Ring both at the till, offline too.", expect: "The size at the design's price rings up at 4,990 everywhere — tile, size sheet, cart, bill, label, quote, phone order, online store. The size with its own price stays 5,990." },
           { do: "Give one size its own barcode and scan it.", expect: "That size lands in the cart — not the other one, and not the parent." },
           { do: "Add a product in sizes typed S, M, L. Open it again, and tap it on the till.", expect: "S, M, L everywhere — the grid, the till's \u201cwhich size?\u201d sheet, the labels, the stock screen. Sorted by name it would read L, M, S, which is a defect this product has had. Add XS at the top in an edit and it stays at the top." },
           { do: "Add a pack (Carton = 24) with its own price and barcode, then press \u201c+ Add a code\u201d on it and type a second barcode. Save, and scan the SECOND code at the till.", expect: "A Carton lands on the bill at the carton's price. One piece at the piece's price is the bug: a carton would leave for the price of one." },
@@ -262,6 +264,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Create a supplier, raise a PO for 10 of something at a price different from its current cost, and receive it.", expect: "Stock rises by 10, the product's cost moves to a blend of old and new, and the supplier's balance rises by the order value." },
           { do: "Pay the supplier from their own card.", expect: "The balance falls by what you paid. A Pay button that answers success and moves nothing is a defect this product has had — check the balance, not the message." },
           { do: "Receive only part of an order.", expect: "Stock rises by what arrived, and the order still shows what is outstanding." },
+          { do: "Order two sizes; when only one arrives, set the other to 0 on the receive sheet and receive.", expect: "Only the size that came goes into stock and is owed for; the other stays outstanding on the order. It used to be booked in full." },
           { do: "Sign in as a Stock keeper (Products + Inventory, nothing else) and open Purchase orders and Suppliers from the menu.", expect: "Both OPEN. They can read an order and receive it; there is no New purchase order, Place order, Cancel or Pay, and no way to add or edit a supplier. \"No access\" on a screen the menu offered is a defect this product has had." },
         ],
       },
@@ -333,6 +336,7 @@ export const QA_SECTIONS: QaSection[] = [
         checks: [
           { do: "Apply a discount larger than the shop's ceiling.", expect: "Refused, with the ceiling named. Try the same through a quote and an online order — refused there too." },
           { do: "Attach a customer by phone, then sell on credit.", expect: "The customer's balance rises by exactly the credit part, and the sale cannot give cash change." },
+          { do: "Hold a ticket with a name and no customer, resume it and pay.", expect: "The name finds the ticket in Drafts and nowhere else: the sale has no customer, and the receipt prints none." },
           { do: "Hold a ticket with a name, serve someone else, then resume it.", expect: "The basket comes back exactly as it was — items, discount, customer, table." },
           { do: "Split a bill across cash and card.", expect: "The two must add up to the total, and both appear on the receipt and in the day's tender breakdown." },
         ],

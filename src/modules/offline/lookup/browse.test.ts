@@ -146,6 +146,15 @@ describe("the shelf before anything is typed", () => {
 });
 
 describe("what the cached row honestly is", () => {
+  it("a size priced as its item carries the item's sale, offline as online", () => {
+    const suit = asProduct(item({
+      price: 5490, discount_price: 4990,
+      variants: [{ id: "m", name: "M", sku: null, price: 5490, stock: 1 }, { id: "xl", name: "XL", sku: null, price: 5990, stock: 1 }],
+    } as Partial<CatalogItem>));
+
+    expect(suit.variants!.map((v) => Number(v.price))).toEqual([4990, 5990]);
+  });
+
   it("keeps a sold-out dish marked, so the till refuses it as it would online", () => {
     // Sent rather than filtered out: a till holding yesterday's copy of the
     // menu must learn the dish is off, not go on selling it.

@@ -1,3 +1,4 @@
+import { sizePrice } from "../catalog/pricing";
 import type { Product, ProductVariant } from "../catalog/types";
 import { catalogReader, sizesOf, whyNotSellable } from "../pos/availability";
 import { taxFieldsOf } from "../pos/taxFields";
@@ -78,7 +79,7 @@ export function offersOf(p: Searched): Offer[] {
     variant_id: variant?.id ?? null,
     name: variant ? `${p.name} (${variant.name})` : p.name,
     // A size is charged at the size's price — the same figure the till's sheet shows.
-    price: variant ? Number(variant.price) : shelfPrice(p),
+    price: variant ? sizePrice(p, variant) : shelfPrice(p),
     tracks_serial: !!p.tracks_serial,
     ...tax,
     left: counted ? catalogReader(p, variant) : null,

@@ -1,4 +1,4 @@
-import { sellingPrice } from "../catalog/pricing";
+import { sellingPrice, sizePrice } from "../catalog/pricing";
 import type { ModifierGroup, ModifierOption, Product, ProductVariant } from "../catalog/types";
 import { sizesOf } from "../pos/availability";
 
@@ -82,7 +82,7 @@ export function whatIsMissing(p: Product, choice: Choice): string | null {
  * the order's own figure comes from the server (`/orders/worth`).
  */
 export function unitPriceOf(p: Product, variant: ProductVariant | null, options: ModifierOption[]): number {
-  const base = variant !== null ? Number(variant.price) : sellingPrice(p);
+  const base = variant !== null ? sizePrice(p, variant) : sellingPrice(p);
 
   return Math.round((base + options.reduce((sum, o) => sum + Number(o.price_delta), 0)) * 100) / 100;
 }

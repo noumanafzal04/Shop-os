@@ -26,6 +26,26 @@ export function sellingPrice(p: {
   return sale !== null && sale > 0 && sale < price ? sale : price;
 }
 
+/**
+ * What one size of an item sells for — the server's `Product::priceOfSize`.
+ *
+ * Every size carries a price (the size grid fills a new one with the design's),
+ * so a size with no price of its own is a size priced the same as the design.
+ * That size follows the design, sale included: a kurta on sale at 4,990 rings
+ * its S, M and L up at 4,990, as the list and the tile say. A size priced
+ * differently is its own price, and the design's sale does not touch it.
+ *
+ * Unlike `sellingPrice`, the till's offline bill is built from this one.
+ */
+export function sizePrice(
+  p: { price: string | number; discount_price?: string | number | null },
+  size: { price: string | number },
+): number {
+  const own = Math.round(Number(size.price) * 100) / 100;
+
+  return own === Math.round(Number(p.price) * 100) / 100 ? sellingPrice(p) : own;
+}
+
 /** Whether that price is a reduction, so a screen can strike the old one. */
 export function onSale(p: { price: string | number; discount_price?: string | number | null }): boolean {
   return sellingPrice(p) < Number(p.price);

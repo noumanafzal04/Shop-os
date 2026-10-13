@@ -73,6 +73,8 @@ export default function ShopDashboard() {
   // following the clock instead of holding today's date for ever.
   const ask = (next: DateRange) => pin(isSameRange(next, resolveRange(opensOn, today)) ? null : next);
   const called = data ? periodName(data.period) : "";
+  // The books' figures were sent to this person (DashboardService::asSeenBy).
+  const seesBooks = caps.keepsBooks && data?.sees?.expenses !== false;
 
   const basic = mode === "basic";
   // Skeleton tile count has to match what the loaded strip will render, or the
@@ -227,19 +229,19 @@ export default function ShopDashboard() {
 
           {/* Basic mode is the calm view: what needs doing, and the counters
               behind it. Charts, ledgers and history live in the full menu. */}
-          {!basic && (caps.sells || caps.keepsBooks) && (
+          {!basic && (caps.sells || seesBooks) && (
             <div className="grid grid-cols-1 gap-5 md:gap-6 lg:grid-cols-3">
-              <div className={caps.keepsBooks ? "lg:col-span-2" : "lg:col-span-3"}>
+              <div className={seesBooks ? "lg:col-span-2" : "lg:col-span-3"}>
                 <SalesTrendChart
                   series={data.sales_series}
                   period={data.period}
                   money={money}
                   showRevenue={caps.sells}
-                  showExpenses={caps.keepsBooks}
-                  showProfit={caps.sells}
+                  showExpenses={seesBooks}
+                  showProfit={caps.sells && data.sees?.profit !== false}
                 />
               </div>
-              {caps.keepsBooks && <ExpenseDonut breakdown={data.expense_breakdown} period={called} money={money} />}
+              {seesBooks && <ExpenseDonut breakdown={data.expense_breakdown} period={called} money={money} />}
             </div>
           )}
 
