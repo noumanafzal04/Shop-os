@@ -42,7 +42,7 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetDbCache();
   localStorage.clear();
-  useOfflineStore.setState({ deviceId: null, registered: false, offlineDays: null });
+  useOfflineStore.setState({ deviceId: null, registered: false });
   // A shop WITH a till. The boot is the till's, and a shop without one no
   // longer runs it — see the case at the end of this file.
   useAuthStore.setState({ user: { role: "shop_owner", permissions: [], tenant: { features: { pos: true } } } } as never);
@@ -79,7 +79,7 @@ describe("every shop screen boots the till", () => {
     expect(useOfflineStore.getState().deviceId).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
-  it("learns the shop's offline window", async () => {
+  it("does not ask for the shop's roster on the way in — nothing on the till reads it", async () => {
     render(
       <MemoryRouter initialEntries={["/tenant"]}>
         <Routes>
@@ -90,7 +90,9 @@ describe("every shop screen boots the till", () => {
       </MemoryRouter>,
     );
 
-    await waitFor(() => expect(useOfflineStore.getState().offlineDays).toBe(3));
+    await waitFor(() => expect(deviceService.register).toHaveBeenCalledTimes(1));
+    await new Promise((turn) => setTimeout(turn, 120));
+    expect(deviceService.list).not.toHaveBeenCalled();
   });
 
   it("still renders the screen underneath it", async () => {

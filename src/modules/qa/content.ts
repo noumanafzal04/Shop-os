@@ -51,6 +51,8 @@ export const QA_SECTIONS: QaSection[] = [
           "A shop's name, logo and colours are its own. If the panel looks like a different business than the one you signed into, stop — that is a tenancy bug and it is the most serious kind there is.",
         ],
         checks: [
+          { do: "Open DevTools \u2192 Network, load any shop screen, then reload it within five minutes.", expect: "The reload asks only for that screen. No /auth/me, /shop/settings, /branches, /pos/devices, /pos-devices or /pos/catalog \u2014 those are kept on the device. The bell (/notifications) still asks every half minute." },
+          { do: "With a shop screen open, have an admin switch one of this shop\u2019s modules off, then reload the shop screen once.", expect: "The module\u2019s menu row is gone on that reload \u2014 not five minutes later. (Every answer carries a stamp; the device asks again only when it moves.)" },
           { do: "Sign in as the shop owner of the shop you are testing.", expect: "You land on that shop's dashboard, with that shop's name in the header." },
           { do: "Read the shop name and, if the shop has more than one branch, the branch shown in the header.", expect: "Both match the shop you meant to sign into. Write them down — every figure you check later belongs to this shop and this branch." },
           { do: "Sign out and sign in as a cashier of the same shop (ask for one, or make one under Staff).", expect: "A much shorter menu. This is the PERMISSION axis and you will use it repeatedly." },
@@ -260,6 +262,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Create a supplier, raise a PO for 10 of something at a price different from its current cost, and receive it.", expect: "Stock rises by 10, the product's cost moves to a blend of old and new, and the supplier's balance rises by the order value." },
           { do: "Pay the supplier from their own card.", expect: "The balance falls by what you paid. A Pay button that answers success and moves nothing is a defect this product has had — check the balance, not the message." },
           { do: "Receive only part of an order.", expect: "Stock rises by what arrived, and the order still shows what is outstanding." },
+          { do: "Sign in as a Stock keeper (Products + Inventory, nothing else) and open Purchase orders and Suppliers from the menu.", expect: "Both OPEN. They can read an order and receive it; there is no New purchase order, Place order, Cancel or Pay, and no way to add or edit a supplier. \"No access\" on a screen the menu offered is a defect this product has had." },
         ],
       },
       {
@@ -453,6 +456,7 @@ export const QA_SECTIONS: QaSection[] = [
           "Revenue is reported GROSS with refunds as their own dated line. A refund is dated by the day it was handed back, because netting it into the original day would rewrite a day that has been closed and banked.",
         ],
         checks: [
+          { do: "As a cashier with Sales & invoices only, open a completed sale from the Sales list.", expect: "Print receipt and Gift receipt are there; Return / Refund, Exchange and Cancel sale are NOT. Give them Refund a sale: the first two appear. Give them Void a completed sale: Cancel sale appears." },
           { do: "Refund one line of a two-line sale.", expect: "Money out matches that line, that line's stock comes back, and the sale is marked partially refunded — and it is STILL counted in the day's sales. A whole ticket vanishing from a report because one item came back is a defect this product has had." },
           { do: "Search for a sale by the customer's phone, then by an OFF- slip number.", expect: "Both find it." },
           { do: "On a sale of a taxed item, press Return / Refund and type a quantity.", expect: "Before anything is pressed the sheet says what goes back to the customer, and how much of it is tax. It is the price PAID — a discount on the bill has come off each piece — and it is the figure the refund then records." },
@@ -624,6 +628,9 @@ export const QA_SECTIONS: QaSection[] = [
           "The tax year here runs 1 July to 30 June, beside the calendar year. Both are offered; quarters are unchanged.",
         ],
         checks: [
+          { do: "In a shop whose prices INCLUDE tax (Settings \u2192 Tax), sell one item at 5,490 that cost 3,200, taxed 18%. Open Reports \u2192 Margins and \u2192 Tax.", expect: "Margins: revenue 4,652.54, profit 1,452.54, 31.2% \u2014 not 2,290 and 41.7%. Tax: net sales 4,652.54, tax 837.46, gross 5,490, and net + tax = gross. Margins\u2019 profit equals the Overview tab\u2019s Gross Profit." },
+          { do: "Card a design with sizes and a cost on the design only; sell one size; open Margins.", expect: "The line shows the design\u2019s cost against it. A sized item at 100% margin means its cost was not recorded." },
+          { do: "Hold a design with stock in every size, one with a single size at zero, and one with every size at zero. Read Out of stock on the dashboard.", expect: "1 \u2014 only the design with nothing left in any size. A shop where every design reads as out of stock is the old count." },
           { do: "Ring a known set of sales, then read the sales report for that day.", expect: "The total equals what you rang. Do the arithmetic by hand once — this is the single most valuable hour a tester spends on this product." },
           { do: "Refund part of a sale and re-read.", expect: "Revenue stays gross, a refunds line appears with the amount, and profit has the refund taken off." },
           { do: "Read the same day on the dashboard, the cashbook, the Z-read and the sales report.", expect: "They agree. Where they cannot (gross vs net), the screen says which it is showing." },
@@ -780,6 +787,8 @@ export const QA_SECTIONS: QaSection[] = [
           "A ticket parked while offline is parked on that till only, and the till says so — it cannot be picked up at another lane until the line is back.",
         ],
         checks: [
+          { do: "Online, add a new product with a barcode on the Products screen. Go to the till by the menu (no reload), then turn the network off.", expect: "The new product is on the till, by name and by scanner, within a few seconds of being saved \u2014 not at the next reload." },
+          { do: "Ring two sales offline, close the tab, turn the network on and open ANY screen (Products will do).", expect: "Both sales reach the server without the till being opened, each under its OFF- number, and the shelf falls by what was sold." },
           { do: "Turn the network off in the browser's dev tools (not the wifi — the browser must believe it is offline), then reload the till.", expect: "It still opens, still lists products, and still lets you open a shift and sell." },
           { do: "Ring three sales and read the slip numbers.", expect: "All OFF-, all different, and the customer can be found by one of them later." },
           { do: "Count the drawer out, still offline.", expect: "Accepted, and the till says the figures are provisional until the queue drains." },

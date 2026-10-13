@@ -13,6 +13,7 @@ import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers, useSupplier, useSupplierMutations } from "../hooks/usePurchases";
+import { purchaseRights } from "../stockroom";
 import type { PurchaseOrder, Supplier } from "../types";
 import Select from "../../../components/form/Select";
 import Label from "../../../components/form/Label";
@@ -136,7 +137,10 @@ export default function SuppliersPage() {
     );
   };
 
-  if (!hasPermission("suppliers.manage")) {
+  // Who a delivery came from is the stockroom's to read; the book itself is
+  // its keeper's, and paying out of it is the buyer's — see stockroom.ts.
+  const rights = purchaseRights(hasPermission);
+  if (!rights.seesSuppliers) {
     return <Alert variant="error" title="No access" message="You don't have permission to manage suppliers." />;
   }
 
@@ -150,7 +154,7 @@ export default function SuppliersPage() {
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Suppliers</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Vendors you buy stock from, and what you owe them.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>+ New supplier</Button>
+        {rights.editsSuppliers && <Button size="sm" onClick={openCreate}>+ New supplier</Button>}
       </div>
 
       <div className="mb-4 max-w-xs">
@@ -202,11 +206,11 @@ export default function SuppliersPage() {
                           changes hands, and no order was ever raised — hiding
                           Pay on a settled account refused the commonest
                           payment a small shop makes. */}
-                      <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>
-                      <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>
-                      <button className={ROW_ACTION_DANGER} onClick={async () => {
+                      {rights.paysSuppliers && <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>}
+                      {rights.editsSuppliers && <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>}
+                      {rights.editsSuppliers && <button className={ROW_ACTION_DANGER} onClick={async () => {
                         if (await confirm({ title: `Delete supplier "${s.name}"?`, message: "Purchase orders already raised keep their record.", confirmLabel: "Delete", tone: "danger" })) removeWithFeedback(s.id, s.name);
-                      }}>Delete</button>
+                      }}>Delete</button>}
                     </div>
                   </td>
                 </tr>

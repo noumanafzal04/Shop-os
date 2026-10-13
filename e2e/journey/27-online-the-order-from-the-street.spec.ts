@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { APIRequestContext, Browser, BrowserContext, Locator, Page } from "@playwright/test";
 import { OWNER_STATE, TRADE, ask, expect, record, remember, rupees, session, settled, test } from "./kit";
 import { addItem, type Item } from "./shop";
+import { keepSession } from "../freshDevice";
 
 /**
  * STAGE P — AN ONLINE SHOP'S OWN DAY.
@@ -91,7 +92,7 @@ async function asCustomer(browser: Browser): Promise<{ context: BrowserContext; 
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await expect(page).not.toHaveURL(/\/signin/, { timeout: 20_000 });
   }
-  await context.storageState({ path: CUSTOMER_STATE });
+  await keepSession(context, CUSTOMER_STATE);
 
   return { context, page };
 }

@@ -89,6 +89,8 @@ describe("the name lives in one place", () => {
     "shopos-simple-menu",
     // The count beside "Orders", kept between loads — orders/waitingStore.ts.
     "shopos-orders-waiting",
+    // What the shell keeps between loads — settings, branches, the bell (common/kept).
+    "shopos-kept",
     // A CSS class the map library is told to use.
     "shopos-map-pin",
     // Dismissal flags and a walkthrough marker — browser keys, same rule.

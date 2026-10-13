@@ -783,6 +783,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/purchases",
     keywords: ["supplier", "purchase order", "po", "receive", "delivery", "payable", "pay supplier", "advance", "balance", "outstanding"],
     body: [
+      { type: "h", text: "The buyer raises it; the stockroom receives it" },
+      { type: "p", text: "Two different jobs open this screen. Whoever holds Purchase orders raises an order, places it, cancels it and pays the supplier. Whoever holds Inventory adjustments \u2014 a stock keeper \u2014 sees the same orders and can RECEIVE against them, because the goods are on the loading bay and they are the one checking them off. They are not shown New purchase order, Place order, Cancel or Pay. On Suppliers they can read who a delivery came from; adding, editing and deleting a supplier belongs to whoever holds Suppliers." },
       {
         type: "steps",
         items: [
@@ -1219,6 +1221,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "h", text: "The count beside Orders on the menu" },
       { type: "p", text: "Whatever screen you are on, the Orders row of the menu carries a number: how many orders are still being worked. When one of them is NEW \u2014 placed, and accepted by nobody yet \u2014 the number turns orange and a ring blinks behind it, like the bell. It stops blinking when the last new order is confirmed or cancelled, and the number goes when there is nothing left to work. With the menu folded to icons, the Orders icon carries a dot instead." },
       { type: "p", text: "The number is kept on this device, so it is there the moment the app opens. A new order \u2014 from your website, or taken at another counter \u2014 reaches it with the bell, within about half a minute. If somebody on another screen accepts an order, this screen\u2019s number follows within two minutes, or at once when you open Orders." },
+      { type: "h", text: "What the app keeps on this device" },
+      { type: "p", text: "Your shop\u2019s settings, its branches, the bell and who you are signed in as are kept on the device too, so a screen opens at once instead of asking the server for them every time. You lose nothing by it: something you save is kept the moment it is saved, and a change made somewhere else \u2014 another counter, the office, or the platform switching a module on for you \u2014 reaches this device with the very next thing it does. Reload once and it is there. Signing out removes all of it from the device." },
       { type: "h", text: "The board" },
       { type: "p", text: "Four columns, in the order work moves: New, Accepted, Being prepared, and Ready \u00b7 on the way. Beside its number every order wears a badge \u2014 a blue Delivery or a purple Pickup \u2014 so you can tell a rider\u2019s bag from the counter across the room; the same badge is in the table and on the order\u2019s own sheet. A card says what is in the order, who it is for, what it comes to and how it is being paid \u2014 and how long it has waited, which turns amber and then red when that is too long for where it is. \u201cToo long\u201d means something different in each column: five minutes unconfirmed matters more than fifteen minutes already on a bike." },
       { type: "p", text: "Each card carries the one button for its next step, so a whole service can be worked without opening an order. Press the card for everything else: every line, the address, the note the customer left, the rider, and Cancel. An order from an earlier day that nobody has finished is still on the board \u2014 it is still somebody\u2019s to finish, or to cancel." },
@@ -1521,6 +1525,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/sales",
     keywords: ["sale", "invoice", "receipt", "reprint", "return", "refund", "void", "exchange", "history"],
     body: [
+      { type: "note", text: "Return / Refund and Exchange are shown only to somebody who holds Refund a sale, and Cancel sale only to somebody who holds Void a completed sale. A cashier who can ring a sale and nothing more opens a sale, can print it again, and is offered neither \u2014 undoing a sale hands money back or erases it, and that is a manager\u2019s decision (Staff \u2192 the person \u2192 Permissions)." },
       { type: "h", text: "Finding a sale" },
       { type: "p", text: "Every completed sale, newest first. Search by receipt number, customer or amount, then narrow it: pick a date range by name (Today, Last 7 days, This month, or any two dates you choose), and filter by status, how it was paid, where it was rung — the till, the phone, an online order — and, where your shop records it, who served the customer." },
       { type: "note", text: "Whatever the list is showing is what Export CSV writes. Narrow it to one week of card sales and the file has one week of card sales in it — there is no separate set of options to fill in twice." },
@@ -2570,6 +2575,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/reports",
     keywords: ["report", "profit", "best seller", "analysis", "tax year", "financial year", "year", "staff", "salesman", "commission", "target"],
     body: [
+      { type: "h", text: "If your tag prices include tax" },
+      { type: "p", text: "Margins shows what each item was sold for BEFORE tax, and its profit from that \u2014 the sales tax inside a tag price is not yours and is not counted as margin. A suit tagged 5,490 at 18% is 4,652.54 of sales and 837.46 of tax; cost 3,200 leaves 1,452.54, a 31.2% margin. On the Tax tab, Net sales is likewise before tax, so Net sales plus Tax collected is Gross sales \u2014 what customers actually paid." },
+      { type: "p", text: "A size or colour costs what its design costs, unless a purchase order received that size at a price of its own. So a kurta carded once at 1,600 is costed at 1,600 in every size, in Margins, Profit and Stock value alike." },
       { type: "p", text: "What sold, who bought it, and who sold it." },
       { type: "p", text: "Profit is takings, less anything refunded, less the sales tax inside them, plus other income, minus the cost of what was sold, minus expenses." },
       { type: "warn", text: "Sales tax is not yours, and profit no longer counts it. A bill of Rs 1,180 at 18% is Rs 1,000 of your money and Rs 180 you are holding for the government. Profit used to be worked out on the whole 1,180, so a shop that charged tax looked more profitable than it was by exactly the amount it would later have to hand over. The card reads 'Sales Tax (not yours)' and sits in the row between Refunds and Cost of Goods, so the cards add up left to right with a calculator." },

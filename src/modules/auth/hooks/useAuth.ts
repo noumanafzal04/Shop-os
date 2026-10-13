@@ -6,6 +6,9 @@ import { homeForRole } from "../../../common/routing/guards";
 import { ensureDatabaseBelongsTo } from "../../offline/db/tillOwner";
 import type { LoginPayload } from "../types";
 import { disablePush } from "../../../services/webPush";
+import { believedAt, stillStands } from "../../../common/kept/kept";
+import { stampNow } from "../../../common/kept/shellStamp";
+import { useKeptStore } from "../../../common/kept/keptStore";
 
 export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -57,6 +60,8 @@ export function useLogout() {
     onSettled: () => {
       clear();
       queryClient.clear();
+      // What the shell kept for this person goes with them (common/kept).
+      useKeptStore.getState().forget();
       navigate("/signin", { replace: true });
     },
   });
@@ -79,8 +84,26 @@ export function useChangePassword() {
   });
 }
 
+/** How long the last "who am I" is trusted without asking again. */
+export const ME_TRUSTED_FOR = 5 * 60 * 1000;
+
 /**
  * Fresh profile from the server (auth store holds the cached copy).
+ *
+ * ── It starts from that copy, aged honestly ──────────────────────────
+ *
+ * Every shop screen calls this, so every load asked "who am I" — including
+ * the load a second after signing in, when the answer had just arrived with
+ * the token. The auth store already keeps the person between loads; it now
+ * keeps WHEN the server last said so (`userAt`), and inside
+ * `ME_TRUSTED_FOR` that is the answer. Past it the screen opens from the copy
+ * and asks behind it, exactly as before.
+ *
+ * Saving the shop's own details still asks at once (`invalidateQueries` on
+ * this key); so does the server saying that something this is made of has
+ * changed — a module switched on by an admin, a permission by the owner
+ * (`kept/shellStamp.ts`). A copy whose clock is in the future is not believed
+ * (`believedAt`).
  */
 export function useMe(enabled = true) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -90,10 +113,23 @@ export function useMe(enabled = true) {
     queryKey: ["auth", "me"],
     queryFn: async () => {
       const { data } = await authService.me();
-      setUser(data);
+      setUser(data, true, stampNow());
       return data;
     },
     enabled: enabled && isAuthenticated,
-    staleTime: 5 * 60 * 1000,
+    staleTime: ME_TRUSTED_FOR,
+    initialData: () => {
+      const { user, userAt } = useAuthStore.getState();
+
+      return user !== null && userAt !== null ? user : undefined;
+    },
+    initialDataUpdatedAt: () => {
+      const { userAt, userUnder } = useAuthStore.getState();
+      if (userAt === null) return undefined;
+
+      // Heard under a stamp the server has since moved on from: shown, and
+      // asked about at once.
+      return stillStands(userUnder, stampNow()) ? believedAt(userAt, Date.now()) : 0;
+    },
   });
 }

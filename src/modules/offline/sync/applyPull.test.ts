@@ -359,3 +359,44 @@ describe("a till upgrading from an older schema", () => {
     expect(meta?.cursors.products).toBe("c1");
   });
 });
+
+describe("when the till last had everything", () => {
+  /**
+   * `pulledAt` is what lets a till that pulled a minute ago open another
+   * screen without pulling again (`pullIsDue`). It must mean "had ALL of it",
+   * or a first load cut off after one page would sit there half-built while
+   * every reload believed it was complete.
+   */
+  it("is stamped, by this device's clock, when a pull reaches the end", async () => {
+    const before = Date.now();
+
+    await applyPull(pull({ products: page([item()]) }));
+
+    const { pulledAt } = await readMeta();
+    expect(pulledAt).toBeGreaterThanOrEqual(before);
+    expect(pulledAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it("is NOT stamped while the server says there is more to come", async () => {
+    await applyPull(pull({ products: { items: [item()], cursor: "c9", has_more: true } }));
+
+    expect((await readMeta()).pulledAt, "a pull that stopped part-way reads as complete").toBeNull();
+  });
+
+  it("is taken away again by a later pull that stops part-way", async () => {
+    await applyPull(pull({ products: page([item()]) }));
+    expect((await readMeta()).pulledAt).not.toBeNull();
+
+    await applyPull(pull({ categories: { items: [], cursor: "k2", has_more: true } }));
+
+    expect((await readMeta()).pulledAt).toBeNull();
+  });
+
+  it("is forgotten when the catalogue is started over", async () => {
+    await applyPull(pull({ products: page([item()]) }));
+
+    await resetCatalog();
+
+    expect((await readMeta()).pulledAt ?? null).toBeNull();
+  });
+});

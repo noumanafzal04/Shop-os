@@ -1,4 +1,5 @@
 import { test as setup, expect, type Page } from "@playwright/test";
+import { keepSession } from "./freshDevice";
 
 /**
  * SIGN IN TO A SHOP THAT IS ACTUALLY BIG.
@@ -60,5 +61,5 @@ setup(`sign in to the ${SHOP} load-test shop`, async ({ page }) => {
   );
 
   expect(page.url()).toContain("/tenant");
-  await page.context().storageState({ path: STATE });
+  await keepSession(page.context(), STATE);
 });

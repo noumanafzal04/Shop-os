@@ -1,13 +1,16 @@
 import { useEffect, useRef } from "react";
 
+import { onServerWrite } from "../../../common/api/client";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useOfflineStore } from "../offlineStore";
+import { isCatalogueNews, PULL_AFTER_A_WRITE_MS } from "./catalogueNews";
+import { pullIsDue } from "./pullIsDue";
 import { pullNow } from "./pullNow";
 
 /**
  * Keeping the till's catalog current while it is open.
  *
- * Three triggers, and each exists for a different failure:
+ * Four triggers, and each exists for a different failure:
  *
  *  1. **Reconnecting.** The one that matters most. A till that was offline for
  *     an hour has an hour of price changes, new items and retired ones waiting,
@@ -16,7 +19,13 @@ import { pullNow } from "./pullNow";
  *     reloads — a counter machine left on for a fortnight. Without it the
  *     catalog would only refresh when somebody happened to press F5.
  *  3. **Coming back to the tab.** A cashier returning after lunch is about to
- *     ring something up, and it is the cheapest possible moment to be current.
+ *     ring something up, and it is the cheapest possible moment to be current
+ *     — if it is not current already. Somebody moving between two tabs comes
+ *     "back" every few seconds; the till asks itself first (`pullIsDue`).
+ *  4. **This device changed something.** A product added at this counter, a
+ *     price corrected, a customer made: the server has it and the till's own
+ *     copy does not. It is pulled a moment after the save, so what was just
+ *     made here can be sold here with the line down.
  *
  * Every one is fire-and-forget: `pullNow` de-duplicates overlapping calls, and
  * a pull that fails is not an event a cashier should be told about. It failed
@@ -80,14 +89,38 @@ export function useKeepInSync(enabled: boolean): void {
     if (!enabled) return;
 
     const onVisible = (): void => {
-      if (document.visibilityState === "visible" && useConnectionStore.getState().reachable) {
-        void pullNow().catch(() => {});
-      }
+      if (document.visibilityState !== "visible" || !useConnectionStore.getState().reachable) return;
+
+      void pullIsDue().then((due) => {
+        if (due) void pullNow().catch(() => {});
+      });
     };
 
     document.addEventListener("visibilitychange", onVisible);
 
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [enabled]);
+
+  // ── 4. This device changed something ──────────────────────────────
+  useEffect(() => {
+    if (!enabled) return;
+
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stop = onServerWrite((_method, path) => {
+      if (!isCatalogueNews(path)) return;
+
+      // One pull behind a run of writes, not one behind each.
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void pullNow().catch(() => {});
+      }, PULL_AFTER_A_WRITE_MS);
+    });
+
+    return () => {
+      stop();
+      if (timer !== null) clearTimeout(timer);
+    };
   }, [enabled]);
 
   // Keep the count the badge shows honest. It is read here rather than written

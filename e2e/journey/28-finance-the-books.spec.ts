@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { ADMIN_STATE, OWNER_STATE, TRADE, TRADE_LABEL, ask, begin, choose, expect, record, remember, rupees, session, settled, signIn, test } from "./kit";
+import { keepSession } from "../freshDevice";
 
 /**
  * STAGE Q — AN OFFICE THAT ONLY KEEPS ITS BOOKS.
@@ -236,7 +237,7 @@ test.describe("the first morning", () => {
     await expect(page).not.toHaveURL(/\/tenant\/setup/, { timeout: 30_000 });
     await settled(page);
     await expect(page).toHaveURL(/\/tenant\/?$/);
-    await page.context().storageState({ path: OWNER_STATE });
+    await keepSession(page.context(), OWNER_STATE);
     expect(fs.existsSync(OWNER_STATE)).toBe(true);
 
     // The head of the page and the panel under it say the SAME thing. It

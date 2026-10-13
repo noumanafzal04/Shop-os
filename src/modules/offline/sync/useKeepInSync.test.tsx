@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { act } from "react";
 
+import * as client from "../../../common/api/client";
 import { useConnectionStore } from "../../../stores/connectionStore";
+import { PULL_AFTER_A_WRITE_MS } from "./catalogueNews";
 import { HEARTBEAT_MS, useKeepInSync } from "./useKeepInSync";
+import * as due from "./pullIsDue";
 import * as puller from "./pullNow";
 import * as repo from "../db/repo";
 import { useOfflineStore } from "../offlineStore";
@@ -17,6 +20,7 @@ import { useOfflineStore } from "../offlineStore";
  *   reconnecting  — an hour offline is an hour of price changes waiting
  *   heartbeat     — a counter machine left on for a fortnight, never reloaded
  *   tab returns   — a cashier back from lunch, about to ring something up
+ *   own writes    — a product made at this counter, sellable here offline
  *
  * And one rule across all three: a pull that fails is never surfaced. It failed
  * because there is no connection, which the badge already says, and a toast per
@@ -26,9 +30,26 @@ import { useOfflineStore } from "../offlineStore";
 vi.mock("../db/repo", () => ({ queueTally: vi.fn(async () => ({ owed: 0, refused: 0 })) }));
 
 let pull: ReturnType<typeof vi.spyOn>;
+let isDue: { mockResolvedValue: (due: boolean) => unknown; mockClear: () => unknown };
+/** What the hook subscribed with, so a test can say "this device just wrote". */
+let wrote: (method: string, path: string) => void;
+let listening: number;
 
 beforeEach(() => {
   vi.useFakeTimers();
+  listening = 0;
+  wrote = () => {};
+  vi.spyOn(client, "onServerWrite").mockImplementation((listener) => {
+    wrote = listener;
+    listening += 1;
+
+    return () => {
+      wrote = () => {};
+      listening -= 1;
+    };
+  });
+  isDue = vi.spyOn(due, "pullIsDue");
+  isDue.mockResolvedValue(true);
   pull = vi.spyOn(puller, "pullNow" as never).mockResolvedValue({
     applied: {
       products: 0,
@@ -176,6 +197,35 @@ describe("the tab coming back", () => {
     expect(pull).toHaveBeenCalled();
   });
 
+  it("does NOT pull when the till had everything a moment ago", async () => {
+    // Somebody moving between two tabs comes "back" every few seconds, and
+    // each time used to be a catalogue request.
+    isDue.mockResolvedValue(false);
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      document.dispatchEvent(new Event("visibilitychange"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(isDue).toHaveBeenCalled();
+    expect(pull, "coming back to the tab pulled a catalogue that was current").not.toHaveBeenCalled();
+  });
+
+  it("does not even ask itself while the server cannot be reached", async () => {
+    renderHook(() => useKeepInSync(true));
+    act(() => useConnectionStore.setState({ reachable: false }));
+    isDue.mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(isDue).not.toHaveBeenCalled();
+  });
+
   it("stops listening when the till unmounts", async () => {
     const { unmount } = renderHook(() => useKeepInSync(true));
     unmount();
@@ -186,6 +236,118 @@ describe("the tab coming back", () => {
     });
 
     expect(pull).not.toHaveBeenCalled();
+  });
+});
+
+describe("this device changed something", () => {
+  /**
+   * A product added at this counter was not in this counter's offline list
+   * until the next heartbeat — up to a quarter of an hour in which the one
+   * till that certainly knew about it could not sell it with the line down.
+   */
+  it("pulls a moment after a product is saved here", async () => {
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("post", "/products");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS);
+    });
+
+    expect(pull, "a product made on this device never reached this device's own catalogue").toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask whether it is due — its own write IS the reason", async () => {
+    isDue.mockResolvedValue(false);
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("put", "/products/7");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS);
+    });
+
+    expect(pull).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the save to finish — not in the same instant", async () => {
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("post", "/products");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS - 1);
+    });
+
+    expect(pull).not.toHaveBeenCalled();
+  });
+
+  it("sends ONE pull behind a run of writes, not one behind each", async () => {
+    // Saving a product is the product, its picture, its packs. An import is
+    // hundreds of rows.
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("post", "/products");
+      vi.advanceTimersByTime(500);
+      wrote("post", "/products/7/image");
+      vi.advanceTimersByTime(500);
+      wrote("put", "/products/7/units");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS);
+    });
+
+    expect(pull).toHaveBeenCalledTimes(1);
+  });
+
+  it("pulls again for the next save, a while later", async () => {
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("post", "/products");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS);
+      wrote("delete", "/products/7");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS);
+    });
+
+    expect(pull).toHaveBeenCalledTimes(2);
+  });
+
+  it("is not set off by the till's own traffic — or the pull would start the next pull", async () => {
+    renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+
+    await act(async () => {
+      wrote("post", "/pos/sync");
+      wrote("post", "/pos/devices");
+      wrote("post", "/sales");
+      wrote("post", "/notifications/read-all");
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS * 3);
+    });
+
+    expect(pull).not.toHaveBeenCalled();
+  });
+
+  it("stops listening, and drops a pull it was about to send, when the till unmounts", async () => {
+    const { unmount } = renderHook(() => useKeepInSync(true));
+    pull.mockClear();
+    expect(listening).toBe(1);
+
+    await act(async () => {
+      wrote("post", "/products");
+      unmount();
+      vi.advanceTimersByTime(PULL_AFTER_A_WRITE_MS * 2);
+    });
+
+    expect(listening).toBe(0);
+    expect(pull).not.toHaveBeenCalled();
+  });
+
+  it("does not listen at all for somebody with no till", async () => {
+    renderHook(() => useKeepInSync(false));
+
+    expect(listening).toBe(0);
   });
 });
 

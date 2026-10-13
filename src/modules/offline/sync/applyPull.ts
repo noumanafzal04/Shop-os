@@ -51,6 +51,17 @@ export interface SyncMeta {
   /** When the last successful pull finished, by SERVER time. */
   lastPullAt: string | null;
   /**
+   * When this till last had EVERYTHING the server had for it — by this
+   * device's clock, which is the only one it is ever compared with.
+   *
+   * It is what lets a till that pulled a minute ago open another screen
+   * without pulling again (`pullIsDue`). Null while a pull is part-way: a
+   * page arrived and said there was more, so what is held is not yet the
+   * whole of it and the next opening must go on. Absent on a database
+   * written before this existed, which reads as never.
+   */
+  pulledAt?: number | null;
+  /**
    * WHICH SHOP THIS DATABASE BELONGS TO.
    *
    * IndexedDB is scoped to the ORIGIN, so one browser used by two shops has
@@ -120,6 +131,10 @@ export async function applyPull(pull: CatalogPull): Promise<{
   // sale that ended and stamp its takings into the wrong trading day.
   meta.clockSkewMs = new Date(pull.server_time).getTime() - Date.now();
   meta.lastPullAt = pull.server_time;
+  // Written with the cursors, in the one write that moves them: a "pulled
+  // just now" that outlived a failed page would stop the next opening asking
+  // for the rest.
+  meta.pulledAt = hasMore ? null : Date.now();
 
   await putSingleton(STORE.SYNC_META, meta);
 

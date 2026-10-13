@@ -2,12 +2,14 @@ import { useAuthStore } from "../../stores/authStore";
 import { useEffect, useRef } from "react";
 
 import { ApiError } from "../../common/types/api";
-import { putSingleton, queueTally } from "./db/repo";
-import { STORE } from "./db/schema";
+import { queueTally } from "./db/repo";
+import { ensureDatabaseBelongsTo } from "./db/tillOwner";
 import { deviceId } from "./device/deviceId";
+import { patchDevice } from "./device/deviceRecord";
 import { deviceService } from "./device/deviceService";
-import { markTouched } from "./device/touch";
+import { announcedAt, announcementIsDue, markTouched, rememberAnnounced } from "./device/touch";
 import { pruneAcked, recoverInFlight } from "./outbox/outbox";
+import { pullIsDue } from "./sync/pullIsDue";
 import { pullNow } from "./sync/pullNow";
 import { useOfflineStore } from "./offlineStore";
 import { checkStorage } from "./storage/persist";
@@ -20,7 +22,26 @@ import { checkStorage } from "./storage/persist";
  *   1. read this device's id — synchronous, and cannot fail
  *   2. ask the browser to keep our data, and how much room is left
  *   3. count what is already waiting to be sent
- *   4. announce this till to the server, and learn the shop's window
+ *   4. announce this till to the server — unless it did so a moment ago —
+ *      and bring the catalogue up to date, unless it is
+ *
+ * ── What step 4 no longer does on every load ────────────────────────────
+ *
+ * It ran in full on every reload of every screen: "this till is here", then
+ * "who are the shop's tills", then "what changed in the catalogue" — three
+ * requests whose answers the device was already holding from the load
+ * before. A person looking at five screens sent fifteen.
+ *
+ *   the announcement   is due every five minutes, not every load. The device
+ *                      remembers when the server last heard from it
+ *                      (`announcedAt`).
+ *   the roster         is not asked at all. It was asked for one number, the
+ *                      shop's offline window, and nothing on the till read
+ *                      it — the window that matters reaches a till inside its
+ *                      catalogue (`applyPull`), cashier's till included.
+ *   the catalogue      is pulled when there is a reason (`pullIsDue`):
+ *                      something waiting to be sent, nothing held yet, or
+ *                      five minutes since it last had everything.
  *
  * Step 4 is the only one that needs a network, and it is deliberately LAST. A
  * till with no line still knows who it is, still knows whether its storage is
@@ -63,7 +84,6 @@ export function refusalFrom(error: unknown): string | null {
 export function useOfflineBoot(enabled: boolean): void {
   const setDevice = useOfflineStore((s) => s.setDevice);
   const setRegistered = useOfflineStore((s) => s.setRegistered);
-  const setPolicy = useOfflineStore((s) => s.setPolicy);
   const setStorage = useOfflineStore((s) => s.setStorage);
   const setTally = useOfflineStore((s) => s.setTally);
   const refreshHoursOffline = useOfflineStore((s) => s.refreshHoursOffline);
@@ -110,7 +130,22 @@ export function useOfflineBoot(enabled: boolean): void {
         // it simply cannot say how much it is holding, which is the truth.
       }
 
-      try {
+      // WHOSE TILL IS THIS — before anything remembered on it is believed. A
+      // device handed to another shop still holds the last shop's catalogue
+      // and its "announced a minute ago"; this is where both stop counting.
+      const shop = useAuthStore.getState().user?.tenant?.id ?? null;
+      await ensureDatabaseBelongsTo(shop).catch(() => undefined);
+
+      const lastHeard = await announcedAt(shop);
+
+      if (!announcementIsDue(lastHeard)) {
+        // The server heard from this till inside the last five minutes — on
+        // the load before this one. Saying so again tells it nothing; the
+        // tab's own clock is set from the device's, so the next touch falls
+        // due when it would have.
+        markTouched(lastHeard ?? undefined);
+        setRegistered(true);
+      } else try {
         const registered = await deviceService.register(deviceId());
         setRegistered(true);
 
@@ -121,12 +156,12 @@ export function useOfflineBoot(enabled: boolean): void {
         // in which case the till goes on slicing its own id as it always did.
         const code = registered?.data?.code ?? null;
         if (code) {
-          await putSingleton(STORE.DEVICE, { code });
+          await patchDevice({ code });
         }
         // The pull below would otherwise touch a device that announced itself
         // half a second ago — two identical requests at the slowest moment of
-        // the app's life.
-        markTouched();
+        // the app's life. And the NEXT load reads this too.
+        await rememberAnnounced();
       } catch (error) {
         // Offline, or refused. Neither stops the till: this is the
         // announcement, not the permission.
@@ -144,33 +179,16 @@ export function useOfflineBoot(enabled: boolean): void {
       // warning on screen that the last request just disproved.
       refreshHoursOffline();
 
-      // The shop's ceiling is a separate call because it needs a permission the
-      // cashier may not hold. A cashier simply never learns the number, which
-      // is fine — nothing they can do depends on it until Phase 3.
-      //
-      // …so it is not ASKED on their behalf. It used to be asked for everybody
-      // and the refusal thrown away, which is a 403 on every screen a cashier
-      // opens: harmless to the cashier, and a wall of refused requests to
-      // whoever reads the server's log looking for a real one. Found by the
-      // first test that walked the shop as somebody other than its owner.
-      if (useAuthStore.getState().hasPermission("settings.manage")) {
-        try {
-          const { data } = await deviceService.list();
-          setPolicy(data.offline_days);
-        } catch {
-          setPolicy(null);
-        }
-      } else {
-        setPolicy(null);
-      }
-
       // Last, and allowed to fail: a first load is a whole catalog, and a till
       // that would not open until it finished downloading one would be useless
       // on the morning it matters. Offline, this simply rejects and the till
       // carries on with whatever it already holds.
-      void pullNow().catch(() => {});
+      //
+      // …and only when there is a reason to (`pullIsDue`): something to send,
+      // nothing held, or five minutes since it last had everything.
+      if (await pullIsDue()) void pullNow().catch(() => {});
     };
 
     void boot();
-  }, [enabled, setDevice, setRegistered, setPolicy, setStorage, setTally, refreshHoursOffline]);
+  }, [enabled, setDevice, setRegistered, setStorage, setTally, refreshHoursOffline]);
 }

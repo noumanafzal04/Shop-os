@@ -168,6 +168,22 @@ describe("the Orders screen", () => {
   });
 });
 
+describe("two answers in one millisecond", () => {
+  it("keeps the second — the clock alone cannot tell them apart", async () => {
+    // The Orders screen tells the menu its figure in the same millisecond the
+    // kept one was heard. Judged by the time, that looked like nothing new:
+    // the menu showed 2 and the device went on holding 0 for the next load.
+    const at = Date.now();
+    useWaitingStore.setState({ kept: { owner: "t1:u1", count: { new: 0, being_worked: 3, at } } });
+    const { result } = renderHook(() => useOrdersWaiting(true), { wrapper });
+
+    act(() => { client.setQueryData(["orders", "shop", "waiting"], { new: 2, being_worked: 6 }, { updatedAt: at }); });
+
+    await waitFor(() => expect(result.current.data).toEqual({ new: 2, being_worked: 6 }));
+    expect(useWaitingStore.getState().kept?.count, "the menu shows one count and the device keeps another").toMatchObject({ new: 2, being_worked: 6 });
+  });
+});
+
 describe("this device's own work", () => {
   it("asks again when an order is taken, confirmed or cancelled here — they all invalidate the orders key", async () => {
     useWaitingStore.setState({ kept: { owner: "t1:u1", count: { new: 0, being_worked: 3, at: Date.now() } } });

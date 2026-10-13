@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { OWNER_STATE, ask, expect, record, remember, roomForACase, session, settled, signIn, test } from "./kit";
+import { keepSession } from "../freshDevice";
 
 /**
  * STAGE B (first half) — THE OWNER WALKS IN.
@@ -36,7 +37,7 @@ test("B1 · the owner signs in, finishes setup, and reaches the dashboard", asyn
   await settled(page);
   await expect(page).toHaveURL(/\/tenant\/?$/);
 
-  await page.context().storageState({ path: OWNER_STATE });
+  await keepSession(page.context(), OWNER_STATE);
   expect(fs.existsSync(OWNER_STATE)).toBe(true);
 
   // The server agrees the shop is set up, and still has every module.

@@ -11,6 +11,7 @@ import {
   type DateFormatCode, type Datish,
 } from "../../../common/format/date";
 import { setShopDayRule } from "../../../common/shopDay";
+import { useKeptQuery } from "../../../common/kept/useKeptQuery";
 
 /**
  * What this shop has. Read-only — modules are the admin's decision, and this is
@@ -30,7 +31,10 @@ export function useShopSettings() {
   // (it would 403). Other roles just get the default formatting.
   const role = useAuthStore((s) => s.user?.role);
   const isShop = role === "shop_owner" || role === "staff";
-  const query = useQuery({
+  // KEPT ON THE DEVICE (common/kept): every shop screen reads this, so it was
+  // asked for on every load. A screen opening within five minutes of the last
+  // answer now asks nothing; a save here still refreshes it at once.
+  const query = useKeptQuery<ShopSettings>("shop-settings", {
     queryKey: ["shop-settings"],
     queryFn: async () => (await shopService.settings()).data,
     staleTime: 5 * 60 * 1000,

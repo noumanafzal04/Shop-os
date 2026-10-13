@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { ADMIN_STATE, OWNER_STATE, TRADE, ask, begin, choose, expect, record, remember, session, settled, signIn, test } from "./kit";
 import { addItem, type Item } from "./shop";
+import { keepSession } from "../freshDevice";
 
 /**
  * STAGE R — A PLAN IS MADE, A SHOP IS PUT ON IT, AND THREE MONTHS GO BY.
@@ -391,7 +392,7 @@ test.describe("the owner's first morning", () => {
       await expect(page).not.toHaveURL(/\/tenant\/setup/, { timeout: 30_000 });
       await settled(page);
     }
-    await page.context().storageState({ path: OWNER_STATE });
+    await keepSession(page.context(), OWNER_STATE);
     expect(fs.existsSync(OWNER_STATE)).toBe(true);
 
     await page.goto("/tenant/subscription");

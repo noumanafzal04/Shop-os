@@ -136,12 +136,19 @@ export function useOrdersWaiting(enabled: boolean) {
   });
 
   // Whatever was last said is kept, whoever said it.
+  //
+  // "Already kept" means the same FIGURES at the same moment — not the moment
+  // alone. Two answers can land inside one millisecond (the Orders screen
+  // telling the menu as a refetch arrives), and judged by the clock the second
+  // looked like the first: the menu showed the new count and the device went
+  // on holding the old one, to open with on the next load.
   const { data, dataUpdatedAt } = query;
-  const keptAt = kept?.count?.at;
+  const keptCount = kept?.count;
   useEffect(() => {
-    if (!on || owner === null || data === undefined || dataUpdatedAt === 0 || keptAt === dataUpdatedAt) return;
+    if (!on || owner === null || data === undefined || dataUpdatedAt === 0) return;
+    if (keptCount !== undefined && keptCount.at === dataUpdatedAt && keptCount.new === data.new && keptCount.being_worked === data.being_worked) return;
     keep(owner, { new: data.new, being_worked: data.being_worked, at: dataUpdatedAt });
-  }, [on, owner, data, dataUpdatedAt, keptAt, keep]);
+  }, [on, owner, data, dataUpdatedAt, keptCount, keep]);
 
   // The bell. It is asked by the header anyway; this only reads what it said.
   const bell = useNotifications(1);

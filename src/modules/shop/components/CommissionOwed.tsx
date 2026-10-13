@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "../../../common/api/client";
 import Badge from "../../../components/ui/badge/Badge";
 import { useMoney } from "../hooks/useShop";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * WHAT THIS SHOP OWES THE MARKETPLACE.
@@ -72,11 +73,18 @@ export function commissionIsWorthSaying(d: Pick<Owed, "applies" | "rate" | "outs
 export function CommissionOwed() {
   // In the shop's own money: commission is a share of what the shop took.
   const money = useMoney();
+  // What the shop owes the platform is "money the OWNER answers for, not
+  // something a cashier needs" — the server's words, and it refuses anybody
+  // without `settings.manage`. So nobody else is asked on their behalf.
+  //
+  // It was asked for everybody and the refusal thrown away: the Subscription
+  // screen is on every member of staff's menu, and each of them who opened it
+  // put a 403 in the server's log, in a shop where nothing was wrong.
+  const mayKnow = useAuthStore((s) => s.hasPermission("settings.manage"));
   const owed = useQuery({
     queryKey: ["shop", "commission"],
     queryFn: async () => (await apiGet<Owed>("/commission")).data,
-    // A shop without `settings.manage` gets a 403 here, and that is not an
-    // error worth a red box on a page about something else.
+    enabled: mayKnow,
     retry: false,
   });
 

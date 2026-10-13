@@ -1,4 +1,7 @@
+import { isDue } from "../../../common/kept/kept";
+import { useAuthStore } from "../../../stores/authStore";
 import { deviceId } from "./deviceId";
+import { patchDevice, readDevice } from "./deviceRecord";
 import { deviceService } from "./deviceService";
 
 /**
@@ -25,7 +28,9 @@ import { deviceService } from "./deviceService";
 export const TOUCH_EVERY_MS = 5 * 60 * 1000;
 
 /**
- * Per tab, and reset by a reload — which registers on its own way in anyway.
+ * Per tab — and, since a reload stopped announcing the till afresh every
+ * time, also written down on the device (`rememberAnnounced`) so the next tab
+ * starts from it.
  *
  * Starts at negative infinity rather than 0, because 0 is a real instant and
  * "we have never touched" is not a time at all. Any finite sentinel makes the
@@ -46,6 +51,48 @@ export function resetTouchClock(): void {
  */
 export function markTouched(now: number = Date.now()): void {
   lastTouch = now;
+}
+
+const shopNow = (): string | null => useAuthStore.getState().user?.tenant?.id ?? null;
+
+/**
+ * WHEN THE SERVER LAST HEARD FROM THIS TILL — kept across a reload.
+ *
+ * Announcing on every boot was the right rule when a boot was rare. It is not
+ * rare: every reload of every screen is one, and each posted "this till is
+ * here" a moment after the last one had. The rule the roster needs is the one
+ * `TOUCH_EVERY_MS` already states — heard from at least every five minutes
+ * while in use — so the boot asks this first and stays quiet inside it.
+ *
+ * Null for another shop's announcement: a till handed over has told the NEW
+ * shop nothing, and that shop may refuse it — which is learned by asking.
+ */
+export async function announcedAt(shop: string | null = shopNow()): Promise<number | null> {
+  if (shop === null) return null;
+  try {
+    const { announced } = await readDevice();
+
+    return announced && announced.shop === shop ? announced.at : null;
+  } catch {
+    // No database. Then nothing is remembered, and the till announces itself.
+    return null;
+  }
+}
+
+/** The server heard from this till just now. Never throws: it is a note, not the announcement. */
+export async function rememberAnnounced(now: number = Date.now(), shop: string | null = shopNow()): Promise<void> {
+  markTouched(now);
+  if (shop === null) return;
+  try {
+    await patchDevice({ announced: { shop, at: now } });
+  } catch {
+    // A browser that refuses a database still has the tab's own clock above.
+  }
+}
+
+/** Is it time this till said it is here? */
+export function announcementIsDue(last: number | null, now: number = Date.now()): boolean {
+  return isDue(last, now, TOUCH_EVERY_MS);
 }
 
 /**
@@ -70,7 +117,7 @@ export async function touchIfDue(
 
   try {
     await deviceService.touch(deviceId());
-    lastTouch = now;
+    await rememberAnnounced(now);
 
     return true;
   } catch {

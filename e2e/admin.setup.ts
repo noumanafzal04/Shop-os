@@ -1,4 +1,5 @@
 import { test as setup, expect, type Page } from "@playwright/test";
+import { keepSession } from "./freshDevice";
 
 /**
  * SIGN IN TO THE ADMIN CONSOLE.
@@ -42,5 +43,5 @@ setup("sign in to the admin console", async ({ page }) => {
   );
 
   expect(page.url()).toContain("/admin");
-  await page.context().storageState({ path: STATE });
+  await keepSession(page.context(), STATE);
 });

@@ -5,6 +5,7 @@ import { useTerminalStore } from "../../stores/terminalStore";
 import { useConnectionStore } from "../../stores/connectionStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 import { markServerContact } from "../../modules/offline/contact";
+import { heardShellStamp, SHELL_STAMP_HEADER } from "../kept/shellStamp";
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -125,17 +126,64 @@ function touchedServer(): void {
   markServerContact();
 }
 
+/**
+ * THIS DEVICE JUST CHANGED SOMETHING ON THE SERVER — and said so.
+ *
+ * Whoever keeps a copy of the server's data on the device needs to hear when
+ * the device itself has changed it: the till's catalogue is the case
+ * (`useKeepInSync`). A product made at this counter was not in this counter's
+ * offline list until the next quarter-hour heartbeat, so the one till in the
+ * world that certainly knew about it could not sell it with the line down.
+ *
+ * Told here, at the one place every write passes, and not by each screen that
+ * saves: a new screen that forgot to say so would be exactly the gap this
+ * closes. Only a write the server ACCEPTED is news; a refused one changed
+ * nothing.
+ *
+ * Listeners are told the method and the path as the caller wrote it
+ * (`/products/123`), and must not throw — one is not allowed to fail a save.
+ */
+type WriteListener = (method: string, path: string) => void;
+const writeListeners = new Set<WriteListener>();
+
+export function onServerWrite(listener: WriteListener): () => void {
+  writeListeners.add(listener);
+
+  return () => {
+    writeListeners.delete(listener);
+  };
+}
+
+function toldOfAWrite(method: string | undefined, path: string | undefined): void {
+  const verb = (method ?? "get").toLowerCase();
+  if (verb === "get" || verb === "head" || verb === "options") return;
+
+  for (const listener of writeListeners) {
+    try {
+      listener(verb, path ?? "");
+    } catch {
+      // A listener's trouble is its own.
+    }
+  }
+}
+
 api.interceptors.response.use(
   (response) => {
     // Real traffic is the only honest signal that the server is reachable.
     touchedServer();
+    // Whether what the shell keeps on the device still stands (kept/shellStamp).
+    heardShellStamp(response.headers?.[SHELL_STAMP_HEADER], { method: response.config.method, path: response.config.url });
+    toldOfAWrite(response.config.method, response.config.url);
     return response;
   },
   async (error: AxiosError<ApiEnvelope>) => {
     // A response of ANY status means we reached the server; only silence means
     // we didn't. A 500 is a broken server, not a broken connection.
-    if (error.response) touchedServer();
-    else useConnectionStore.getState().markUnreachable();
+    if (error.response) {
+      touchedServer();
+      // A refusal is still the server speaking, and says the same thing.
+      heardShellStamp(error.response.headers?.[SHELL_STAMP_HEADER], { method: error.config?.method, path: error.config?.url });
+    } else useConnectionStore.getState().markUnreachable();
 
     const original = error.config as AxiosRequestConfig & { _retried?: boolean };
     const status = error.response?.status ?? 0;

@@ -1,5 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "../../../common/api/client";
+import { useKeptQuery } from "../../../common/kept/useKeptQuery";
+import type { ApiEnvelope } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 
 export interface AppNotification {
@@ -12,10 +14,19 @@ export interface AppNotification {
   created_at: string;
 }
 
+/** How often the bell is asked, and so how long its last answer is trusted. */
+export const BELL_EVERY = 30_000;
+
 export function useNotifications(page = 1) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  return useQuery({
+  // KEPT ON THE DEVICE (common/kept). The bell is on every screen, so every
+  // load asked it — a moment after the last screen had. It still asks every
+  // half minute; what it no longer does is ask AGAIN because a screen was
+  // opened inside that half minute. Only its first page: that is the one the
+  // shell shows, and older pages are read once and left.
+  return useKeptQuery<ApiEnvelope<AppNotification[]>>("notifications", {
+    kept: page === 1,
     // Fifteen a page. Without a page number the bell showed the fifteen newest
     // and everything older was gone from the product — which matters more here
     // than on most lists, because an expiry warning is spoken ONCE per lot per
@@ -23,8 +34,9 @@ export function useNotifications(page = 1) {
     queryKey: ["notifications", page],
     queryFn: () => apiGet<AppNotification[]>("/notifications", { params: { page } }),
     enabled: isAuthenticated,
+    staleTime: BELL_EVERY,
     // Near-real-time bell without websockets.
-    refetchInterval: 30_000,
+    refetchInterval: BELL_EVERY,
     refetchOnWindowFocus: true,
   });
 }

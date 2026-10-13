@@ -1,6 +1,7 @@
 import { expect, test as base, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import fs from "node:fs";
 import { API, roomToWork } from "../api";
+import { keepSession } from "../freshDevice";
 
 /**
  * THE JOURNEY'S KIT.
@@ -167,7 +168,7 @@ export async function session(browser: Browser, who: "admin" | "owner"): Promise
     const r = record();
     await signIn(page, r.ownerEmail, r.ownerPassword, /\/tenant/);
   }
-  await context.storageState({ path: file });
+  await keepSession(context, file);
   await context.close();
 
   return file;

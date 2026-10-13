@@ -47,11 +47,6 @@ interface OfflineState {
    */
   registrationRefusal: string | null;
   /**
-   * The shop's ceiling, in days, as the server reported it. Null = not known
-   * yet, which is treated as "do not warn about something unmeasured".
-   */
-  offlineDays: number | null;
-  /**
    * How long THIS device has been out of contact, in hours, measured locally
    * from the last successful request.
    *
@@ -84,7 +79,6 @@ interface OfflineState {
 
   setDevice: (id: string) => void;
   setRegistered: (registered: boolean, refusal?: string | null) => void;
-  setPolicy: (offlineDays: number | null) => void;
   setStorage: (storage: StorageHealth) => void;
   setPending: (pending: number) => void;
   setTally: (tally: { owed: number; refused: number }) => void;
@@ -97,7 +91,6 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
   deviceId: null,
   registered: false,
   registrationRefusal: null,
-  offlineDays: null,
   hoursOffline: hoursSinceContact(),
   storage: null,
   pending: 0,
@@ -106,7 +99,6 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
 
   setDevice: (deviceId) => set({ deviceId }),
   setRegistered: (registered, refusal = null) => set({ registered, registrationRefusal: refusal }),
-  setPolicy: (offlineDays) => set({ offlineDays }),
   setStorage: (storage) => set({ storage }),
   setPending: (pending) => set({ pending }),
   setTally: ({ owed, refused }) => set({ pending: owed, refused }),
@@ -118,9 +110,18 @@ export const useOfflineStore = create<OfflineState>()((set) => ({
  * Where a till stands, given how long it has been out of contact and the
  * ceiling its shop was given.
  *
- * A pure function on purpose: this is the rule the indicator, the
- * acknowledgement prompt and the owner's roster all read, and a rule that can
- * be checked without a browser is a rule that stays correct.
+ * A pure function on purpose: a rule that can be checked without a browser is
+ * a rule that stays correct.
+ *
+ * ── Nothing on the till reads this yet ──────────────────────────────────
+ *
+ * It was written for an indicator and an acknowledgement prompt that were
+ * never built, and for years the boot asked the server for the shop's window
+ * on every load to feed it — a request whose answer no screen used. That
+ * asking is gone. The window itself still reaches every till, inside its
+ * catalogue (`applyPull` → `settings.offline_days`), and the server marks a
+ * sale rung past it (`OfflinePolicy`). Whoever builds the prompt reads the
+ * window from there.
  *
  * ── Why HOURS against a window measured in DAYS ─────────────────────────
  *

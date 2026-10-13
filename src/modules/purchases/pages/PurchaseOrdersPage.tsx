@@ -19,6 +19,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { ProductUnit } from "../../catalog/types";
 import { useSuppliers } from "../hooks/usePurchases";
+import { purchaseRights } from "../stockroom";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
@@ -52,6 +53,9 @@ export default function PurchaseOrdersPage() {
   const toast = useToast();
   const money = useMoney();
   const hasPermission = useAuthStore((s) => s.hasPermission);
+  // The buyer raises an order; the stock keeper receives it. Both open this
+  // screen — see stockroom.ts for the line between them, which is the server's.
+  const rights = purchaseRights(hasPermission);
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const orders = usePurchaseOrders({ status: statusFilter || undefined, page });
@@ -195,7 +199,7 @@ export default function PurchaseOrdersPage() {
 
   const openDetail = (id: string) => { setDetailId(id); detailModal.openModal(); };
 
-  if (!hasPermission("purchases.manage")) {
+  if (!rights.seesOrders) {
     return <Alert variant="error" title="No access" message="You don't have permission to manage purchases." />;
   }
 
@@ -211,7 +215,7 @@ export default function PurchaseOrdersPage() {
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Purchase Orders</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Order stock, receive into inventory, and track supplier payments.</p>
         </div>
-        <Button size="sm" onClick={openCreate}>+ New purchase order</Button>
+        {rights.raises && <Button size="sm" onClick={openCreate}>+ New purchase order</Button>}
       </div>
 
       {/* The segmented track scrolls sideways INSIDE itself rather than
@@ -384,7 +388,7 @@ export default function PurchaseOrdersPage() {
             )}
 
             <div className="flex flex-wrap justify-end gap-3">
-              {d.status === "draft" && (
+              {rights.raises && d.status === "draft" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -413,7 +417,7 @@ export default function PurchaseOrdersPage() {
                   )}
                 </>
               )}
-              {(d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
+              {rights.raises && (d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
                 <Button size="sm" variant="outline" onClick={async () => {
                   if (await confirm({ title: "Cancel this purchase order?", message: "Nothing is received and the order stops being expected.", confirmLabel: "Cancel PO", cancelLabel: "Keep it", tone: "danger" })) cancel.mutate({ id: d.id, reason: "Cancelled by user" });
                 }} disabled={cancel.isPending}>Cancel PO</Button>

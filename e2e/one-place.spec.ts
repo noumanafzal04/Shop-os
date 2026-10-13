@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { ownerAuth, roomToWork } from "./api";
+import { aDeviceThatKeepsNothing } from "./freshDevice";
 
 /**
  * A SHOP WITH ONE PLACE IS NOT SHOWN THE SCREENS ABOUT PLACES.
@@ -49,6 +50,11 @@ type Open = { shops: number; warehouses: number };
  */
 async function answering(page: Page): Promise<{ has: (places: Open | null) => void }> {
   let places: Open | null = null;
+
+  // The settings are kept on the device between loads, and nothing here
+  // would tell it they had changed — the answer is this spec's, not the
+  // server's. So each load of this page asks.
+  await aDeviceThatKeepsNothing(page);
 
   await page.route("**/api/v1/shop/settings", async (route) => {
     if (route.request().method() !== "GET" || places === null) return route.continue();

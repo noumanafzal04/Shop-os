@@ -26,6 +26,7 @@ import { posService } from "../../pos/services/posService";
 import { NoAccess } from "../../../common/ui/NoAccess";
 import { deniedReason } from "../../../common/api/denied";
 import { useAuthStore } from "../../../stores/authStore";
+import { afterTheSale } from "../afterTheSale";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
 import { saleParams, VOID_REASONS, type VoidReasonCode } from "../services/salesService";
@@ -146,6 +147,7 @@ export default function SalesPage() {
   // Counter sales need the POS module — an online-only shop sees only history.
   // `?? false`: a missing key is OFF here as everywhere else; this one line
   // used to read it as ON.
+  const may = afterTheSale(useAuthStore((st) => st.hasPermission));
   const hasPos = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? false,
   );
@@ -910,18 +912,21 @@ export default function SalesPage() {
                 <Button size="sm" variant="outline" disabled={printing} onClick={() => printReceipt("gift")}>
                   Gift receipt
                 </Button>
-                {(detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
+                {/* Only what this person may do to a sale already rung — see
+                    afterTheSale.ts. A cashier was offered all three and
+                    refused each, after choosing a reason. */}
+                {may.refunds && (detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
                   <Button size="sm" variant="outline" onClick={() => setReturning(true)}>
                     Return / Refund
                   </Button>
                 )}
                 {/* An exchange rings a new counter sale (POST …/exchange needs `pos`). */}
-                {hasPos && (detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
+                {may.exchanges && hasPos && (detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
                   <Button size="sm" variant="outline" onClick={() => setExchanging(true)}>
                     Exchange
                   </Button>
                 )}
-                {detail.data.status === "completed" && (
+                {may.voids && detail.data.status === "completed" && (
                   <Button size="sm" variant="outline" onClick={() => setConfirmingCancel(true)}>
                     Cancel sale
                   </Button>

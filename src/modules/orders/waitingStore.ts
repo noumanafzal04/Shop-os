@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { noteStorage } from "../../common/kept/deviceStorage";
 import type { Kept, KeptCount } from "./waitingCount";
 
 /**
@@ -30,6 +31,8 @@ export const useWaitingStore = create<WaitingState>()(
       keep: (owner, count) => set((s) => ({ kept: { ...of(s.kept, owner), count } })),
       hear: (owner, heard) => set((s) => ({ kept: { ...of(s.kept, owner), heard } })),
     }),
-    { name: "shopos-orders-waiting" },
+    // Written from an effect in the menu. A browser with no room left would
+    // otherwise throw out of it and take the screen down for a count.
+    { name: "shopos-orders-waiting", storage: noteStorage() },
   ),
 );

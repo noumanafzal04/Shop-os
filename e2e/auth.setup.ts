@@ -1,5 +1,6 @@
 import { test as setup, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { keepSession } from "./freshDevice";
 
 const OWNER = process.env.E2E_OWNER ?? "sweep-mart@qa.test";
 const PASSWORD = process.env.E2E_PASSWORD ?? "password";
@@ -105,7 +106,7 @@ async function signIn(page: Page, who: string, into: string): Promise<void> {
 
   expect(page.url(), "still on the setup form").not.toContain("/tenant/setup");
 
-  await page.context().storageState({ path: into });
+  await keepSession(page.context(), into);
 }
 
 setup("sign in as a shop owner", async ({ page }) => {
