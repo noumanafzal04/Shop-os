@@ -1,9 +1,14 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-13 (~04:30) — SECOND PUSH: backend a640c77 / panel a559ba7 (docs main after them). The user stopped the night's work and will deploy. NEXT: the other requests a whole reload makes, kept on the device the same way as the Orders count; then restaurant stages 41/42. Nothing is on live
+description: RESUME POINT 2026-10-13 (afternoon) — THIRD PUSH: a reload asks nothing (kept + server stamp) and seven bugs from a clothing shop lived by hand. FOUR DECISIONS AWAIT THE USER. NEXT = the rest of that shop's life (returns, PO received, day close, orders, expenses)
 metadata:
   type: project
 ---
+
+**2026-10-13 (afternoon) — THIRD PUSH, at the user's word** ("session limit and weekly limit kam reh gai hai, koi code changes / bug hain to commit and push kar do … stop working"). What went in: [[shopos-kept-not-asked]] (reload: dashboard 8 requests → 1; server `X-Shell-Stamp`) and [[shopos-zari-clothing-qa]] (7 bugs fixed). Hashes are in HANDOVER's session log and `git log`. Deploy: BACKEND FIRST, no migration; nginx must expose `X-Shell-Stamp` if it sets CORS itself.
+**AWAITING THE USER (asked in the closing message):** the four decisions in [[shopos-zari-clothing-qa]]; plus the older ones (orders untaxed, no offers on orders, "ingredient — not sold", Reservations = tables?).
+**NEXT, when they return:** finish Zari's life — returns/exchange, khata payment, PO received as the stock keeper, expenses + cashbook, both shifts and the day closed, phone/online orders, coupons; then the smaller findings in the decision doc; then restaurant stages 41/42. Run tablet/phone/trades/admin/journey against this code — only desktop + the preview offline specs were.
+**Fixture state I changed and left:** Sweep Mart `service_area` = "E2E Gulberg and DHA" (the kept spec alternates it); its `date_format` was left on `dmy` by a probe of mine and PUT BACK to `dmy_text`.
 
 **2026-10-13 (~04:30) — SECOND PUSH, then stopped at the user's word** ("abhi stop kar do, baqi kaam kal … just push this code jo ho gaya hai, ta ke live pe update kar dun"). backend `a640c77` (`offline/v1/backend`), panel `a559ba7` (`offline/v1/admin-panel`), docs on `main` after them; local == remote checked. Gates: backend 3,748 (3,726 passed, 22 skipped), panel 256 files / 3,063, build 0, eslint 0 errors. Browser on the real stack after the last change: `food.take-order` ×3 sizes 17 passed, online journey 01/02/27 15 passed. The whole standing regression was NOT re-run before this push (said so in RUNS). NOTHING on live; the user deploys (backend first, then panel).
 **What went in:** Delivery/Pickup badge; "Out for delivery" asks for a rider (optional); the menu's Orders count with a blinking orange dot — KEPT on the device, see [[shopos-kept-not-asked]]; the landing page (brand-coloured dark bands, centred headings, nine trade tiles + real till photographs, "Services" not "Salon", the four real plans held to `PlanSeeder` by a test, the dashboard retaken with the Full menu). RUNS #178–194.

@@ -1,7 +1,8 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 ~04:30: SECOND PUSH (badge, rider question, kept Orders count, landing page: brand colour, 9 real till photos, 4 real plans); user stopped for the night; NEXT = other shell requests kept the same way, then stages 41/42
-- [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): what the shell shows on every screen is kept in a persisted store and asked again only on news — never per load or a 30 s poll; the pattern, and what is still to convert
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 afternoon: THIRD PUSH (reload asks nothing + server stamp; 7 bugs from a clothing shop lived by hand); 4 decisions await the user; NEXT = the rest of Zari's life, then stages 41/42
+- [Zari Clothing QA](shopos-zari-clothing-qa.md) — 2026-10-13: a clothing shop made + lived by hand in dev; 7 fixed, 4 DECISIONS OPEN (sale price vs sizes, profit on cashier dashboard, cost backfill, hold label); logins + what was NOT walked
+- [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): shell answers are kept on the device, asked on news; DONE with a SERVER STAMP — kept without a way to hear a change made elsewhere is stale; test add/change/remove → the device holds it
 - [An Order Reaches The Kitchen](shopos-an-order-reaches-the-kitchen.md) — FIXED 2026-10-12: orders never reached the pass; Take order rebuilt (size, questions, server's total); 4 things await the USER (orders untaxed, no offers, ingredients sold, Reservations ≠ tables)
 - [An Item Is Counted Or Not](shopos-an-item-is-counted-or-not.md) — FIXED 2026-10-12: first dish born stock-counted at 0; edit switch saved nothing; STANDING: a request-dependent default is "unknown", never the harmful value
 - [Develop On A Copy Stack](shopos-develop-on-a-copy-stack.md) — STANDING: while the user tests or a suite runs, change code on panel :5198 → backend :8001 and land later; how, and its traps

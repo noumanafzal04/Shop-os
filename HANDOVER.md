@@ -308,6 +308,38 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-13 (afternoon) — a reload asks nothing; a clothing shop lived by hand
+
+Two things, asked together by the owner.
+
+**1. The rest of what a reload asks is kept on the device.** A reload of the
+dashboard was 8 requests and is 1; the till 14 and is 8. Settings, branches,
+the bell and who-am-I are kept (`panel/src/common/kept`); the till announces
+itself and pulls its catalogue when there is a reason, not on every load; the
+roster is no longer asked by the boot at all. Every signed-in answer now
+carries `X-Shell-Stamp`, so a change made elsewhere — an admin switching a
+module on — reaches a device with its next request. A product saved at a
+counter is in that counter's offline list seconds later.
+`docs/decisions/shopos-the-shell-is-kept-and-stamped.md`.
+
+**2. Zari Clothing** — made by the admin form, set up, stocked, sold from,
+staffed and walked as each job, with and without a line. Seven things were
+wrong and are fixed (a size sold at no cost; margins counting the tax; net
+sales equal to gross; every sized design "out of stock"; the stock keeper
+walled out; a cashier offered refunds; a 403 on Subscription); four are the
+owner's to decide (a sale price that sizes ignore; profit on a cashier's
+dashboard; filling in costs already missed; a held bill's label becoming the
+customer). `docs/decisions/shopos-a-clothing-shop-lived-by-hand.md`.
+
+**Deploy:** backend first — the panel reads a header the old backend does not
+send (it then falls back to five minutes, and works). No migration. If nginx
+sets the CORS headers itself on the server, add `X-Shell-Stamp` to the
+exposed ones.
+
+**Not done, and next:** the rest of the clothing shop's life (returns,
+purchase received, day closed, orders, expenses); `/pos/held` and
+`/pos/registers` are still asked more than once.
+
 ### 2026-10-13 (small hours) — a badge, a question, a count that is kept; and the front page read down
 
 Asked for on seeing the night's Orders screens, then on being told what one of

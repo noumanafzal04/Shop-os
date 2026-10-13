@@ -749,4 +749,41 @@ done to be pushed.
 — every section, at a laptop's width, a tablet's and a phone's — and no
 width scrolls sideways.
 
+## What a reload asks, and a clothing shop lived by hand (2026-10-13, afternoon)
+
+Zari Clothing (retail · garments, Pro, all 21 modules) — created through the
+admin form and worked through the screens; the shell's requests measured as a
+HAR before and after.
+
+| # | Found | Now |
+|---|---|---|
+| 195 | A reload asked the server seven things the device already had (dashboard: 8 requests, 6 of them the shell's) | kept on the device: 1 request. `e2e/kept-on-the-device.spec.ts` |
+| 196 | **Mine, from the first cut of 195:** an admin switches a module off, the owner reloads, and the page shows the old menu for up to five minutes | every answer carries a stamp; the reload shows it, asking twice |
+| 197 | **Mine, pushed the night before:** the count beside Orders — two answers in one millisecond left the device holding the older count | compared by figure as well as by time |
+| 198 | A product made at a counter was not in that counter's offline list for up to fifteen minutes | pulled two seconds after the save |
+| 199 | A full disk would have failed the query that was keeping an answer | a note that cannot be written is not kept, and nothing fails |
+| 200 | A Settings save asked `/auth/me`, `/shop/settings` and `/shop/currencies` twice each | once |
+| 201 | A size or colour was sold at a cost of nothing — every sized item was all profit | the design's cost, unless the size has its own |
+| 202 | Reports › Margins counted the tax inside a tag price as profit (41.7% for 31.2%) | before tax |
+| 203 | Reports › Tax: net sales equal to gross sales where tag prices include tax | net of tax |
+| 204 | Dashboard: "4 items have run out" where one had — every design with sizes | a design is out when all of it is |
+| 205 | A stock keeper's menu offered Purchase orders and Suppliers; both said "No access" | open, to read and to receive |
+| 206 | A cashier was offered Refund, Exchange and Cancel sale, and refused each after choosing a reason | not offered |
+| 207 | Subscription drew a refused request for every member of staff | asked only for whoever may know |
+| 208 | A design on sale with sizes is charged at full price (tile and list say 4,990; the bill is 5,490) | **the owner's decision** |
+| 209 | A cashier's dashboard shows the day's profit | **the owner's decision** |
+| 210 | A saved sign-in carried kept answers into every browser test; one spec had been failing on the unchanged tree for the same family of reason (a remembered date format) | a saved sign-in is a first visit (`e2e/freshDevice.ts`) |
+| 211 | **Mine:** a debug probe died before putting the fixture mart's date format back, and the whole desktop suite then failed one spec on it | put back through the shop's own settings |
+
+**Run on the copy stack (:5198 → :8001), this code:** the whole desktop
+project 194 passed, 2 failed, 1 skipped — the two being #211 (passes with the
+format put back) and `offline-shift`, which cannot reload offline against a
+dev server. On the **built preview**: `offline-shift`, `selling`,
+`refused-sale`, `kept-on-the-device` — 19 passed. Backend, whole suite on the
+copy: 3,789 (3,767 passed, 22 skipped). Mutations: 36 + 24 + 7 + 6 + 4 + 5 + 5,
+all caught but one equivalent.
+
+**Not run:** tablet, phone, trades, admin, storefront and journey projects
+against this code. The clothing shop's returns, purchases, day close, orders
+and expenses were not reached — the owner stopped the work to push.
 
