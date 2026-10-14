@@ -109,6 +109,29 @@ const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info">
 };
 
 
+/**
+ * CASH HANDED BACK THAT NO DRAWER WILL COUNT — said before the press.
+ *
+ * Money goes back through the person's OWN open shift, or through none (the
+ * expenses' rule: never into a stranger's drawer). A manager refunding with no
+ * shift took the notes from a cashier's till that never heard about it, and
+ * the cashier closed short by exactly the refund.
+ */
+const NO_DRAWER = {
+  none: {
+    title: "You have no shift open",
+    message: "Cash you hand back or take now is not counted by any drawer — the till it goes through will be out by this much at close. Open your own shift first, or let the cashier whose drawer it is do it.",
+  },
+  practice: {
+    title: "Your open shift is a practice till",
+    message: "Real cash handed back or taken is not counted by any real drawer. Close the practice shift and open a real one first.",
+  },
+} as const;
+
+function noDrawerFor(drawer: string | null | undefined, method: string | undefined): drawer is "none" | "practice" {
+  return (drawer === "none" || drawer === "practice") && (method === "cash" || method === "split");
+}
+
 export default function SalesPage() {
   const money = useMoney();
   // Seed the filter from ?q= so the ⌘K palette can deep-link into a filtered list.
@@ -763,6 +786,11 @@ export default function SalesPage() {
                     </span>
                   </div>
                 )}
+                {backWorth && noDrawerFor(backWorth.drawer, detail.data?.payment_method) && (
+                  <div data-testid="refund-no-drawer">
+                    <Alert variant="warning" title={NO_DRAWER[backWorth.drawer as "none" | "practice"].title} message={NO_DRAWER[backWorth.drawer as "none" | "practice"].message} />
+                  </div>
+                )}
                 {processReturn.error instanceof ApiError && (
                   <Alert variant="error" title="Return failed" message={processReturn.error.message} />
                 )}
@@ -872,7 +900,7 @@ export default function SalesPage() {
                   </div>
                   <div className="flex justify-between text-gray-500"><span>What goes out comes to</span><span>{money(exTotal)}</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-gray-800 dark:text-white/90">
-                    <span>{exDiff >= 0 ? "Difference to collect" : "Refund to customer"}</span>
+                    <span>{exDiff >= 0 ? "Difference to collect" : "Hand back in cash"}</span>
                     <span>{exCredit !== null ? money(Math.abs(exDiff)) : "…"}</span>
                   </div>
                   {exDiff > 0 && (
@@ -887,6 +915,11 @@ export default function SalesPage() {
                   )}
                 </div>
 
+                {worth.data && worth.data.drawer && worth.data.drawer !== "open" && exCredit !== null && (exDiff < 0 || (exDiff > 0 && exMethod === "cash")) && (
+                  <div data-testid="exchange-no-drawer">
+                    <Alert variant="warning" title={NO_DRAWER[worth.data.drawer].title} message={NO_DRAWER[worth.data.drawer].message} />
+                  </div>
+                )}
                 {exchange.error instanceof ApiError && (
                   <Alert variant="error" title="Exchange failed" message={exchange.error.message} />
                 )}

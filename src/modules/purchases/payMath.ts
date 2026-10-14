@@ -40,3 +40,23 @@ export function payOutlook(due: number, amount: number): PayOutlook {
 function round(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * WHAT ONE ORDER STILL OWES: what arrived, less what was paid on it.
+ *
+ * The Pay dialog said `total − paid`, so an order half-delivered showed the
+ * whole order as due ("PO-000002 · Rs 34,000 due" when Rs 20,500 had come).
+ * The server bills on delivery (Payable::AMOUNT); this says the same.
+ */
+export function dueOn(po: { received_total?: string | number; total: string | number; amount_paid: string | number }): number {
+  return round(Number(po.received_total ?? 0) - Number(po.amount_paid));
+}
+
+/**
+ * The orders a payment can go against — the server's `openOrdersFor`: placed,
+ * and owing for something that arrived. A cancelled order still owes for what
+ * came before it was cancelled.
+ */
+export function openOrders<T extends { status: string; received_total?: string | number; total: string | number; amount_paid: string | number }>(orders: T[]): T[] {
+  return orders.filter((po) => po.status !== "draft" && dueOn(po) > EPSILON);
+}

@@ -141,6 +141,12 @@ export interface ReturnWorth {
   refund_tax: number;
   tax_inclusive: boolean;
   lines: Array<{ sale_item_id: string; quantity: number; amount: number }>;
+  /**
+   * Whose count cash handed back by THIS person lands in: their own open shift,
+   * only a practice till, no shift at all, or null when the business keeps no
+   * till. Absent from an older server.
+   */
+  drawer?: "open" | "practice" | "none" | null;
 }
 
 export interface SaleReturn {

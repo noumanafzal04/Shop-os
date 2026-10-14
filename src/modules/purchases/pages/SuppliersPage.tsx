@@ -20,7 +20,7 @@ import Label from "../../../components/form/Label";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
-import { payOutlook } from "../payMath";
+import { dueOn, openOrders, payOutlook } from "../payMath";
 import { shopToday } from "../../../common/shopDay";
 
 
@@ -62,10 +62,7 @@ export default function SuppliersPage() {
   // The orders this payment could go against. Only loaded while the dialog is
   // open — the list page itself has no use for one supplier's order history.
   const detail = useSupplier(payModal.isOpen ? target?.id : undefined);
-  const openOrders: PurchaseOrder[] = (detail.data?.purchase_orders ?? []).filter(
-    (po) => po.status !== "draft" && po.status !== "cancelled"
-      && Number(po.total) - Number(po.amount_paid) > 0.001,
-  );
+  const payable: PurchaseOrder[] = openOrders(detail.data?.purchase_orders ?? []);
 
   const owed = target?.outstanding ?? 0;
   const paidAhead = target?.advance ?? 0;
@@ -73,8 +70,8 @@ export default function SuppliersPage() {
 
   // What this order still needs, when one is picked; otherwise the whole
   // account. This is the figure the shopkeeper is actually paying down.
-  const chosen = openOrders.find((po) => po.id === payAgainst);
-  const dueHere = chosen ? Number(chosen.total) - Number(chosen.amount_paid) : Math.max(0, owed);
+  const chosen = payable.find((po) => po.id === payAgainst);
+  const dueHere = chosen ? dueOn(chosen) : Math.max(0, owed);
   const outlook = payOutlook(dueHere, entered);
 
   const mutation = editing ? update : create;
@@ -285,7 +282,7 @@ export default function SuppliersPage() {
             )}
           </div>
 
-          {openOrders.length > 0 && (
+          {payable.length > 0 && (
             <div>
               <Label>Against</Label>
               <Select
@@ -294,9 +291,9 @@ export default function SuppliersPage() {
                 onChange={setPayAgainst}
                 options={[
                   { value: "", label: "Whole account (oldest orders first)" },
-                  ...openOrders.map((po) => ({
+                  ...payable.map((po) => ({
                     value: po.id,
-                    label: `${po.po_number} · ${money(Number(po.total) - Number(po.amount_paid))} due`,
+                    label: `${po.po_number} · ${money(dueOn(po))} due`,
                   })),
                 ]}
               />

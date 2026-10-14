@@ -68,6 +68,8 @@ export interface PurchaseOrder {
   discount: string | number;
   tax: string | number;
   total: string | number;
+  /** What has ARRIVED, at the lines' costs — the bill. `total` is only what was ordered. */
+  received_total?: string | number;
   amount_paid: string | number;
   payment_status: "unpaid" | "partial" | "paid";
   notes: string | null;

@@ -20,11 +20,13 @@ import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { ProductUnit } from "../../catalog/types";
 import { useSuppliers } from "../hooks/usePurchases";
 import { purchaseRights } from "../stockroom";
+import { lineOut, orderables, type Orderable } from "../orderLines";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
+import { shopDate } from "../../../common/format/date";
 import { shopWallToday } from "../../../common/shopDay";
 import { AddressedTo, DeliverTo, ReceiveInto } from "../../branches/components/ReceiveInto";
 
@@ -33,7 +35,7 @@ const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "err
   draft: "light", ordered: "warning", partially_received: "info", received: "success", cancelled: "error",
 };
 
-interface Line { key: string; product_id: string; product_name: string; quantity: number; unit_cost: number; product_unit_id?: string | null; units?: ProductUnit[] }
+interface Line { key: string; product_id: string; variant_id?: string | null; product_name: string; quantity: number; unit_cost: number; product_unit_id?: string | null; units?: ProductUnit[] }
 let lk = 0;
 
 /** What the Inventory reorder view hands over when it sends the shop here. */
@@ -176,9 +178,11 @@ export default function PurchaseOrdersPage() {
     navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handoff]);
-  const addLine = (p: { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }) => {
-    if (lines.some((l) => l.product_id === p.id)) return;
-    setLines((ls) => [...ls, { key: `l${++lk}`, product_id: p.id, product_name: p.name, quantity: 1, unit_cost: Number(p.cost ?? 0), product_unit_id: null, units: p.units }]);
+  // A design in sizes is ordered size by size (orderLines.ts); the line is
+  // named for the size, and two lines of one size are one line.
+  const addLine = (o: Orderable) => {
+    if (lines.some((l) => l.product_id === o.product_id && (l.variant_id ?? null) === o.variant_id)) return;
+    setLines((ls) => [...ls, { key: `l${++lk}`, product_id: o.product_id, variant_id: o.variant_id, product_name: o.label, quantity: 1, unit_cost: o.cost, product_unit_id: null, units: o.units }]);
     setProdSearch("");
   };
   const setLine = (key: string, patch: Partial<Line>) =>
@@ -191,7 +195,7 @@ export default function PurchaseOrdersPage() {
         supplier_id: supplierId, order_date: orderDate, status,
         // Left unchosen, the server addresses it by the same rule the form shows.
         deliver_to_branch_id: deliverTo || undefined,
-        items: lines.map((l) => ({ product_id: l.product_id, product_unit_id: l.product_unit_id || undefined, quantity: l.quantity, unit_cost: l.unit_cost })),
+        items: lines.map(lineOut),
       },
       { onSuccess: () => createModal.closeModal() },
     );
@@ -249,7 +253,7 @@ export default function PurchaseOrdersPage() {
                 <tr key={o.id} className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-white/5" onClick={() => openDetail(o.id)}>
                   <td className="px-5 py-3 font-medium text-gray-800 dark:text-white/90">{o.po_number}</td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{o.supplier?.name ?? "—"}</td>
-                  <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{o.order_date}</td>
+                  <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{shopDate(o.order_date)}</td>
                   <td className="px-5 py-3"><Badge size="sm" color={STATUS_COLOR[o.status]}>{o.status.replace(/_/g, " ")}</Badge></td>
                   <td className="px-5 py-3 capitalize text-gray-500 dark:text-gray-400">{o.payment_status}</td>
                   <td className="px-5 py-3 text-right font-medium text-gray-800 dark:text-white/90">{money(o.total)}</td>
@@ -285,9 +289,9 @@ export default function PurchaseOrdersPage() {
           {prodSearch && (
             <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
               {prodRows.length === 0 ? <p className="p-3 text-theme-xs text-gray-400">No products.</p> :
-                prodRows.map((p) => (
-                  <button key={p.id} type="button" onClick={() => addLine(p)} className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5">
-                    {p.name} <span className="text-theme-xs text-gray-400">· cost {money(p.cost ?? 0)}</span>
+                prodRows.flatMap((p) => orderables(p)).map((o) => (
+                  <button key={o.key} type="button" onClick={() => addLine(o)} className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5">
+                    {o.label} <span className="text-theme-xs text-gray-400">· cost {money(o.cost)}</span>
                   </button>
                 ))}
             </div>
@@ -343,7 +347,7 @@ export default function PurchaseOrdersPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">{d.po_number}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{d.supplier?.name} · {d.order_date}<AddressedTo place={d.deliver_to} /></p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{d.supplier?.name} · {shopDate(d.order_date)}<AddressedTo place={d.deliver_to} /></p>
               </div>
               <Badge color={STATUS_COLOR[d.status]}>{d.status.replace(/_/g, " ")}</Badge>
             </div>
@@ -419,7 +423,7 @@ export default function PurchaseOrdersPage() {
               )}
               {rights.raises && (d.status === "draft" || d.status === "ordered" || d.status === "partially_received") && (
                 <Button size="sm" variant="outline" onClick={async () => {
-                  if (await confirm({ title: "Cancel this purchase order?", message: "Nothing is received and the order stops being expected.", confirmLabel: "Cancel PO", cancelLabel: "Keep it", tone: "danger" })) cancel.mutate({ id: d.id, reason: "Cancelled by user" });
+                  if (await confirm({ title: "Cancel this purchase order?", message: Number(d.received_total ?? 0) > 0 ? "What has arrived stays in stock and is still owed for; the rest stops being expected." : "Nothing is received and the order stops being expected.", confirmLabel: "Cancel PO", cancelLabel: "Keep it", tone: "danger" })) cancel.mutate({ id: d.id, reason: "Cancelled by user" });
                 }} disabled={cancel.isPending}>Cancel PO</Button>
               )}
             </div>

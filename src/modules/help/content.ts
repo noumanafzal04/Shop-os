@@ -788,10 +788,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
       {
         type: "steps",
         items: [
-          "Raise a purchase order against a supplier — what you want and at what price.",
+          "Raise a purchase order against a supplier — what you want and at what price. An item sold in sizes is ordered size by size: each size is its own line (\u201cLawn Kurta / M\u201d), because that is what gets counted onto the shelf.",
           "The goods arrive. Receive against the order, entering what actually turned up. With more than one place, the order says where it is to be delivered (\u201cDeliver to\u201d) and that is where it is received — change \u201cReceive into\u201d if the van turned up somewhere else.",
           "Stock rises at that moment, and the cost on the line is what the delivery really cost. A line you set to 0 did not arrive: it is not received, not owed for, and stays on the order for the next delivery.",
-          "Record what you paid the supplier. The balance you still owe shows on the supplier.",
+          "Record what you paid the supplier. The balance you still owe shows on the supplier \u2014 for what ARRIVED, not for what was ordered. Cancel the rest of an order that came in part, and what did arrive is still owed.",
         ],
       },
       {
@@ -1539,7 +1539,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         rows: [
           ["Reprint", "Prints the receipt again. Changes nothing.", "Anyone at the till"],
           ["Return", "Some lines come back. Stock returns, money goes back for those lines only. The sheet says how much will go back — with its tax — before you press.", "Refund permission"],
-          ["Exchange", "A return and a new sale in one movement, so the difference is settled once. What goes out is chosen by SIZE where the item has sizes, with how many are left; the credit and the difference to collect include the tax.", "Refund permission"],
+          ["Exchange", "A return and a new sale in one movement, so the difference is settled once. What goes out is chosen by SIZE where the item has sizes, with how many are left; the credit and the difference to collect include the tax. Swapped for something cheaper, the difference is handed back in cash.", "Refund permission"],
           ["Void", "Cancels the WHOLE sale. Stock returns and the money is reversed.", "Void permission"],
         ],
       },
@@ -1547,6 +1547,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         type: "warn",
         text: "Void and refund are deliberately not in the cashier job. They are the two actions that move money back out of the till, and they belong with whoever is answerable for the drawer.",
       },
+      { type: "note", text: "Cash handed back goes out of YOUR open shift's drawer. With no shift open, the sheet says so before you press: no drawer will count that cash, and the till it really came from will be out by that much at close. Open your own shift first, or let the cashier whose drawer it is do it." },
       { type: "note", text: "Nothing is ever deleted. A voided sale stays on the ledger marked as voided, because a receipt a customer is holding must always be findable." },
     ],
   },

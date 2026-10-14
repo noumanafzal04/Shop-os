@@ -145,7 +145,8 @@ export default function CustomersPage() {
     recordPayment.mutate(
       { id: detailId, amount, method: payMethod },
       {
-        onSuccess: () => { setPayAmount(""); detail.refetch(); },
+        // The mutation refreshes ["customers"], this sheet included — asking again here fetched it twice.
+        onSuccess: () => { setPayAmount(""); },
         // MONEY. A repayment that vanished leaves the customer owing what they
         // have already handed over, and the field clearing was the only sign
         // either way.
