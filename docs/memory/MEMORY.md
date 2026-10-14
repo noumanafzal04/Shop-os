@@ -1,6 +1,7 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-13 evening: Phase 0 (A–D + receipt bug) BUILT + landed, NOT pushed; NEXT = SYSTEM-TEST.md Phase 1 only when the user says (one phase, then stop)
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-14: Phase 1 part 1 PUSHED (e14bf9e/db44390); cloud tester tests, I fix from docs/qa/BUGS.md; next = P1s B03 B04 B07 B08 + owner's B01 on the user's word
+- [Tester And Fixer](shopos-tester-and-fixer.md) — STANDING (USER 2026-10-14): cloud session TESTS ONLY from docs/qa/TESTER-BRIEF.md; I fix from docs/qa/BUGS.md; its report reaches me via the user; I rewrite the brief's §5 after each push
 - [System Test In Phases](shopos-system-test-in-phases.md) — STANDING (USER 2026-10-13): one phase per session from docs/qa/SYSTEM-TEST.md; log every test there for a new chat; kit in panel/e2e/qa-kit; HR out
 - [Zari Clothing QA](shopos-zari-clothing-qa.md) — 2026-10-13: a clothing shop made + lived by hand in dev; 7 fixed; 4 decisions answered AND BUILT in Phase 0 (sale price vs sizes, profit permission, cost backfill from records only, hold label); logins + what was NOT walked
 - [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): shell answers are kept on the device, asked on news; DONE with a SERVER STAMP — kept without a way to hear a change made elsewhere is stale; test add/change/remove → the device holds it

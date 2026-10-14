@@ -308,6 +308,22 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-14 — Phase 1 part 1 pushed; a tester session and a fixer session
+
+Zari's second day by hand (returns, exchanges, khata, a supplier, two orders)
+found six things; all fixed and pushed: cash handed back by someone with no
+shift is warned before the press; an exchange for something cheaper works; the
+stock keeper receives; a purchase order is made size by size; cancelling the
+rest of an order still owes for what arrived; order dates in the shop's format.
+`docs/decisions/shopos-money-back-and-sizes-bought.md`.
+
+A cloud session tested Phase 1 on a fresh stack and found the same P1s plus 25
+more (B01–B30). The owner then split the work: the cloud session TESTS ONLY
+(`docs/qa/TESTER-BRIEF.md`), this session fixes. One list: `docs/qa/BUGS.md` —
+statuses, the owner's answers (B01 PIN on the cashier's drawer, Q1–Q5; Q4 was
+answered as a salary advance and is held as a conflict).
+
+
 ### 2026-10-13 (evening) — four answers from the owner; testing goes phase by phase
 
 The owner answered Zari's four questions, and asked that the system be tested

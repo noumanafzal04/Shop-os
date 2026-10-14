@@ -1,12 +1,19 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-13 (evening) — Phase 0 (decisions A–D + a receipt bug) BUILT and landed, gates run, NOT pushed. NEXT = docs/qa/SYSTEM-TEST.md Phase 1 (rest of Zari's life) ONLY when the user says; one phase then stop
+description: RESUME POINT 2026-10-14 — Phase 1 part 1 PUSHED (backend e14bf9e, panel db44390); testing split: cloud TESTER only tests (docs/qa/TESTER-BRIEF.md), I FIX from docs/qa/BUGS.md; next = wait for tester report or user's word, then OPEN P1s B03 B04 B07 B08 + owner's B01
 metadata:
   type: project
 ---
 
+**2026-10-14 — PUSHED Phase 1 part 1** (backend `e14bf9e`, panel `db44390`, docs on main) after all five gates exit 0. A cloud Claude Code session had tested Phase 1 on a fresh stack and found B01–B30 + Q1–Q5; the user then SPLIT the work ([[shopos-tester-and-fixer]]): the cloud session only TESTS, I fix. One list: `docs/qa/BUGS.md` (statuses + owner's answers). Tester instructions: `docs/qa/TESTER-BRIEF.md` (§5 = what to test next; I rewrite §5 after every fix push).
+**Owner answered (via ChatGPT, 2026-10-14):** B01 → cashier's drawer + supervisor PIN + audit; Q1 points on payment (pending on khata, proportional); Q2 coupon after promotion; Q3 manager counts, applying needs a permission, big variance approval; Q5 COD → receiving drawer / rider outstanding (RiderSettlement exists). **Q4 CONFLICT (held, told the user):** answered as a salary advance; it was a CUSTOMER's layaway advance and payroll is out.
+**NEXT for me (only on the user's word):** OPEN P1s B03, B04, B07, B08, then build B01 (PIN), then P2 B09–B17, then P3. Each fix: copy stack, test that fails without it, gates, push, mark FIXED in BUGS.md, rewrite TESTER-BRIEF §5 re-test list, log line in SYSTEM-TEST.md.
+
+
 **2026-10-13 (afternoon) — THIRD PUSH, at the user's word** ("session limit and weekly limit kam reh gai hai, koi code changes / bug hain to commit and push kar do … stop working"). What went in: [[shopos-kept-not-asked]] (reload: dashboard 8 requests → 1; server `X-Shell-Stamp`) and [[shopos-zari-clothing-qa]] (7 bugs fixed). Hashes are in HANDOVER's session log and `git log`. Deploy: BACKEND FIRST, no migration; nginx must expose `X-Shell-Stamp` if it sets CORS itself.
 **AWAITING THE USER (asked in the closing message):** the four decisions in [[shopos-zari-clothing-qa]]; plus the older ones (orders untaxed, no offers on orders, "ingredient — not sold", Reservations = tables?).
+**2026-10-13 night:** Phase 1 half done; the log entry in `docs/qa/SYSTEM-TEST.md` lists the 6 fixes (landed, uncommitted) and what is left. First: run the five gates, then commit + push (the user's per-phase rule), then carry on.
+
 **2026-10-13 evening, later:** Phase 0 done (A size-on-sale, B profit/expenses permission, C `shopos:size-costs-from-purchases`, D hold label; + receipt booked an omitted line in full). Landed, not pushed. Wait for the user's word before Phase 1.
 
 **2026-10-13 evening:** the user wants testing ONE PHASE at a time from `docs/qa/SYSTEM-TEST.md` with a log written as it goes ([[shopos-system-test-in-phases]]). The list below is now that file's Phase 1.

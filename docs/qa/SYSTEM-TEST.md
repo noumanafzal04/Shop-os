@@ -4,6 +4,11 @@
 from the first phase that is not PASS. After every thing you test, add a line
 to the log at the bottom of this file."
 
+**Since 2026-10-14 testing and fixing are split:** a tester session (cloud) only
+TESTS, from `docs/qa/TESTER-BRIEF.md`, and hands back a report; the fixer
+session (local) fixes. Every bug, its status and the owner's answers live in ONE
+list: `docs/qa/BUGS.md`.
+
 The whole system is NOT tested in one go. One phase per session; a phase ends
 with its checklist ticked, its bugs fixed (or written down), and the log updated.
 
@@ -111,7 +116,7 @@ Judge by the exit code, not the summary line.
 | # | Phase | Status |
 |---|---|---|
 | 0 | Decisions A–D | PASS (built 2026-10-13; gates before push) |
-| 1 | A clothing shop's whole life (Zari) | PART — the first day done |
+| 1 | A clothing shop's whole life (Zari) | PART — tester pass 1 done (B01–B30 in `BUGS.md`); 6 fixed + pushed (`e14bf9e` / `db44390`); re-test + leftovers = tester pass 2 |
 | 2 | Who may do what | PART — 3 bugs fixed on Zari |
 | 3 | Offline and sync, the hard cases | PART — the easy cases PASS |
 | 4 | A mart (grocery) | NOT TESTED by hand |
@@ -253,12 +258,16 @@ hand, run its journey stage, and ask the chorus question.
 ## 6. Waiting on the user
 
 - (A answered 2026-10-13 — built in Phase 0.)
+- 2026-10-14: B01 (cashier's drawer + supervisor PIN) and Q1–Q5 answered — `BUGS.md` → "Owner's answers". **Q4 is held:** it was answered as a staff salary advance; the question was a CUSTOMER's advance on a layaway, and payroll is out of this version.
 - Restaurant: orders carry no tax; no promotions on orders; an "ingredient — not sold" item can be sold; are Reservations tables?
 
 ## 7. Log — newest first
 
 Format: `date · phase · shop / who · what · how · result · bugs (commit) · not done`
 
+- **2026-10-14 · 1 (part 1) · push** · the six fixes of 2026-10-13 night gated (phpunit 3,811 passed · vitest 3,289 · build · eslint · tsc-e2e — all exit 0) and pushed: backend **`e14bf9e`**, panel **`db44390`**; help updated; `docs/decisions/shopos-money-back-and-sizes-bought.md` · **NEXT (tester pass 2):** re-test R1–R12 in `TESTER-BRIEF.md` §5a (B02, B01 warning, B06, B05, L1, B13, B22, B29 part), Phase 1 leftovers (storefront order), then Phase 2 · **NEXT (fixer):** OPEN P1s B03, B04, B07, B08 and the owner's B01, then P2.
+- **2026-10-14 · 1 · cloud tester pass 1 · fresh stack, "Zari Clothing QA" / Sana, Bilal, Usman, Farah, Hina, Saad** · the whole Phase 1 list on backend `e2c3a21` / panel `06a067e` (without the part-1 fixes) · UI through the kit, every figure read back · 30 bugs (8 P1, 9 P2, 13 P3) + 5 owner questions — all in `BUGS.md` · items 3, 5, 6, 9, 10, 11 PASS (with bugs); 1, 2, 4, 7 (Main), 8 FAIL; chorus: sales agree, profit and size stock disagree.
+- **2026-10-13 night · 1 (part) · Zari / hina, bilal, usman (copy :5198/:8001)** · returns (2, one with a discount — refund shown before the press, 4,990 and 2,450), exchanges (dearer +200; cheaper −1,100), khata (1,000 cash → credit sale 990 → 2,940 card; balance + statement + drawer right), supplier + 2 POs, receive by the stock keeper with a size at 0, cancel the rest, pay supplier cash + transfer · `p1-state/returns/drawers/exchange/khata/po-raise/po-sizes/po-receive/supplier-pay.mjs` · **6 bugs FIXED (landed in the real tree, NOT gated, NOT committed):** (1) P1 cash refund by someone with no shift reached no drawer and nobody was told → `returns/worth` says `drawer`, the sheets warn before the press, the answer warns (`CashHandedBackIsCountedSomewhereTest`); (2) P1 exchange for something cheaper refused ("no cash was handed over") → the exchange credit counts as cash for change (`ExchangeForSomethingCheaperTest`); (3) P1 stock keeper got 403 on Receive (request asked purchases.manage only) (`PresetCanDoItsJobTest`); (4) P1 the PO form could not order a SIZE — orders for a sized design could never be received → form offers sizes, server refuses a size-less line, reorder list names sized designs (`OrderingSizesFromASupplierTest`, `ReorderListSeesSizesTest` rewritten); (5) P1 cancelling the rest of a part-received PO wiped what was owed for what came → `Payable::billable` keeps it, report counts what was kept, Pay sheet's "due" = arrived − paid (`CancellingTheRestStillOwesTest`, `payMath.test`); (6) P3 order date raw ISO → `date:Y-m-d` + shop format; extra customer fetch after a repayment. Mutations: 18 + 3 + 1 + 3 caught. · **NEXT in Phase 1:** run the 5 gates, commit + push this part; then re-walk supplier balance (should be 10,000 owed: 26,500 − 16,500), transfer between two places, expenses/income + cashbook, close the 3 open shifts (Sana, Bilal, Hina) + the day, coupons/promotion/bank offer, quote → advance → sale, labels/stocktake/disposal, phone/online order, the chorus. Note: INV-000011 (exchange +200 cash) and RET-000001/2/3 are in NO drawer — Hina had no shift (warned); the drawers will be short/over by that at close — expected, explain it.
 - **2026-10-13 · 0 · Zari / bilal, sana, farah, usman (copy stack :5198/:8001)** · built A–D; walked by hand: cashier's dashboard (profit/expenses null in the answer, no tiles), the suit's sizes 4,990 on sheet/cart/bill with no server correction, held as "QA blue shirt" → resumed → paid → sale has no customer (INV-000010); owner + accounts see both figures, stock keeper neither · `p0-cashier.mjs`, `p0-owner.mjs`; specs `till-tenders`, `labels-sheet`, `dashboard-period` (20 passed); 4 new backend tests (26 cases), 7 panel test files; 41 mutations all caught · PASS · found + fixed: a receipt with a line left out booked it in full (P1, stock + money) · not done: journey stage 07 (only its selector changed) not re-run; C not applied anywhere (dev dry run: 2,438 lines, 0 would change — no receipts for those sizes).
 - **2026-10-13 · 0 · —** · the user answered A: a size with no price of its own takes the design's sale price (4,990).
 - **2026-10-13 · tools · Zari / sana** · the hand-QA kit moved into the repo (`panel/e2e/qa-kit/`) · example walk against :5177 · PASS (6 requests, 0 refused, 0 console errors).
