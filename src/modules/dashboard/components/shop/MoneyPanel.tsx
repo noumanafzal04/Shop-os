@@ -14,8 +14,9 @@ interface Props {
 /** The page needs this to decide whether to draw the row at all. */
 export function hasMoneyPanel(data: TenantDashboard, caps: Capabilities): boolean {
   const { receivable, payable } = data.money_owed;
-  return (caps.keepsCustomers && caps.visit("/tenant/customers") && receivable.accounts > 0)
-    || (caps.buysFromSuppliers && caps.visit("/tenant/suppliers") && payable.accounts > 0)
+  // Null is a figure this person was not sent (DashboardService::asSeenBy).
+  return (caps.keepsCustomers && caps.visit("/tenant/customers") && receivable !== null && receivable.accounts > 0)
+    || (caps.buysFromSuppliers && caps.visit("/tenant/suppliers") && payable !== null && payable.accounts > 0)
     || (caps.pos && data.till !== null && caps.visit("/tenant/day"));
 }
 
@@ -57,7 +58,7 @@ export function MoneyPanel({ data, caps, money }: Props) {
   // THE CUSTOMER BOOK, not merely selling. Khata is its own module — a
   // cash-only counter declines it — and /tenant/customers is gated on it, so
   // asking "does this shop sell" offered a tile that bounced.
-  if (caps.keepsCustomers && caps.visit("/tenant/customers")) {
+  if (caps.keepsCustomers && caps.visit("/tenant/customers") && receivable !== null) {
     tiles.push({
       key: "receivable",
       label: "Owed to you",
@@ -71,7 +72,9 @@ export function MoneyPanel({ data, caps, money }: Props) {
     });
   }
 
-  if (caps.buysFromSuppliers && caps.visit("/tenant/suppliers")) {
+  // The stockroom reads suppliers to take a delivery in, and is not sent what
+  // the shop owes them (the owner, 2026-10-14).
+  if (caps.buysFromSuppliers && caps.visit("/tenant/suppliers") && payable !== null) {
     tiles.push({
       key: "payable",
       label: "You owe",

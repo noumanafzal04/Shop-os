@@ -53,7 +53,6 @@ const TENANT_PERMISSIONS = new Set([
  *   /tenant              the dashboard is everyone's home, and where a
  *                        refused gate sends you; gating it is a redirect loop
  *   /tenant/setup        an unfinished shop must be finishable
- *   /tenant/subscription the server asks for no permission to read it
  *   /tenant/security     your own password — everyone signed in has one
  *   /tenant/help         anyone can get stuck. What the Help Centre SHOWS is
  *                        filtered by the shop's modules and by what the reader
@@ -69,7 +68,6 @@ const DELIBERATELY_OPEN = [
   "/tenant/qa",
   "/tenant/security",
   "/tenant/setup",
-  "/tenant/subscription",
 ];
 
 describe("the map describes screens that exist", () => {
@@ -122,7 +120,11 @@ describe("canVisit asks the caller what may means", () => {
 
   it("lets an unmapped screen through for anyone", () => {
     expect(canVisit("/tenant", holding())).toBe(true);
-    expect(canVisit("/tenant/subscription", holding())).toBe(true);
+  });
+
+  it("keeps what the shop pays for whoever holds its settings (the owner, 2026-10-14)", () => {
+    expect(canVisit("/tenant/subscription", holding("sales.manage", "reports.view"))).toBe(false);
+    expect(canVisit("/tenant/subscription", holding("settings.manage"))).toBe(true);
   });
 
   it("holds a mapped screen against someone without its permission", () => {

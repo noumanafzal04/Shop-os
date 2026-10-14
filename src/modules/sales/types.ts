@@ -46,7 +46,7 @@ export interface SaleItem {
   item_type: "product" | "service";
   quantity: number;
   unit_price: string;
-  unit_cost: string | null;
+  unit_cost?: string | null;
   line_total: string;
 }
 
@@ -147,6 +147,15 @@ export interface ReturnWorth {
    * till. Absent from an older server.
    */
   drawer?: "open" | "practice" | "none" | null;
+  /**
+   * On a khata sale, what comes off the customer's account before anything is
+   * handed over; `handed_back` is the rest. `back_by` is how it goes out: the
+   * way the sale was paid, or cash for a split or khata sale (which have no
+   * single counter method). Absent from an older server.
+   */
+  off_khata?: number;
+  handed_back?: number;
+  back_by?: string;
 }
 
 export interface SaleReturn {

@@ -97,6 +97,7 @@ export const salesService = {
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
       reason?: string;
+      idempotency_key?: string;
     },
   ) => apiPost<{ return: SaleReturn; sale: Sale; difference: number }>(`/sales/${id}/exchange`, payload),
 

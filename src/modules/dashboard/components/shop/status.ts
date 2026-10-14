@@ -83,10 +83,11 @@ export function shopStatus(data: TenantDashboard, caps: Capabilities): ShopStatu
   const books = caps.keepsBooks ? booksSentence(data.books) : null;
   if (books) return books;
 
-  if (caps.sells && data.today.sales_count > 0) {
+  const rung = data.today.sales_count ?? 0;
+  if (caps.sells && rung > 0) {
     return {
       tone: "calm",
-      text: `Everything is moving — ${n(data.today.sales_count, "sale", "sales")} so far today, and nothing needs you.`,
+      text: `Everything is moving — ${n(rung, "sale", "sales")} so far today, and nothing needs you.`,
     };
   }
 

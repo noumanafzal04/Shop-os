@@ -111,6 +111,7 @@ export function useSaleMutations() {
       items: Array<{ product_id: string; variant_id?: string; quantity: number; serials?: string[] }>;
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
+      idempotency_key?: string;
     }) => salesService.exchange(id, payload),
     onSuccess: invalidate,
   });

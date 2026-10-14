@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useAuthStore } from "../../../stores/authStore";
 
 import type { RetentionNotice } from "../../../common/types/api";
 import { shopDate } from "../../../common/format/date";
@@ -31,6 +32,7 @@ export function ArchivedBefore({ notice, what = "Records" }: {
   /** What this particular list is made of: "Sales", "Bills", "Entries". */
   what?: string;
 }) {
+  const seesPlan = useAuthStore((st) => st.hasPermission("settings.manage"));
   if (notice === undefined) return null;
 
   const from = shopDate(notice.from);
@@ -56,9 +58,14 @@ export function ArchivedBefore({ notice, what = "Records" }: {
       <p className="mt-0.5 text-gray-500 dark:text-gray-400">
         Your plan keeps {window} online. Nothing has been deleted — the older records are archived and come
         straight back if you move up a plan.{" "}
-        <Link to="/tenant/subscription" className="font-medium text-brand-500 hover:underline">
-          See your plan
-        </Link>
+        {/* The plan is the owner's to open (2026-10-14); everyone else is told whom to ask. */}
+        {seesPlan ? (
+          <Link to="/tenant/subscription" className="font-medium text-brand-500 hover:underline">
+            See your plan
+          </Link>
+        ) : (
+          "Ask the owner about the plan."
+        )}
       </p>
     </div>
   );

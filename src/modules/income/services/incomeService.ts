@@ -47,6 +47,8 @@ export interface Income {
 }
 
 export interface IncomeInput {
+  /** The form's own key — a second press is given the first answer (AnswerOnce). */
+  idempotency_key?: string;
   income_category_id: string;
   description: string;
   reference?: string;

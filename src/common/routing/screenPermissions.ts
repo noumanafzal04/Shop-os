@@ -16,8 +16,6 @@
  *
  *   /tenant              the dashboard is everyone's home, and the redirect
  *                        target when a gate refuses — it can never be gated
- *   /tenant/subscription the server asks for no permission; what the shop
- *                        pays is not a secret from the people who work in it
  *   /tenant/setup        an unfinished shop must be finishable
  *   /tenant/security     your own password — everyone signed in has one
  */
@@ -123,6 +121,8 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/portfolio": "settings.manage",
   "/tenant/branches": "settings.manage",
   "/tenant/settings": "settings.manage",
+  // What the shop pays the platform — the owner's (2026-10-14, Q7).
+  "/tenant/subscription": "settings.manage",
   // The shop's own record of who changed what. An ANY-of list, mirroring the
   // server's READS_AUDIT: the person most often being ASKED about is the one
   // holding settings.manage, and a trail only they can open is not a trail.

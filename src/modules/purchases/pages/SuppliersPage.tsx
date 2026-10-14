@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -20,7 +21,7 @@ import Label from "../../../components/form/Label";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
-import { dueOn, openOrders, payOutlook } from "../payMath";
+import { dueOn, openOrders, payOutlook, sentMoney } from "../payMath";
 import { shopToday } from "../../../common/shopDay";
 
 
@@ -32,6 +33,7 @@ export default function SuppliersPage() {
   const [page, setPage] = useState(1);
   const suppliers = useSuppliers({ search: search || undefined, page });
   const { create, update, remove, pay } = useSupplierMutations();
+  const payOnce = useOnceKey();
 
   const editor = useModal();
   const toast = useToast();
@@ -123,13 +125,14 @@ export default function SuppliersPage() {
         reference: payRef.trim() || null,
         paid_at: payDate || null,
         purchase_order_id: payAgainst || null,
+        idempotency_key: payOnce.key,
       },
       {
         // The modal shows `pay.error` itself, so a refusal is already covered.
         // What was missing is the other half: on success the dialog just
         // vanished, and money that leaves without a word is money a shopkeeper
         // pays twice.
-        onSuccess: () => { payModal.closeModal(); toast.success(`Payment to ${target.name} recorded`); },
+        onSuccess: () => { payOnce.renew(); payModal.closeModal(); toast.success(`Payment to ${target.name} recorded`); },
       },
     );
   };
@@ -142,6 +145,7 @@ export default function SuppliersPage() {
   }
 
   const rows = suppliers.data?.data ?? [];
+  const seesDebt = sentMoney(rows, "outstanding");
 
   return (
     <>
@@ -165,7 +169,7 @@ export default function SuppliersPage() {
             <tr>
               <th className="px-5 py-3">Supplier</th>
               <th className="px-5 py-3">Contact</th>
-              <th className="px-5 py-3 text-right">Outstanding</th>
+              {seesDebt && <th className="px-5 py-3 text-right">Outstanding</th>}
               <th className="px-5 py-3"></th>
               <th className="px-5 py-3 text-right">Actions</th>
             </tr>
@@ -185,7 +189,7 @@ export default function SuppliersPage() {
                     {s.phone && <div className="text-theme-xs text-gray-400">{s.phone}</div>}
                   </td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{s.contact_person ?? "—"}</td>
-                  <td className="px-5 py-3 text-right font-medium">
+                  {seesDebt && <td className="px-5 py-3 text-right font-medium">
                     {(s.outstanding ?? 0) > 0 ? (
                       <span className="text-error-500">{money(s.outstanding ?? 0)}</span>
                     ) : (s.advance ?? 0) > 0 ? (
@@ -195,7 +199,7 @@ export default function SuppliersPage() {
                     ) : (
                       <span className="text-success-500">Settled</span>
                     )}
-                  </td>
+                  </td>}
                   <td className="px-5 py-3">{!s.is_active && <Badge size="sm" color="light">inactive</Badge>}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3">

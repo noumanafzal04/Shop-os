@@ -113,16 +113,22 @@ export function KpiRow({ data, caps, money, compact }: Props) {
           : "The seven days up to it — this day solid"
         : `Each bar ${barSpan(series.length, period.series.bucket)}`;
 
-  if (caps.sells) {
+  // What the shop TOOK is sent to whoever sells or reads the reports; the
+  // kitchen and the stockroom are sent null and get the shelf tiles only
+  // (DashboardService::asSeenBy).
+  const revenue = today.revenue;
+  const refunds = today.refunds ?? 0;
+
+  if (caps.sells && revenue !== null) {
     tiles.push({
       key: "revenue",
       label: words.sales,
-      value: money(today.revenue),
+      value: money(revenue),
       delta: today.deltas.revenue,
       deltaTitle,
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
-      spark: spark((d) => d.revenue),
+      spark: spark((d) => d.revenue ?? 0),
       sparkWhole: !oneDay,
       // What the shop is for, and the first thing on the page.
       featured: true,
@@ -134,14 +140,14 @@ export function KpiRow({ data, caps, money, compact }: Props) {
     // tile would rewrite a day that may already be closed and banked — and
     // without this tile the profit below looks like it was struck from the
     // wrong arithmetic.
-    if (today.refunds > 0) {
+    if (refunds > 0) {
       tiles.push({
         key: "refunds",
         label: words.refunded,
-        value: money(today.refunds),
+        value: money(refunds),
         icon: <DollarLineIcon className="size-5" />,
         tone: "warning",
-        spark: spark((d) => d.refunds),
+        spark: spark((d) => d.refunds ?? 0),
       });
     }
   }
@@ -176,7 +182,7 @@ export function KpiRow({ data, caps, money, compact }: Props) {
         icon: <PieChartIcon className="size-5" />,
         tone: "brand",
         emphasis: true,
-        caption: today.refunds > 0
+        caption: refunds > 0
           ? "Sales − refunds − cost of goods − expenses"
           : "Sales − cost of goods − expenses",
         spark: spark((d) => d.profit ?? 0),
@@ -184,14 +190,14 @@ export function KpiRow({ data, caps, money, compact }: Props) {
     }
 
     if (!compact) {
-      tiles.push({
+      if (today.sales_count !== null) tiles.push({
         key: "orders",
         label: words.counted(trade.orders),
         value: today.sales_count.toLocaleString(),
         icon: <TaskIcon className="size-5" />,
         tone: "brand",
       });
-      tiles.push({
+      if (today.customers_count !== null) tiles.push({
         key: "customers",
         label: words.counted(trade.customers),
         value: today.customers_count.toLocaleString(),
@@ -259,13 +265,13 @@ export function KpiRow({ data, caps, money, compact }: Props) {
     // the month now (see ShopDashboard), and can be asked about any other.
     const biggest = data.expense_breakdown[0];
 
-    tiles.push({
+    if (today.other_income !== null) tiles.push({
       key: "income",
       label: words.moneyIn,
       value: money(today.other_income),
       icon: <DollarLineIcon className="size-5" />,
       tone: "success",
-      spark: spark((d) => d.other_income),
+      spark: spark((d) => d.other_income ?? 0),
       sparkWhole: !oneDay,
       featured: true,
       caption: barsCaption,

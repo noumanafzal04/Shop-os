@@ -75,6 +75,9 @@ export default function ShopDashboard() {
   const called = data ? periodName(data.period) : "";
   // The books' figures were sent to this person (DashboardService::asSeenBy).
   const seesBooks = caps.keepsBooks && data?.sees?.expenses !== false;
+  // …and the takings to whoever sells or reads the reports. The kitchen and
+  // the stockroom are sent none, so nothing is drawn around an absent figure.
+  const seesTakings = caps.sells && data?.sees?.takings !== false;
 
   const basic = mode === "basic";
   // Skeleton tile count has to match what the loaded strip will render, or the
@@ -119,7 +122,7 @@ export default function ShopDashboard() {
         // own a row below, and the same figure twice on one screen is a
         // question about whether they differ.
         chips={
-          data && caps.sells && basic
+          data && caps.sells && basic && data.today.sales_count !== null && data.today.customers_count !== null
             ? [
                 // The band is about NOW, whatever period is being read below it.
                 { label: `${trade.orders} Today`, value: data.today.sales_count.toLocaleString() },
@@ -229,16 +232,16 @@ export default function ShopDashboard() {
 
           {/* Basic mode is the calm view: what needs doing, and the counters
               behind it. Charts, ledgers and history live in the full menu. */}
-          {!basic && (caps.sells || seesBooks) && (
+          {!basic && (seesTakings || seesBooks) && (
             <div className="grid grid-cols-1 gap-5 md:gap-6 lg:grid-cols-3">
               <div className={seesBooks ? "lg:col-span-2" : "lg:col-span-3"}>
                 <SalesTrendChart
                   series={data.sales_series}
                   period={data.period}
                   money={money}
-                  showRevenue={caps.sells}
+                  showRevenue={seesTakings}
                   showExpenses={seesBooks}
-                  showProfit={caps.sells && data.sees?.profit !== false}
+                  showProfit={seesTakings && data.sees?.profit !== false}
                 />
               </div>
               {seesBooks && <ExpenseDonut breakdown={data.expense_breakdown} period={called} money={money} />}
@@ -264,10 +267,12 @@ export default function ShopDashboard() {
             </SectionCard>
           )}
 
-          {!basic && (caps.takesOrders || data.branches.length > 0) && (
+          {/* A comparison needs two places. Staff are sent their own place's
+              row only (it names the place in the hero), so it never draws. */}
+          {!basic && (caps.takesOrders || data.branches.length > 1) && (
             <div
               className={`grid grid-cols-1 gap-5 md:gap-6 ${
-                caps.takesOrders && data.branches.length > 0 ? "lg:grid-cols-2" : ""
+                caps.takesOrders && data.branches.length > 1 ? "lg:grid-cols-2" : ""
               }`}
             >
               {caps.takesOrders && (
@@ -276,7 +281,7 @@ export default function ShopDashboard() {
                   to={caps.marketplace && caps.visit("/tenant/orders") ? "/tenant/orders" : undefined}
                 />
               )}
-              {data.branches.length > 0 && (
+              {data.branches.length > 1 && (
                 <BranchComparison
                   branches={data.branches}
                   period={called}
@@ -290,20 +295,20 @@ export default function ShopDashboard() {
             </div>
           )}
 
-          {!basic && (caps.sells || caps.keepsBooks) && (
+          {!basic && (seesTakings || seesBooks) && (
             <div
               className={`grid grid-cols-1 gap-5 md:gap-6 ${
-                caps.sells && caps.keepsBooks ? "lg:grid-cols-2" : ""
+                seesTakings && seesBooks ? "lg:grid-cols-2" : ""
               }`}
             >
-              {caps.sells && (
+              {seesTakings && (
                 <RecentSalesCard
                   rows={data.recent_sales}
                   money={money}
                   to={caps.canSell && caps.visit("/tenant/sales") ? "/tenant/sales" : undefined}
                 />
               )}
-              {caps.keepsBooks && (
+              {seesBooks && (
                 <RecentExpensesCard
                   rows={data.recent_expenses}
                   money={money}
@@ -313,9 +318,9 @@ export default function ShopDashboard() {
             </div>
           )}
 
-          {!basic && <HighlightsRow highlights={data.highlights} period={called} caps={caps} money={money} />}
+          {!basic && data.sees?.profit !== false && <HighlightsRow highlights={data.highlights} period={called} caps={caps} money={money} />}
 
-          {!basic && <ActivityTimeline rows={data.activity} noun={caps.sells || caps.catalog ? "shop" : "business"} />}
+          {!basic && data.sees?.activity !== false && <ActivityTimeline rows={data.activity} noun={caps.sells || caps.catalog ? "shop" : "business"} />}
 
           <QuickActions caps={caps} show="rest" />
         </div>

@@ -784,7 +784,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["supplier", "purchase order", "po", "receive", "delivery", "payable", "pay supplier", "advance", "balance", "outstanding"],
     body: [
       { type: "h", text: "The buyer raises it; the stockroom receives it" },
-      { type: "p", text: "Two different jobs open this screen. Whoever holds Purchase orders raises an order, places it, cancels it and pays the supplier. Whoever holds Inventory adjustments \u2014 a stock keeper \u2014 sees the same orders and can RECEIVE against them, because the goods are on the loading bay and they are the one checking them off. They are not shown New purchase order, Place order, Cancel or Pay. On Suppliers they can read who a delivery came from; adding, editing and deleting a supplier belongs to whoever holds Suppliers." },
+      { type: "p", text: "Two different jobs open this screen. Whoever holds Purchase orders raises an order, places it, cancels it and pays the supplier. Whoever holds Inventory adjustments \u2014 a stock keeper \u2014 sees the same orders and can RECEIVE against them, because the goods are on the loading bay and they are the one checking them off. They are not shown New purchase order, Place order, Cancel or Pay. On Suppliers they can read who a delivery came from; adding, editing and deleting a supplier belongs to whoever holds Suppliers. What the shop owes a supplier \u2014 balances, an order's total, what was paid \u2014 is shown only to whoever buys, pays or reads the reports; the stockroom sees the lines and the quantities." },
       {
         type: "steps",
         items: [
@@ -966,6 +966,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/dine-in",
     keywords: ["table", "tab", "waiter", "restaurant", "kot", "fire", "send", "note", "quantity", "takeaway", "split bill"],
     body: [
+      { type: "note", text: "A dish not yet sent can be taken off by the waiter. Once the kitchen has it \u2014 sent, ready or served \u2014 taking it off the bill, or cancelling a tab with such a dish on it, is a void: only somebody who holds Void a completed sale can do it, and the tab remembers who did." },
       {
         type: "steps",
         items: [
@@ -1505,7 +1506,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Other income", "Money in that was not a sale — shown separately so you can still see what you SOLD"],
           ["Refunded", "What went back out over the counter in the period. Only shown when there is some. It is dated by the day the money left, not the day of the sale, so a return today does not rewrite a day you have already closed and banked"],
           ["Expenses", "What you spent in the period"],
-          ["Profit", "Sales − refunds − the sales tax you are holding + other income − the cost of what you sold − expenses. Shown only to people who may read reports — the owner, a manager, the accounts desk. Expenses also go to whoever keeps the expense book. A cashier or a stock keeper sees neither."],
+          ["Profit", "Sales − refunds − the sales tax you are holding + other income − the cost of what you sold − expenses. Shown only to people who may read reports — the owner, a manager, the accounts desk. Expenses also go to whoever keeps the expense book. A cashier or a stock keeper sees neither. The day's sales go to whoever sells or reads the reports, khata to whoever keeps customers, what you owe suppliers to whoever buys or pays, and every place side by side to the owner \u2014 the kitchen and the stockroom see their own figures and no money."],
           ["Customers", "Buyers served, not tickets rung — one person who came back three times in a month counts once"],
         ],
       },
@@ -1538,7 +1539,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         head: ["Action", "What it does", "Who can"],
         rows: [
           ["Reprint", "Prints the receipt again. Changes nothing.", "Anyone at the till"],
-          ["Return", "Some lines come back. Stock returns, money goes back for those lines only. The sheet says how much will go back — with its tax — before you press.", "Refund permission"],
+          ["Return", "Some lines come back. Stock returns, money goes back for those lines only. The sheet says how much will go back — with its tax — before you press. A sale on khata comes off the customer's khata first, and only what they had paid is handed back; a sale paid two ways goes back in cash.", "Refund permission"],
           ["Exchange", "A return and a new sale in one movement, so the difference is settled once. What goes out is chosen by SIZE where the item has sizes, with how many are left; the credit and the difference to collect include the tax. Swapped for something cheaper, the difference is handed back in cash.", "Refund permission"],
           ["Void", "Cancels the WHOLE sale. Stock returns and the money is reversed.", "Void permission"],
         ],
@@ -1931,6 +1932,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "h", text: "A tanker arrives" },
       { type: "p", text: "Record the delivery against the tank: what was ordered, what the dip says arrived, and what it cost. Fuel stock rises by what actually went in, not by what the invoice claimed." },
+      { type: "note", text: "Fuel kept in a tank comes in only this way, with the dips \u2014 never on a purchase order. A purchase order for it is refused when it is made. Lubricants, filters and the shop's other goods are bought on purchase orders as usual." },
       { type: "keys", items: [
         ["From", "Which supplier the tanker came from. Asked when your shop keeps a supplier book."],
         ["The dips", "Before and after the discharge — both, or neither. One dip by itself says nothing and the sheet will not take it. With both, the load is received on what they say arrived and the difference is kept as a shortage, in litres, to take up with the supplier."],
@@ -1953,6 +1955,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/subscription",
     keywords: ["subscription", "plan", "billing", "renew", "expiry", "payment", "invoice"],
     body: [
+      { type: "note", text: "This screen is the owner's \u2014 whoever holds the shop's settings. Staff are told when the shop has gone read-only, and to ask the owner; the plan's price and the payments are not shown to them." },
       { type: "p", text: "Where your shop stands is the first thing on the screen, in plain words: up to date, overdue, or run out \u2014 and how long you have, counted in days rather than left as a date to work out." },
       { type: "p", text: "If something was switched on for your shop past what your plan includes, it is listed under the plan's price with what it costs, and \u2018You pay\u2019 is the two together \u2014 the figure you are actually asked for. The line above it is the plan's price alone; for a shop with an add-on that was the only figure this screen used to show." },
       { type: "p", text: "Underneath: the plan and what it costs, everything your shop runs, and how close you are to any ceiling on it. A bar that has filled up says so in words too, because a bar at 96% and a bar at 100% look alike and only one of them means the next product will be refused." },

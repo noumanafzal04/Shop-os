@@ -134,3 +134,15 @@ export const lineExtras = (i: Pick<TicketItem, "modifiers">): string =>
 export const lineSpoken = (i: Pick<TicketItem, "product_name" | "variant_name" | "modifiers">): string =>
   [lineName(i), lineExtras(i)].filter((part) => part !== "").join(", ");
 
+
+/**
+ * Who may take a line off the bill. A line never sent is the waiter's own slip
+ * of the pen; one the kitchen has (fired, served, cleared) is a void, and that
+ * is `sales.void` — the server refuses it otherwise (VOID_NEEDS_SUPERVISOR,
+ * tester pass 2 B40). The screen offers only what the server will do.
+ */
+export const mayTakeOff = (i: TicketItem, canVoid: boolean): boolean => isLive(i) && !i.sale_id && (canVoid || i.kot_status === "pending");
+
+/** The whole tab: free while nothing on it has reached the kitchen. */
+export const mayCancelTab = (items: TicketItem[], canVoid: boolean): boolean =>
+  canVoid || items.filter(isLive).every((i) => i.kot_status === "pending");

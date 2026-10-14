@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ProductVariant } from "../catalog/types";
-import { changed, differenceOf, linesOut, offersOf, replacementsTotal, taken, type Replacement } from "./replacements";
+import { changed, differenceOf, linesOut, offersOf, taken, type Replacement } from "./replacements";
 
 /**
  * A kurta in three sizes, the Large dearer and the Medium sold through — the
@@ -16,7 +16,6 @@ const KURTA = {
   variants: [size("S", 2500, 4), size("M", 2500, 0), size("L", 2700, 3)],
 };
 const BELT = { id: "p-belt", name: "Belt", type: "product" as const, price: 900, discount_price: 750, track_inventory: true, tax_rate: null, stock_quantity: 6 };
-const SHOP = { defaultTaxRate: 0, taxInclusive: false };
 
 describe("what a product offers to an exchange", () => {
   it("a design in sizes offers each size and never the design on its own", () => {
@@ -103,24 +102,7 @@ describe("the list of what is going out", () => {
   });
 });
 
-describe("what it comes to", () => {
-  const [, , large] = offersOf(KURTA);
-
-  it("is the bill WITH its tax — 2,700 at five percent is 2,835, not 2,700", () => {
-    expect(replacementsTotal(taken([], large), SHOP)).toBe(2835);
-  });
-
-  it("uses the shop's own rate for a thing that has none of its own", () => {
-    const belt = taken([], offersOf(BELT)[0]);
-
-    expect(replacementsTotal(belt, { defaultTaxRate: 10, taxInclusive: false })).toBe(825);
-    expect(replacementsTotal(belt, SHOP)).toBe(750);
-  });
-
-  it("does not add the tax twice where the price already holds it", () => {
-    expect(replacementsTotal(taken([], large), { defaultTaxRate: 0, taxInclusive: true })).toBe(2700);
-  });
-
+describe("what is left to settle", () => {
   it("the Medium back for a Large is 210 to collect; a Large back for a Medium is 210 to hand over", () => {
     // Back: 2,500 + 125 = 2,625.  Out: 2,700 + 135 = 2,835.
     expect(differenceOf(2835, 2625)).toBe(210);

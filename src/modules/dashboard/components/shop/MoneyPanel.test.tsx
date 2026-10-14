@@ -183,3 +183,18 @@ describe("the card appears only when it has something to say", () => {
     expect(hasMoneyPanel(data, booksOnly)).toBe(false);
   });
 });
+
+describe("what the shop owes is for whoever buys or pays (the owner, 2026-10-14)", () => {
+  it("draws no supplier tile for a person who was not sent the debt", () => {
+    draw(dashboard({ money_owed: { receivable: { total: 4000, accounts: 2 }, payable: null } }), caps());
+
+    expect(screen.getByText("2 accounts on khata")).toBeInTheDocument();
+    expect(screen.queryByText("You owe")).not.toBeInTheDocument();
+  });
+
+  it("nor a khata tile for one not sent the khata book — and no panel when nothing is left", () => {
+    const data = dashboard({ till: null, money_owed: { receivable: null, payable: null } });
+
+    expect(hasMoneyPanel(data, caps({ pos: false }))).toBe(false);
+  });
+});

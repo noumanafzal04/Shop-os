@@ -32,11 +32,11 @@ export interface SeriesDay {
   date: string;
   /** The last date it covers — the same as `date` for a point a day wide. */
   to?: string;
-  revenue: number;
+  revenue: number | null;
   /** Money in that wasn't a sale. Zero for a shop that records none. */
-  other_income: number;
+  other_income: number | null;
   /** Handed back over the counter that day. Already subtracted from `profit`. */
-  refunds: number;
+  refunds: number | null;
   /** Null for a person who may not see it — see `TenantDashboard.sees`. */
   expenses: number | null;
   profit: number | null;
@@ -88,21 +88,21 @@ export interface ActivityRow {
 
 /** The figures a shop is shown for a day or a run of days. */
 export interface ShopFigures {
-  sales_count: number;
-  revenue: number;
+  sales_count: number | null;
+  revenue: number | null;
   /** Non-sale money in — kept apart from `revenue` so "what we sold" stays honest. */
-  other_income: number;
+  other_income: number | null;
   /**
    * Handed back in the period. `revenue` stays GROSS — a refund is dated by
    * the day it went out, so netting it would rewrite a day that may already
    * be closed and banked. `profit` has it subtracted.
    */
-  refunds: number;
+  refunds: number | null;
   /** Null for a person who may not see it — see `TenantDashboard.sees`. */
   expenses: number | null;
   profit: number | null;
   /** Buyers served, not tickets rung — one customer once, however often they came. */
-  customers_count: number;
+  customers_count: number | null;
   /** Signed % against what the period is compared with; null when that was zero. */
   deltas: {
     revenue: number | null;
@@ -115,10 +115,13 @@ export interface TenantDashboard {
   /**
    * What THIS person may read. Profit is sales less what the goods cost, so it
    * goes to whoever may read the reports; expenses to them and to whoever keeps
-   * the expense book. The server sends null for the rest — the screen only
-   * leaves out what never arrived. Absent from an older server.
+   * the expense book; the takings to whoever sells or reads the reports; khata
+   * to whoever keeps customers; supplier debt to whoever buys or pays; the
+   * audit feed to whoever may read it. The server sends null (or an empty
+   * list) for the rest — the screen only leaves out what never arrived.
+   * Absent from an older server.
    */
-  sees?: { profit: boolean; expenses: boolean };
+  sees?: { profit: boolean; expenses: boolean; takings?: boolean; owed_in?: boolean; owed_out?: boolean; activity?: boolean };
   setup_completed: boolean;
   online_shop_enabled: boolean;
   subscription_expired: boolean;
@@ -176,8 +179,9 @@ export interface TenantDashboard {
   } | null;
   /** Who owes whom. Positive balances only — credit held is not a debt. */
   money_owed: {
-    receivable: { total: number; accounts: number };
-    payable: { total: number; accounts: number };
+    /** Null for a person who keeps no customers; `payable` null for one who neither buys, pays nor reads the books. */
+    receivable: { total: number; accounts: number } | null;
+    payable: { total: number; accounts: number } | null;
   };
   recent_sales: RecentSaleRow[];
   recent_expenses: RecentExpenseRow[];

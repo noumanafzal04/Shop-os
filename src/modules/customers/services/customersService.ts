@@ -59,6 +59,8 @@ export interface CustomerInput {
 }
 
 export interface CreditPaymentInput {
+  /** The form's own key — a second press is given the first answer (AnswerOnce). */
+  idempotency_key?: string;
   amount: number;
   method: "cash" | "card" | "bank_transfer" | "wallet" | "other";
   reference?: string;

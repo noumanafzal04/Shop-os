@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -225,6 +226,7 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   const totals = (expenses.data?.meta as { totals?: MoneyTotals } | undefined)?.totals;
   const categories = useExpenseCategories();
   const { create, update, remove, attach, detach } = useExpenseMutations();
+  const billOnce = useOnceKey();
   const confirm = useConfirm();
 
   const modal = useModal();
@@ -340,8 +342,9 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
     // A bill that did not record is money the books will never show, and the
     // modal closing was the only signal either way.
     const opts = { onSuccess, ...failed(toast, "That entry did not save.") };
+    // A new bill carries the form's key; an edit is not a second record.
     if (editing) update.mutate({ id: editing.id, ...payload }, opts);
-    else create.mutate(payload, opts);
+    else create.mutate({ ...payload, idempotency_key: billOnce.key }, { ...opts, onSuccess: (r: { meta?: unknown }) => { billOnce.renew(); onSuccess(r); } });
   };
 
   const byId = (id: string): Expense | undefined => rows.find((row: Expense) => row.id === id);

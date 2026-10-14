@@ -70,6 +70,8 @@ export interface Expense {
 }
 
 export interface ExpenseInput {
+  /** The form's own key — a second press is given the first answer (AnswerOnce). */
+  idempotency_key?: string;
   expense_category_id: string;
   supplier_id?: string | null;
   description: string;

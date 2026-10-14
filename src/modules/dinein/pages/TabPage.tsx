@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuthStore } from "../../../stores/authStore";
 import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
@@ -23,7 +24,7 @@ import { useTicket, useDineInMutations, useOpenTickets, useServers, useSettleWor
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
 import { askOf, settlementOf, tendersOf, type SettleAsk } from "../settleSheet";
-import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "../tabLines";
+import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, mayCancelTab, mayTakeOff, piles, portions, totalOf, unsentByDish } from "../tabLines";
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
@@ -60,6 +61,8 @@ export default function TabPage() {
   // control that would write is gone rather than present and refused.
   const mayWork = useMayWorkTable();
   const mine = mayWork(ticket?.waiter_id);
+  // Food the kitchen already has comes off the bill only with Void a sale.
+  const canVoid = useAuthStore((st) => st.hasPermission("sales.void"));
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
   const { voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
@@ -479,7 +482,7 @@ export default function TabPage() {
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className="text-theme-sm font-semibold tabular-nums text-gray-900 dark:text-white/90">{money(i.line_total)}</span>
-        {tone !== "paid" && mine && (
+        {tone !== "paid" && mine && mayTakeOff(i, canVoid) && (
           <button
             type="button"
             onClick={() => onVoid(i)}
@@ -558,7 +561,9 @@ export default function TabPage() {
               <button type="button" onClick={() => { setHandTo(""); handOverModal.openModal(); }} className={HEAD_ACTION}>
                 Hand over
               </button>
-              <button type="button" onClick={onCancel} className={HEAD_ACTION_DANGER}>Cancel tab</button>
+              {mayCancelTab(ticket.items ?? [], canVoid) && (
+                <button type="button" onClick={onCancel} className={HEAD_ACTION_DANGER}>Cancel tab</button>
+              )}
             </div>
           )}
         </div>
@@ -917,9 +922,11 @@ export default function TabPage() {
           <button type="button" className={`${HEAD_ACTION} justify-center`} onClick={() => { moreModal.closeModal(); setHandTo(""); handOverModal.openModal(); }}>
             Hand over
           </button>
-          <button type="button" className={`${HEAD_ACTION_DANGER} justify-center`} onClick={() => { moreModal.closeModal(); onCancel(); }}>
-            Cancel tab
-          </button>
+          {ticket && mayCancelTab(ticket.items ?? [], canVoid) && (
+            <button type="button" className={`${HEAD_ACTION_DANGER} justify-center`} onClick={() => { moreModal.closeModal(); onCancel(); }}>
+              Cancel tab
+            </button>
+          )}
         </div>
       </Modal>
 

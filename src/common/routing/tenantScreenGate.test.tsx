@@ -167,8 +167,8 @@ describe("a url with an id in it is governed by its screen", () => {
   it("leaves a screen nobody mapped open, and says which", () => {
     signIn([]);
 
-    expect(screenGoverning("/tenant/subscription")).toBe(null);
-    expect(opens("/tenant/subscription")).toBe(true);
+    expect(screenGoverning("/tenant/security")).toBe(null);
+    expect(opens("/tenant/security")).toBe(true);
   });
 });
 

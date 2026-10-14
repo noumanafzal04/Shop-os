@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { uuid } from "../../../common/uuid";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
@@ -19,7 +20,7 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
-import { useReturnWorth, useSale, useSaleMutations, useSales } from "../hooks/useSales";
+import { useReturnWorth, useSale, useSaleMutations, useSaleWorth, useSales } from "../hooks/useSales";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useQuery } from "@tanstack/react-query";
 import { posService } from "../../pos/services/posService";
@@ -47,7 +48,7 @@ import { MONEY_BACK_OFFLINE } from "../../offline/outbox/canSellOffline";
 import { numbersToSend, saidWhich, unitsOut, whichUnits } from "../unitsBack";
 import { UnitsBack } from "../components/UnitsBack";
 import { GoingOutNumbers } from "../components/GoingOutNumbers";
-import { changed, differenceOf, linesOut, offersOf, replacementsTotal, taken, type Replacement } from "../replacements";
+import { changed, differenceOf, linesOut, offersOf, taken, type Replacement } from "../replacements";
 import { shopDate, shopDateTime } from "../../../common/format/date";
 
 const STATUSES = [
@@ -251,6 +252,7 @@ export default function SalesPage() {
   // original refund instead of paying out (and restocking) twice. Changing the
   // selection — or moving to another sale — starts a genuinely new attempt.
   const returnIdemRef = useRef(uuid());
+  const exchangeOnce = useOnceKey();
   useEffect(() => { returnIdemRef.current = uuid(); }, [returnQty, unitsBack, detailId]);
   // Exchange mode: hand items back (returnQty above) + buy replacements, settle the difference.
   const [exchanging, setExchanging] = useState(false);
@@ -329,8 +331,10 @@ export default function SalesPage() {
     const items = linesBack();
     if (items.length === 0) return;
     processReturn.mutate(
-      // Refund the way the customer paid (server also defaults to this).
-      { id: detailId, items, refund_method: detail.data?.payment_method, idempotency_key: returnIdemRef.current },
+      // Back the way the server says (back_by): the sale's own method, or cash
+      // for a split or khata sale. Sending "split" or "credit" was refused —
+      // tester pass 1, B03 / B04.
+      { id: detailId, items, refund_method: backWorth?.back_by, idempotency_key: returnIdemRef.current },
       { onSuccess: () => { setReturning(false); setReturnQty({}); setUnitsBack({}); } },
     );
   };
@@ -339,11 +343,13 @@ export default function SalesPage() {
     if (!detailId || exchange.isPending) return;
     const return_items = linesBack();
     const items = linesOut(exItems);
-    if (return_items.length === 0 || items.length === 0 || exCredit === null) return;
+    if (return_items.length === 0 || items.length === 0 || !exKnown) return;
     const amount = exAmount !== "" ? Number(exAmount) || 0 : Math.max(0, exDiff);
     exchange.mutate(
-      { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: "walk_in" },
-      { onSuccess: () => { setExchanging(false); setExItems([]); setReturnQty({}); setUnitsBack({}); setExAmount(""); setExSearch(""); } },
+      // The replacement is rung where the sale was (pass 1, B30: it said walk_in
+      // for a till sale), and once per press (B07).
+      { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: detail.data?.channel ?? "pos", idempotency_key: exchangeOnce.key },
+      { onSuccess: () => { exchangeOnce.renew(); setExchanging(false); setExItems([]); setReturnQty({}); setUnitsBack({}); setExAmount(""); setExSearch(""); } },
     );
   };
 
@@ -407,11 +413,20 @@ export default function SalesPage() {
   const nothingBack = backAsked === "[]";
 
   const exCredit = nothingBack ? 0 : backWorth?.refund_total ?? null;
-  const exTotal = replacementsTotal(exItems, {
-    defaultTaxRate: Number(shopSettings.data?.default_tax_rate ?? 0),
-    taxInclusive: !!shopSettings.data?.tax_inclusive,
+  // WHAT GOES OUT — asked of the server too. Worked out here, tag against tag,
+  // it knew nothing of the shop's automatic promotions: "hand back 1,000"
+  // while the sale gave 1,300 change, and the drawer closed 300 over (tester
+  // pass 2, B31). The server prices it the way the exchange will ring it.
+  const outAsked = JSON.stringify({
+    channel: detail.data?.channel ?? "pos", items: linesOut(exItems), payment_method: "cash", amount_paid: 0,
   });
-  const exDiff = differenceOf(exTotal, exCredit ?? 0);
+  const outSettled = useDebouncedValue(outAsked, 250);
+  const outQ = useSaleWorth(outSettled, exchanging && exItems.length > 0 && connected);
+  const outWorth = exItems.length > 0 && outSettled === outAsked && !outQ.isFetching && outQ.data ? outQ.data : null;
+  // Until the server has answered there is no figure — not the till's guess.
+  const exTotal = exItems.length === 0 ? 0 : outWorth?.total ?? null;
+  const exDiff = differenceOf(exTotal ?? 0, exCredit ?? 0);
+  const exKnown = exCredit !== null && exTotal !== null;
 
   const applied: AppliedFilter[] = [
     status && {
@@ -776,17 +791,23 @@ export default function SalesPage() {
                   })}
                 </div>
                 {/* The money, BEFORE the press. It used to be known only after. */}
+                {!nothingBack && backWorth && (backWorth.off_khata ?? 0) > 0 && (
+                  <div data-testid="refund-off-khata" className="flex items-baseline justify-between rounded-lg border border-gray-200 px-3 py-2 text-theme-sm dark:border-gray-800">
+                    <span className="text-gray-500 dark:text-gray-400">Comes off {detail.data?.customer_name ?? "the customer"}'s khata</span>
+                    <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">{money(backWorth.off_khata ?? 0)}</span>
+                  </div>
+                )}
                 {!nothingBack && (
                   <div data-testid="refund-worth" className="flex items-baseline justify-between rounded-lg border border-gray-200 px-3 py-2 text-theme-sm dark:border-gray-800">
                     <span className="text-gray-500 dark:text-gray-400">Goes back to the customer</span>
                     <span className="font-semibold tabular-nums text-gray-800 dark:text-white/90">
                       {backWorth
-                        ? <>{money(backWorth.refund_total)}{backWorth.refund_tax > 0 && <span className="ml-1.5 font-normal text-theme-xs text-gray-400">incl. {money(backWorth.refund_tax)} tax</span>}</>
+                        ? <>{money(backWorth.handed_back ?? backWorth.refund_total)}{backWorth.refund_tax > 0 && (backWorth.off_khata ?? 0) === 0 && <span className="ml-1.5 font-normal text-theme-xs text-gray-400">incl. {money(backWorth.refund_tax)} tax</span>}</>
                         : worth.error instanceof ApiError ? <span className="font-normal text-error-500">{worth.error.message}</span> : "…"}
                     </span>
                   </div>
                 )}
-                {backWorth && noDrawerFor(backWorth.drawer, detail.data?.payment_method) && (
+                {backWorth && (backWorth.handed_back ?? backWorth.refund_total) > 0 && noDrawerFor(backWorth.drawer, backWorth.back_by ?? detail.data?.payment_method) && (
                   <div data-testid="refund-no-drawer">
                     <Alert variant="warning" title={NO_DRAWER[backWorth.drawer as "none" | "practice"].title} message={NO_DRAWER[backWorth.drawer as "none" | "practice"].message} />
                   </div>
@@ -898,10 +919,10 @@ export default function SalesPage() {
                     <span>Credit for what comes back</span>
                     <span>{exCredit !== null ? money(exCredit) : worth.error instanceof ApiError ? <span className="text-error-500">{worth.error.message}</span> : "…"}</span>
                   </div>
-                  <div className="flex justify-between text-gray-500"><span>What goes out comes to</span><span>{money(exTotal)}</span></div>
+                  <div className="flex justify-between text-gray-500"><span>What goes out comes to</span><span>{exTotal !== null ? money(exTotal) : "…"}</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-gray-800 dark:text-white/90">
                     <span>{exDiff >= 0 ? "Difference to collect" : "Hand back in cash"}</span>
-                    <span>{exCredit !== null ? money(Math.abs(exDiff)) : "…"}</span>
+                    <span>{exKnown ? money(Math.abs(exDiff)) : "…"}</span>
                   </div>
                   {exDiff > 0 && (
                     <div className="mt-2 flex items-center gap-2">
@@ -915,7 +936,7 @@ export default function SalesPage() {
                   )}
                 </div>
 
-                {worth.data && worth.data.drawer && worth.data.drawer !== "open" && exCredit !== null && (exDiff < 0 || (exDiff > 0 && exMethod === "cash")) && (
+                {worth.data && worth.data.drawer && worth.data.drawer !== "open" && exKnown && (exDiff < 0 || (exDiff > 0 && exMethod === "cash")) && (
                   <div data-testid="exchange-no-drawer">
                     <Alert variant="warning" title={NO_DRAWER[worth.data.drawer].title} message={NO_DRAWER[worth.data.drawer].message} />
                   </div>
@@ -932,7 +953,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || exCredit === null}>
+                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || !exKnown}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

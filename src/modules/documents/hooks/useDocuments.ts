@@ -59,7 +59,7 @@ export function useDocumentMutations(id?: string) {
       onSuccess: refresh,
     }),
     deposit: useMutation({
-      mutationFn: (payload: { amount: number; method?: string; reference?: string; note?: string }) =>
+      mutationFn: (payload: { amount: number; method?: string; reference?: string; note?: string; idempotency_key?: string }) =>
         documentService.deposit(id!, payload),
       onSuccess: refresh,
     }),

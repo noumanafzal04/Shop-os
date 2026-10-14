@@ -3,6 +3,7 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
 import { resetDbCache } from "../db/open";
+import { ApiError } from "../../../common/types/api";
 import { flushOutbox, outboxApi } from "./flush";
 import { enqueue, newRow, OUTBOX_STATUS, readRow, type OutboxRow } from "./outbox";
 
@@ -238,6 +239,39 @@ describe("when the link dies", () => {
     await flushOutbox(SHOP);
 
     expect((await readRow("1"))?.nextAttemptAt).not.toBeNull();
+  });
+});
+
+describe("when the server refuses what the batch says (pass 3, B48)", () => {
+  it("asks one at a time: the good ones land, the one it cannot read is FAILED with its reason", async () => {
+    await enqueue(row("1"));
+    await enqueue(row("2"));
+    const refused = new ApiError("The given data was invalid.", 422);
+    const sync = vi.spyOn(outboxApi, "sync").mockImplementation((async (ops: Array<{ op: string }>) => {
+      if (ops.length > 1) throw refused;
+      if (ops[0].op === "2") throw refused;
+      return envelope({ results: [answer(ops[0].op)], accepted: 1 });
+    }) as never);
+
+    const result = await flushOutbox(SHOP);
+
+    expect(sync).toHaveBeenCalledTimes(3);
+    expect(result.acked).toBe(1);
+    expect((await readRow("2"))?.status, "the sale the server cannot read would be retried for ever").toBe(OUTBOX_STATUS.FAILED);
+    expect((await readRow("2"))?.error).toBe("The given data was invalid.");
+  });
+
+  it("a dead line while asking one at a time is still only a retry", async () => {
+    await enqueue(row("1"));
+    await enqueue(row("2"));
+    vi.spyOn(outboxApi, "sync").mockImplementation((async (ops: unknown[]) => {
+      if (ops.length > 1) throw new ApiError("The given data was invalid.", 422);
+      throw new Error("Network Error");
+    }) as never);
+
+    await flushOutbox(SHOP);
+
+    expect((await readRow("1"))?.status).not.toBe(OUTBOX_STATUS.FAILED);
   });
 });
 

@@ -186,7 +186,7 @@ export const documentService = {
 
   create: (payload: CreateDocumentInput) => apiPost<SaleDocument>("/sale-documents", payload),
 
-  deposit: (id: string, payload: { amount: number; method?: string; reference?: string; note?: string }) =>
+  deposit: (id: string, payload: { amount: number; method?: string; reference?: string; note?: string; idempotency_key?: string }) =>
     apiPost<{ payment: DocumentPayment; document: SaleDocument }>(`/sale-documents/${id}/deposits`, payload),
 
   convert: (

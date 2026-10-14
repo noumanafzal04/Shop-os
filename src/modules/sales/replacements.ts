@@ -2,7 +2,6 @@ import { sizePrice } from "../catalog/pricing";
 import type { Product, ProductVariant } from "../catalog/types";
 import { catalogReader, sizesOf, whyNotSellable } from "../pos/availability";
 import { taxFieldsOf } from "../pos/taxFields";
-import { tillBill } from "../pos/tillBill";
 
 /**
  * WHAT GOES OUT IN AN EXCHANGE — and in which size.
@@ -137,24 +136,11 @@ export function linesOut(rows: Replacement[]): ExchangeLine[] {
     });
 }
 
-/**
- * What the replacements come to — the till's bill, not a sum of tags.
- *
- * An exchange is paid with the credit and, where it falls short, the
- * customer's own money: two tenders, which settle exactly and are never
- * rounded to a coin.
+/*
+ * What the replacements come to is the SERVER's answer now (POST /sales/worth,
+ * asked by the exchange sheet): the bill worked out here knew nothing of the
+ * shop's automatic promotions — tester pass 2, B31.
  */
-export function replacementsTotal(rows: Replacement[], shop: { defaultTaxRate: number; taxInclusive: boolean }): number {
-  return tillBill({
-    lines: rows.map((r) => ({ unit_price: r.price, quantity: r.quantity, tax_rate: r.tax_rate, tax_group_rate: r.tax_group_rate })),
-    group: null,
-    defaultTaxRate: shop.defaultTaxRate,
-    taxInclusive: shop.taxInclusive,
-    discount: 0,
-    tenders: ["other", "cash"],
-    cashRounding: 0,
-  }).total;
-}
 
 /** What is still to settle once the credit is taken off: positive to collect, negative to hand back. */
 export const differenceOf = (total: number, credit: number): number => Math.round((total - credit) * 100) / 100;

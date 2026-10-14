@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import { Link, useNavigate, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -37,6 +38,7 @@ export default function DocumentDetailPage() {
   const query = useDocument(id);
   const doc = query.data;
   const mut = useDocumentMutations(id);
+  const depositOnce = useOnceKey();
   const words = boardWords(usePrimaryBusinessType());
 
   const depositModal = useModal();
@@ -355,8 +357,9 @@ export default function DocumentDetailPage() {
         balance={balance}
         pending={mut.deposit.isPending}
         onSubmit={(payload) =>
-          mut.deposit.mutate(payload, {
+          mut.deposit.mutate({ ...payload, idempotency_key: depositOnce.key }, {
             onSuccess: () => {
+              depositOnce.renew();
               toast.success("Advance recorded");
               depositModal.closeModal();
             },

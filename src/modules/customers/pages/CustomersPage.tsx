@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -43,6 +44,7 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const customers = useCustomers({ search: search || undefined, page });
   const { create, update, remove, recordPayment } = useCustomerMutations();
+  const payOnce = useOnceKey();
 
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
@@ -143,10 +145,10 @@ export default function CustomersPage() {
     const amount = Number(payAmount);
     if (!detailId || !(amount > 0) || recordPayment.isPending) return;
     recordPayment.mutate(
-      { id: detailId, amount, method: payMethod },
+      { id: detailId, amount, method: payMethod, idempotency_key: payOnce.key },
       {
         // The mutation refreshes ["customers"], this sheet included — asking again here fetched it twice.
-        onSuccess: () => { setPayAmount(""); },
+        onSuccess: () => { setPayAmount(""); payOnce.renew(); },
         // MONEY. A repayment that vanished leaves the customer owing what they
         // have already handed over, and the field clearing was the only sign
         // either way.

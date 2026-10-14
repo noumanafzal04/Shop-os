@@ -267,3 +267,31 @@ describe("the bars behind the leading figure say what they are", () => {
     expect(screen.getByText("Each bar a month")).toBeInTheDocument();
   });
 });
+
+describe("the kitchen and the stockroom are sent no takings (pass 2, B39)", () => {
+  // What the server sends a person with neither sales.manage nor reports.view.
+  const NOTHING_TAKEN = {
+    sales_count: null, revenue: null, refunds: null, customers_count: null, other_income: null,
+    expenses: null, profit: null, deltas: { revenue: null, expenses: null, profit: null },
+  };
+
+  it("draws no sales, refunds, orders or customers — only the shelf", () => {
+    draw(
+      dashboard(TODAY, NOTHING_TAKEN, {
+        sees: { profit: false, expenses: false, takings: false },
+        low_stock_count: 4,
+        expiring_soon_count: 2,
+        sales_series: points(7, { revenue: null, refunds: null, profit: null, expenses: null, other_income: null }),
+      }),
+      { ...selling, tracksStock: true },
+    );
+
+    expect(screen.queryByText("Today's Sales")).not.toBeInTheDocument();
+    expect(screen.queryByText("Today's Profit")).not.toBeInTheDocument();
+    expect(screen.queryByText("Orders Today")).not.toBeInTheDocument();
+    expect(screen.queryByText("Shoppers Today")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rs/)).not.toBeInTheDocument();
+    // The trade's own shelf figure still leads the strip.
+    expect(screen.getByText("Low Stock Items")).toBeInTheDocument();
+  });
+});

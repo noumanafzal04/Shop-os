@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dueOn, openOrders, payOutlook } from "./payMath";
+import { dueOn, openOrders, payOutlook, sentMoney } from "./payMath";
 
 describe("payOutlook", () => {
   it("says what is left when a part payment is made", () => {
@@ -44,5 +44,19 @@ describe("what an order still owes", () => {
       { po_number: "PO-5", status: "ordered", total: 7000, received_total: 0, amount_paid: 0 },
     ];
     expect(openOrders(orders).map((o) => o.po_number)).toEqual(["PO-1"]);
+  });
+});
+
+describe("the debt is drawn only for whoever was sent it (the owner, 2026-10-14)", () => {
+  it("a stock keeper's orders carry no total, so no column of them is drawn", () => {
+    expect(sentMoney([{ po_number: "PO-1" }, { po_number: "PO-2" }] as Array<{ po_number: string; total?: number }>, "total")).toBe(false);
+  });
+
+  it("a buyer's do", () => {
+    expect(sentMoney([{ po_number: "PO-1", total: 15000 }], "total")).toBe(true);
+  });
+
+  it("an order the stockroom reads is owed nothing it can see — not a negative", () => {
+    expect(dueOn({ received_total: undefined, amount_paid: undefined })).toBe(0);
   });
 });

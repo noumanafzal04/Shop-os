@@ -403,8 +403,8 @@ export function shopMenuInFull(
     ...(multiBranch
       ? [{ icon: <CopyIcon />, name: "Branches & warehouses", path: "/tenant/branches", usual: secondPlace }]
       : []),
-    // Subscription carries no permission because the server asks for none:
-    // what the shop pays is not a secret from the people who work in it.
+    // What the shop pays the platform is the owner's (2026-10-14, Q7) — the
+    // server asks for settings.manage, and screenPermissions says the same.
     { icon: <ShootingStarIcon />, name: "Subscription", path: "/tenant/subscription" },
     { icon: <PlugInIcon />, name: "Settings", path: "/tenant/settings", usual: true },
     // Last, and never gated: anyone in the shop can get stuck, and what the

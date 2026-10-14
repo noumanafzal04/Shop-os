@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import { checkNumbers, needsDetails, parseSerials } from "../receive";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
@@ -208,6 +209,7 @@ export default function PurchaseOrdersPage() {
   }
 
   const rows = orders.data?.data ?? [];
+  const seesMoney = sentMoney(rows, "total");
   const d = detail.data;
   const prodRows = products.data?.data ?? [];
 
@@ -241,7 +243,7 @@ export default function PurchaseOrdersPage() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[48rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
-            <tr><th className="px-5 py-3">PO #</th><th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Payment</th><th className="px-5 py-3 text-right">Total</th></tr>
+            <tr><th className="px-5 py-3">PO #</th><th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Date</th><th className="px-5 py-3">Status</th>{seesMoney && <><th className="px-5 py-3">Payment</th><th className="px-5 py-3 text-right">Total</th></>}</tr>
           </thead>
           <tbody>
             {orders.isLoading ? (
@@ -255,8 +257,10 @@ export default function PurchaseOrdersPage() {
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{o.supplier?.name ?? "—"}</td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{shopDate(o.order_date)}</td>
                   <td className="px-5 py-3"><Badge size="sm" color={STATUS_COLOR[o.status]}>{o.status.replace(/_/g, " ")}</Badge></td>
-                  <td className="px-5 py-3 capitalize text-gray-500 dark:text-gray-400">{o.payment_status}</td>
-                  <td className="px-5 py-3 text-right font-medium text-gray-800 dark:text-white/90">{money(o.total)}</td>
+                  {seesMoney && <>
+                    <td className="px-5 py-3 capitalize text-gray-500 dark:text-gray-400">{o.payment_status}</td>
+                    <td className="px-5 py-3 text-right font-medium text-gray-800 dark:text-white/90">{money(o.total ?? 0)}</td>
+                  </>}
                 </tr>
               ))
             )}
@@ -371,10 +375,12 @@ export default function PurchaseOrdersPage() {
               </table>
             </div>
 
-            <div className="mb-4 flex justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">Paid {money(d.amount_paid)} · {d.payment_status}</span>
-              <span className="font-bold text-gray-800 dark:text-white/90">Total {money(d.total)}</span>
-            </div>
+            {d.total !== undefined && (
+              <div className="mb-4 flex justify-between text-sm">
+                <span className="text-gray-500 dark:text-gray-400">Paid {money(d.amount_paid ?? 0)} · {d.payment_status}</span>
+                <span className="font-bold text-gray-800 dark:text-white/90">Total {money(d.total)}</span>
+              </div>
+            )}
 
             {/* PLACE HAD NO FAILURE PATH AT ALL.
                 Cancel and receive each showed their refusal here; placing —

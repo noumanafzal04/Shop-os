@@ -146,6 +146,8 @@ export interface DayView {
 export type DayDetail = BusinessDay & { sessions?: DayShift[]; deposits?: BankDeposit[] };
 
 export interface DepositInput {
+  /** The form's own key — a second press is given the first answer (AnswerOnce). */
+  idempotency_key?: string;
   amount: number;
   bank_name?: string | null;
   account_label?: string | null;

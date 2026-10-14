@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -107,6 +108,7 @@ export default function IncomePage() {
   const categoryMutations = useIncomeCategoryMutations();
   const categories = useIncomeCategories();
   const { create, update, remove, attach, detach } = useIncomeMutations();
+  const incomeOnce = useOnceKey();
 
   // One hidden input for the whole table — `attachTo` remembers which row asked.
   const fileRef = useRef<HTMLInputElement>(null);
@@ -213,8 +215,8 @@ export default function IncomePage() {
         { onSuccess: (res) => done("updated", res.meta), onError: () => toast.error("Couldn't save the income.") },
       );
     } else {
-      create.mutate(payload, {
-        onSuccess: (res) => done("recorded", res.meta),
+      create.mutate({ ...payload, idempotency_key: incomeOnce.key }, {
+        onSuccess: (res) => { incomeOnce.renew(); done("recorded", res.meta); },
         onError: () => toast.error("Couldn't save the income."),
       });
     }

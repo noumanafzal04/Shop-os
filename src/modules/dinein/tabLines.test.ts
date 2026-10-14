@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinable, lineExtras, lineName, lineSpoken, piles, portions, totalOf, unsentByDish } from "./tabLines";
+import { joinable, lineExtras, lineName, lineSpoken, mayCancelTab, mayTakeOff, piles, portions, totalOf, unsentByDish } from "./tabLines";
 import type { TicketItem } from "./services/dineInService";
 
 let n = 0;
@@ -129,3 +129,26 @@ describe("what a line is called", () => {
   });
 });
 
+
+describe("food the kitchen has is a supervisor's to take off (pass 2, B40)", () => {
+  const unsent = line({ kot_status: "pending" });
+  const fired = line({ kot_status: "fired" });
+  const served = line({ kot_status: "served" });
+
+  it("a waiter removes a line never sent, and nothing the kitchen has", () => {
+    expect(mayTakeOff(unsent, false)).toBe(true);
+    expect(mayTakeOff(fired, false)).toBe(false);
+    expect(mayTakeOff(served, false)).toBe(false);
+  });
+
+  it("whoever may void a sale may take anything off that is not paid", () => {
+    expect(mayTakeOff(served, true)).toBe(true);
+    expect(mayTakeOff(line({ kot_status: "served", sale_id: "s1" }), true)).toBe(false);
+  });
+
+  it("a whole tab is the waiter's to cancel only while nothing on it was sent", () => {
+    expect(mayCancelTab([unsent, line({ kot_status: "void", voided_at: "x" })], false)).toBe(true);
+    expect(mayCancelTab([unsent, fired], false)).toBe(false);
+    expect(mayCancelTab([unsent, fired], true)).toBe(true);
+  });
+});

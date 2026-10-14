@@ -64,14 +64,15 @@ export interface PurchaseOrder {
   status: PurchaseStatus;
   order_date: string;
   expected_date: string | null;
-  subtotal: string | number;
+  /** Absent for whoever only takes deliveries in (HidesSupplierMoney) — and the four below. */
+  subtotal?: string | number;
   discount: string | number;
   tax: string | number;
-  total: string | number;
+  total?: string | number;
   /** What has ARRIVED, at the lines' costs — the bill. `total` is only what was ordered. */
   received_total?: string | number;
-  amount_paid: string | number;
-  payment_status: "unpaid" | "partial" | "paid";
+  amount_paid?: string | number;
+  payment_status?: "unpaid" | "partial" | "paid";
   notes: string | null;
   received_at: string | null;
   items?: PurchaseOrderItem[];
@@ -105,6 +106,8 @@ export interface SupplierPayment {
 }
 
 export interface PaymentInput {
+  /** The form's own key — a second press is given the first answer (AnswerOnce). */
+  idempotency_key?: string;
   amount: number;
   method?: SupplierPayment["method"];
   reference?: string | null;

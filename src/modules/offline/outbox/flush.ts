@@ -1,4 +1,5 @@
 import { apiPost } from "../../../common/api/client";
+import { ApiError } from "../../../common/types/api";
 import { deviceId } from "../device/deviceId";
 import {
   dueRows,
@@ -56,6 +57,29 @@ interface OperationResult {
   violations?: string[];
   message?: string;
   retryable?: boolean;
+}
+
+/** A 422: the server read what was sent and refused it as written. Sending the same again changes nothing. */
+const refusedAsWritten = (error: unknown): boolean => error instanceof ApiError && error.status === 422;
+
+/** Each row on its own, so one the server cannot read is told apart from the rest. */
+async function oneByOne(batch: OutboxRow[]): Promise<OperationResult[]> {
+  const results: OperationResult[] = [];
+  for (const row of batch) {
+    try {
+      results.push(...(await outboxApi.sync([wire(row)])).data.results);
+    } catch (error) {
+      results.push({
+        op: row.op,
+        status: "failed",
+        invoice_number: null,
+        message: error instanceof Error ? error.message : "Could not reach the server",
+        retryable: !refusedAsWritten(error),
+      });
+    }
+  }
+
+  return results;
 }
 
 export const outboxApi = {
@@ -164,13 +188,23 @@ async function runFlush(
     try {
       results = (await outboxApi.sync(batch.map(wire))).data.results;
     } catch (error) {
-      // The link died, or the server refused the whole batch. Every row goes
-      // back to PENDING with a wait — NOT to FAILED, which is reserved for an
-      // answer that will not change.
-      const message = error instanceof Error ? error.message : "Could not reach the server";
-      for (const row of batch) await markRetry(row, message);
+      if (refusedAsWritten(error)) {
+        // The server READ the batch and refused something written in it — an
+        // answer, not a dead line. The server answers each sale on its own
+        // now, so what is left is one sale it could not even read: asked one
+        // at a time, the good ones land and that one is FAILED with its
+        // reason. Retrying the batch for ever (tester pass 3, B48) recorded
+        // none of fifty and told nobody.
+        results = await oneByOne(batch);
+      } else {
+        // The link died, or the server could not answer. Every row goes back
+        // to PENDING with a wait — NOT to FAILED, which is reserved for an
+        // answer that will not change.
+        const message = error instanceof Error ? error.message : "Could not reach the server";
+        for (const row of batch) await markRetry(row, message);
 
-      return result;
+        return result;
+      }
     }
 
     const byOp = new Map(results.map((r) => [r.op, r]));

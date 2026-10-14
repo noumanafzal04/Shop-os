@@ -48,8 +48,16 @@ function round(n: number): number {
  * whole order as due ("PO-000002 · Rs 34,000 due" when Rs 20,500 had come).
  * The server bills on delivery (Payable::AMOUNT); this says the same.
  */
-export function dueOn(po: { received_total?: string | number; total: string | number; amount_paid: string | number }): number {
-  return round(Number(po.received_total ?? 0) - Number(po.amount_paid));
+/**
+ * Was this person sent the money at all? The server leaves an order's total
+ * and a supplier's balance out for whoever only takes deliveries in (the
+ * owner, 2026-10-14) — so a column of them is drawn only when they arrived,
+ * never as "Settled" or a blank figure.
+ */
+export const sentMoney = <T,>(rows: T[], key: keyof T): boolean => rows.some((r) => r[key] !== undefined);
+
+export function dueOn(po: { received_total?: string | number; total?: string | number; amount_paid?: string | number }): number {
+  return round(Number(po.received_total ?? 0) - Number(po.amount_paid ?? 0));
 }
 
 /**
@@ -57,6 +65,6 @@ export function dueOn(po: { received_total?: string | number; total: string | nu
  * and owing for something that arrived. A cancelled order still owes for what
  * came before it was cancelled.
  */
-export function openOrders<T extends { status: string; received_total?: string | number; total: string | number; amount_paid: string | number }>(orders: T[]): T[] {
+export function openOrders<T extends { status: string; received_total?: string | number; total?: string | number; amount_paid?: string | number }>(orders: T[]): T[] {
   return orders.filter((po) => po.status !== "draft" && dueOn(po) > EPSILON);
 }

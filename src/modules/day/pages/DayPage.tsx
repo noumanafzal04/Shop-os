@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -122,6 +123,7 @@ export default function DayPage() {
   const day = useCurrentDay();
   const closedToday = useClosedToday();
   const { close, deposit, reopen } = useDayMutations();
+  const bankOnce = useOnceKey();
 
   const openAgain = (id: string, reason: string) =>
     reopen.mutateAsync({ id, reason }).then(
@@ -163,9 +165,11 @@ export default function DayPage() {
         account_label: text(depositForm.account_label),
         slip_number: text(depositForm.slip_number),
         notes: text(depositForm.notes),
+        idempotency_key: bankOnce.key,
       },
       {
         onSuccess: () => {
+          bankOnce.renew();
           toast.success(`${money(Number(depositForm.amount))} recorded as banked`);
           depositModal.closeModal();
         },

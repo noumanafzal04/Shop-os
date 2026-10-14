@@ -317,10 +317,9 @@ describe("the menu offers nothing the API will refuse", () => {
       .toContain("/tenant/fuel/setup");
   });
 
-  it("what the shop pays is not hidden from the people who work in it", () => {
-    // Deliberate: the server asks for no permission to read the subscription,
-    // so the menu must not invent one.
-    expect(paths("mart", "advanced", false, CASHIER)).toContain("/tenant/subscription");
+  it("what the shop pays the platform is the owner's (2026-10-14)", () => {
+    expect(paths("mart", "advanced", false, CASHIER)).not.toContain("/tenant/subscription");
+    expect(paths("mart", "advanced", false, holding("settings.manage"))).toContain("/tenant/subscription");
   });
 
   it("an owner is narrowed by nothing", () => {

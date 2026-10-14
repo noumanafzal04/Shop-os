@@ -74,20 +74,24 @@ const inTheDefault = (amount: number) => formatIn(null, amount);
  * restock, so "4 items are running low" is not their problem arriving daily
  * on their screen — but a trading day nobody closed off and a parked ticket
  * at the till are, and those stay. Rows are filtered by whether the person
- * may open the screen the row leads to; the two rows that lead somewhere
- * ungated (subscription, setup) reach everyone, as they should.
+ * may open the screen the row leads to. The subscription rows reach everyone —
+ * a shop gone read-only is everyone's news — but only the owner, who may open
+ * the plan (2026-10-14), is sent to it; the rest are told whom to ask.
  */
 export function AttentionPanel({ data, caps, money = inTheDefault }: Props) {
   const rows: Item[] = [];
 
+  const plan = caps.visit("/tenant/subscription") ? "/tenant/subscription" : undefined;
   if (data.subscription_state === "read_only") {
     rows.push({
       key: "read_only",
       severity: "critical",
       title: "Subscription expired — read-only mode",
-      detail: "You can view everything, but changes are blocked until you renew.",
+      detail: plan
+        ? "You can view everything, but changes are blocked until you renew."
+        : "You can view everything, but changes are blocked until the owner renews.",
       icon: <DollarLineIcon className="size-5" />,
-      to: "/tenant/subscription",
+      to: plan,
     });
   } else if (data.subscription_state === "grace") {
     rows.push({
@@ -98,7 +102,7 @@ export function AttentionPanel({ data, caps, money = inTheDefault }: Props) {
         ? `Everything keeps working until ${formatDate(data.grace_ends_at)}.`
         : "Renew now to avoid read-only mode.",
       icon: <TimeIcon className="size-5" />,
-      to: "/tenant/subscription",
+      to: plan,
     });
   }
 
