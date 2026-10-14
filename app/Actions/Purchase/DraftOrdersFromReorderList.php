@@ -61,8 +61,8 @@ class DraftOrdersFromReorderList
 
     /**
      * @param  array<int, string>  $productIds
-     * @return array{orders: array<int, PurchaseOrder>, unknown: array<int, string>}
-     *                                                                               `unknown` names products with no purchase history
+     * @return array{orders: array<int, PurchaseOrder>, unknown: array<int, string>, sized: array<int, string>}
+     *                                                                                                          `unknown` names products with no purchase history
      */
     public function execute(array $productIds): array
     {
@@ -83,8 +83,18 @@ class DraftOrdersFromReorderList
 
         $bySupplier = [];
         $unknown = [];
+        $sized = [];
 
         foreach ($products as $id => $product) {
+            // A design in sizes is ordered size by size, and which sizes run
+            // low is the buyer's call — handed back by name, not drafted as an
+            // order for the design that nobody could ever receive.
+            if ($product->variants()->exists()) {
+                $sized[] = $product->name;
+
+                continue;
+            }
+
             $last = $lastBought->get($id);
 
             if ($last === null) {
@@ -98,6 +108,13 @@ class DraftOrdersFromReorderList
                 'quantity' => $this->shortfall($product),
                 'unit_cost' => $last->unit_cost,
             ];
+        }
+
+        if ($bySupplier === [] && $sized !== [] && $unknown === []) {
+            throw DomainException::unprocessable(
+                'These are sold in sizes — order them size by size from New purchase order: '.implode(', ', $sized).'.',
+                'VARIANT_REQUIRED',
+            );
         }
 
         if ($bySupplier === []) {
@@ -122,7 +139,7 @@ class DraftOrdersFromReorderList
             ->values()
             ->all());
 
-        return ['orders' => $orders, 'unknown' => $unknown];
+        return ['orders' => $orders, 'unknown' => $unknown, 'sized' => $sized];
     }
 
     /**

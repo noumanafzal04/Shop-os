@@ -1218,6 +1218,15 @@ class CreateSaleAction
                         )), 2)
                         : ($paymentMethod === PaymentMethod::Cash->value ? $amountPaid : 0.0);
 
+                    // AN EXCHANGE FOR SOMETHING CHEAPER gives the rest back as
+                    // change: the goods that came back are the tender, and the
+                    // difference leaves the exchanging person's drawer in notes
+                    // (DrawerMath subtracts change_due). This rule was written
+                    // for card overpayments and refused every downgrade —
+                    // "no cash was handed over" — until a manager at Zari
+                    // could not swap a 2,950 kurta for a 1,850 suit.
+                    $cashIn = round($cashIn + (float) ($data['exchange_credit'] ?? 0), 2);
+
                     $change = round($amountPaid - $due, 2);
 
                     if ($change > 0.001 && $change > $cashIn + 0.001) {

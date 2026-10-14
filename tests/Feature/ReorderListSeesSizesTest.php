@@ -193,36 +193,32 @@ class ReorderListSeesSizesTest extends TestCase
         $this->assertSame(1, $dashboard, 'only the Linen Shirt is actually low');
     }
 
-    public function test_an_order_raised_for_a_sized_product_asks_for_the_right_number(): void
+    public function test_a_sized_product_on_the_list_is_named_not_drafted(): void
     {
-        // `threshold - onHand`, and `onHand` was the parent's orphaned nought —
-        // so a shop three shirts short was sent an order for ten.
+        // This case used to pin the SIZE of a drafted order for the shirt
+        // (three, its shortfall — not ten). That order was for the design, and
+        // a design in sizes holds no stock: it could be placed and never
+        // received ("say which size"), and a draft cannot be edited into
+        // sizes. Since 2026-10-13 the list names the shirt for the buyer to
+        // order size by size (OrderingSizesFromASupplierTest), and the
+        // shortfall rule stays pinned for everything else.
         $shirt = $this->sized('Linen Shirt', 10, ['Small' => 4, 'Medium' => 3]);
-
-        // The list only orders from somebody the shop has bought from before —
-        // correctly, so a real order never lands in front of a stranger.
         $supplier = Supplier::withoutTenancy()
             ->create(['tenant_id' => $this->shop->id, 'name' => 'Ravi Textiles']);
+        $small = ProductVariant::withoutTenancy()->where('product_id', $shirt->id)->where('name', 'Small')->value('id');
         $this->actingAsUser($this->owner)->postJson('/api/v1/purchase-orders', [
             'supplier_id' => $supplier->id,
             'order_date' => now()->modify('-2 months')->toDateString(),
-            'items' => [['product_id' => $shirt->id, 'quantity' => 5, 'unit_cost' => 800]],
+            'items' => [['product_id' => $shirt->id, 'variant_id' => $small, 'quantity' => 5, 'unit_cost' => 800]],
         ])->assertCreated();
 
-        $order = $this->actingAsUser($this->owner)
+        $this->actingAsUser($this->owner)
             ->postJson('/api/v1/purchase-orders/from-reorder-list', ['product_ids' => [$shirt->id]])
-            ->assertCreated()
-            ->json('data');
+            ->assertStatus(422)
+            ->assertJsonPath('meta.error_code', 'VARIANT_REQUIRED')
+            ->assertSee('Linen Shirt');
 
-        $po = PurchaseOrder::query()->with('items')->findOrFail($order[0]['id']);
-
-        // 7 on hand against a threshold of 10 → 3 short, not 10.
-        $this->assertEqualsWithDelta(
-            3.0,
-            (float) $po->items->first()->quantity_ordered,
-            0.001,
-            'the order asked for a full threshold instead of the shortfall',
-        );
+        $this->assertSame(1, PurchaseOrder::query()->count(), 'an order nobody could receive was drafted for the design');
     }
 
     public function test_the_branch_view_sees_sizes_too(): void

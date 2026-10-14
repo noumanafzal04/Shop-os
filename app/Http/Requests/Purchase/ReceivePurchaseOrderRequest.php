@@ -8,9 +8,15 @@ use Illuminate\Validation\Rule;
 
 class ReceivePurchaseOrderRequest extends FormRequest
 {
+    /**
+     * The buyer, or the stockroom: the one who checks the goods off the bay.
+     * The route already let a stock keeper in (READS_PURCHASE_ORDERS) and the
+     * screen offered them Receive — and this refused them with a 403. Zari's
+     * stock keeper could open the order and not take the delivery.
+     */
     public function authorize(): bool
     {
-        return $this->user()->hasPermission(Permissions::PURCHASES_MANAGE);
+        return $this->user()->hasAnyPermission(Permissions::PURCHASES_MANAGE, Permissions::INVENTORY_MANAGE);
     }
 
     public function rules(): array

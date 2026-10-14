@@ -490,7 +490,7 @@ class ReportService
         // supplier also holds. What is OWED is billed on delivery, not on the
         // order — they used to be the same number minus payments, which billed
         // the shop for every line still on a van. See Payable::AMOUNT.
-        $ordered = (float) (clone $base)->sum('total');
+        $ordered = (float) (clone $base)->sum(DB::raw(Payable::KEPT));
         $paid = (float) (clone $base)->sum('amount_paid');
 
         /**
@@ -507,7 +507,7 @@ class ReportService
          */
         $bySupplier = (clone $base)
             ->leftJoin('suppliers', 'purchase_orders.supplier_id', '=', 'suppliers.id')
-            ->selectRaw('COALESCE(suppliers.name, "Unknown") as supplier, COUNT(*) as orders, SUM(purchase_orders.total) as total, SUM(purchase_orders.'.Payable::AMOUNT.' - purchase_orders.amount_paid) as outstanding')
+            ->selectRaw('COALESCE(suppliers.name, "Unknown") as supplier, COUNT(*) as orders, SUM('.Payable::KEPT.') as total, SUM(purchase_orders.'.Payable::AMOUNT.' - purchase_orders.amount_paid) as outstanding')
             ->groupBy('supplier')
             ->orderByDesc('total')
             ->get()

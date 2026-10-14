@@ -85,6 +85,30 @@ class BooksDrawer
         return $session !== null && ! $session->isTraining() ? $session : null;
     }
 
+    /**
+     * Whose count cash handed over by this person will land in, said BEFORE
+     * they hand it over: `open` (their own real shift), `practice` (only a
+     * practice till), `none` (the business has a till and they have no shift)
+     * or null (the business has no till at all).
+     *
+     * A manager refunding from the returns desk with no shift of their own
+     * took the notes out of a cashier's drawer that never heard about it —
+     * the cashier closed short by exactly the refund. The rule stays the
+     * expenses' rule (their own drawer, or nowhere); what changes is that
+     * they are told first.
+     */
+    public static function stateFor(User $user): ?string
+    {
+        if (self::tillFor($user) !== null) {
+            return 'open';
+        }
+        if (self::isPractice($user)) {
+            return 'practice';
+        }
+
+        return self::hasTill($user) ? 'none' : null;
+    }
+
     /** True when the only drawer this person has open is a practice one. */
     public static function isPractice(User $user): bool
     {

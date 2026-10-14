@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Modules;
@@ -313,6 +316,39 @@ class PresetCanDoItsJobTest extends TestCase
     {
         $this->asPreset('cashier')
             ->postJson('/api/v1/coupons', ['code' => 'FREE', 'type' => 'percent', 'value' => 100])
+            ->assertForbidden();
+    }
+
+    /**
+     * The delivery itself. Zari, 2026-10-13: the stock keeper could open the
+     * order — the route let them in — and the receive answered 403, because
+     * the request's own check asked for purchases.manage alone.
+     */
+    public function test_a_stock_keeper_can_take_the_delivery(): void
+    {
+        $supplier = Supplier::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'name' => 'Lahore Traders']);
+        $biscuit = Product::withoutTenancy()->where('tenant_id', $this->tenant->id)->where('name', 'Sooper Biscuit')->sole();
+        $po = PurchaseOrder::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'supplier_id' => $supplier->id, 'po_number' => 'PO-T1', 'status' => 'ordered',
+            'order_date' => now()->toDateString(), 'subtotal' => 450, 'total' => 450,
+        ]);
+        PurchaseOrderItem::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'purchase_order_id' => $po->id, 'product_id' => $biscuit->id,
+            'product_name' => $biscuit->name, 'quantity_ordered' => 10, 'quantity_received' => 0, 'unit_cost' => 45, 'line_total' => 450,
+        ]);
+
+        $this->asPreset('stock_keeper')->postJson("/api/v1/purchase-orders/{$po->id}/receive", [])->assertOk();
+
+        $this->assertSame(110.0, (float) $biscuit->fresh()->stock_quantity, 'the delivery did not reach the shelf');
+    }
+
+    /** Taking the delivery must not become paying for it. */
+    public function test_a_stock_keeper_still_cannot_pay_the_supplier(): void
+    {
+        $supplier = Supplier::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'name' => 'Lahore Traders']);
+
+        $this->asPreset('stock_keeper')
+            ->postJson("/api/v1/suppliers/{$supplier->id}/payments", ['amount' => 100, 'method' => 'cash'])
             ->assertForbidden();
     }
 

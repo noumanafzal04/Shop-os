@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\DB;
  * invoicing all stay correct. Cash reconciliation is automatic:
  *   - upgrade  (new > credit): customer's cash difference lands in the drawer
  *   - even     (new = credit): no cash moves
- *   - downgrade (new < credit): change_due refunds the difference in cash
+ *   - downgrade (new < credit): change_due refunds the difference in cash,
+ *     out of the exchanging person's own drawer
  * If the customer under-pays the difference, CreateSaleAction throws
  * PAYMENT_INSUFFICIENT and the whole exchange rolls back.
  */
@@ -70,6 +71,10 @@ class ProcessExchangeAction
                 'items' => $data['items'],
                 'payments' => $tenders,
                 'notes' => "Exchange for {$sale->invoice_number}",
+                // The credit may come back as change on a downgrade (see the
+                // top of this file). Said here, server-side only: a request to
+                // /sales cannot carry it — StoreSaleRequest does not declare it.
+                'exchange_credit' => $credit,
             ]);
 
             return [

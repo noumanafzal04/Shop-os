@@ -74,6 +74,9 @@ class PurchaseOrderController extends Controller
             $names = implode(', ', $result['unknown']);
             $message .= " Not included, because they have never been bought before and have no supplier to order from: {$names}.";
         }
+        if ($result['sized'] !== []) {
+            $message .= ' Not included, because they are sold in sizes — order them size by size: '.implode(', ', $result['sized']).'.';
+        }
 
         return ApiResponse::created($result['orders'], $message);
     }

@@ -222,7 +222,19 @@ class SaleController extends Controller
         $sale = Sale::query()->with('items')->findOrFail($id);
         $return = $action->execute($sale, $request->validated());
 
-        return ApiResponse::created($return, "Refund {$return->return_number} processed");
+        // Cash handed back that no drawer counted: saved, and said — the same
+        // warning an expense paid in cash with no shift open gets.
+        $warning = in_array($return->refund_method, ['cash', 'split'], true) && $return->cash_session_id === null
+            ? BooksDrawer::untouchedDrawerWarning($request->user(), BooksDrawer::isPractice($request->user()), 'Handed back in cash')
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'message' => "Refund {$return->return_number} processed",
+            'data' => $return,
+            'errors' => (object) [],
+            'meta' => (object) array_filter(['warnings' => array_values(array_filter([$warning]))]),
+        ], 201);
     }
 
     /**
@@ -247,6 +259,8 @@ class SaleController extends Controller
             'refund_total' => $worth['refund_total'],
             'refund_tax' => $worth['refund_tax'],
             'tax_inclusive' => $worth['inclusive'],
+            // Whose count cash handed back here would land in — see BooksDrawer::stateFor.
+            'drawer' => BooksDrawer::stateFor($request->user()),
             'lines' => array_map(static fn (array $line): array => [
                 'sale_item_id' => $line['sale_item']->id,
                 'quantity' => $line['quantity'],

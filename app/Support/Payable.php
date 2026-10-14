@@ -32,18 +32,34 @@ final class Payable
     public const AMOUNT = 'received_total';
 
     /**
-     * Orders that are a real debt: placed, and not cancelled.
+     * Orders that are a real debt: placed — and, once cancelled, only for what
+     * had already arrived.
+     *
+     * Cancelling a part-delivered order stops the REST being expected; the
+     * goods that came are on the shelf and still owed for. Zari, 2026-10-13:
+     * ten dupattas received on PO-000001, the rest cancelled — and the 6,000
+     * owed for them vanished from the supplier's account, the dashboard and
+     * the payment allocator, because a cancelled order was left out whole.
+     * A cancelled order with nothing received still owes nothing.
      *
      * @param  Builder<PurchaseOrder>  $query
      * @return Builder<PurchaseOrder>
      */
     public static function billable(Builder $query): Builder
     {
-        return $query->whereNotIn('status', [
-            PurchaseStatus::Cancelled->value,
-            PurchaseStatus::Draft->value,
-        ]);
+        return $query
+            ->where('status', '!=', PurchaseStatus::Draft->value)
+            ->where(fn (Builder $q) => $q
+                ->where('status', '!=', PurchaseStatus::Cancelled->value)
+                ->orWhere(self::AMOUNT, '>', 0));
     }
+
+    /**
+     * What an order came to in the end: its total, or — cancelled part-way —
+     * only what was kept. For "ordered value", which must not count lines the
+     * shop withdrew.
+     */
+    public const KEPT = 'CASE WHEN purchase_orders.status = \'cancelled\' THEN purchase_orders.'.self::AMOUNT.' ELSE purchase_orders.total END';
 
     /**
      * WHAT THE SHOP OWES, FOR THE WHOLE SHOP — one definition, three readers.

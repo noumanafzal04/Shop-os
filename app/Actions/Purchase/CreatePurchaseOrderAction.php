@@ -3,6 +3,7 @@
 namespace App\Actions\Purchase;
 
 use App\Enums\PurchaseStatus;
+use App\Exceptions\DomainException;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -45,6 +46,17 @@ class CreatePurchaseOrderAction
                         ->whereKey($item['variant_id'])
                         ->where('product_id', $product->id)
                         ->firstOrFail();
+                }
+
+                // A design sold in sizes holds no stock of its own, so an order
+                // for "the design" could never be received — the stockroom is
+                // told to say which size, and cannot. Refused here, where the
+                // buyer can still answer it.
+                if ($variant === null && $product->variants()->exists()) {
+                    throw DomainException::unprocessable(
+                        "{$product->name} is sold in sizes — order it size by size.",
+                        'VARIANT_REQUIRED',
+                    );
                 }
 
                 // Buy-in-packs: a line may be ordered in a defined pack (Box);

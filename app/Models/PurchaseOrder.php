@@ -16,8 +16,12 @@ class PurchaseOrder extends BaseModel
     {
         return [
             'status' => PurchaseStatus::class,
-            'order_date' => 'date',
-            'expected_date' => 'date',
+            // Calendar days, sent as the day they are ("2026-10-13"). As plain
+            // `date` they went out as midnight UTC and were printed raw on the
+            // order list — and read as a moment, would be the day before
+            // anywhere west of Greenwich.
+            'order_date' => 'date:Y-m-d',
+            'expected_date' => 'date:Y-m-d',
             'received_at' => 'datetime',
             'subtotal' => 'decimal:2',
             'discount' => 'decimal:2',
