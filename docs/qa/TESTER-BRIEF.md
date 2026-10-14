@@ -40,35 +40,36 @@ Every bug in `BUGS.md` with status **OPEN**, **PART**, **OWNER** or **TO BUILD**
 If a known one behaves DIFFERENTLY now (worse, better, other figures), put one line under "Known bugs that changed" in your report.
 Owner decisions already taken are in `BUGS.md` → "Owner's answers"; their changes are not built yet — do not report today's behaviour of them as a bug.
 
-## 5. Pass 2 — what to test now
+## 5. Pass 4 — what to test now
+
+Passes 1–3 are in `BUGS.md`. Pull backend `5e2bcf6`, panel `3835cbb`, docs (newest `main`) — at least these. Run `php artisan migrate` (two new tables/columns).
 
 ### 5a. Re-test what was fixed (do this first)
 
-Fixed in backend `e14bf9e`, panel `db44390` (pushed 2026-10-14) — pull at least these. Clothing shop, tax 18 % inclusive, shift required.
-
 | R | Bug | Steps | Expected |
 |---|---|---|---|
-| R1 | B02 | Manager **with an open shift** (note its expected cash). Sell a 3,900 item for cash. Sales → that sale → Exchange → hand back the 3,900 item → replacement 1,200 item. | The sheet says **"Hand back in cash Rs 2,700"**. Complete → 201. New sale: total 1,200, `change_due` 2,700. That person's drawer expected cash goes DOWN by 2,700. Stock: the returned item +1, the replacement −1. Cashbook/day agree. |
-| R2 | B02 | Same, but an even swap and a dearer swap (+ cash). | Still work as before (no regression): even → nothing changes hands; dearer → the difference collected. |
-| R3 | B01 (part) | Shift supervisor **with no shift** in a shop with a till: Sales → a cash sale → Return / Refund; and Exchange where money is handed back or taken in cash. | BEFORE pressing: a warning "You have no shift open" (`data-testid="refund-no-drawer"` / `"exchange-no-drawer"`). After: the answer carries `meta.warnings`; the return's `cash_session_id` is null. NOT expected yet: the money landing in the cashier's drawer (that is TO BUILD). A person WITH an open shift sees no warning. |
-| R4 | B06 | Stock keeper (stock-keeper set only) → Purchase orders → a placed PO → "Receive all → stock in", and "Receive with details…". | 200; stock up; cost lands. Still refused (403, and not offered on screen): raising a PO, paying a supplier. |
-| R5 | B05 | Manager → Purchase orders → + New → search a sized design. | Each size is offered as **"Name / Size"** with its cost (the size's own cost, else the design's). Plain items as before; packs only for plain items. Inactive sizes not offered. The order saves one line per size. |
-| R6 | B05 | Via API: POST a PO line for a sized design with no `variant_id`. | 422 `VARIANT_REQUIRED` at creation (not at receipt). |
-| R7 | B05 | Inventory → reorder list → draft orders, with a sized design on the list (alone, and with plain items). | Plain items drafted; the sized design is NOT drafted and is named: "Not included, because they are sold in sizes — order them size by size". Only sized items → 422 with that message. |
-| R8 | — | Receive a by-size PO with one size set to 0. | That size stays outstanding; the others land with their cost. (Phase 0 fix, by hand.) |
-| R9 | L1 | A PO part-received, then "Cancel the rest". | The cancel prompt says what arrived stays owed. Supplier still owes the received amount; Suppliers → account, Pay sheet and the purchases report all count what was KEPT (received), not what was ordered and not 0. |
-| R10 | B13 | Suppliers → Pay, against a part-received PO; pay part. | "due" = received − paid; "Still owed after this" is right; the account after saving matches. A PO with nothing due is not offered. |
-| R11 | B22 | Purchase orders list and detail. | Order date in the shop's own date format, not ISO. |
-| R12 | B29 (part) | Customers → a khata customer → record a payment. | The customer's detail is asked once after saving, not twice. |
+| R1 | B03 | Return 1 of a sale paid cash + card. | Sheet shows the figure; Return → 201, `refund_method` cash. No "invalid" error. |
+| R2 | B04 | Return a khata sale (unpaid, and part-paid). | Sheet shows "Comes off <name>'s khata Rs X" and "Goes back to the customer Rs Y" (Y = only what was paid). 201; khata down by X; drawer down by Y only. |
+| R3 | B07 | Double-click (fast) Record / Save on: khata payment, supplier payment, expense, income, document deposit, bank deposit, exchange. | ONE record each. A second request with the same key gets the first answer (header `Idempotent-Replay: true`) or 409 REQUEST_IN_FLIGHT. A NEW payment after saving is a new record. |
+| R4 | B08 | Promotion + coupon + bank card offer on one sale; print the receipt. | Lines add up to the total; promotion once; "Discount (coupon)" is only the coupon's part; the bank offer named "· paid by the bank"; no "Balance due"; "You saved" = promotion + coupon + bank. |
+| R5 | B31 | Exchange with an automatic promotion on the replacement. | The sheet's "Hand back / Difference" equals the new sale's change_due / difference to the paisa. |
+| R6 | B30 | Exchange a till (pos) sale. | The replacement sale's channel is `pos`. |
+| R7 | B01 part | Exchange by someone with no shift, cash moving. | The exchange's answer now carries `meta.warnings` (as the return's does). |
+| R8 | B38 | Cashier and waiter: GET /sales/{id}, a tab, an order. | No `unit_cost` / `total_cost` on any line. Owner, manager, stock keeper still see it. |
+| R9 | B39 | GET /dashboard as kitchen, stock keeper, cashier, online orders, buyer, accounts, manager, owner. | Kitchen / stock keeper / online orders: takings, recent sales, till, highlights null/empty; nothing owed; no activity. Cashier: takings + khata, no payable, no activity, no highlights. Buyer: payable. Staff at one place: only their place in `branches`. Owner: everything. Screens draw no tile for what was not sent. |
+| R10 | B40 | Waiter: void a SENT item; cancel a tab with a sent item; void an UNSENT item. | First two 403 VOID_NEEDS_SUPERVISOR and the buttons are not offered; unsent removal works. Supervisor can; `voided_by` recorded. |
+| R11 | B41 | Petroleum shop: raise a PO for tank fuel; receive an old one holding fuel. | 422 FUEL_COMES_BY_TANKER on both, for anyone; lubricants still bought/received normally. |
+| R12 | Q9 / B46 | Stock keeper / pharmacist / attendant: suppliers list + detail, PO list + detail. | No balances, totals, paid, payment status, payments; lines, quantities, unit cost still there. The screens draw no "Outstanding"/"Total" column. Buyer sees all. A supplier inside a PO answer: `outstanding` null, never 0. |
+| R13 | Q7 | Any staff: GET /shop/subscription; the menu; the read-only banner. | 403; no Subscription in the menu; the banner says ask the owner. Owner: all as before. |
+| R14 | B48 | Offline: sell 3 items; delete one product on the server; reconnect. | The two good sales land; the deleted one is FAILED with "deleted since it was rung" — not retried for ever; the batch is never stuck. A sale already recorded comes back `duplicate`, not refused. |
 
-### 5b. Phase 1 — what pass 1 did not reach
+### 5b. Phase 2 — what pass 2 did not reach
 
-- **Storefront order, customer side**: open the shop's storefront, order as a customer (delivery + COD, and pickup), then the shop accepts → dispatches → delivered/completed. Prove: the order and the sale agree (lines, sizes, price incl. sale price, delivery fee), stock of that SIZE down once, the customer record, the channel, the dashboard/sales list/reports. Tax 0 and channel are B17 — only note if different.
-- Anything in the Phase 1 list you marked FAIL because of a bug now FIXED: walk it again end to end (items 2 and 4).
+Waiter settling their own tab (open a shift in the café first); cashier settling a waiter's tab (tables.serve_any); screen walks for waiter, pharmacist, forecourt attendant and purchasing; pharmacist receiving a real PO with batches.
 
-### 5c. Then the next phase — one phase per pass
+### 5c. Then Phase 4 — a mart (grocery) — see §6.
 
-Do **Phase 2** in this pass if there is room; otherwise it is pass 3. After that, one per pass in this order: 3, 4, 5, 6, 7, 8, 9, 10, 11. (Phase 12 is the release run — only when the fixer says.)
+Known and not to be re-reported: everything OPEN in `BUGS.md`, B47 (waiting on Q10), B01's PIN (to build).
 
 ## 6. The phases in detail
 

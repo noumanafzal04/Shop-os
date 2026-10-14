@@ -308,6 +308,16 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-14 (late) — the tester's passes 2 and 3, fixed
+
+The cloud tester probed every route as every staff set and walked offline on
+the built app (`docs/qa/BUGS.md`, passes 2–3). Fixed and pushed: the P1s B03,
+B04, B07, B08, B31, B38, B39, B40, B41, B48; B30, B46; the owner's Q7 and Q9.
+Two migrations (`restaurant_ticket_items.voided_by`, `answered_requests`) — run
+`php artisan migrate` on deploy. `docs/decisions/shopos-each-person-their-share.md`.
+Waiting: Q10 (B47 offline price), B01's PIN. Next tester pass: TESTER-BRIEF §5.
+
+
 ### 2026-10-14 — Phase 1 part 1 pushed; a tester session and a fixer session
 
 Zari's second day by hand (returns, exchanges, khata, a supplier, two orders)

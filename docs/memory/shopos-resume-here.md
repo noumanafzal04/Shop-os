@@ -1,9 +1,15 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-14 — Phase 1 part 1 PUSHED (backend e14bf9e, panel db44390); testing split: cloud TESTER only tests (docs/qa/TESTER-BRIEF.md), I FIX from docs/qa/BUGS.md; next = wait for tester report or user's word, then OPEN P1s B03 B04 B07 B08 + owner's B01
+description: RESUME POINT 2026-10-14 late — tester passes 1–3 logged in docs/qa/BUGS.md; P1 batch (B03 B04 B07 B08 B30 B31 B38 B39 B40 B41 B46 B48 + Q7 Q9) LANDED, gated, pushing; waiting Q10 (B47) + Q4/Q6; next = B01 PIN, then P2s; tester pass 4 = TESTER-BRIEF §5
 metadata:
   type: project
 ---
+
+**2026-10-14 late — the tester's passes 2 (Phase 2 permissions probe) and 3 (offline) came back; all logged in `docs/qa/BUGS.md`.** User said "ye complete krk commit and push kr dena". Fixed on the copy, landed, 2 additive migrations run on dev (`voided_by`, `answered_requests`), gates → push. PUSHED: backend `5e2bcf6`, panel `3835cbb` (gates: phpunit 3,847 · vitest 3,299 · build · eslint · tsc-e2e all exit 0).
+**Owner answered (AskUserQuestion 2026-10-14):** B41 fuel only by tanker (built); Q9 strip supplier money (built); Q7 subscription owner only (built); Q8 keep other places' COUNTS on the till (not a bug).
+**Waiting on the user:** Q10 = B47 (offline sale at a changed price is refused — server re-prices on purpose; recommended: record as rung + flag); Q4 (customer advance, ChatGPT answered as salary); Q6 (online orders earn points?).
+**NEXT for me:** B01 PIN (cashier's drawer + supervisor approval + audit), then P2s (B09–B17, B32–B35, B42, B43, B49–B51), P3s, then Q1/Q2/Q3/Q5 builds. After each push: rewrite TESTER-BRIEF §5. Standing rules from this batch: [[shopos-hidden-is-still-sent]], [[shopos-one-press-one-record]].
+
 
 **2026-10-14 — PUSHED Phase 1 part 1** (backend `e14bf9e`, panel `db44390`, docs on main) after all five gates exit 0. A cloud Claude Code session had tested Phase 1 on a fresh stack and found B01–B30 + Q1–Q5; the user then SPLIT the work ([[shopos-tester-and-fixer]]): the cloud session only TESTS, I fix. One list: `docs/qa/BUGS.md` (statuses + owner's answers). Tester instructions: `docs/qa/TESTER-BRIEF.md` (§5 = what to test next; I rewrite §5 after every fix push).
 **Owner answered (via ChatGPT, 2026-10-14):** B01 → cashier's drawer + supervisor PIN + audit; Q1 points on payment (pending on khata, proportional); Q2 coupon after promotion; Q3 manager counts, applying needs a permission, big variance approval; Q5 COD → receiving drawer / rider outstanding (RiderSettlement exists). **Q4 CONFLICT (held, told the user):** answered as a salary advance; it was a CUSTOMER's layaway advance and payroll is out.
