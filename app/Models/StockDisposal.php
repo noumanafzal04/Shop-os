@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesCostPrice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -25,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class StockDisposal extends BaseModel
 {
-    use Auditable, BelongsToTenant;
+    use Auditable, BelongsToTenant, HidesCostPrice;
 
     public const WRITTEN_OFF = 'written_off';
 
@@ -89,5 +90,15 @@ class StockDisposal extends BaseModel
     public function isCredited(): bool
     {
         return $this->credit_received_at !== null;
+    }
+
+    /**
+     * What the shop paid, on this line — stripped for whoever may not read a cost.
+     *
+     * @return list<string>
+     */
+    protected function costKeys(): array
+    {
+        return ['unit_cost', 'total_cost'];
     }
 }

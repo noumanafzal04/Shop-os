@@ -212,6 +212,16 @@ class Permissions
         .self::INVENTORY_MANAGE;
 
     /**
+     * What the shop OWES its suppliers — balances, an order's total, what was
+     * paid against it. Narrower than READS_SUPPLIERS: the stockroom reads a
+     * supplier and an order to take a delivery in, and has no business with
+     * the debt (the owner, 2026-10-14). Whoever buys or pays, and whoever
+     * reads the books.
+     */
+    public const SEES_SUPPLIER_MONEY = self::SUPPLIERS_MANAGE.','.self::PURCHASES_MANAGE.','
+        .self::REPORTS_VIEW;
+
+    /**
      * Purchase orders. Receiving a delivery is stockroom work against a
      * document the buyer raised, so INVENTORY_MANAGE reads and receives while
      * raising, placing and cancelling stay with PURCHASES_MANAGE.

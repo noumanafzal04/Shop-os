@@ -40,6 +40,7 @@ use App\Support\DashboardPeriod;
 use App\Support\LowStock;
 use App\Support\Modules;
 use App\Support\Payable;
+use App\Support\Permissions;
 use App\Support\ServiceDay;
 use App\Support\ShopDay;
 use App\Support\ShopSettings;
@@ -333,6 +334,14 @@ class DashboardService
      * figure, and not merely hidden by the screen, which would leave it in the
      * answer for anybody who opens the network tab.
      *
+     * The rest follows the same rule (tester pass 2, B39: the kitchen was sent
+     * the café's 515,554 of takings). What the shop TOOK goes to whoever sells
+     * or reads the reports; who owes the shop, to whoever keeps customers;
+     * what the shop owes, to whoever buys, pays or reads the books; the audit
+     * feed, to READS_AUDIT; and every place's takings side by side to the owner
+     * alone — staff are pinned to one place (ResolveBranch), so for them the
+     * comparison keeps only their own row.
+     *
      * @param  array<string, mixed>  $figures  what forTenant() worked out
      * @return array<string, mixed>
      */
@@ -340,8 +349,21 @@ class DashboardService
     {
         $profit = $viewer->hasPermission('reports.view');
         $expenses = $profit || $viewer->hasPermission('expenses.manage');
+        $takings = $profit || $viewer->hasPermission('sales.manage');
+        $owedIn = $profit || $viewer->hasPermission('customers.manage');
+        $owedOut = $viewer->hasAnyPermission(Permissions::SEES_SUPPLIER_MONEY);
+        $audit = $viewer->hasAnyPermission(Permissions::READS_AUDIT);
 
         foreach (['today', 'period'] as $block) {
+            if (! $takings) {
+                foreach (['revenue', 'refunds', 'sales_count', 'customers_count'] as $key) {
+                    $figures[$block][$key] = null;
+                }
+                $figures[$block]['deltas']['revenue'] = null;
+            }
+            if (! $expenses) {
+                $figures[$block]['other_income'] = null;
+            }
             if (! $profit) {
                 $figures[$block]['profit'] = null;
                 $figures[$block]['deltas']['profit'] = null;
@@ -352,7 +374,14 @@ class DashboardService
             }
         }
 
-        $figures['sales_series'] = array_map(function (array $point) use ($profit, $expenses): array {
+        $figures['sales_series'] = array_map(function (array $point) use ($profit, $expenses, $takings): array {
+            if (! $takings) {
+                $point['revenue'] = null;
+                $point['refunds'] = null;
+            }
+            if (! $expenses) {
+                $point['other_income'] = null;
+            }
             if (! $profit) {
                 $point['profit'] = null;
             }
@@ -369,7 +398,34 @@ class DashboardService
             $figures['books'] = null;
         }
 
-        $figures['sees'] = ['profit' => $profit, 'expenses' => $expenses];
+        if (! $takings) {
+            $figures['recent_sales'] = [];
+            $figures['till'] = null;
+        }
+        if (! $profit) {
+            // The leaders BY REVENUE — a report, and one that ranks the staff.
+            $figures['highlights'] = array_map(fn () => null, $figures['highlights']);
+        }
+        if (! $owedIn) {
+            $figures['money_owed']['receivable'] = null;
+        }
+        if (! $owedOut) {
+            $figures['money_owed']['payable'] = null;
+        }
+        if (! $audit) {
+            $figures['activity'] = [];
+        }
+        if (! $viewer->isShopOwner()) {
+            $figures['branches'] = array_values(array_filter(
+                $figures['branches'],
+                fn (array $row): bool => $takings && $row['branch_id'] === $figures['branch_scope'],
+            ));
+        }
+
+        $figures['sees'] = [
+            'profit' => $profit, 'expenses' => $expenses, 'takings' => $takings,
+            'owed_in' => $owedIn, 'owed_out' => $owedOut, 'activity' => $audit,
+        ];
 
         return $figures;
     }

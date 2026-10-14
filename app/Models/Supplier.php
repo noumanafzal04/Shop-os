@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesSupplierMoney;
 use App\Support\Payable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Supplier extends BaseModel
 {
-    use BelongsToTenant;
+    use BelongsToTenant, HidesSupplierMoney;
 
     protected $appends = ['outstanding', 'advance'];
 
@@ -61,15 +62,23 @@ class Supplier extends BaseModel
      */
     protected function outstanding(): Attribute
     {
-        return Attribute::get(fn (): float => round(
-            (float) ($this->attributes['po_total'] ?? 0) - (float) ($this->attributes['paid_total'] ?? 0),
-            2,
-        ));
+        // Null when the two sums were not loaded (withOutstanding()) — a
+        // supplier read inside an order said "owes 0" for one owed 29,400
+        // (tester pass 2, B46). Unknown is not zero.
+        return Attribute::get(fn (): ?float => array_key_exists('po_total', $this->attributes)
+            ? round((float) $this->attributes['po_total'] - (float) ($this->attributes['paid_total'] ?? 0), 2)
+            : null);
     }
 
     /** Money paid ahead of any order, as a positive number (0 when none). */
     protected function advance(): Attribute
     {
-        return Attribute::get(fn (): float => round(max(0.0, -$this->outstanding), 2));
+        return Attribute::get(fn (): ?float => $this->outstanding === null ? null : round(max(0.0, -$this->outstanding), 2));
+    }
+
+    /** @return list<string> */
+    protected function supplierMoneyKeys(): array
+    {
+        return ['outstanding', 'advance', 'po_total', 'paid_total', 'payments'];
     }
 }

@@ -17,6 +17,7 @@ use App\Support\BranchContext;
 use App\Support\ItemTypes;
 use App\Support\MovingCost;
 use App\Support\StockPlace;
+use App\Support\TankFuel;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -113,6 +114,11 @@ class ReceivePurchaseOrderAction
                 'PO_NOT_RECEIVABLE',
             );
         }
+
+        $po->load('items');
+        TankFuel::refuse($po->items
+            ->filter(fn (PurchaseOrderItem $item): bool => $receiveMap === null || isset($receiveMap[$item->id]))
+            ->pluck('product_id')->filter()->values()->all());
 
         return DB::transaction(function () use ($po, $receiveMap, $idempotencyKey): PurchaseOrder {
             $po->load('items');

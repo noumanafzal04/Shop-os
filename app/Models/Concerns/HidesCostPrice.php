@@ -16,7 +16,7 @@ use App\Support\Permissions;
  * margin REPORT was already shut to a cashier; `cost` on a product row is the
  * same figure arriving by the back door.
  *
- * Only `cost` is stripped. `wholesale_price` is a SELLING price and stays:
+ * Only the cost is stripped (`costKeys()`). `wholesale_price` is a SELLING price and stays:
  * the POS reads it to offer the wholesale price level (`levelBase` in
  * PosPage), so hiding it from a cashier would not protect anything — it would
  * silently remove wholesale selling from the till.
@@ -37,9 +37,24 @@ trait HidesCostPrice
         $user = auth()->user();
 
         if ($user instanceof User && ! $user->hasAnyPermission(Permissions::READS_COST)) {
-            unset($data['cost']);
+            foreach ($this->costKeys() as $key) {
+                unset($data[$key]);
+            }
         }
 
         return $data;
+    }
+
+    /**
+     * The attributes that are what the shop paid. A product calls it `cost`;
+     * a line it was sold, ordered, counted or written off on calls it
+     * `unit_cost` (and `total_cost`) — the same figure, and a cashier opening a
+     * sale read it on every line until the lines wore this too.
+     *
+     * @return list<string>
+     */
+    protected function costKeys(): array
+    {
+        return ['cost'];
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\DomainException;
+use App\Http\Middleware\AnswerOnce;
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureFeature;
 use App\Http\Middleware\EnsurePermission;
@@ -39,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'terminal' => ResolveRegister::class,
             'role' => EnsureRole::class,
             'permission' => EnsurePermission::class,
+            'once' => AnswerOnce::class,
             'feature' => EnsureFeature::class,
             'subscription' => EnforceSubscription::class,
             'abilities' => CheckAbilities::class,

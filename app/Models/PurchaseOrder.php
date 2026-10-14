@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Enums\PurchaseStatus;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesSupplierMoney;
 use App\Support\Payable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PurchaseOrder extends BaseModel
 {
-    use BelongsToTenant;
+    use BelongsToTenant, HidesSupplierMoney;
 
     protected function casts(): array
     {
@@ -79,5 +80,16 @@ class PurchaseOrder extends BaseModel
             $paid + 0.001 >= $billed => 'paid',
             default => 'partial',
         };
+    }
+
+    /**
+     * The order's money — kept from whoever only takes the delivery in. Its
+     * lines, quantities and their cost stay (HidesCostPrice decides those).
+     *
+     * @return list<string>
+     */
+    protected function supplierMoneyKeys(): array
+    {
+        return ['subtotal', 'discount', 'tax', 'total', 'amount_paid', 'received_total', 'payment_status', 'payments'];
     }
 }

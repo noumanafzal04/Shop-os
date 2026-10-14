@@ -88,7 +88,7 @@ class ProfitIsForWhoeverReadsTheReportsTest extends TestCase
 
     private function assertSeesBoth(array $d, string $who): void
     {
-        $this->assertSame(['profit' => true, 'expenses' => true], $d['sees'], $who);
+        $this->assertSame(['profit' => true, 'expenses' => true], array_intersect_key($d['sees'], ['profit' => 0, 'expenses' => 0]), $who);
         $this->assertSame(1200.0, (float) $d['today']['expenses'], "{$who} was not sent the day's expenses");
         $this->assertIsNumeric($d['today']['profit'], "{$who} was not sent the day's profit");
         $this->assertIsNumeric($d['today']['deltas']['profit'], "{$who} was not sent the change in profit (or this fixture has no yesterday)");
@@ -98,9 +98,9 @@ class ProfitIsForWhoeverReadsTheReportsTest extends TestCase
         $this->assertNotEmpty($d['expense_breakdown'], "{$who} was not sent where the money went");
     }
 
-    private function assertSeesNeither(array $d, string $who): void
+    private function assertSeesNeither(array $d, string $who, bool $sells = true): void
     {
-        $this->assertSame(['profit' => false, 'expenses' => false], $d['sees'], $who);
+        $this->assertSame(['profit' => false, 'expenses' => false], array_intersect_key($d['sees'], ['profit' => 0, 'expenses' => 0]), $who);
         foreach (['today', 'period'] as $block) {
             $this->assertNull($d[$block]['profit'], "{$who} was sent the {$block} profit");
             $this->assertNull($d[$block]['expenses'], "{$who} was sent the {$block} expenses");
@@ -114,8 +114,11 @@ class ProfitIsForWhoeverReadsTheReportsTest extends TestCase
         $this->assertSame([], $d['expense_breakdown'], "{$who} was sent where the money went");
         $this->assertSame([], $d['recent_expenses'], "{$who} was sent the expense book");
         $this->assertNull($d['books']);
-        // What they DO need is still there.
-        $this->assertSame(5000.0, (float) $d['today']['revenue'], "{$who} lost the day's sales with the profit");
+        // What they DO need is still there — the day's sales to whoever rings
+        // them; a stock keeper has no till and no money (pass 2, B39).
+        $sells
+            ? $this->assertSame(5000.0, (float) $d['today']['revenue'], "{$who} lost the day's sales with the profit")
+            : $this->assertNull($d['today']['revenue'], "{$who} was sent the day's takings");
     }
 
     public function test_the_owner_sees_both(): void
@@ -132,7 +135,7 @@ class ProfitIsForWhoeverReadsTheReportsTest extends TestCase
     public function test_a_cashier_and_a_stock_keeper_see_neither(): void
     {
         $this->assertSeesNeither($this->dashboard($this->preset('cashier')), 'a cashier');
-        $this->assertSeesNeither($this->dashboard($this->preset('stock_keeper')), 'a stock keeper');
+        $this->assertSeesNeither($this->dashboard($this->preset('stock_keeper')), 'a stock keeper', sells: false);
     }
 
     public function test_a_cashier_given_the_reports_sees_both(): void
@@ -145,7 +148,7 @@ class ProfitIsForWhoeverReadsTheReportsTest extends TestCase
     {
         $d = $this->dashboard($this->staff(['expenses.manage']));
 
-        $this->assertSame(['profit' => false, 'expenses' => true], $d['sees']);
+        $this->assertSame(['profit' => false, 'expenses' => true], array_intersect_key($d['sees'], ['profit' => 0, 'expenses' => 0]));
         $this->assertSame(1200.0, (float) $d['today']['expenses']);
         $this->assertNull($d['today']['profit']);
         $this->assertNotEmpty($d['expense_breakdown']);

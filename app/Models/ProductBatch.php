@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesCostPrice;
 use App\Support\DotCode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class ProductBatch extends BaseModel
 {
-    use BelongsToTenant;
+    use BelongsToTenant, HidesCostPrice;
 
     protected function casts(): array
     {

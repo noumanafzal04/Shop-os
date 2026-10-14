@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,6 +91,43 @@ class ExchangeForSomethingCheaperTest extends TestCase
         // Out of HER drawer, the one that handed the notes over.
         $drawer = $this->as($this->manager)->getJson('/api/v1/pos/session/report')->assertOk()->json('data.drawer');
         $this->assertSame(1900.0, (float) $drawer['expected_cash'], 'the 1,100 handed back did not come off the drawer it left');
+    }
+
+    public function test_with_no_shift_of_their_own_the_exchanger_is_told_no_drawer_counted_it(): void
+    {
+        // Tester pass 2 (R3): the return's answer said so; the exchange's did not.
+        $told = $this->exchangeIt()->assertCreated()->json('meta.warnings');
+
+        $this->assertNotEmpty($told, 'cash went back over the counter with no drawer and nobody was told');
+        $this->assertStringContainsString('Cash for the exchange', $told[0]);
+    }
+
+    public function test_with_a_shift_open_nothing_is_said(): void
+    {
+        $this->as($this->manager)->postJson('/api/v1/pos/session/open', ['opening_float' => 3000])->assertSuccessful();
+
+        $this->assertEmpty($this->exchangeIt()->assertCreated()->json('meta.warnings') ?? []);
+    }
+
+    public function test_what_the_sheet_asks_is_what_the_exchange_rings_promotion_and_all(): void
+    {
+        // Tester pass 2 (B31): an automatic promotion on the replacement. The
+        // sheet priced it itself and said "hand back 1,000"; the exchange gave
+        // 1,300 change. The sheet now asks /sales/worth — this holds the two
+        // to one answer.
+        $shop = User::query()->find($this->owner->id)->tenant_id;
+        Promotion::withoutTenancy()->create([
+            'tenant_id' => $shop, 'name' => 'Kids 20% off', 'type' => 'percent', 'value' => 20, 'scope' => 'order', 'is_active' => true,
+        ]);
+        $this->as($this->manager)->postJson('/api/v1/pos/session/open', ['opening_float' => 3000])->assertSuccessful();
+
+        $asked = $this->as($this->manager)->postJson('/api/v1/sales/worth', [
+            'channel' => 'pos', 'items' => [['product_id' => $this->suit, 'quantity' => 1]], 'payment_method' => 'cash', 'amount_paid' => 0,
+        ])->assertOk()->json('data.total');
+        $this->assertEquals(1480, $asked, 'the question did not see the promotion');
+
+        $rung = $this->exchangeIt()->assertCreated()->json('data.sale');
+        $this->assertEquals($asked, (float) $rung['total'], 'the sheet was told one figure and the exchange rang another');
     }
 
     public function test_an_even_swap_moves_no_money(): void

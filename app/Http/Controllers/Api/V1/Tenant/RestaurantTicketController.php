@@ -122,11 +122,15 @@ class RestaurantTicketController extends Controller
         if ($item->isVoid()) {
             return ApiResponse::ok($ticket->fresh(['table', 'items']));
         }
+        if ($item->kot_status !== 'pending') {
+            $this->assertMayVoidSentFood();
+        }
 
         $item->update([
             'voided_at' => now(),
             'kot_status' => 'void',
             'void_reason' => $request->input('reason'),
+            'voided_by' => $request->user()->id,
         ]);
 
         return ApiResponse::ok($ticket->fresh(['table', 'items']), 'Item voided.');
@@ -275,10 +279,15 @@ class RestaurantTicketController extends Controller
             );
         }
 
+        if ($ticket->items()->whereNull('voided_at')->where('kot_status', '!=', 'pending')->exists()) {
+            $this->assertMayVoidSentFood();
+        }
+
         $ticket->items()->whereNull('voided_at')->update([
             'voided_at' => now(),
             'kot_status' => 'void',
             'void_reason' => $request->input('reason', 'Tab cancelled'),
+            'voided_by' => $request->user()->id,
         ]);
 
         // AND TAKE THE DOCKETS OFF THE PASS.
@@ -497,6 +506,27 @@ class RestaurantTicketController extends Controller
      * `tables.serve_any` lifts it — the till, a supervisor covering a break, a
      * manager fixing a bill.
      */
+    /**
+     * Food the kitchen already has is a supervisor's to take off the bill.
+     *
+     * A line still unsent is the waiter's own slip of the pen and stays free to
+     * remove. Once it is fired it has been cooked, or is being — wiping it off
+     * an unpaid bill is a void, and a waiter (sales.manage alone) was doing it
+     * with no one's say: tester pass 2, B40, a served juice and then the whole
+     * tab. The same permission as voiding a sale.
+     */
+    private function assertMayVoidSentFood(): void
+    {
+        if (request()->user()?->hasPermission(Permissions::SALES_VOID)) {
+            return;
+        }
+
+        throw DomainException::forbidden(
+            'The kitchen already has this — ask a supervisor to take it off the bill.',
+            'VOID_NEEDS_SUPERVISOR',
+        );
+    }
+
     private function assertMayWork(RestaurantTicket $ticket): void
     {
         $user = request()->user();

@@ -66,7 +66,15 @@
     $docTitle = ($ntn || $strn) && $taxed ? 'Sales Tax Invoice' : 'Sales Invoice';
 
     $lineDiscounts = $sale->items->sum(fn ($i) => (float) $i->line_discount);
-    $anyDiscount   = $lineDiscounts > 0 || (float) $sale->discount > 0 || (float) $sale->promo_discount > 0;
+    // `discount` is the whole order discount and ALREADY holds the promotion
+    // (CreateSaleAction adds it in), so the coupon's or the cashier's own share
+    // is what is left of it. Printing both in full took the promotion off twice
+    // and the lines no longer added up to the total (tester pass 1, B08).
+    $promoOff      = (float) $sale->promo_discount;
+    $orderOff      = max(0.0, round((float) $sale->discount - $promoOff, 2));
+    // The bank's share is paid by the bank, not the customer: never a balance due.
+    $bankOff       = (float) ($sale->bank_discount ?? 0);
+    $anyDiscount   = $lineDiscounts > 0 || (float) $sale->discount > 0 || $bankOff > 0;
 @endphp
 <!DOCTYPE html>
 <html lang="en" {!! \App\Support\PrintPaper::htmlAttributes($width) !!}>
@@ -498,16 +506,16 @@
         <table class="totals">
             <tr><td class="soft">Subtotal</td><td class="num">{{ $amount($sale->subtotal) }}</td></tr>
 
-            @if((float) $sale->promo_discount > 0)
+            @if($promoOff > 0)
                 <tr>
                     <td class="soft">{{ $sale->promo_name ?: 'Promotion' }}</td>
-                    <td class="num">− {{ $amount($sale->promo_discount) }}</td>
+                    <td class="num">− {{ $amount($promoOff) }}</td>
                 </tr>
             @endif
-            @if((float) $sale->discount > 0)
+            @if($orderOff > 0)
                 <tr>
                     <td class="soft">Discount{{ $sale->coupon_code ? ' ('.$sale->coupon_code.')' : '' }}</td>
-                    <td class="num">− {{ $amount($sale->discount) }}</td>
+                    <td class="num">− {{ $amount($orderOff) }}</td>
                 </tr>
             @endif
 
@@ -566,6 +574,13 @@
                  above says how much it was worth; this says what it was, so a
                  customer disputing the allowance a week later has the make and
                  the condition written on their own copy. --}}
+            @if($bankOff > 0)
+                <tr class="tender">
+                    <td>{{ $sale->bankOffer?->label ?: 'Bank card offer' }} · paid by the bank</td>
+                    <td class="num">{{ $amount($bankOff) }}</td>
+                </tr>
+            @endif
+
             @foreach($tradeIns as $t)
                 <tr class="tender">
                     <td style="padding-left:10px">↳ {{ $t->description ?: $t->product_name }}@if((float) $t->quantity != 1.0) × {{ rtrim(rtrim(number_format((float) $t->quantity, 3), '0'), '.') }}@endif</td>
@@ -577,7 +592,7 @@
                 <tr class="tender change"><td>Change</td><td class="num">{{ $amount($sale->change_due) }}</td></tr>
             @endif
 
-            @php($due = round((float) $sale->total - (float) $sale->amount_paid, 2))
+            @php($due = round((float) $sale->total - (float) $sale->amount_paid - $bankOff, 2))
             @if($due > 0)
                 <tr class="tender change"><td>Balance due</td><td class="num">{{ $amount($due) }}</td></tr>
             @endif
@@ -585,7 +600,7 @@
 
         @if($anyDiscount)
             <div class="lmeta {{ $roll ? '' : 'r' }}" style="margin-top:6px">
-                You saved {{ $amount($lineDiscounts + (float) $sale->discount + (float) $sale->promo_discount) }}
+                You saved {{ $amount($lineDiscounts + (float) $sale->discount + $bankOff) }}
             </div>
         @endif
     @endunless

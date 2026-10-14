@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
+use App\Support\TankFuel;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,10 @@ class CreatePurchaseOrderAction
     public function execute(array $data): PurchaseOrder
     {
         $tenantId = $this->context->id();
+
+        // Refused when the order is MADE, as a size-less line is: an order it
+        // could never receive would only sit on the books.
+        TankFuel::refuse(array_column($data['items'], 'product_id'));
 
         return DB::transaction(function () use ($data, $tenantId): PurchaseOrder {
             $subtotal = 0.0;

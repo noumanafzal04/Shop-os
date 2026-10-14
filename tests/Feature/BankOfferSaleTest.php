@@ -232,6 +232,31 @@ class BankOfferSaleTest extends TestCase
         $this->assertEqualsWithDelta(7200.0, (float) $sale['amount_paid'], 0.001);
     }
 
+    public function test_the_receipt_takes_each_discount_off_once_and_owes_the_bank_nothing(): void
+    {
+        // Tester pass 1 (B08), INV-000010: the paper printed the promotion and
+        // then the order discount that already held it, so its lines did not
+        // add up to its total; it said "Balance due 800" for the bank's share;
+        // and "You saved" counted the promotion twice.
+        Promotion::query()->create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Weekend 20%', 'type' => 'percent', 'value' => 20,
+            'scope' => 'order', 'is_active' => true,
+        ]);
+        $this->offer();
+        $sale = $this->ring(['bank_id' => $this->bank->id, 'amount_paid' => 8000])->assertCreated()->json('data');
+
+        $paper = $this->actingAsUser($this->cashier)->get("/api/v1/sales/{$sale['id']}/invoice")->assertOk()->getContent();
+        $text = preg_replace('/\s+/', ' ', strip_tags($paper));
+
+        $this->assertSame(1, substr_count($text, '2,000.00'), 'the promotion came off twice: '.$text);
+        $this->assertStringNotContainsString('Discount', $text, 'an order discount nobody gave was printed');
+        $this->assertStringContainsString('Ramadan 10% · paid by the bank', $text, 'the bank offer is not named on the paper');
+        $this->assertStringNotContainsString('Balance due', $text, 'the customer was told they owe the bank\'s share');
+        $this->assertStringContainsString('You saved', $text);
+        $this->assertMatchesRegularExpression('/You saved \D*2,800\.00/', $text, 'what the customer saved was not 2,000 + 800');
+    }
+
     public function test_the_two_discounts_stay_in_separate_columns(): void
     {
         // The whole reason the column exists. One shared column and the shop

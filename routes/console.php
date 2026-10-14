@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Inventory\NotifyExpiringStock;
+use App\Models\AnsweredRequest;
 use App\Models\FuelPriceChange;
 use App\Models\Product;
 use App\Services\ReservationService;
@@ -96,3 +97,5 @@ Schedule::command('stock:expiring')->dailyAt('07:00');
  * it was gone makes a liar of the only sentence on that banner.
  */
 Schedule::command('shopos:prune-demos')->hourly();
+// The kept first answers of the money forms (AnswerOnce) — two days is plenty.
+Schedule::command('model:prune', ['--model' => [AnsweredRequest::class]])->daily();

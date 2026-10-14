@@ -247,13 +247,15 @@ class PosSyncTest extends TestCase
         $request = SyncRequest::create('/api/v1/pos/sync', 'POST');
         $request->setUserResolver(fn (): User => $this->cashier);
 
-        $validated = validator([
-            'operations' => [$this->operation(sale: [
+        // Each sale is checked on its own now (B48), against these rules.
+        $validated = validator(
+            $this->operation(sale: [
                 'items' => [['product_id' => $this->product->id, 'quantity' => 2, 'unit_price' => 1]],
-            ])],
-        ], $request->rules())->validate();
+            ])['sale'],
+            $request->saleRules(),
+        )->validate();
 
-        $this->assertArrayNotHasKey('unit_price', $validated['operations'][0]['sale']['items'][0]);
+        $this->assertArrayNotHasKey('unit_price', $validated['items'][0]);
     }
 
     public function test_a_price_that_somehow_arrived_would_still_be_ignored(): void
@@ -315,20 +317,36 @@ class PosSyncTest extends TestCase
 
     // ── One bad operation must not cost the others ──────────────────
 
-    public function test_a_malformed_operation_is_refused_before_anything_is_written(): void
+    public function test_a_sale_whose_product_is_gone_is_refused_alone_and_the_rest_land(): void
     {
+        // This test used to assert the opposite — the WHOLE batch 422 for one
+        // product id that no longer exists. That is tester pass 3, B48: a
+        // product deleted while a till was offline, and all fifty of its sales
+        // retried for ever, none recorded, none shown as failed.
         $good = $this->operation();
         $bad = $this->operation(['offline_number' => 'OFF-L1-AB-000002'], [
             'items' => [['product_id' => (string) Str::uuid(), 'quantity' => 1]],
         ]);
 
-        // A product id that does not exist fails validation for the WHOLE
-        // batch, which is the wrong shape — so the sync must reject it at the
-        // request layer rather than half-applying.
-        $this->sync([$good, $bad])->assertStatus(422);
+        $results = $this->sync([$good, $bad])->assertOk()->json('data.results');
 
-        // ... and nothing was written, so the till still holds both.
-        $this->assertSame(0, Sale::withoutTenancy()->count());
+        $this->assertSame('applied', $results[0]['status'], 'a good sale was held back by a bad one');
+        $this->assertSame('failed', $results[1]['status']);
+        $this->assertFalse($results[1]['retryable'], 'the same sale would be refused again — retrying it for ever is the bug');
+        $this->assertStringContainsString('deleted since it was rung', $results[1]['message']);
+        $this->assertSame(1, Sale::withoutTenancy()->count());
+    }
+
+    public function test_a_sale_already_recorded_is_not_refused_because_its_product_went_since(): void
+    {
+        $operation = $this->operation();
+        $first = $this->sync([$operation])->assertOk()->json('data.results.0');
+        $this->product->delete();
+
+        $again = $this->sync([$operation])->assertOk()->json('data.results.0');
+
+        $this->assertSame('duplicate', $again['status'], 'a lost acknowledgement for a recorded sale came back as a refusal');
+        $this->assertSame($first['sale_id'], $again['sale_id']);
     }
 
     public function test_one_operation_failing_in_the_action_leaves_the_rest_applied(): void
@@ -1000,9 +1018,13 @@ class PosSyncTest extends TestCase
             'price' => 100,
         ]);
 
-        $this->sync([$this->operation(sale: [
+        $result = $this->sync([$this->operation(sale: [
             'items' => [['product_id' => $theirs->id, 'quantity' => 1]],
-        ])])->assertStatus(422);
+        ])])->assertOk()->json('data.results.0');
+
+        $this->assertSame('failed', $result['status']);
+        $this->assertSame(0, Sale::withoutTenancy()->where('tenant_id', $other->id)->count());
+        $this->assertSame(0, Sale::withoutTenancy()->count(), "a sale was recorded against another shop's product");
     }
 
     // ── A till whose clock is wrong (P4-4) ──────────────────────────

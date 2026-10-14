@@ -3,6 +3,7 @@
 namespace App\Actions\Sale;
 
 use App\Enums\ItemType;
+use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Models\Customer;
@@ -56,6 +57,24 @@ class ProcessSaleReturnAction
      *   lines: list<array{sale_item: SaleItem, quantity: float, remaining: float, line_total: float, line_tax: float, serials: array<int, string>}>
      * }
      */
+    /**
+     * How money handed back goes out when nobody says: the way the sale was
+     * paid, where that is something a counter hands over.
+     *
+     * A split sale (cash and card) and a khata sale have no such way — `split`
+     * is a summary, `credit` was never handed over — and the return refused
+     * them both (tester pass 1, B03 / B04): no way at all to take such a sale
+     * back. They go back in cash; for khata, the part still owed comes off the
+     * customer's account first (`refund_credit`), so only what they actually
+     * paid is handed over.
+     */
+    public static function backBy(Sale $sale): string
+    {
+        $paid = $sale->payment_method->value;
+
+        return in_array($paid, PaymentMethod::counter(), true) ? $paid : PaymentMethod::Cash->value;
+    }
+
     public function worth(Sale $sale, array $items): array
     {
         if (! $sale->status->isReturnable()) {
@@ -292,7 +311,7 @@ class ProcessSaleReturnAction
                     'refund_credit' => 0,
                     'refund_trade_in' => 0,
                     // Refund goes back the way the customer paid, unless overridden.
-                    'refund_method' => $data['refund_method'] ?? $sale->payment_method->value,
+                    'refund_method' => $data['refund_method'] ?? self::backBy($sale),
                     'reason' => $data['reason'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'returned_at' => now(),

@@ -17,6 +17,7 @@ use App\Support\PlanLimits;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -66,9 +67,11 @@ class PosSyncController extends Controller
 
         $itemRefusals = $this->itemRefusals($data['operations']);
 
+        $saleRules = $request->saleRules();
+
         $results = [];
         foreach ($data['operations'] as $operation) {
-            $results[] = $this->apply($operation, $device, $windowDays, $itemRefusals);
+            $results[] = $this->apply($operation, $device, $windowDays, $itemRefusals, $saleRules);
         }
 
         return ApiResponse::ok([
@@ -84,18 +87,27 @@ class PosSyncController extends Controller
      * fifty landed, and an exception here would tell it nothing about the other
      * forty-nine.
      */
-    private function apply(array $operation, ?PosDevice $device, ?int $windowDays, array $itemRefusals = []): array
+    private function apply(array $operation, ?PosDevice $device, ?int $windowDays, array $itemRefusals = [], array $saleRules = []): array
     {
-        $sale = $operation['sale'];
         [$soldAt, $clientSoldAt] = $this->when($operation);
 
         // Already here? Then this is a retry after a lost acknowledgement, and
         // the till gets the original back. Checked before anything else: a
-        // replay must cost a lookup, never a second attempt at the work.
+        // replay must cost a lookup, never a second attempt at the work — and
+        // a sale already recorded is not refused because its product has
+        // been deleted since.
         $existing = Sale::query()->where('idempotency_key', $operation['op'])->first();
         if ($existing !== null) {
             return $this->done('duplicate', $operation['op'], $existing);
         }
+
+        // THIS sale, on its own (see SyncRequest::saleRules). Refused alone,
+        // in words, and not retried: the same sale would be refused again.
+        $checked = Validator::make($operation['sale'], $saleRules);
+        if ($checked->fails()) {
+            return $this->failed($operation['op'], $this->whyRefused($checked->errors()->toArray()), 'SALE_INVALID');
+        }
+        $sale = $checked->validated();
 
         $violations = OfflinePolicy::violations($sale, $itemRefusals);
 
@@ -458,6 +470,23 @@ class PosSyncController extends Controller
             'offline_number' => $sale->offline_number,
             'violations' => $violations,
         ];
+    }
+
+    /**
+     * The first reason, in the shop's words. A product that is gone is the
+     * case this exists for; anything else is the rule's own sentence.
+     *
+     * @param  array<string, list<string>>  $errors
+     */
+    private function whyRefused(array $errors): string
+    {
+        foreach (array_keys($errors) as $field) {
+            if (preg_match('/^items\.\d+\.(product_id|variant_id)$/', $field) === 1) {
+                return 'An item in this sale has been deleted since it was rung, so it cannot be recorded as it stands.';
+            }
+        }
+
+        return 'This sale cannot be recorded as it stands: '.(array_values($errors)[0][0] ?? 'it was refused.');
     }
 
     private function failed(string $op, string $message, ?string $code, bool $retryable = false): array

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesCostPrice;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class FuelDelivery extends BaseModel
 {
-    use Auditable, BelongsToTenant;
+    use Auditable, BelongsToTenant, HidesCostPrice;
 
     protected function casts(): array
     {
@@ -56,5 +57,15 @@ class FuelDelivery extends BaseModel
     public function receivedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    /**
+     * What the shop paid, on this line — stripped for whoever may not read a cost.
+     *
+     * @return list<string>
+     */
+    protected function costKeys(): array
+    {
+        return ['unit_cost', 'total_cost'];
     }
 }

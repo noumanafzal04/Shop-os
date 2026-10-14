@@ -52,17 +52,31 @@ class SyncRequest extends FormRequest
         return $this->user()->hasPermission(Permissions::SALES_MANAGE);
     }
 
-    public function rules(): array
+    /**
+     * What ONE sale in the batch must be — the online sale's own rules, less
+     * the two the envelope answers. Checked per sale by PosSyncController, NOT
+     * here: as nested rules they failed the whole request for one bad sale. A
+     * product deleted while a till was offline turned all fifty into a 422,
+     * retried for ever and never recorded (tester pass 3, B48).
+     *
+     * Still the gate on price: these rules carry no `unit_price`, and only what
+     * they validate reaches the sale.
+     *
+     * @return array<string, mixed>
+     */
+    public function saleRules(): array
     {
         $sale = (new StoreSaleRequest)->setUserResolver($this->getUserResolver())->rules();
 
-        unset($sale['idempotency_key'], $sale['cash_session_id']);
+        unset($sale['idempotency_key']);
+        // Kept, not required to be open — see the class note.
+        $sale['cash_session_id'] = ['nullable', 'uuid'];
 
-        $nested = [];
-        foreach ($sale as $field => $rule) {
-            $nested["operations.*.sale.{$field}"] = $rule;
-        }
+        return $sale;
+    }
 
+    public function rules(): array
+    {
         return [
             'device_id' => ['nullable', 'uuid'],
             'operations' => ['required', 'array', 'max:'.self::MAX_OPERATIONS],
@@ -97,8 +111,6 @@ class SyncRequest extends FormRequest
             // is not.
             'operations.*.training' => ['nullable', 'boolean'],
             'operations.*.sale' => ['required', 'array'],
-            // See the class note: kept, but no longer required to be open.
-            'operations.*.sale.cash_session_id' => ['nullable', 'uuid'],
-        ] + $nested;
+        ];
     }
 }

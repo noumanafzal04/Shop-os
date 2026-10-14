@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesCostPrice;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class StockCountItem extends Model
 {
-    use BelongsToTenant, HasUuids;
+    use BelongsToTenant, HasUuids, HidesCostPrice;
 
     protected $guarded = ['id'];
 
@@ -67,5 +68,15 @@ class StockCountItem extends Model
     public function varianceValue(): float
     {
         return round($this->variance() * (float) $this->unit_cost, 2);
+    }
+
+    /**
+     * What the shop paid, on this line — stripped for whoever may not read a cost.
+     *
+     * @return list<string>
+     */
+    protected function costKeys(): array
+    {
+        return ['unit_cost'];
     }
 }

@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\HidesCostPrice;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OrderItem extends Model
 {
-    use BelongsToTenant, HasUuids;
+    use BelongsToTenant, HasUuids, HidesCostPrice;
 
     protected $guarded = ['id'];
 
@@ -28,5 +29,15 @@ class OrderItem extends Model
     public function order(): BelongsTo
     {
         return $this->belongsTo(Order::class);
+    }
+
+    /**
+     * What the shop paid, on this line — stripped for whoever may not read a cost.
+     *
+     * @return list<string>
+     */
+    protected function costKeys(): array
+    {
+        return ['unit_cost'];
     }
 }

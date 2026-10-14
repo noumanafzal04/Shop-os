@@ -231,7 +231,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // decision — a shop able to switch its own POS off would be a
             // support call — but not being able to SEE the answer was the gap.
             Route::get('/shop/modules', [ShopController::class, 'modules']);
-            Route::get('/shop/subscription', [SubscriptionController::class, 'show']);
+            // What the shop pays the platform — the plan's price, the payments,
+            // their bank references — is the owner's (the owner, 2026-10-14,
+            // Q7). It used to answer anyone in the shop, kitchen included.
+            Route::get('/shop/subscription', [SubscriptionController::class, 'show'])->middleware('permission:settings.manage');
 
             // "Keep this shop" — a demo asking to become a business. No
             // permission gate beyond being the shop's own owner: it is not an
@@ -374,7 +377,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // whole Customers folder.
             Route::middleware(['feature:customers', 'permission:customers.manage'])->group(function (): void {
                 // Khata repayment — pay down a customer's credit balance.
-                Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment']);
+                // Money forms answer once per key (AnswerOnce) — tester pass 1, B07.
+                Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment'])->middleware('once');
                 Route::get('customers/export', [CustomerController::class, 'export']);
                 // Customer groups — tiered pricing segments.
                 Route::apiResource('customer-groups', CustomerGroupController::class)
@@ -492,7 +496,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('purchase-orders/from-reorder-list', [PurchaseOrderController::class, 'fromReorderList']);
                     Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
                     Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
-                    Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store']);
+                    Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store'])->middleware('once');
                 });
             });
 
@@ -593,7 +597,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // The way back from a close pressed by mistake — today's day only.
                     Route::post('/days/{day}/reopen', [BusinessDayController::class, 'reopen']);
                     Route::get('/deposits', [BusinessDayController::class, 'deposits']);
-                    Route::post('/deposits', [BusinessDayController::class, 'storeDeposit']);
+                    Route::post('/deposits', [BusinessDayController::class, 'storeDeposit'])->middleware('once');
 
                     // Reading how the drawers counted out is supervision, not
                     // configuration — a manager holds 16 of 18 permissions and
@@ -680,7 +684,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // Exchange rings a replacement sale, so it needs the POS module.
                     // It also returns goods, hence the refund permission.
                     Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
-                        ->middleware(['feature:pos', 'permission:sales.refund']);
+                        ->middleware(['feature:pos', 'permission:sales.refund', 'once']);
                     // Receipts. Rendering one is a counter action, not a report:
                     // the render itself is what gets logged, and the log is what
                     // decides whether the paper says ORIGINAL or REPRINT.
@@ -717,7 +721,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('/', [SaleDocumentController::class, 'store']);
                 Route::get('/{document}', [SaleDocumentController::class, 'show']);
                 Route::get('/{document}/print', [SaleDocumentController::class, 'print']);
-                Route::post('/{document}/deposits', [SaleDocumentController::class, 'deposit']);
+                Route::post('/{document}/deposits', [SaleDocumentController::class, 'deposit'])->middleware('once');
                 Route::post('/{document}/convert', [SaleDocumentController::class, 'convert']);
                 // Moving a car along the bay board. Its own route because it is
                 // one tap from a phone twenty times a day, and a mechanic
@@ -860,7 +864,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
                 // Before the resource, or "export" is swallowed as an {expense}.
                 Route::get('expenses/export', [ExpenseController::class, 'export']);
-                Route::apiResource('expenses', ExpenseController::class)->except(['show']);
+                Route::apiResource('expenses', ExpenseController::class)->except(['show'])->middleware('once');
                 // The photo of the bill.
                 Route::post('expenses/{expense}/attachment', [ExpenseController::class, 'attach']);
                 // The receipt itself. It used to be a public storage URL with
@@ -873,7 +877,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::apiResource('income-categories', IncomeCategoryController::class)
                     ->except(['show']);
                 Route::get('incomes/export', [IncomeController::class, 'export']);
-                Route::apiResource('incomes', IncomeController::class)->except(['show']);
+                Route::apiResource('incomes', IncomeController::class)->except(['show'])->middleware('once');
                 // The proof the money came in — same pair as the expense side.
                 Route::post('incomes/{income}/attachment', [IncomeController::class, 'attach']);
                 Route::get('incomes/{income}/attachment', [IncomeController::class, 'attachment']);

@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
+use App\Models\Customer;
 use App\Models\Sale;
 use App\Support\ApiResponse;
 use App\Support\BooksDrawer;
@@ -253,12 +254,24 @@ class SaleController extends Controller
             'items.*.quantity' => ['required', 'numeric', 'min:0.001'],
         ]);
 
-        $worth = $action->worth(Sale::query()->with('items')->findOrFail($id), $data['items']);
+        $sale = Sale::query()->with('items')->findOrFail($id);
+        $worth = $action->worth($sale, $data['items']);
+
+        // On khata, what is still owed comes off the account before a rupee is
+        // handed over — the return does exactly this (refund_credit). The sheet
+        // said "goes back to the customer 4,990" for a sale nobody had paid.
+        $offKhata = $sale->customer_id === null ? 0.0 : round(min(
+            (float) $worth['refund_total'],
+            (float) (Customer::query()->find($sale->customer_id)?->outstandingCreditForSale($sale->id) ?? 0),
+        ), 2);
 
         return ApiResponse::ok([
             'refund_total' => $worth['refund_total'],
             'refund_tax' => $worth['refund_tax'],
             'tax_inclusive' => $worth['inclusive'],
+            'off_khata' => $offKhata,
+            'handed_back' => round((float) $worth['refund_total'] - $offKhata, 2),
+            'back_by' => ProcessSaleReturnAction::backBy($sale),
             // Whose count cash handed back here would land in — see BooksDrawer::stateFor.
             'drawer' => BooksDrawer::stateFor($request->user()),
             'lines' => array_map(static fn (array $line): array => [
@@ -281,10 +294,22 @@ class SaleController extends Controller
         $sale = Sale::query()->with('items')->findOrFail($id);
         $result = $action->execute($sale, $request->validated());
 
-        return ApiResponse::created(
-            $result,
-            "Exchange completed — new sale {$result['sale']->invoice_number}",
-        );
+        // Cash taken for a dearer swap, or handed back for a cheaper one, with
+        // no drawer of the exchanger's own to count it: saved, and said — the
+        // return's warning, which the exchange's answer lacked (tester pass 2).
+        $new = $result['sale'];
+        $cashMoved = (float) $new->change_due > 0 || $new->payments()->where('method', 'cash')->where('amount', '>', 0)->exists();
+        $warning = $cashMoved && $new->cash_session_id === null
+            ? BooksDrawer::untouchedDrawerWarning($request->user(), BooksDrawer::isPractice($request->user()), 'Cash for the exchange')
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'message' => "Exchange completed — new sale {$new->invoice_number}",
+            'data' => $result,
+            'errors' => (object) [],
+            'meta' => (object) array_filter(['warnings' => array_values(array_filter([$warning]))]),
+        ], 201);
     }
 
     /**
