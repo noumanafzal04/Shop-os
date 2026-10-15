@@ -2,6 +2,7 @@ import { blankPack, packPayload, packRowsFrom, pieceCodes, type PackRow } from "
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useFillOnce } from "../../../common/hooks/useFillOnce";
 import { startingItemType } from "../startingItemType";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
@@ -271,6 +272,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
    * price, read "Saved with warning", closed the drawer, and lost the edit.
    */
   const [blocked, setBlocked] = useState<string[]>([]);
+  // The one refusal with two ways out — see the banner.
+  const [wantsWords, setWantsWords] = useState(false);
   const [tab, setTab] = useState<FormTab>("details");
   const syncModifiers = useSyncModifiers(id);
 
@@ -387,10 +390,15 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const photoUrl = isEdit ? (savedPhoto?.url ?? null) : stagedPhotoUrl;
   const [uploadingNew, setUploadingNew] = useState(false);
 
-  // Hydrate the form when editing.
-  useEffect(() => {
-    if (existing.data) {
-      const p = existing.data;
+  // Hydrate the form when editing — once per item (useFillOnce): a refetch
+  // re-ran this and undid what the shop had just changed (L10). Until it has,
+  // the boxes hold a new item's defaults ("Still selling this" ON for a retired
+  // item), so they are covered and Save is shut — a press in that gap was
+  // undone the moment the item arrived.
+  const [filled, setFilled] = useState(false);
+  useFillOnce(existing.data, (p) => {
+    setFilled(true);
+    {
       setItemType(p.item_type);
       setName(p.name);
       setDescription(p.description ?? "");
@@ -498,8 +506,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     // so listing it here would re-run the whole hydration the moment that query
     // resolves, throwing away whatever the shop had typed in between. Hydration
     // is a one-shot: it happens when the item arrives and never again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing.data]);
+  });
 
   const fieldErrors = mutation.error instanceof ApiError ? mutation.error.errors : {};
   const generalError =
@@ -515,6 +522,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
     setWarnings([]);
     setBlocked([]);
+    setWantsWords(false);
 
     // Online-required: an item shown to online customers needs a description.
     //
@@ -524,9 +532,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     // demo shop had four products, all four online, all four with no
     // description: not a single price on the shelf could be corrected.
     if (onlineRequired && !description.trim() && !isEdit) {
-      setBlocked([
-        "This item is shown to online customers, so it needs a description before it can be created. Nothing has been saved yet.",
-      ]);
+      setWantsWords(true);
       return;
     }
 
@@ -781,11 +787,48 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               was the PWA install card sitting on the footer at z-999998. Kept
               because the guard is right and free, and noted because a comment
               claiming the wrong cause is worse than no comment. */}
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+          <div className="relative min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
+            {isEdit && !filled && (
+              <div data-testid="item-loading" className="absolute inset-0 z-10 flex items-start justify-center bg-white/85 pt-24 dark:bg-gray-900/85">
+                <p className="text-theme-sm text-gray-500 dark:text-gray-400">
+                  {existing.isError ? "This item could not be opened. Close and try again." : "Opening the item…"}
+                </p>
+              </div>
+            )}
             {generalError && <Alert variant="error" title="Couldn't save" message={generalError} />}
             {blocked.map((b) => (
               <Alert key={b} variant="error" title="Not saved" message={b} />
             ))}
+            {/* TWO WAYS OUT, SAID WHERE THE REFUSAL IS. A grocer adding a
+                biscuit at the counter was told "needs a description" at the
+                top of the form — the box was at the foot of Details, and the
+                switch that takes it off the online shop on another tab
+                (2026-10-15 review). Either is one press from here. */}
+            {wantsWords && (
+              <div data-testid="item-needs-words" role="alert" className="rounded-xl border border-error-200 bg-error-50 px-4 py-3 dark:border-error-500/30 dark:bg-error-500/10">
+                <p className="text-sm font-medium text-error-700 dark:text-error-400">Not saved — this item is sold online, so it needs a description</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setWantsWords(false);
+                      setTab("details");
+                      window.setTimeout(() => {
+                        const box = document.querySelector<HTMLTextAreaElement>("#item-description textarea");
+                        box?.scrollIntoView({ block: "center" });
+                        box?.focus();
+                      }, 0);
+                    }}
+                  >
+                    Write a description
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setWantsWords(false); setVisibleOnline(false); }}>
+                    Sell it in the shop only
+                  </Button>
+                </div>
+              </div>
+            )}
             {/* A refusal on another tab, or one with nowhere of its own to be
                 said. Without this a barcode another item already has — typed on
                 Codes & packs — left the person on Details pressing a button
@@ -1420,7 +1463,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           </Section>
         ) : null}
 
-        <div>
+        <div id="item-description">
           <Label>
             {/* The asterisk means "you cannot save without this", so it is only
                 honest where that is true — on create. On an item that is
@@ -1434,7 +1477,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             <p className="mt-1 text-theme-xs text-warning-500">
               {isEdit
                 ? "This item is shown online. Without a description, customers see a blank listing."
-                : "A description is required for items shown online."}
+                : "A description is required for items shown online — or turn off \u201cSell this item online\u201d on the Online tab."}
             </p>
           )}
           {err("description") && <p className="mt-1 text-theme-xs text-error-500">{err("description")}</p>}
@@ -1894,7 +1937,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
           {/* Footer — always visible; submits the form from any tab */}
           <div className="flex items-center gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
-            <Button type="submit" size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price || needsExpiry}>
+            <Button type="submit" size="sm" disabled={mutation.isPending || uploadingNew || !name.trim() || !price || needsExpiry || (isEdit && !filled)}>
               {uploadingNew
                 ? "Uploading photos…"
                 : mutation.isPending

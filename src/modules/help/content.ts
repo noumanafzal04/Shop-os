@@ -432,7 +432,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
           ["Tax rate / group", "Leave blank to use your shop default."],
           ["Sold by", "Each, weight, volume or length — this changes how the till asks for quantity."],
           ["Low-stock alert at", "The alert fires AT this number, not below it."],
-          ["Opening stock", "Only when creating. Afterwards stock changes through Inventory, never by editing the product."],
+          ["Opening stock", "Only when creating. It is the first line of the item's stock history (\u201cOpening stock\u201d, in). Afterwards stock changes through Inventory, never by editing the product."],
         ],
       },
       {
