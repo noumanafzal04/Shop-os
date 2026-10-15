@@ -4,8 +4,11 @@ namespace App\Actions\SaleDocument;
 
 use App\Actions\Pos\RecordCashMovementAction;
 use App\Exceptions\DomainException;
+use App\Models\CashSession;
 use App\Models\SaleDocument;
 use App\Models\SaleDocumentPayment;
+use App\Models\User;
+use App\Support\BooksDrawer;
 use App\Support\Currencies;
 use Illuminate\Support\Facades\DB;
 
@@ -93,6 +96,17 @@ class RecordDepositAction
             }
 
             $user = auth()->user();
+
+            // Cash goes into a drawer, so a shop that asks for shifts takes it
+            // only on the taker's own shift of today — the till's rule for a
+            // sale. It used to land in no drawer when they had none (L2).
+            if ($method === 'cash' && $user instanceof User) {
+                BooksDrawer::mustBeOpenToday(
+                    CashSession::query()->where('user_id', $user->id)->where('status', 'open')->value('id'),
+                    $locked->tenant,
+                    'taking cash',
+                );
+            }
 
             // Record the drawer movement FIRST so the payment row can carry the
             // shift the money actually landed in — a two-month layaway must

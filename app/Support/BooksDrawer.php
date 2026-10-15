@@ -187,9 +187,13 @@ class BooksDrawer
      * 2026-10-15: "settings main open shift required hain to pos main bagair
      * open shift k sell q ho rhi?"). One rule, here, for every counter sale.
      *
+     * Cash taken as an advance (a layaway, a job card) is held to it too —
+     * `$doing` names what was refused. With no shift it reached no drawer, said
+     * nothing, and the money was in nobody's count (L2).
+     *
      * Off by default; a shop that does not ask for shifts is not refused.
      */
-    public static function mustBeOpenToday(?string $sessionId, ?Tenant $tenant): void
+    public static function mustBeOpenToday(?string $sessionId, ?Tenant $tenant, string $doing = 'ringing up a sale'): void
     {
         if ($tenant === null || ! (bool) ($tenant->setting('pos_require_shift') ?? false)) {
             return;
@@ -198,13 +202,13 @@ class BooksDrawer
         $session = $sessionId === null ? null : CashSession::query()->with('businessDay')->find($sessionId);
 
         if ($session === null || $session->status !== 'open') {
-            throw DomainException::conflict('Open a shift before ringing up a sale.', 'SHIFT_REQUIRED');
+            throw DomainException::conflict("Open a shift before {$doing}.", 'SHIFT_REQUIRED');
         }
 
         if (self::fromAnEarlierDay($session, $tenant)) {
             throw DomainException::conflict(
                 'This shift has been open since '.ShopTime::day(self::dayOf($session, $tenant), $tenant)
-                .' — close it and open today\'s before ringing up a sale.',
+                ." — close it and open today's before {$doing}.",
                 'SHIFT_FROM_AN_EARLIER_DAY',
             );
         }

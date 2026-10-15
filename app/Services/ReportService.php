@@ -230,14 +230,44 @@ class ReportService
         [$fromStart, $toEnd] = ShopDay::span($from, $to, $shop);
         $bucket = $this->bucketer($shop, $granularity);
 
-        $revenueByBucket = Sale::query()
+        $salesByBucket = Sale::query()
             ->where('tenant_id', $tenantId)
             ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['sold_at', 'total'])
-            ->groupBy(fn (Sale $s) => $bucket($s->sold_at))
-            ->map(fn (Collection $sales) => round((float) $sales->sum('total'), 2));
+            ->get(['sold_at', 'total', 'tax'])
+            ->groupBy(fn (Sale $s) => $bucket($s->sold_at));
+        $revenueByBucket = $salesByBucket->map(fn (Collection $sales) => round((float) $sales->sum('total'), 2));
+        $taxByBucket = $salesByBucket->map(fn (Collection $sales) => (float) $sales->sum('tax'));
+
+        // The rest of what the headline profit takes off, a bucket at a time —
+        // the same four figures `summary()` strikes it from, filed by the
+        // moment each happened: the cost of what was sold, by its sale; what
+        // went back, its tax and its cost, by the return.
+        $cogsByBucket = SaleItem::query()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where('sale_items.tenant_id', $tenantId)
+            ->whereIn('sales.status', Takings::COUNTED)
+            ->whereBetween('sales.sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId))
+            ->get(['sales.sold_at', 'sale_items.unit_cost', 'sale_items.quantity'])
+            ->groupBy(fn ($line) => $bucket(CarbonImmutable::parse($line->sold_at)))
+            ->map(fn (Collection $lines) => (float) $lines->sum(fn ($l) => (float) $l->unit_cost * (float) $l->quantity));
+
+        $returnsByBucket = Takings::refunds($tenantId, $branchId)
+            ->whereBetween('returned_at', [$fromStart, $toEnd])
+            ->get(['returned_at', 'refund_total', 'refund_tax'])
+            ->groupBy(fn (SaleReturn $r) => $bucket($r->returned_at));
+
+        $returnedCostByBucket = SaleReturnItem::query()
+            ->join('sale_returns', 'sale_returns.id', '=', 'sale_return_items.sale_return_id')
+            ->join('sale_items', 'sale_items.id', '=', 'sale_return_items.sale_item_id')
+            ->where('sale_return_items.tenant_id', $tenantId)
+            ->whereBetween('sale_returns.returned_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sale_returns.branch_id', $branchId))
+            ->get(['sale_returns.returned_at', 'sale_return_items.quantity', 'sale_items.unit_cost'])
+            ->groupBy(fn ($line) => $bucket(CarbonImmutable::parse($line->returned_at)))
+            ->map(fn (Collection $lines) => (float) $lines->sum(fn ($l) => (float) $l->unit_cost * (float) $l->quantity));
 
         $expensesByBucket = Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
@@ -270,15 +300,23 @@ class ReportService
             $revenue = $revenueByBucket[$key] ?? 0.0;
             $expenses = $expensesByBucket[$key] ?? 0.0;
             $otherIncome = $incomeByBucket[$key] ?? 0.0;
+            $returns = $returnsByBucket[$key] ?? collect();
+            $refunds = round((float) $returns->sum('refund_total'), 2);
+            $tax = round(($taxByBucket[$key] ?? 0.0) - (float) $returns->sum('refund_tax'), 2);
+            $cogs = round(($cogsByBucket[$key] ?? 0.0) - ($returnedCostByBucket[$key] ?? 0.0), 2);
             $buckets[] = [
                 'date' => $key,
                 'revenue' => $revenue,
+                'refunds' => $refunds,
+                'tax' => $tax,
+                'cogs' => $cogs,
                 'other_income' => $otherIncome,
                 'expenses' => $expenses,
-                // Cash-shaped, deliberately: this is the line a chart draws, so
-                // it nets what MOVED in the bucket. The headline `net_profit`
-                // also deducts cost of goods, which no per-day bucket carries.
-                'profit' => round($revenue + $otherIncome - $expenses, 2),
+                // The headline's own net profit, a bucket at a time, so the
+                // days add up to the total above them. It used to be "cash-
+                // shaped" — revenue less expenses, no cost of goods, no tax, no
+                // refunds — and a day that made 347 said 1,980 (the revenue).
+                'profit' => round($revenue - $refunds - $tax - $cogs + $otherIncome - $expenses, 2),
             ];
             $cursor = $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
         }

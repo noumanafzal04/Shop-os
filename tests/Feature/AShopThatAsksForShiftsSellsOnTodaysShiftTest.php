@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\CashMovement;
+use App\Models\SaleDocument;
+use App\Models\SaleDocumentPayment;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,6 +123,52 @@ class AShopThatAsksForShiftsSellsOnTodaysShiftTest extends TestCase
         $this->sell()->assertCreated();
     }
 
+    /**
+     * Cash taken as an advance goes into a drawer just as a sale's does. With
+     * no shift it was recorded and reached no drawer, without a word (L2).
+     */
+    public function test_cash_taken_as_an_advance_needs_todays_shift(): void
+    {
+        $this->requireShifts();
+        $documents = fn (): int => SaleDocument::withoutTenancy()->count();
+        $hold = fn (string $method, string $key): TestResponse => $this->as()->postJson('/api/v1/sale-documents', [
+            'kind' => 'layaway', 'customer_name' => 'Mrs. Khan', 'customer_phone' => '03001112233', 'idempotency_key' => $key,
+            'items' => [['product_id' => $this->item, 'quantity' => 2]],
+            'deposit' => ['amount' => 500, 'method' => $method],
+        ]);
+        $pay = fn (string $id, string $method, string $key): TestResponse => $this->as()->postJson("/api/v1/sale-documents/{$id}/deposits", [
+            'amount' => 100, 'method' => $method, 'idempotency_key' => $key,
+        ]);
+
+        // No shift: the cash advance is refused, and nothing is held.
+        $before = $documents();
+        $res = $hold('cash', 'hold-cash-1');
+        $this->refused($res, 'a cash advance with no shift');
+        $this->assertSame('Open a shift before taking cash.', $res->json('message'));
+        $this->assertSame($before, $documents(), 'the goods were held although their advance was refused');
+
+        // Card money goes into no drawer, so it needs none.
+        $layaway = $hold('card', 'hold-card-1')->assertCreated()->json('data');
+        $this->refused($pay($layaway['id'], 'cash', 'pay-cash-1'), 'more cash on an advance, with no shift');
+        $pay($layaway['id'], 'card', 'pay-card-1')->assertCreated();
+
+        // On today's shift the cash goes in, into that shift's drawer.
+        $shift = $this->as()->postJson('/api/v1/pos/session/open', ['opening_float' => 1000])->assertCreated()->json('data.id');
+        $paid = $pay($layaway['id'], 'cash', 'pay-cash-2')->assertCreated()->json('data');
+        $this->assertSame($shift, $paid['payment']['cash_session_id'] ?? SaleDocumentPayment::withoutTenancy()->whereKey($paid['payment']['id'])->value('cash_session_id'), 'the cash advance did not land in the shift that took it');
+        $this->assertSame(100.0, (float) CashMovement::withoutTenancy()->where('cash_session_id', $shift)->where('type', 'deposit_in')->sum('amount'), "the shift's drawer did not hear of the cash");
+
+        // Two days later the same shift is an earlier day's.
+        $this->travelTo('2026-10-15 10:00:00');
+        $this->refused($pay($layaway['id'], 'cash', 'pay-cash-3'), "cash on the 13th's shift", 'SHIFT_FROM_AN_EARLIER_DAY');
+
+        // Closed and today's opened: the cash is taken on today's, not the old one.
+        $this->as()->postJson('/api/v1/pos/session/close', ['counted_cash' => 1100])->assertOk();
+        $today = $this->as()->postJson('/api/v1/pos/session/open', ['opening_float' => 1000])->assertCreated()->json('data.id');
+        $paid = $pay($layaway['id'], 'cash', 'pay-cash-4')->assertCreated()->json('data');
+        $this->assertSame($today, $paid['payment']['cash_session_id'] ?? null);
+    }
+
     public function test_a_shop_that_does_not_ask_for_shifts_is_not_refused(): void
     {
         $this->as()->postJson('/api/v1/pos/session/open', ['opening_float' => 1000])->assertCreated();
@@ -127,5 +176,13 @@ class AShopThatAsksForShiftsSellsOnTodaysShiftTest extends TestCase
 
         $this->sell()->assertCreated();
         $this->sell('walk_in')->assertCreated();
+
+        // Nor is cash taken as an advance with no shift at all.
+        $this->as()->postJson('/api/v1/pos/session/close', ['counted_cash' => 3000])->assertOk();
+        $this->as()->postJson('/api/v1/sale-documents', [
+            'kind' => 'layaway', 'customer_name' => 'Mrs. Khan', 'customer_phone' => '03001112233', 'idempotency_key' => 'hold-no-rule',
+            'items' => [['product_id' => $this->item, 'quantity' => 1]],
+            'deposit' => ['amount' => 500, 'method' => 'cash'],
+        ])->assertCreated();
     }
 }

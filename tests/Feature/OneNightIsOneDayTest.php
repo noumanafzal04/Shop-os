@@ -235,6 +235,17 @@ final class OneNightIsOneDayTest extends TestCase
         $this->same($wrong, 'daily report · bucket', $seventh, $report->json('data.series.0.revenue'));
         $this->same($wrong, 'daily report · sales counted', 1, $report->json('data.totals.sales_count'));
 
+        // Both nights on Reports: each day's profit is the dashboard's, and the
+        // days add up to the profit printed above them. A day's bucket was
+        // revenue less expenses, so a day that made 347 said 1,980 (L6).
+        $both = $this->read('/api/v1/reports/summary?period=custom&from=2026-10-06&to=2026-10-07');
+        $days = collect($both['series'])->keyBy('date');
+        $this->same($wrong, 'report · profit on the 6th', $profitSixth, $days['2026-10-06']['profit'] ?? null);
+        $this->same($wrong, 'report · profit on the 7th', $profitSeventh, $days['2026-10-07']['profit'] ?? null);
+        $this->same($wrong, 'report · refunds on the 7th', $back, $days['2026-10-07']['refunds'] ?? null);
+        $this->same($wrong, 'report · the days add up to its net profit', $both['totals']['net_profit'], round((float) collect($both['series'])->sum('profit'), 2));
+        $this->same($wrong, 'report · the days add up to its cost of goods', $both['totals']['cogs'], round((float) collect($both['series'])->sum('cogs'), 2));
+
         $book = collect($this->read('/api/v1/cashbook?period=custom&from=2026-10-06&to=2026-10-07')['days'])->keyBy('date');
         $this->same($wrong, 'cashbook · the 6th', $sixth, $book['2026-10-06']['sales_revenue'] ?? null);
         $this->same($wrong, 'cashbook · the 7th', $seventh, $book['2026-10-07']['sales_revenue'] ?? null);
