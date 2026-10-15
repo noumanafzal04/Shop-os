@@ -10,3 +10,5 @@ A double-click recorded a khata payment, a supplier payment and an expense twice
 **Why:** the button disables only after React re-renders; two POSTs leave first.
 
 **How to apply:** a NEW money form = `once` on its route + `idempotency_key: once.key` in the create payload + `once.renew()` in onSuccess (never on error). Not on edits (an edit with a stale key would be answered as the old one). Sales, returns, receipts, transfers keep their own per-table keys. See [[shopos-tester-and-fixer]].
+
+**2026-10-15 — a key minted AT THE PRESS is no key.** Four forms sent `idempotency_key: uuid()` inside the submit handler (park as quote/layaway with its advance, Bill & hand over, Take order, storefront checkout): the server deduped per key, and every press brought a new one. Walked: a double-clicked "Hold the goods" now sends 2 POSTs → ONE layaway. Guard: `src/common/onceKey.test.ts` fails any `idempotency_key: uuid()` / `crypto.randomUUID()` in non-test source. Per-shop keys in a loop (checkout): a `useRef<Record<slug, key>>`, deleted on that shop's success.

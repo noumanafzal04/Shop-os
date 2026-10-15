@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B52 · next question: Q11**). `L…` = found by the fixer while fixing.
+(**next bug: B63 · next question: Q11**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -17,20 +17,20 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 
 | ID | P | Area | One line | Status |
 |---|---|---|---|---|
-| B01 | P1 | Returns / drawer | Refund or exchange money by someone with no open shift (a supervisor) reaches no drawer; the cashier's drawer it left closes short | PART — warning before the press on both sheets and now in BOTH answers (return `e14bf9e`, exchange `5e2bcf6`). TO BUILD: the cashier's drawer + supervisor PIN (owner's answer below) |
+| B01 | P1 | Returns / drawer | Refund or exchange money by someone with no open shift (a supervisor) reaches no drawer; the cashier's drawer it left closes short | FIXED `8d60f93` `ba50d68` — the cashier's own drawer + a supervisor's PIN on the cashier's screen; `approved_by` + an audit row (owner's answer, built 2026-10-15) |
 | B02 | P1 | Exchange | Exchange for something cheaper always refused (422 CHANGE_WITHOUT_CASH) | FIXED `e14bf9e` · re-tested PASS (pass 2) |
-| B03 | P1 | Returns | Return of a split-tender sale refused (refund_method "split" invalid) | FIXED `5e2bcf6` `3835cbb` — split sale goes back in cash |
-| B04 | P1 | Returns / khata | Return of a khata sale refused; sheet says money goes back though nothing is handed back | FIXED `5e2bcf6` `3835cbb` — khata comes off first; the sheet says how much |
+| B03 | P1 | Returns | Return of a split-tender sale refused (refund_method "split" invalid) | FIXED `5e2bcf6` `3835cbb` — split sale goes back in cash · re-tested PASS (pass 4) |
+| B04 | P1 | Returns / khata | Return of a khata sale refused; sheet says money goes back though nothing is handed back | FIXED `5e2bcf6` `3835cbb` — khata comes off first; the sheet says how much · re-tested PASS (pass 4) |
 | B05 | P1 | Purchases | PO form cannot order sizes; a design-level PO for a sized item can never be received | FIXED `e14bf9e` `db44390` · re-tested PASS (pass 2) |
 | B06 | P1 | Purchases / permissions | Stock keeper sees "Receive" and gets 403 | FIXED `e14bf9e` · re-tested PASS (pass 2) |
-| B07 | P1 | Money forms | Double-click records money twice: khata payment, supplier payment, expense (no idempotency key) | FIXED `5e2bcf6` `3835cbb` — 7 money forms answer once per key (AnswerOnce) |
-| B08 | P1 | Receipt | Receipt counts the promotion twice ("You saved" wrong, lines do not add up) and prints "Balance due" for a bank-card offer | FIXED `5e2bcf6` — promotion once, bank offer named, no balance due |
+| B07 | P1 | Money forms | Double-click records money twice: khata payment, supplier payment, expense (no idempotency key) | FIXED `5e2bcf6` `3835cbb` — 7 money forms answer once per key (AnswerOnce) · re-tested PASS (pass 4) |
+| B08 | P1 | Receipt | Receipt counts the promotion twice ("You saved" wrong, lines do not add up) and prints "Balance due" for a bank-card offer | FIXED `5e2bcf6` — promotion once, bank offer named, no balance due · re-tested PASS (pass 4) |
 | B09 | P2 | Exchange | Exchange ignores "this shop requires a shift" | OPEN |
 | B10 | P2 | Exchange / customers | Exchange drops the customer; loyalty taken back and never re-earned | OPEN |
-| B11 | P2 | Dashboard | Dashboard profit ≠ Reports profit after a return (returned goods' cost not taken back) | OPEN |
-| B12 | P2 | Purchases / cost | First purchase of a size sets cost to the new price, not the average with stock on the shelf | OPEN |
+| B11 | P2 | Dashboard | Dashboard profit ≠ Reports profit after a return (returned goods' cost not taken back) | FIXED `8d60f93` — the dashboard takes a returned item's cost back on the day it came back; dashboard = Reports |
+| B12 | P2 | Purchases / cost | First purchase of a size sets cost to the new price, not the average with stock on the shelf | FIXED `8d60f93` — a size's first purchase blends with the design's cost on the shelf |
 | B13 | P2 | Suppliers | Pay sheet "due" from the ordered total on a part-received PO | FIXED `db44390` · re-tested PASS (pass 2) |
-| B14 | P2 | Day & banking | Sales without a shift never reach the day's figures; a closed day still takes sales | OPEN |
+| B14 | P2 | Day & banking | Sales without a shift never reach the day's figures; a closed day still takes sales | OPEN · pass 4: café tabs settled on a closed day (INV-000572/573, no drawer) |
 | B15 | P2 | Stocktake | Count by category: sub-categories not offered; parent finds nothing; error not shown | OPEN |
 | B16 | P2 | Inventory | Design row = this place, size rows = all places; items without sizes never place-scoped | OPEN |
 | B17 | P2 | Orders | Phone order → sale has tax 0 and channel "online" | OPEN |
@@ -43,32 +43,45 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B24 | P3 | Expenses | Cash expense filed to the header's place while the cash left a drawer at another place | OPEN |
 | B25 | P3 | Quotes & advances | After "Bill & hand over" the layaway still says "Balance due"; handover payment not listed | OPEN |
 | B26 | P3 | Bill & hand over | Due amount only a placeholder; "Bill it" disabled until typed | OPEN |
-| B27 | P3 | Take order | Opening the page posts /orders/worth with no items → 422 + console error | OPEN |
+| B27 | P3 | Take order | Opening the page posts /orders/worth with no items → 422 + console error | FIXED `ba50d68` — an order with no lines is never asked about (`asksAbout`) |
 | B28 | P3 | Till (bank offer) | Button total ≠ Amount due; sale-complete sheet never names the bank offer | OPEN |
-| B29 | P3 | Many screens | Same request repeated in one step | PART — customers: extra fetch after a repayment removed (`db44390`); the rest OPEN · customers part re-tested PASS (pass 2); staff page and /orders/waiting still ask twice |
-| B30 | P3 | Exchange | Replacement sale stamped walk_in while the original was pos | FIXED `3835cbb` — the replacement keeps the sale's channel |
-| B31 | P1 | Exchange | Exchange sheet prices the replacement without automatic promotions — said "hand back 1,000", the server gave 1,300 change | FIXED `3835cbb` — the sheet asks the server (/sales/worth) |
-| B32 | P2 | Reorder → PO | Reorder draft prices a pack as a piece (Box of 5 at 3,600 → 37 × 3,600) | OPEN |
-| B33 | P2 | Suppliers / Pay | Pay sheet offers a cancelled part-received PO; server refuses 422 PO_NOT_PAYABLE | OPEN |
+| B29 | P3 | Many screens | Same request repeated in one step | PART — customers: extra fetch after a repayment removed (`db44390`); the rest OPEN · customers part re-tested PASS (pass 2); staff page and /orders/waiting still ask twice · pass 4: GET /sales/{id} ×2 when a sale sheet opens, GET /suppliers/{id} ×4 after a supplier payment, GET /pos/catalog ×2 after a money form |
+| B30 | P3 | Exchange | Replacement sale stamped walk_in while the original was pos | FIXED `3835cbb` — the replacement keeps the sale's channel · re-tested PASS (pass 4) |
+| B31 | P1 | Exchange | Exchange sheet prices the replacement without automatic promotions — said "hand back 1,000", the server gave 1,300 change | FIXED `3835cbb` — the sheet asks the server (/sales/worth) · re-tested PASS (pass 4) |
+| B32 | P2 | Reorder → PO | Reorder draft prices a pack as a piece (Box of 5 at 3,600 → 37 × 3,600) | FIXED `8d60f93` — reorder drafts are priced per piece (box price ÷ box size) |
+| B33 | P2 | Suppliers / Pay | Pay sheet offers a cancelled part-received PO; server refuses 422 PO_NOT_PAYABLE | FIXED `8d60f93` — a cancelled order that took a delivery can be paid by name; one that took nothing still cannot |
 | B34 | P2 | Online orders | Delivery fee lost on completion: order 7,640 (fee 150, COD paid) → sale 7,490; the 150 is nowhere | OPEN |
 | B35 | P3 | Purchases / places | Stock keeper offered "Receive all" on another place's PO → 403 NOT_YOUR_PLACE | OPEN |
 | B36 | P3 | Storefront | "My orders" shows raw quantity "1.000 ×" | OPEN |
 | B37 | P3 | Storefront | Shop page "Items held for you" lists holds at OTHER shops | OPEN |
-| B38 | P1 | Permissions / money | Cashier (and waiter) gets `unit_cost` on every sale line (GET /sales/{id}) | FIXED `5e2bcf6` — cost stripped on every line model |
-| B39 | P1 | Permissions / dashboard | Dashboard gives every staff member takings, supplier payables, every place's revenue and the audit feed (kitchen sees 515,554) | FIXED `5e2bcf6` `3835cbb` — dashboard stripped per permission |
-| B40 | P1 | Permissions / dine-in | Waiter without sales.void voids served food and cancels a whole tab (200, no approval) | FIXED `5e2bcf6` `3835cbb` — sent food needs sales.void; voided_by kept |
-| B41 | P1 | Permissions / purchases | inventory.manage alone receives any PO — forecourt attendant took 1,000 L petrol into stock past the tanker gate; pharmacist reads POs and supplier balances | FIXED `5e2bcf6` — tank fuel refused on a PO (made and received) |
+| B38 | P1 | Permissions / money | Cashier (and waiter) gets `unit_cost` on every sale line (GET /sales/{id}) | FIXED `5e2bcf6` — cost stripped on every line model · re-tested PASS (pass 4) |
+| B39 | P1 | Permissions / dashboard | Dashboard gives every staff member takings, supplier payables, every place's revenue and the audit feed (kitchen sees 515,554) | FIXED `5e2bcf6` `3835cbb` — dashboard stripped per permission · re-tested: API PASS (pass 4); screen bugs B53, B58 |
+| B40 | P1 | Permissions / dine-in | Waiter without sales.void voids served food and cancels a whole tab (200, no approval) | FIXED `5e2bcf6` `3835cbb` — sent food needs sales.void; voided_by kept · re-tested PASS (pass 4) |
+| B41 | P1 | Permissions / purchases | inventory.manage alone receives any PO — forecourt attendant took 1,000 L petrol into stock past the tanker gate; pharmacist reads POs and supplier balances | FIXED `5e2bcf6` — tank fuel refused on a PO (made and received) · re-tested PASS (pass 4) |
 | B42 | P2 | Place wall | /inventory/movements not scoped to the person's place; branch_id filter ignored | OPEN |
 | B43 | P2 | Module off / dashboard | Expenses module off → dashboard expenses 0 and profit without them; Reports still count them | OPEN |
 | B44 | P3 | Screens | A screen you may not use, typed in, lands silently on the dashboard | OPEN |
 | B45 | P3 | Screens | /tenant/pharmacy opens for a cashier and fills with a 403 + console error | OPEN |
-| B46 | P3 | API figure | supplier.outstanding reads 0 inside a PO answer (sums not loaded) | FIXED `5e2bcf6` — null, not 0, when not worked out |
+| B46 | P3 | API figure | supplier.outstanding reads 0 inside a PO answer (sums not loaded) | FIXED `5e2bcf6` — null, not 0, when not worked out · re-tested PASS (pass 4) |
 | B47 | P1 | Offline / price | Offline sale REFUSED at sync when the price changed while offline — the money is in the drawer, nothing recorded | OWNER — Q10 below (the server re-prices offline sales on purpose) |
-| B48 | P1 | Offline / sync | One offline sale with a DELETED product turns the whole /pos/sync into a 422 — the batch (up to 50) retried for ever, none shown as failed | FIXED `5e2bcf6` `3835cbb` — each synced sale checked on its own; the till splits a refused batch |
+| B48 | P1 | Offline / sync | One offline sale with a DELETED product turns the whole /pos/sync into a 422 — the batch (up to 50) retried for ever, none shown as failed | FIXED `5e2bcf6` `3835cbb` — each synced sale checked on its own; the till splits a refused batch · re-tested PASS (pass 4) |
 | B49 | P2 | Offline / refused | Refused offline sales cannot be re-rung or cleared; the red strip stays for ever; the owner never hears of them | OPEN |
 | B50 | P2 | Offline / sign-out | Signing out with sales waiting gives no warning (nothing is lost) | OPEN |
 | B51 | P2 | Offline / stock | The last piece sold on two tills offline: both accepted (stock −1), nothing flagged | OPEN |
+| B52 | P3 | Exchange sheet | Adding the first replacement posts /sales/worth with `items: []` → 422 + console error (every exchange; debounced value still empty) | FIXED `ba50d68` — a bill with no lines is never asked about (`asksAbout`, in the hooks) |
+| B53 | P3 | Dashboard (Simple) | Two grey loading pills pulse for ever for staff sent no takings | FIXED `ba50d68` — pills only while loading |
+| B54 | P2 | Reorder → PO | Tank fuel on the reorder list makes "Order these" fail (422 FUEL_COMES_BY_TANKER) for the whole list | FIXED `8d60f93` `ba50d68` — fuel left out of the drafts by name; its row says "Comes by tanker"; the button counts the rest |
+| B55 | P2 | Q7 leak | Plan price and the whole bill reach every staff member in GET /auth/me and GET /shop (`TenantResource` plan.price, package.bill) | FIXED `8d60f93` — no plan price, no bill to a person of the shop without settings.manage; admin and owner unchanged |
+| B56 | P3 | Screens | /tenant/subscription typed by staff opens the page; it fills with a 403 (route outside RequireTenantScreen, App.tsx) | FIXED `ba50d68` — the route is inside the screen gate; a guard test fails any ruled screen without one |
+| B57 | P3 | Offline / refused sheet | Refused offline sale always says "amount unreadable" (`refusedTotal` reads `sale.total`, never queued) | FIXED `ba50d68` — the till's own total is kept on the queued row for this list |
+| B58 | P3 | Dashboard status | Kitchen (no orders.manage) told "14 orders are waiting for you to accept" | FIXED `ba50d68` — the accept line only for someone who can open Orders; no "nothing rung up" to someone not sent the sales |
+| B59 | P3 | Receipt (grocery) | A weighed quantity prints without "kg"; a bulk price prints without its reason | FIXED `8d60f93` — "1.235 kg" and "Bulk price, 5 or more" on the receipt (`ReceiptLine`) |
+| B60 | P2 | Products / batches | A non-medicine item's opening batch and expiry are dropped without a word (`CreateProductAction` makes a batch only for medicine) | FIXED `8d60f93` `ba50d68` — a batch number or an expiry given makes the opening lot, for any packet; the form offers both |
+| B61 | P3 | PO receive (medicine) | "Expiry *" is marked required but Receive can be pressed with it empty → 422 EXPIRY_REQUIRED, the whole delivery refused (`receiveBlocked` checks serials only) | FIXED `ba50d68` — Receive held until every medicine line coming in has its expiry |
+| B62 | P2 | Till / ingredients | An ingredient with no price (QA Flour kg, price 0) is offered on the till catalog and in till search at 0; nothing marks an item "ingredient — not sold" | FIXED `8d60f93` `ba50d68` — "Sold to customers" switch (`products.for_sale`): off the till, menu, Take order, storefront; refused NOT_FOR_SALE on every way of selling; recipes still use it up |
 | L1 | P1 | Purchases | Cancelling the rest of a part-received PO wiped what was owed for what arrived | FIXED `e14bf9e` `db44390` · re-tested PASS (pass 2) |
+| L2 | P2 | Advances / drawer | A CASH advance (layaway, job card) taken by someone with no open shift is recorded and reaches no drawer, without a word — the B01 shape (`RecordCashMovementAction::record` returns null) | OPEN — found 2026-10-15 reading the code for the user's "advance kab/kahan" question |
+| L3 | P3 | Speed | Opening the product form (and the products list) on a shop with a registered till pulls the till's whole offline catalogue: /pos/bootstrap 387–795 KB and /pos/catalog pages of ~744 KB each (grocery, 6,000 items) | OPEN — seen in the pass-6 walks |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -76,7 +89,7 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 
 | Q | Answer | Fits the code? |
 |---|---|---|
-| B01 | (a) The refund leaves the **cashier's assigned drawer**. A supervisor PIN approval is mandatory, with an audit record: approval, amount, cashier, supervisor, drawer. If no drawer/shift is available, never quietly use another drawer. | Fits. No PIN approval exists yet (cash movements have an `approved_by` column) — a new piece to build. |
+| B01 | (a) The refund leaves the **cashier's assigned drawer**. A supervisor PIN approval is mandatory, with an audit record: approval, amount, cashier, supervisor, drawer. If no drawer/shift is available, never quietly use another drawer. | **BUILT** `8d60f93` `ba50d68` — PIN on the cashier's screen, the cashier's own drawer, `approved_by` + an audit row. |
 | Q1 | Loyalty points are earned only when payment is received. On khata they stay pending; a part payment earns its share; a refund/return takes earned points back. | Fits; "pending points" is new. |
 | Q2 | A coupon applies to the price AFTER the promotion / automatic discount. Stacking rules clear; the final discount checked by the server. | Fits — changes today's rule (coupon on the pre-promotion subtotal). |
 | Q3 | A manager may COUNT stock; applying the count needs an explicit permission. Every adjustment has a reason and an audit record; large differences need an approval (configurable). | Fits; the permission and the large-difference approval are new. |
@@ -88,7 +101,7 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 | Q | Question | Note |
 |---|---|---|
 | Q6 | Online and storefront orders earn no loyalty points (till sales do). Should a paid online order earn points? | WAITING — Q1's answer (points on payment) would cover it. |
-| Q7 | The Subscription screen (plan price, payments to the platform, bank references) is open to every staff member, kitchen included. On purpose in the code ("what the shop pays is not a secret from the people who work in it", `shopNav.tsx`). Keep, or owner only? | **ANSWERED: owner only** — BUILT `5e2bcf6` `3835cbb` (screen, menu, API) |
+| Q7 | The Subscription screen (plan price, payments to the platform, bank references) is open to every staff member, kitchen included. On purpose in the code ("what the shop pays is not a secret from the people who work in it", `shopNav.tsx`). Keep, or owner only? | **ANSWERED: owner only** — BUILT `5e2bcf6` `3835cbb` (screen, menu, API) · pass 4: R13 FAIL in part — B55 (price in /auth/me, /shop), B56 (typed URL) |
 | Q8 | A cashier and a one-place stock keeper read every place's COUNT of an item (`/products/{id}/branch-stock`, "check other branches" on the till). On purpose in the code. Keep (counts only, no money), or wall it? | **ANSWERED: keep** — counts only, no cost or value. Not a bug. |
 | Q9 | Supplier balances, PO totals and payment status reach anyone with inventory.manage (stock keeper, pharmacist, forecourt attendant). Strip the money for people who cannot pay a supplier? | **ANSWERED: strip it** — BUILT `5e2bcf6` `3835cbb` (HidesSupplierMoney on suppliers and orders; dashboard payable too) |
 
@@ -201,3 +214,35 @@ Checklist: 1 answer lost → resent → ONE sale **PASS** (INV-000033, `duplicat
 
 Not tested: storage full (BLOCKED — notes: `StorageWarning` mounted only in the Open-shift sheet and checked once at boot; `offlineCheckout.ts` `enqueue` has no quota-error handling); phone/tablet/installed PWA/power cut (Phase 11); `e2e/offline-shift.spec.ts` not run.
 Data left: INV-000032…42; QA Last Piece −1, QA Price Change 1,200, QA Switch Off off, QA Delete Me deleted; Bilal's drawer 1,700 over (refused sales).
+
+## Pass 4 — re-tests R1–R14 and Phase 2 leftovers, part (cloud tester, 2026-10-14)
+
+Report: `docs/qa/TESTER-REPORT-2026-10-14-pass-4-retests.md`. Code tested: backend `5e2bcf6`, panel `3835cbb`, docs `8ead13d`.
+
+- PASS: R1 (B03), R2 (B04), R3 (B07), R4 (B08 — INV-000060 receipt: promotion once, coupon, bank offer named, no balance due, You saved 1,749), R5 (B31), R6 (B30), R7 (B01 warning), R8 (B38), R10 (B40), R11 (B41), R12 (Q9/B46), R14 (B48).
+- R9 (B39): PASS on the API; two screen bugs B53, B58.
+- R13 (Q7): FAIL in part — B55, B56.
+- R11 "receive an old PO holding fuel": BLOCKED — the app can no longer make one; covered by phpunit (`FuelComesInByTankerTest`).
+- B49 changed: the refused sheet shows one row per sale with the server's reason; still only Close, and no amount (B57).
+- Tester's note for the fixer: Online orders (Nadia) is sent khata owed because she holds customers.manage. The decision doc allows it; the brief's R9 line said "nothing owed". To settle at the next brief rewrite.
+- A new layaway with an opening advance: the server already answered once per key, but the form minted a NEW key each press — FIXED `ba50d68` with three more forms of the same shape (Bill & hand over, Take order, storefront checkout); a guard test fails any `idempotency_key: uuid()`.
+- §5b: waiter settles own tab PASS (INV-000572); cashier settles a waiter's tab PASS (INV-000573) — both in no drawer, the café's day was closed (B14).
+- NOT TESTED (user stopped the pass for credit) — the next pass's FIRST items: §5b screen walks (waiter, pharmacist, attendant, purchasing), §5b pharmacist receives a real PO with batches, all of §5c Phase 4 grocery.
+
+## Pass 4 addendum and pass 5 (part) — cloud tester, 2026-10-14 (its credit then ran out)
+
+- Phase 4 grocery (Rehmat Mart QA): 7 checks PASS (scans, carton, weighed, bulk, reorder → short delivery, batches + FEFO, a 32-sale day with every figure agreeing); new B59, B60. Items 5–7 through the API only; the 100+ sale day is still to do. Labels from a PO: not built.
+- Pass 5 (`docs/qa/TESTER-REPORT-2026-10-14-pass-5-part.md`): pharmacist receives a real PO with batches PASS (PO-000121, QA-PN-1/QA-PN-2 with expiry, expiring list); recipe stock PASS (QA Paratha 0.1 kg flour: 3 sold 10 → 9.7, 1 back → 9.8, unit_cost 12); "ingredient — not sold" FAIL / NOT BUILT (B62); new B61. Screen walks NOT TESTED (expired saved sign-ins).
+- **From here the local session tests AND fixes** (the user, 2026-10-15: the tester's credits are finished).
+
+## Pass 6 — fixed and pushed by the local session (2026-10-15)
+
+Backend `8d60f93`, panel `ba50d68`. Every fix has a test that fails without it (mutations run), and each was also walked
+on the screen (`panel/e2e/qa-kit/p5-zari.mjs`, `p5-trades.mjs`, `p5-new-quote.mjs`): B52 one `/sales/worth`, 200;
+B53 no pills for the stock keeper; B55 Bilal sent no price, Sana is; B56 typed URL → dashboard, no 403; B58 the
+restaurant's stock keeper with 26 orders waiting is not told to accept; B60 YG-WALK lot of 24 from the form; B61
+Receive shut with 10 lines asking for an expiry; B54 "Comes by tanker", "Order these 1 item"; B62 switch saved,
+list says "Not sold — ingredient", Take order and the till's sync leave it out, a sale is refused NOT_FOR_SALE.
+Two old tests encoded the old behaviour and were corrected: `OneNightIsOneDayTest` (profit took 3 costs for 3 sold
+and 1 back — B11) and `ProductCreateParityTest` (the new field).
+

@@ -1,9 +1,9 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-14 late: tester passes 1–3 in docs/qa/BUGS.md; P1 batch pushed (see log); waiting Q10/Q4/Q6; next = B01 PIN, then P2s
-- [Tester And Fixer](shopos-tester-and-fixer.md) — STANDING (USER 2026-10-14): cloud session TESTS ONLY from docs/qa/TESTER-BRIEF.md; I fix from docs/qa/BUGS.md; its report reaches me via the user; I rewrite the brief's §5 after each push
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-15 PUSHED 8d60f93 / ba50d68 (B01 PIN, B52–B62, once-keys, New quotation); NEXT = user's review list: Reports + Quotes + Day&banking, Products + Add item, supplier payment history, L2; then explain advance + paper size
+- [Tester And Fixer](shopos-tester-and-fixer.md) — CHANGED (USER 2026-10-15): the cloud tester's credits ran out — I now TEST AND FIX; keep BUGS.md, report files and the SYSTEM-TEST §7 log as before
 - [Hidden Is Still Sent](shopos-hidden-is-still-sent.md) — STANDING: a figure the screen hides leaks if the API sends it; strip on the model/asSeenBy, null not 0, no tile for what never arrived
-- [One Press, One Record](shopos-one-press-one-record.md) — STANDING: money forms send useOnceKey(); route gets `once` (AnswerOnce); renew only on success
+- [One Press, One Record](shopos-one-press-one-record.md) — STANDING: money forms send useOnceKey(); route gets `once` (AnswerOnce); renew only on success; a key minted AT THE PRESS is no key (guard test)
 - [System Test In Phases](shopos-system-test-in-phases.md) — STANDING (USER 2026-10-13): one phase per session from docs/qa/SYSTEM-TEST.md; log every test there for a new chat; kit in panel/e2e/qa-kit; HR out
 - [Zari Clothing QA](shopos-zari-clothing-qa.md) — 2026-10-13: a clothing shop made + lived by hand in dev; 7 fixed; 4 decisions answered AND BUILT in Phase 0 (sale price vs sizes, profit permission, cost backfill from records only, hold label); logins + what was NOT walked
 - [Kept, Not Asked](shopos-kept-not-asked.md) — STANDING (USER 2026-10-13): shell answers are kept on the device, asked on news; DONE with a SERVER STAMP — kept without a way to hear a change made elsewhere is stale; test add/change/remove → the device holds it

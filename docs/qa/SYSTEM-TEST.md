@@ -196,20 +196,20 @@ line back → synced once, stock down. Still to do:
 
 ### Phase 4 — A mart (grocery)
 
-- [ ] Fast scanning; a pack and a carton (own barcode, own price); loose / weighed items.
-- [ ] Wholesale price tiers by quantity vs a sale price — the customer pays the lower.
-- [ ] Low stock → purchase order → receive → labels.
-- [ ] Expiry dates on a batch, if the shop keeps them.
-- [ ] A busy day (100+ sales) and the day close.
+- [x] Fast scanning; a pack and a carton (own barcode, own price); loose / weighed items. — PASS (tester pass 4 addendum, Rehmat Mart); the receipt's missing "kg" was B59, fixed.
+- [x] Wholesale price tiers by quantity vs a sale price — the customer pays the lower. — PASS; the receipt now names the bulk rate (B59).
+- [~] Low stock → purchase order → receive → labels. — PASS to a short delivery (API only); labels from a PO are not built.
+- [x] Expiry dates on a batch, if the shop keeps them. — PASS (FEFO); the opening lot was dropped (B60), fixed.
+- [~] A busy day (100+ sales) and the day close. — 32 sales (API): every figure agreed, profit 140 off = B11 (fixed). 100+ still to do.
 
 ### Phase 5 — Restaurant and café
 
 - [ ] Stage 41 and 42 of the journey (owed).
 - [ ] Waiter on a phone: table → order → kitchen ticket → kitchen screen → served → bill → split → paid.
-- [ ] Sizes and questions (modifiers) reach the kitchen and the bill; recipe stock goes down.
+- [~] Sizes and questions (modifiers) reach the kitchen and the bill; recipe stock goes down. — recipe stock PASS (pass 5: 3 sold 10 → 9.7, 1 back → 9.8); the rest still to do.
 - [ ] Void after the kitchen has it; a dish refused; table moved; reservations.
 - [ ] Delivery with a rider; takeaway; café counter.
-- [ ] Open questions first (section 6): orders untaxed, no offers on orders, ingredients sold.
+- [~] Open questions first (section 6): orders untaxed, no offers on orders, ingredients sold. — "ingredient, not sold" BUILT (B62, 2026-10-15); the other two still open.
 
 ### Phase 6 — Pharmacy
 
@@ -265,6 +265,9 @@ hand, run its journey stage, and ask the chorus question.
 
 Format: `date · phase · shop / who · what · how · result · bugs (commit) · not done`
 
+- **2026-10-15 · fixes for passes 4–5 + the owner's B01 · push** · backend **`8d60f93`**, panel **`ba50d68`** after all five gates exit 0 (phpunit 3,893 / 3,871 passed / 22 skipped · vitest 3,317 · build · eslint 0 errors · tsc-e2e) · fixed: B01 (PIN approval), B11, B12, B27, B32, B33, B52–B62, plus a stable key on four more forms; "New quotation" / "Hold goods on advance" on the Quotations screen (the user's ask) · 2 migrations (`sale_returns.approved_by/approved_at`, `products.for_sale`) · every fix walked on the copy stack (`qa-kit/p5-zari.mjs`, `p5-trades.mjs`, `p5-new-quote.mjs`; 0 refusals, 0 console errors) · `docs/decisions/shopos-a-refund-is-approved-and-an-ingredient-is-not-sold.md` · **from today the local session tests too** (the cloud tester's credits ran out) · **NEXT:** the user's review list (Reports, Quotes & advances, Day & banking — figures and UI; Products page + Add item; supplier payment history), then TESTER-BRIEF §5 (R1–R16, §5b).
+- **2026-10-14 · 2-leftovers + 4 + 5 (part) · cloud tester pass 4 addendum + pass 5** · Phase 4 grocery 7 checks PASS (B59, B60); pharmacist receives a PO with batches PASS; recipe stock PASS; "ingredient, not sold" FAIL (B62); B61 · reports `TESTER-REPORT-2026-10-14-pass-4-retests.md` (§5) and `TESTER-REPORT-2026-10-14-pass-5-part.md`.
+- **2026-10-14 · re-tests R1–R14 + 2-leftovers · cloud tester pass 4** · 12 PASS, R9 API PASS (screen B53, B58), R13 FAIL in part (B55, B56); waiter / cashier settle tabs PASS (no drawer — closed day, B14) · B52–B58 · `TESTER-REPORT-2026-10-14-pass-4-retests.md`.
 - **2026-10-14 (late) · fixes for passes 2–3 · push** · backend **`5e2bcf6`**, panel **`3835cbb`** after all five gates exit 0 · fixed: B03, B04 (split / khata returns), B07 (money forms answer once — `AnswerOnce`), B08 (receipt), B30, B31 (exchange sheet asks /sales/worth), B38 (cost on every line), B39 (dashboard per permission), B40 (sent food needs sales.void), B41 (tank fuel never on a PO), B46, B48 (each synced sale checked alone; the till splits a refused batch), B01's exchange warning; owner's Q7 (subscription owner-only) and Q9 (supplier money stripped) built · 2 migrations (`voided_by`, `answered_requests`) · `docs/decisions/shopos-each-person-their-share.md` · **NEXT (tester pass 4):** TESTER-BRIEF §5 (R1–R14, Phase 2 leftovers, Phase 4) · **NEXT (fixer):** Q10 (B47) answer, B01 PIN, then P2s.
 - **2026-10-14 · 3 · cloud tester pass 3 · built app :4173** · offline hard cases on `e14bf9e`/`db44390` · 1, 5, 8, 10 PASS; 2 (B51), 3 (B47), 4b (B48), 7 (B50), 9 (B49) FAIL; 6 BLOCKED · details in `BUGS.md`.
 - **2026-10-14 · 1-leftovers + 2 · cloud tester pass 2** · re-tests R1–R12 (11 PASS, R3 part); storefront order PASS; Phase 2 probe of 359 routes × each set (4,341 calls) · B31–B46 + Q6–Q9 · details in `BUGS.md`.

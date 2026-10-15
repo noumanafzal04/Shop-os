@@ -1,9 +1,11 @@
 ---
 name: shopos-tester-and-fixer
-description: STANDING (USER 2026-10-14): a cloud Claude Code session only TESTS (never fixes) from docs/qa/TESTER-BRIEF.md; I (local) fix from docs/qa/BUGS.md; reports reach me through the user
+description: CHANGED 2026-10-15 — the cloud tester's credits ran out; I now TEST AND FIX (the user: "ab sb kam tmhara hai"). Before that (2026-10-14): cloud session tested only, I fixed from docs/qa/BUGS.md
 metadata:
   type: feedback
 ---
+
+**2026-10-15 — CHANGED: the cloud tester's credits are finished. The user: "uski limit kam hai isliye ab short testing kr raha" then "ab sb kam tmhara hai usk credtis khtm".** I now do BOTH: fix from `docs/qa/BUGS.md`, then test what is left myself (the list the tester handed over is at the end of `docs/qa/TESTER-REPORT-2026-10-14-pass-5-part.md`; prove each thing 5 ways: screen, status, stored value, chorus, nothing else). Bug IDs continue (next B63). Keep the tracker, report files and SYSTEM-TEST §7 log exactly as before so a new tester (or a new chat) can pick up. The rest of this note is how it worked before; the bookkeeping still applies.
 
 The user (2026-10-14): "naa k fix b kry wo sirf testing kry ga … jo bugs nikle again tumy de dn ga tum khud fix krna … apas main kaisse coordinate krna tum dono ny dekh lena".
 

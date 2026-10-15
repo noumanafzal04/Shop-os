@@ -40,36 +40,41 @@ Every bug in `BUGS.md` with status **OPEN**, **PART**, **OWNER** or **TO BUILD**
 If a known one behaves DIFFERENTLY now (worse, better, other figures), put one line under "Known bugs that changed" in your report.
 Owner decisions already taken are in `BUGS.md` → "Owner's answers"; their changes are not built yet — do not report today's behaviour of them as a bug.
 
-## 5. Pass 4 — what to test now
+## 5. Pass 6 — what to test now
 
-Passes 1–3 are in `BUGS.md`. Pull backend `5e2bcf6`, panel `3835cbb`, docs (newest `main`) — at least these. Run `php artisan migrate` (two new tables/columns).
+Passes 1–5 are in `BUGS.md`. **From 2026-10-15 the local session also tests** (the cloud tester's credits ran
+out); this section is kept so any tester — or a new chat — can pick up. Pull backend `8d60f93`, panel
+`ba50d68`, docs (newest `main`). Run `php artisan migrate` (two new: `sale_returns.approved_by/approved_at`,
+`products.for_sale`).
 
 ### 5a. Re-test what was fixed (do this first)
 
 | R | Bug | Steps | Expected |
 |---|---|---|---|
-| R1 | B03 | Return 1 of a sale paid cash + card. | Sheet shows the figure; Return → 201, `refund_method` cash. No "invalid" error. |
-| R2 | B04 | Return a khata sale (unpaid, and part-paid). | Sheet shows "Comes off <name>'s khata Rs X" and "Goes back to the customer Rs Y" (Y = only what was paid). 201; khata down by X; drawer down by Y only. |
-| R3 | B07 | Double-click (fast) Record / Save on: khata payment, supplier payment, expense, income, document deposit, bank deposit, exchange. | ONE record each. A second request with the same key gets the first answer (header `Idempotent-Replay: true`) or 409 REQUEST_IN_FLIGHT. A NEW payment after saving is a new record. |
-| R4 | B08 | Promotion + coupon + bank card offer on one sale; print the receipt. | Lines add up to the total; promotion once; "Discount (coupon)" is only the coupon's part; the bank offer named "· paid by the bank"; no "Balance due"; "You saved" = promotion + coupon + bank. |
-| R5 | B31 | Exchange with an automatic promotion on the replacement. | The sheet's "Hand back / Difference" equals the new sale's change_due / difference to the paisa. |
-| R6 | B30 | Exchange a till (pos) sale. | The replacement sale's channel is `pos`. |
-| R7 | B01 part | Exchange by someone with no shift, cash moving. | The exchange's answer now carries `meta.warnings` (as the return's does). |
-| R8 | B38 | Cashier and waiter: GET /sales/{id}, a tab, an order. | No `unit_cost` / `total_cost` on any line. Owner, manager, stock keeper still see it. |
-| R9 | B39 | GET /dashboard as kitchen, stock keeper, cashier, online orders, buyer, accounts, manager, owner. | Kitchen / stock keeper / online orders: takings, recent sales, till, highlights null/empty; nothing owed; no activity. Cashier: takings + khata, no payable, no activity, no highlights. Buyer: payable. Staff at one place: only their place in `branches`. Owner: everything. Screens draw no tile for what was not sent. |
-| R10 | B40 | Waiter: void a SENT item; cancel a tab with a sent item; void an UNSENT item. | First two 403 VOID_NEEDS_SUPERVISOR and the buttons are not offered; unsent removal works. Supervisor can; `voided_by` recorded. |
-| R11 | B41 | Petroleum shop: raise a PO for tank fuel; receive an old one holding fuel. | 422 FUEL_COMES_BY_TANKER on both, for anyone; lubricants still bought/received normally. |
-| R12 | Q9 / B46 | Stock keeper / pharmacist / attendant: suppliers list + detail, PO list + detail. | No balances, totals, paid, payment status, payments; lines, quantities, unit cost still there. The screens draw no "Outstanding"/"Total" column. Buyer sees all. A supplier inside a PO answer: `outstanding` null, never 0. |
-| R13 | Q7 | Any staff: GET /shop/subscription; the menu; the read-only banner. | 403; no Subscription in the menu; the banner says ask the owner. Owner: all as before. |
-| R14 | B48 | Offline: sell 3 items; delete one product on the server; reconnect. | The two good sales land; the deleted one is FAILED with "deleted since it was rung" — not retried for ever; the batch is never stuck. A sale already recorded comes back `duplicate`, not refused. |
+| R1 | B01 | Cashier (no `sales.refund`) returns a cash sale at their own till. Then a supervisor with no shift refunds a sale, choosing the cashier's open drawer. Then a wrong PIN; then a drawer at ANOTHER place. | Cashier: the sheet asks "Approved by" + PIN; Refund stays shut until both are given; the cash comes out of the cashier's drawer; `approved_by` = the supervisor; an audit row `approved`. Wrong PIN: "That PIN is not right." (locks after the usual tries). Another place's drawer: refused. |
+| R2 | B11 | Sell, return part of it, read Dashboard profit and Reports profit for today. | The same figure. |
+| R3 | B12 | First purchase of a SIZE with stock already on the shelf. | The size's cost is the weighted average, not the new price. |
+| R4 | B32 | Reorder list → draft for an item last bought as a box of 5. | The draft line is priced per PIECE (box price ÷ 5). |
+| R5 | B33 | Pay a supplier naming a cancelled order that took a delivery; then one that took nothing. | First 201 and the order's `amount_paid` rises; second 422 PO_NOT_PAYABLE. |
+| R6 | B52 / B27 | Exchange: hand one back, pick a replacement. Open Take order. | No `/sales/worth` or `/orders/worth` with `items: []`; no 422; no console error. |
+| R7 | B53 / B58 | Dashboard (Simple) as stock keeper, buyer, kitchen; with orders waiting. | No grey pills that never fill; nobody without Orders is told to accept orders; nobody not sent the sales is told "nothing rung up yet". |
+| R8 | B54 | Fuel station: petrol and an engine oil below their alert levels → Needs reordering → Order these. | Petrol's row says "Comes by tanker"; the button counts the oil only; the oil's draft is made. A list of petrol alone: 422 FUEL_COMES_BY_TANKER. |
+| R9 | B55 | Any staff without settings.manage: GET /auth/me and /shop. Owner the same. Admin: /admin/tenants/{id}. | Staff: no `plan.price`, no `package`; `subscription_state` still there. Owner and admin: both present. |
+| R10 | B56 | A cashier types /tenant/subscription. | Sent to the dashboard; no request to /shop/subscription; no 403; no console error. |
+| R11 | B57 | Offline: ring a sale, delete its product on the server, reconnect, open "See which". | The refused row shows the sale's amount, not "amount unreadable". (Rows queued by an older build may still say it.) |
+| R12 | B59 | Sell rice weighed 1.235 kg and 5 oil at a bulk rate; print the receipt. | "1.235 kg"; "Bulk price, 5 or more" on the oil; nothing on 4 bottles at the shelf price. |
+| R13 | B60 | Grocery: add a yogurt with opening stock 24, a batch number and an expiry. | One lot with that number, expiry and 24; FEFO and the expiring list see it. Without either: no lot. |
+| R14 | B61 | Pharmacy: Receive with details, leave one medicine line's expiry empty. | Receive stays shut; that line says the expiry is needed. |
+| R15 | B62 | Café: an ingredient with "Sold to customers" off, in a dish's recipe. Till search, a table's menu, Take order, storefront; a sale/tab/order/quote naming it; sell the dish. | Offered nowhere; every way of selling refused NOT_FOR_SALE by name; the products list says "Not sold — ingredient"; selling the dish still takes the ingredient off the shelf. |
+| R16 | B07 shape | Double-click: park as layaway WITH an advance; Bill & hand over; Take order; storefront checkout. | One record each (the key is kept from the first press). |
 
-### 5b. Phase 2 — what pass 2 did not reach
+### 5b. What no pass has reached yet
 
-Waiter settling their own tab (open a shift in the café first); cashier settling a waiter's tab (tables.serve_any); screen walks for waiter, pharmacist, forecourt attendant and purchasing; pharmacist receiving a real PO with batches.
+Screen walks for waiter, pharmacist, forecourt attendant and purchasing (menu + every screen typed in; no 403 or
+console error on an opened screen); a 100+ sale day (mixed tenders, 2 returns, shift + day closed; list = day =
+dashboard = reports); Phase 5 restaurant (rest), Phase 6 pharmacy, Phases 7–11 — see §6.
 
-### 5c. Then Phase 4 — a mart (grocery) — see §6.
-
-Known and not to be re-reported: everything OPEN in `BUGS.md`, B47 (waiting on Q10), B01's PIN (to build).
+Known and not to be re-reported: everything OPEN / PART / OWNER / TO BUILD in `BUGS.md`, B47 (waiting on Q10).
 
 ## 6. The phases in detail
 

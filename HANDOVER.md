@@ -308,6 +308,18 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 — passes 4 and 5 fixed, the owner's PIN built, and the tester's work handed to this session
+
+The cloud tester's passes 4 (re-tests, Phase 4 grocery) and 5 (pharmacist's PO, recipe stock) found B52–B62;
+then its credits ran out and the user gave testing to this session too ("ab sb kam tmhara hai"). Pushed:
+backend `8d60f93`, panel `ba50d68` — B01's supervisor PIN (the cashier's own drawer, approval kept), B11, B12,
+B27, B32, B33, B52–B62, a stable key on four more forms, and "New quotation" / "Hold goods on advance" on
+the Quotations screen. **Two migrations** (`sale_returns.approved_by/approved_at`, `products.for_sale`) —
+run `php artisan migrate` on deploy, backend first. `docs/decisions/shopos-a-refund-is-approved-and-an-ingredient-is-not-sold.md`.
+Next: the user's review list (Reports, Quotes & advances, Day & banking figures and UI; Products + Add item;
+supplier payment history), then TESTER-BRIEF §5.
+
+
 ### 2026-10-14 (late) — the tester's passes 2 and 3, fixed
 
 The cloud tester probed every route as every staff set and walked offline on
