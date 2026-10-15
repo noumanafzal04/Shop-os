@@ -291,6 +291,14 @@ export default function SalesPage() {
     detailModal.openModal();
   };
 
+  // ?open=<sale id> — a sale named elsewhere (a customer's statement, a plan)
+  // opens straight onto its own sheet, not onto a list to find it in.
+  const openParam = searchParams.get("open");
+  useEffect(() => {
+    if (openParam) openDetail(openParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openParam]);
+
   // Units still returnable per sale item = sold - already returned.
   //
   // AS NUMBERS. The server sends a quantity as a decimal STRING ("1.000"),

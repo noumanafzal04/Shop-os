@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
 import { downloadFile } from "../../../common/api/download";
 import { failed } from "../../../common/api/failed";
@@ -28,6 +28,8 @@ import Pager from "../../../components/ui/pager";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
+import KhataBox, { type KhataPayment } from "../components/KhataBox";
+import { saleLink } from "../khata";
 
 
 export default function CustomersPage() {
@@ -58,8 +60,6 @@ export default function CustomersPage() {
       setExporting(false);
     }
   };
-  const [payAmount, setPayAmount] = useState("");
-  const [payMethod, setPayMethod] = useState<"cash" | "card" | "bank_transfer" | "wallet" | "other">("cash");
 
   const groups = useCustomerGroups();
   const groupMutations = useCustomerGroupMutations();
@@ -141,14 +141,13 @@ export default function CustomersPage() {
   };
 
   // Record a khata repayment against the open customer, then refresh the detail.
-  const doRecordPayment = () => {
-    const amount = Number(payAmount);
-    if (!detailId || !(amount > 0) || recordPayment.isPending) return;
+  const doRecordPayment = (payment: KhataPayment, done: () => void) => {
+    if (!detailId || recordPayment.isPending) return;
     recordPayment.mutate(
-      { id: detailId, amount, method: payMethod, idempotency_key: payOnce.key },
+      { id: detailId, ...payment, idempotency_key: payOnce.key },
       {
         // The mutation refreshes ["customers"], this sheet included — asking again here fetched it twice.
-        onSuccess: () => { setPayAmount(""); payOnce.renew(); },
+        onSuccess: () => { done(); payOnce.renew(); },
         // MONEY. A repayment that vanished leaves the customer owing what they
         // have already handed over, and the field clearing was the only sign
         // either way.
@@ -323,50 +322,8 @@ export default function CustomersPage() {
             {d.notes && <div className="mb-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/[0.03] dark:text-gray-300">{d.notes}</div>}
             {d.address && <p className="mb-3 text-theme-xs text-gray-400">{d.address}</p>}
 
-            {/* Khata (sell-on-credit) — balance, record a repayment, statement */}
-            <div className="mb-4 rounded-xl border border-gray-200 p-3 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <span className="text-theme-xs font-medium uppercase text-gray-400">Credit (khata)</span>
-                <div className="text-right">
-                  <span className={`text-lg font-bold ${Number(d.credit_balance ?? 0) > 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"}`}>
-                    {money(d.credit_balance ?? 0)}
-                  </span>
-                  <span className="ml-1 text-theme-xs text-gray-400">owed{d.credit_limit != null ? ` / ${money(d.credit_limit)} limit` : ""}</span>
-                </div>
-              </div>
-
-              {Number(d.credit_balance ?? 0) > 0 && (
-                <div className="mt-3 flex items-end gap-2">
-                  <div className="flex-1"><Input type="number" min="0" placeholder="Payment amount" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} /></div>
-                  <select aria-label="Paid by" value={payMethod} onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
-                    className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="bank_transfer">Transfer</option>
-                    <option value="wallet">Wallet</option>
-                    <option value="other">Other</option>
-                  </select>
-                  <Button size="sm" onClick={doRecordPayment} disabled={recordPayment.isPending || !(Number(payAmount) > 0)}>
-                    {recordPayment.isPending ? "…" : "Record"}
-                  </Button>
-                </div>
-              )}
-
-              {(d.ledger?.length ?? 0) > 0 && (
-                <div className="mt-3 max-h-40 space-y-1 overflow-y-auto border-t border-gray-100 pt-2 dark:border-gray-800">
-                  {d.ledger!.map((e) => (
-                    <div key={e.id} className="flex items-center justify-between text-theme-xs">
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {shopDate(e.created_at)} · {e.type === "charge" ? "Credit sale" : e.type === "payment" ? `Payment (${e.method})` : "Adjustment"}
-                      </span>
-                      <span className={e.type === "charge" ? "text-error-600 dark:text-error-400" : "text-success-600 dark:text-success-400"}>
-                        {e.type === "charge" ? "+" : "−"}{money(e.amount)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Khata (sell-on-credit) — what they owe or what is theirs, a payment, the statement */}
+            <KhataBox customer={d} pending={recordPayment.isPending} onPay={doRecordPayment} />
 
             {/* Loyalty points — balance + statement (shown once they've earned any). */}
             {((d.loyalty_points ?? 0) > 0 || (d.loyalty_ledger?.length ?? 0) > 0) && (
@@ -396,12 +353,15 @@ export default function CustomersPage() {
 
             <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">History</p>
             <div className="max-h-64 space-y-1 overflow-y-auto">
-              {[...(d.history?.sales ?? []).map((s) => ({ ref: s.invoice_number, total: s.total, when: s.sold_at, tag: s.channel })),
-                ...(d.history?.orders ?? []).map((o) => ({ ref: o.order_number, total: o.total, when: o.placed_at, tag: o.status }))]
+              {[...(d.history?.sales ?? []).map((s) => ({ ref: s.invoice_number, total: s.total, when: s.sold_at, tag: s.channel, to: saleLink(s) })),
+                ...(d.history?.orders ?? []).map((o) => ({ ref: o.order_number, total: o.total, when: o.placed_at, tag: o.status, to: null as string | null }))]
                 .sort((a, b) => (a.when < b.when ? 1 : -1))
                 .map((h, i) => (
                   <div key={i} className="flex items-center justify-between border-b border-gray-50 py-1.5 text-sm dark:border-gray-800/50">
-                    <span className="text-gray-700 dark:text-gray-300">{h.ref} <Badge size="sm" color="light">{String(h.tag).replace(/_/g, " ")}</Badge></span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      {h.to ? <Link to={h.to} className="text-brand-500 hover:text-brand-600">{h.ref}</Link> : h.ref}{" "}
+                      <Badge size="sm" color="light">{String(h.tag).replace(/_/g, " ")}</Badge>
+                    </span>
                     <span className="font-medium">{money(h.total)}</span>
                   </div>
                 ))}

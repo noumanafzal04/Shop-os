@@ -25,7 +25,7 @@ async function repay(amount, method) {
   out("khata box before", oneLine(await s.getByText("Credit (khata)").locator("..").locator("..").innerText()).slice(0, 200));
   await s.getByPlaceholder("Payment amount").fill(String(amount));
   await s.getByLabel("Paid by").selectOption(method);
-  await s.getByRole("button", { name: "Record" }).click();
+  await s.getByRole("button", { name: "Take payment" }).click();
   await qa.quiet(2000);
   out("khata box after", oneLine(await s.getByText("Credit (khata)").locator("..").locator("..").innerText()).slice(0, 400));
   await qa.shot(`repaid-${amount}`);

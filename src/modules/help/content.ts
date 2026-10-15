@@ -2579,6 +2579,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["customer", "khata", "credit", "udhaar", "owes", "loyalty", "points", "statement"],
     body: [
       { type: "p", text: "Names, numbers, and what each one owes. Selling on credit puts the balance on the customer's account; take payment against it later, and the statement shows every line." },
+      { type: "p", text: "Open a customer and use Take payment. If they hand over more than they owe — 4,250 against 4,227.30 — you are asked first: keep the extra 22.70 as an advance, or take only what is owed. An advance shows in green as \"Advance\", and their next credit sale uses it up first." },
+      { type: "p", text: "A credit sale is counted in Sales and Reports on the day it is rung, at its full amount. Money paid against it later is a collection, not a sale, so it is never counted as a sale twice. Each credit sale on the statement names its bill; press the number to open it." },
       { type: "p", text: "Loyalty points earn on sales and are redeemed at the till." },
       { type: "note", text: "A credit sale needs a named customer — you cannot put a balance on nobody." },
       { type: "warn", text: "And a khata needs a PHONE NUMBER. The till finds a customer by their number and by nothing else, so a credit limit given to somebody with no number can never be rung against, repaid or chased. A customer with no phone is fine — a limit on one is not, and the form now says so before you save." },

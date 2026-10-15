@@ -143,7 +143,7 @@ test("C7 · the trader pays Rs 5,000 off his khata, in cash, and the drawer take
 
   await sheet.getByRole("spinbutton", { name: "Payment amount" }).fill("5000");
   await sheet.getByLabel("Paid by", { exact: true }).selectOption({ label: "Cash" });
-  await sheet.getByRole("button", { name: "Record" }).click();
+  await sheet.getByRole("button", { name: "Take payment" }).click();
   await expect(sheet.getByText(/Rs 13,900/).first(), "the sheet did not show the new balance").toBeVisible({ timeout: 20_000 });
 
   expect((await ask<{ credit_balance: number }>(request, "owner", `/customers-lookup?phone=${bilal.phone}`)).credit_balance).toBe(13900);

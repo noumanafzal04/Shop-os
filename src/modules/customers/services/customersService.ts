@@ -9,6 +9,8 @@ export interface LedgerEntry {
   reference: string | null;
   note: string | null;
   created_at: string;
+  /** The sale a charge (or its return) belongs to — so the line can open it. */
+  sale?: { id: string; invoice_number: string } | null;
 }
 
 export interface Customer {
@@ -65,6 +67,8 @@ export interface CreditPaymentInput {
   method: "cash" | "card" | "bank_transfer" | "wallet" | "other";
   reference?: string;
   note?: string;
+  /** Keep what is more than is owed as an advance — asked first, never assumed. */
+  allow_advance?: boolean;
 }
 
 export const customersService = {
