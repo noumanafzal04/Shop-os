@@ -144,8 +144,9 @@ class CustomerController extends Controller
             'orders_count' => $sales->count() + $orders->count(),
         ]);
 
-        // Khata statement — most recent ledger movements.
-        $customer->setAttribute('ledger', $customer->ledgerEntries()->limit(50)->get());
+        // Khata statement — most recent ledger movements, each with the
+        // invoice it belongs to, so a credit sale on the statement opens.
+        $customer->setAttribute('ledger', $customer->ledgerEntries()->with('sale:id,invoice_number')->limit(50)->get());
         // Loyalty statement — most recent points movements.
         $customer->setAttribute('loyalty_ledger', $customer->loyaltyEntries()->limit(50)->get());
 

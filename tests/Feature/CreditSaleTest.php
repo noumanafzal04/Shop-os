@@ -112,6 +112,27 @@ class CreditSaleTest extends TestCase
         ]);
     }
 
+    /**
+     * The statement says which bill each charge was. It said "Credit sale" and
+     * an amount, so a customer asking "which one is this?" had no answer on
+     * their own card (L15).
+     */
+    public function test_a_credit_sale_on_the_statement_names_its_invoice(): void
+    {
+        $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'credit', 'amount_paid' => 600,
+            'customer_name' => 'Ali', 'customer_phone' => '03001234567',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $customer = Customer::withoutTenancy()->where('phone', '03001234567')->first();
+        $this->actingAsUser($this->owner)->getJson("/api/v1/customers/{$customer->id}")
+            ->assertOk()
+            ->assertJsonPath('data.ledger.0.type', 'charge')
+            ->assertJsonPath('data.ledger.0.sale.id', $sale['id'])
+            ->assertJsonPath('data.ledger.0.sale.invoice_number', $sale['invoice_number']);
+    }
+
     public function test_split_cash_plus_credit_only_owes_the_credit_part(): void
     {
         $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
