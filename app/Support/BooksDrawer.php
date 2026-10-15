@@ -2,7 +2,9 @@
 
 namespace App\Support;
 
+use App\Exceptions\DomainException;
 use App\Models\CashSession;
+use App\Models\Tenant;
 use App\Models\User;
 
 /**
@@ -156,5 +158,55 @@ class BooksDrawer
         return $practice
             ? $verb.', but your open shift is a practice till — no real drawer was adjusted.'
             : $verb.', but you have no shift open — the drawer was not adjusted.';
+    }
+
+    /** The trading day a shift belongs to: its day's date, or the shop day it was opened on. */
+    public static function dayOf(CashSession $session, ?Tenant $tenant = null): string
+    {
+        $day = $session->businessDay?->trading_date;
+
+        return $day !== null
+            ? $day->toDateString()
+            : ShopDay::dateOf($session->opened_at ?? now(), $tenant);
+    }
+
+    /** Was this shift opened on an earlier trading day than today's? */
+    public static function fromAnEarlierDay(CashSession $session, ?Tenant $tenant = null): bool
+    {
+        return self::dayOf($session, $tenant) < ShopDay::today($tenant);
+    }
+
+    /**
+     * A SHOP THAT ASKS FOR SHIFTS RINGS A COUNTER SALE ONLY ON TODAY'S SHIFT.
+     *
+     * `pos_require_shift` was read by one door — the till's own POST /sales —
+     * and asked only whether SOME shift was open. A settled tab, an exchange
+     * and a quotation billed at the counter never asked at all; and a shift
+     * opened on Tuesday and never closed answered "open" on Thursday, so the
+     * till sold all week into Tuesday's drawer and Tuesday's day (the user,
+     * 2026-10-15: "settings main open shift required hain to pos main bagair
+     * open shift k sell q ho rhi?"). One rule, here, for every counter sale.
+     *
+     * Off by default; a shop that does not ask for shifts is not refused.
+     */
+    public static function mustBeOpenToday(?string $sessionId, ?Tenant $tenant): void
+    {
+        if ($tenant === null || ! (bool) ($tenant->setting('pos_require_shift') ?? false)) {
+            return;
+        }
+
+        $session = $sessionId === null ? null : CashSession::query()->with('businessDay')->find($sessionId);
+
+        if ($session === null || $session->status !== 'open') {
+            throw DomainException::conflict('Open a shift before ringing up a sale.', 'SHIFT_REQUIRED');
+        }
+
+        if (self::fromAnEarlierDay($session, $tenant)) {
+            throw DomainException::conflict(
+                'This shift has been open since '.ShopTime::day(self::dayOf($session, $tenant), $tenant)
+                .' — close it and open today\'s before ringing up a sale.',
+                'SHIFT_FROM_AN_EARLIER_DAY',
+            );
+        }
     }
 }

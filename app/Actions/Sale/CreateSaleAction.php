@@ -207,6 +207,15 @@ class CreateSaleAction
                     $sessionId = BooksDrawer::tillFor(Auth::user())?->id;
                 }
 
+                // A shop that asks for shifts: every COUNTER sale — the till,
+                // New Sale, a settled tab, an exchange, a quotation billed —
+                // only on a shift of today. Not a synced sale: it happened
+                // hours ago on the shift it names, and its money is already
+                // in that drawer.
+                if (! $trustedOffline && in_array($data['channel'] ?? null, [SaleChannel::Pos->value, SaleChannel::WalkIn->value], true)) {
+                    BooksDrawer::mustBeOpenToday($sessionId, $this->context->get());
+                }
+
                 // ── Where a synced sale belongs ─────────────────────────
                 //
                 // A tablet is a thing that can be carried. Registered on Lane 1

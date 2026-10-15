@@ -22,6 +22,7 @@ use App\Models\Register;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\DenominationCount;
 use App\Support\DrawerMath;
@@ -358,6 +359,11 @@ class PosController extends Controller
 
             return ApiResponse::ok([
                 ...$session->toArray(),
+                // Which trading day this drawer belongs to, and whether that is
+                // an earlier one than today — the till says so, and a shop that
+                // asks for shifts will not ring on it (mustBeOpenToday).
+                'opened_on' => BooksDrawer::dayOf($session),
+                'from_an_earlier_day' => BooksDrawer::fromAnEarlierDay($session),
                 'covered_by' => $active === null ? null : [
                     'user_id' => $active->user_id,
                     'user_name' => $active->user?->name,

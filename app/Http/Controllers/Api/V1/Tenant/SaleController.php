@@ -6,8 +6,6 @@ use App\Actions\Sale\CancelSaleAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessExchangeAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
-use App\Enums\SaleChannel;
-use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
@@ -165,30 +163,8 @@ class SaleController extends Controller
     {
         $data = $request->validated();
 
-        // `pos_require_shift` shipped as a setting nothing read: a shop could
-        // insist on shifts and still have counter sales rung with no drawer
-        // attached, whose cash belongs to no reconciliation and shows up in no
-        // shift report. Enforced here, on the counter channels only — an online
-        // order or a phone order has no till to be open.
-        //
-        // It asks whether this person HAS a drawer, not whether the request
-        // named one: the till names it, and no other screen that rings a sale
-        // ever has. Asking the narrower question would refuse a cashier with a
-        // drawer open in front of them for using the wrong screen — while
-        // CreateSaleAction was already resolving the very same shift.
-        $counterChannels = [SaleChannel::Pos->value, SaleChannel::WalkIn->value];
-        if (
-            empty($data['cash_session_id'])
-            && BooksDrawer::tillFor($request->user()) === null
-            && in_array($data['channel'] ?? null, $counterChannels, true)
-            && (bool) ($tenant->get()?->setting('pos_require_shift') ?? false)
-        ) {
-            throw DomainException::conflict(
-                'Open a shift before ringing up a sale.',
-                'SHIFT_REQUIRED',
-            );
-        }
-
+        // `pos_require_shift` is enforced in CreateSaleAction, for every
+        // counter sale and not only this door (BooksDrawer::mustBeOpenToday).
         $sale = $action->execute($data);
 
         // THE KITCHEN'S SLIP, named so the till can print it.
