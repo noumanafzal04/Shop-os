@@ -1,11 +1,19 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { customersService, type CreditPaymentInput, type CustomerInput } from "../services/customersService";
+import { customersService, type CreditPaymentInput, type CustomerFilter, type CustomerInput } from "../services/customersService";
 
-export function useCustomers(params?: { search?: string; page?: number }) {
+export function useCustomers(params?: { search?: string; page?: number; standing?: CustomerFilter }) {
   return useQuery({
     queryKey: ["customers", params],
     queryFn: () => customersService.list(params),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** The counts on the list's filters — under ["customers"], so a payment refreshes them. */
+export function useCustomerSummary() {
+  return useQuery({
+    queryKey: ["customers", "summary"],
+    queryFn: async () => (await customersService.summary()).data,
   });
 }
 

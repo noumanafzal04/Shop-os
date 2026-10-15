@@ -18,9 +18,9 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
-import { useCustomer, useCustomerMutations, useCustomers } from "../hooks/useCustomers";
+import { useCustomer, useCustomerMutations, useCustomers, useCustomerSummary } from "../hooks/useCustomers";
 import { useCustomerGroups, useCustomerGroupMutations } from "../hooks/useCustomerGroups";
-import type { Customer } from "../services/customersService";
+import type { Customer, CustomerFilter } from "../services/customersService";
 import type { CustomerGroup, PriceLevel } from "../services/customerGroupsService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
@@ -29,7 +29,12 @@ import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
 import KhataBox, { type KhataPayment } from "../components/KhataBox";
-import { saleLink } from "../khata";
+import { QUIET_DAYS, saleLink, standing } from "../khata";
+import OwesCell from "../components/OwesCell";
+import { daysSince, sinceWords } from "../../../common/format/since";
+
+const FILTERS: CustomerFilter[] = ["owes", "limit", "advance"];
+const isFilter = (v: string | null): v is CustomerFilter => FILTERS.includes(v as CustomerFilter);
 
 
 export default function CustomersPage() {
@@ -44,7 +49,15 @@ export default function CustomersPage() {
     if (qParam) setSearch(qParam);
   }, [qParam]);
   const [page, setPage] = useState(1);
-  const customers = useCustomers({ search: search || undefined, page });
+  // Who owes, who is near their limit, who is in credit (L16). Seeded from
+  // ?show= so the dashboard's "Owed to you" opens straight onto them.
+  const showParam = searchParams.get("show");
+  const [filter, setFilter] = useState<CustomerFilter | "">(isFilter(showParam) ? showParam : "");
+  useEffect(() => {
+    if (isFilter(showParam)) { setFilter(showParam); setPage(1); }
+  }, [showParam]);
+  const customers = useCustomers({ search: search || undefined, page, standing: filter || undefined });
+  const summary = useCustomerSummary();
   const { create, update, remove, recordPayment } = useCustomerMutations();
   const payOnce = useOnceKey();
 
@@ -53,7 +66,7 @@ export default function CustomersPage() {
   const exportCsv = async () => {
     setExporting(true);
     try {
-      await downloadFile("/customers/export", { search: search || undefined });
+      await downloadFile("/customers/export", { search: search || undefined, standing: filter || undefined });
     } catch {
       toast.error("Export failed. Please try again.");
     } finally {
@@ -181,6 +194,39 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {summary.data && (summary.data.owed.accounts > 0 || summary.data.advance.accounts > 0) && (
+        <p className="mb-3 text-theme-sm text-gray-600 dark:text-gray-300" data-testid="customers-owed">
+          Owed to you: <span className="font-semibold text-error-600 dark:text-error-400">{money(summary.data.owed.total)}</span>
+          {" "}across {counted(summary.data.owed.accounts, "customer")}
+          {summary.data.advance.accounts > 0 && (
+            <> · Advances held: <span className="font-semibold text-success-600 dark:text-success-400">{money(summary.data.advance.total)}</span> ({summary.data.advance.accounts})</>
+          )}
+        </p>
+      )}
+
+      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Show customers" data-testid="customer-filters">
+        {([
+          ["", "All", summary.data?.everyone],
+          ["owes", "Owe money", summary.data?.owed.accounts],
+          ["limit", "Over / near limit", summary.data?.near_limit],
+          ["advance", "Advance held", summary.data?.advance.accounts],
+        ] as Array<[CustomerFilter | "", string, number | undefined]>).map(([key, label, n]) => (
+          <button
+            key={key || "all"}
+            type="button"
+            aria-pressed={filter === key}
+            onClick={() => { setFilter(key); setPage(1); }}
+            className={`rounded-full border px-3 py-1.5 text-theme-sm font-medium transition ${
+              filter === key
+                ? key === "" ? "border-brand-500 bg-brand-500 text-white" : key === "advance" ? "border-success-500 bg-success-500 text-white" : "border-error-500 bg-error-500 text-white"
+                : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+            }`}
+          >
+            {label}{n != null && <span className={`ml-1.5 tabular-nums ${filter === key ? "text-white/80" : "text-gray-400"}`}>{n}</span>}
+          </button>
+        ))}
+      </div>
+
       <FilterBar
         search={{
           value: search,
@@ -193,27 +239,47 @@ export default function CustomersPage() {
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[38rem] text-left text-sm">
+          <table className="w-full min-w-[54rem] text-left text-sm">
           <thead className="border-b border-gray-100 text-theme-xs uppercase text-gray-400 dark:border-gray-800">
-            <tr><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Phone</th><th className="px-5 py-3 text-center">Sales</th><th className="px-5 py-3 text-right">Spent</th><th className="px-5 py-3 text-right">Actions</th></tr>
+            <tr><th className="px-5 py-3">Customer</th><th className="px-5 py-3">Phone</th><th className="px-5 py-3 text-right">Owes</th><th className="px-5 py-3">Last paid</th><th className="px-5 py-3 text-center">Sales</th><th className="px-5 py-3 text-right">Spent</th><th className="px-5 py-3 text-right">Actions</th></tr>
           </thead>
           <tbody>
             {customers.isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={5} className="px-5 py-4"><div className="h-5 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>)
+              Array.from({ length: 5 }).map((_, i) => <tr key={i}><td colSpan={7} className="px-5 py-4"><div className="h-5 animate-pulse rounded bg-gray-200 dark:bg-gray-800" /></td></tr>)
             ) : rows.length === 0 ? (
-              <tr><TableEmpty from={customers} what="the customer list" colSpan={5} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">No customers yet — they'll appear as you make sales.</TableEmpty></tr>
+              <tr><TableEmpty from={customers} what="the customer list" colSpan={7} className="px-5 py-10 text-center text-gray-500 dark:text-gray-400">
+                {filter === "owes" ? "Nobody owes you anything right now."
+                  : filter === "limit" ? "Nobody is near their credit limit."
+                    : filter === "advance" ? "You are not holding anybody's money."
+                      : "No customers yet — they'll appear as you make sales."}
+              </TableEmpty></tr>
             ) : (
-              rows.map((c) => (
-                <tr key={c.id} className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-white/5" onClick={() => { setDetailId(c.id); detailModal.openModal(); }}>
+              rows.map((c) => {
+                const owes = standing(c.credit_balance).kind === "owes";
+                const quiet = owes && (!c.last_paid_at || daysSince(c.last_paid_at) > QUIET_DAYS);
+                const open = () => { setDetailId(c.id); detailModal.openModal(); };
+
+                return (
+                <tr
+                  key={c.id}
+                  data-owes={owes || undefined}
+                  className={`cursor-pointer border-b border-gray-50 last:border-0 dark:border-gray-800/50 ${owes ? "bg-error-50/50 hover:bg-error-50 dark:bg-error-500/[0.06] dark:hover:bg-error-500/10" : "hover:bg-gray-50 dark:hover:bg-white/5"}`}
+                  onClick={open}
+                >
                   <td className="px-5 py-3">
                     <div className="font-medium text-gray-800 dark:text-white/90">{c.name}</div>
                     {c.notes && <div className="truncate text-theme-xs text-gray-400">{c.notes}</div>}
                   </td>
                   <td className="px-5 py-3 text-gray-500 dark:text-gray-400">{c.phone ?? "—"}</td>
+                  <td className="px-5 py-3 text-right"><OwesCell customer={c} /></td>
+                  <td className={`px-5 py-3 text-theme-xs ${quiet ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-500 dark:text-gray-400"}`} title={c.last_paid_at ? shopDate(c.last_paid_at) : undefined}>
+                    {sinceWords(c.last_paid_at) ?? (owes ? "never" : "—")}
+                  </td>
                   <td className="px-5 py-3 text-center">{c.sales_count ?? 0}</td>
                   <td className="px-5 py-3 text-right font-medium text-gray-800 dark:text-white/90">{money(c.sales_total ?? 0)}</td>
                   <td className="px-5 py-3 text-right">
                     <div className="flex justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                      {owes && <button className={ROW_ACTION} onClick={open}>Take payment</button>}
                       <button className={ROW_ACTION} onClick={() => openEdit(c)}>Edit</button>
                       <button className={ROW_ACTION_DANGER} onClick={async () => {
                         if (await confirm({ title: `Delete "${c.name}"?`, message: "Sales already made keep their record.", confirmLabel: "Delete", tone: "danger" })) {
@@ -226,7 +292,8 @@ export default function CustomersPage() {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

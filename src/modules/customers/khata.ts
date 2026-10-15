@@ -68,3 +68,22 @@ export function ledgerLine(e: Pick<LedgerEntry, "type" | "method" | "reference">
 /** Where a sale is opened from anywhere else in the panel. */
 export const saleLink = (sale: { id: string; invoice_number: string }): string =>
   `/tenant/sales?q=${encodeURIComponent(sale.invoice_number)}&open=${encodeURIComponent(sale.id)}`;
+
+/** Where "near the limit" starts — the server's `Customer::NEAR_LIMIT`, which the filter uses. */
+export const NEAR_LIMIT = 0.8;
+
+/** How much of their credit limit a customer is using; null with no limit or no debt. */
+export function limitUse(
+  balance: string | number | null | undefined,
+  limit: string | number | null | undefined,
+): { share: number; state: "ok" | "near" | "over" } | null {
+  const owed = Number(balance ?? 0);
+  const cap = Number(limit ?? 0);
+  if (!(owed > 0) || !(cap > 0)) return null;
+  const share = owed / cap;
+
+  return { share, state: share > 1 ? "over" : share >= NEAR_LIMIT ? "near" : "ok" };
+}
+
+/** A khata nobody has paid into for this long is the one to phone. */
+export const QUIET_DAYS = 30;

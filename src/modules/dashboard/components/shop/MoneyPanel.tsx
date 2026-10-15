@@ -68,7 +68,8 @@ export function MoneyPanel({ data, caps, money }: Props) {
           ? "nothing out on khata"
           : `${receivable.accounts} ${receivable.accounts === 1 ? "account" : "accounts"} on khata`,
       tone: receivable.total > 0 ? "warning" : "gray",
-      to: "/tenant/customers",
+      // Straight onto the people who owe (L16), not the whole book.
+      to: "/tenant/customers?show=owes",
     });
   }
 

@@ -32,6 +32,8 @@ export interface Customer {
   loyalty_ledger?: LoyaltyLedgerEntry[];
   sales_count?: number;
   sales_total?: string | number | null;
+  /** When they last handed money over against the khata (not a return). */
+  last_paid_at?: string | null;
   history?: {
     sales: Array<{ id: string; invoice_number: string; total: string | number; channel: string; sold_at: string }>;
     orders: Array<{ id: string; order_number: string; total: string | number; status: string; placed_at: string }>;
@@ -39,6 +41,16 @@ export interface Customer {
     orders_count: number;
   };
   ledger?: LedgerEntry[];
+}
+
+/** The list's filters: owes money, at or past 80% of the limit, or in credit. */
+export type CustomerFilter = "owes" | "limit" | "advance";
+
+export interface CustomerSummary {
+  everyone: number;
+  owed: { total: number; accounts: number };
+  advance: { total: number; accounts: number };
+  near_limit: number;
 }
 
 export interface LoyaltyLedgerEntry {
@@ -72,7 +84,8 @@ export interface CreditPaymentInput {
 }
 
 export const customersService = {
-  list: (params?: { search?: string; page?: number }) => apiGet<Customer[]>("/customers", { params }),
+  list: (params?: { search?: string; page?: number; standing?: CustomerFilter }) => apiGet<Customer[]>("/customers", { params }),
+  summary: () => apiGet<CustomerSummary>("/customers/summary"),
   show: (id: string) => apiGet<Customer>(`/customers/${id}`),
   create: (payload: CustomerInput) => apiPost<Customer>("/customers", payload),
   update: (id: string, payload: Partial<CustomerInput>) => apiPut<Customer>(`/customers/${id}`, payload),
