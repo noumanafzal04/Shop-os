@@ -79,6 +79,11 @@ class CustomerController extends Controller
      */
     public function lookup(Request $request): JsonResponse
     {
+        $q = trim((string) $request->query('q', ''));
+        if ($q !== '') {
+            return ApiResponse::ok(Customer::suggest((string) app(TenantContext::class)->id(), $q));
+        }
+
         $phone = trim((string) $request->query('phone', ''));
         if ($phone === '') {
             return ApiResponse::ok(null);

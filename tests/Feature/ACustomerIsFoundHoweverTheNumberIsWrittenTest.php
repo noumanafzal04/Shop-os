@@ -107,6 +107,27 @@ class ACustomerIsFoundHoweverTheNumberIsWrittenTest extends TestCase
         $this->assertSame('Bilqees', $nobody->fresh()->name);
     }
 
+    /**
+     * The till and the quotation form find somebody already on file from a
+     * few letters or digits — and so can a cashier who does not hold the
+     * customers permission, because it is the counter's own look-up (L8).
+     */
+    public function test_the_counter_finds_a_customer_from_a_few_letters_or_digits(): void
+    {
+        $this->postJson('/api/v1/customers', ['name' => 'Ahmed Khan', 'phone' => '0300-1234567'])->assertCreated();
+        $this->postJson('/api/v1/customers', ['name' => 'Bilqees Ara', 'phone' => '+92 321 7654321'])->assertCreated();
+        $cashier = User::factory()->tenantStaff($this->shop, ['sales.manage'])->create();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($cashier->createToken('t', ['access'])->plainTextToken);
+        $names = fn (string $q): array => collect($this->getJson('/api/v1/customers-lookup?q='.urlencode($q))->assertOk()->json('data'))->pluck('name')->all();
+
+        $this->assertSame(['Ahmed Khan'], $names('ahm'));
+        $this->assertSame(['Ahmed Khan'], $names('03001234'), 'a number typed without its dash found nobody');
+        $this->assertSame(['Bilqees Ara'], $names('0321765'), 'a number stored as +92 was not found from its 0 form');
+        $this->assertSame([], $names('ah'), 'two letters already list the shop\'s customers');
+        $this->assertSame(['id', 'name', 'phone'], array_keys($this->getJson('/api/v1/customers-lookup?q=ahm')->json('data.0')), 'the counter is sent more than a name and a number');
+    }
+
     public function test_the_number_is_read_the_same_way_written_any_way(): void
     {
         foreach (['0300-1234567', '03001234567', '+92 300 1234567', '923001234567', '0092 300 1234567', '(0300) 123 4567'] as $written) {

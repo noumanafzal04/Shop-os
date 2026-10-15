@@ -283,6 +283,46 @@ class Customer extends BaseModel
     }
 
     /**
+     * WHO IS THIS, BY A FEW LETTERS OR DIGITS.
+     *
+     * The till and the quotation form attached a customer by typing their
+     * whole number, and nothing on either screen could find somebody already
+     * on file (the user, 2026-10-15: "existing customer ko again quote or
+     * advance?" — L8). Six at most, from three characters, name and number
+     * only: this answers whoever is at the till, who may not hold the
+     * customers permission, so it carries nothing the till's own look-up does
+     * not already show.
+     *
+     * @return array<int, array{id: string, name: ?string, phone: ?string}>
+     */
+    public static function suggest(string $tenantId, string $q): array
+    {
+        $q = trim($q);
+        if (mb_strlen($q) < 3) {
+            return [];
+        }
+
+        // Digits are matched the way a number is stored: without its
+        // separators, and without the 0 or 92 in front.
+        $digits = ltrim(self::phoneKey($q), '0');
+        $bare = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', ''), '(', ''), ')', '')";
+
+        return self::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->where(function ($w) use ($q, $digits, $bare): void {
+                $w->where('name', 'like', '%'.$q.'%');
+                if (strlen($digits) >= 3) {
+                    $w->orWhereRaw("{$bare} LIKE ?", ['%'.$digits.'%']);
+                }
+            })
+            ->orderByDesc('last_seen_at')
+            ->limit(6)
+            ->get(['id', 'name', 'phone'])
+            ->map(fn (self $c): array => ['id' => $c->id, 'name' => $c->knownName(), 'phone' => $c->phone])
+            ->all();
+    }
+
+    /**
      * What a customer is called before anybody has said their name.
      *
      * A sale needs only a phone number, and the row has to be called something.
