@@ -68,3 +68,62 @@ export function dueOn(po: { received_total?: string | number; total?: string | n
 export function openOrders<T extends { status: string; received_total?: string | number; total?: string | number; amount_paid?: string | number }>(orders: T[]): T[] {
   return orders.filter((po) => po.status !== "draft" && dueOn(po) > EPSILON);
 }
+
+/** How a supplier was paid, in the shop's words. */
+export const PAY_METHODS: Array<{ value: string; label: string }> = [
+  { value: "cash", label: "Cash" },
+  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "card", label: "Card" },
+  { value: "wallet", label: "Mobile wallet" },
+  { value: "cheque", label: "Cheque" },
+];
+
+export const payMethodLabel = (method: string): string => PAY_METHODS.find((m) => m.value === method)?.label ?? method;
+
+interface PaidOn {
+  amount_paid?: string | number;
+  allocations?: Array<{ id: string; amount: string | number; payment: { id: string; amount: string | number; method: string; reference: string | null; paid_at: string } }>;
+  payments?: Array<{ id: string; amount: string | number; method: string; reference: string | null; paid_at: string }>;
+}
+
+export interface PaymentLine {
+  key: string;
+  paidAt: string;
+  method: string;
+  reference: string | null;
+  /** What of it went to this order. */
+  amount: number;
+  /** The whole payment, when it also paid other orders. */
+  whole: number;
+}
+
+/**
+ * EVERY PAYMENT ON THIS ORDER, OLDEST FIRST: each share a payment says it paid
+ * (`allocations`, from 2026-10-15), and before that every payment that named
+ * this order alone — those were applied to it whole.
+ */
+export function paymentLines(po: PaidOn): PaymentLine[] {
+  const shared = (po.allocations ?? []).map((a) => ({
+    key: a.id, paidAt: a.payment.paid_at, method: a.payment.method, reference: a.payment.reference,
+    amount: Number(a.amount), whole: Number(a.payment.amount),
+  }));
+  const said = new Set((po.allocations ?? []).map((a) => a.payment.id));
+  const named = (po.payments ?? []).filter((p) => !said.has(p.id)).map((p) => ({
+    key: p.id, paidAt: p.paid_at, method: p.method, reference: p.reference, amount: Number(p.amount), whole: Number(p.amount),
+  }));
+
+  return [...shared, ...named].sort((a, b) => a.paidAt.localeCompare(b.paidAt));
+}
+
+/**
+ * WHAT AN ORDER SHOWS AS PAID THAT NO PAYMENT IN ITS HISTORY ACCOUNTS FOR.
+ *
+ * A payment on account made before payments said which orders they paid
+ * raised the order's paid figure and left no trace on it. Said as its own
+ * line, so the history still adds up to what the order shows as paid.
+ */
+export function paidBeforeHistory(po: PaidOn): number {
+  const listed = paymentLines(po).reduce((sum, l) => sum + l.amount, 0);
+
+  return Math.max(0, round(Number(po.amount_paid ?? 0) - listed));
+}

@@ -23,6 +23,7 @@ import { useSuppliers } from "../hooks/usePurchases";
 import { purchaseRights } from "../stockroom";
 import { lineOut, orderables, type Orderable } from "../orderLines";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
+import { OrderPayments } from "../components/OrderPayments";
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
@@ -377,12 +378,7 @@ export default function PurchaseOrdersPage() {
               </table>
             </div>
 
-            {d.total !== undefined && (
-              <div className="mb-4 flex justify-between text-sm">
-                <span className="text-gray-500 dark:text-gray-400">Paid {money(d.amount_paid ?? 0)} · {d.payment_status}</span>
-                <span className="font-bold text-gray-800 dark:text-white/90">Total {money(d.total)}</span>
-              </div>
-            )}
+            {d.total !== undefined && <OrderPayments order={d} />}
 
             {/* PLACE HAD NO FAILURE PATH AT ALL.
                 Cancel and receive each showed their refusal here; placing —

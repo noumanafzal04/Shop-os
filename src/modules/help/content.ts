@@ -809,6 +809,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "Paying a supplier is recorded as its own kind of money-out, not as an expense. If it were an expense, a shop that both files the wholesaler's bill and records the payment would count the same rupees twice.",
       },
       { type: "h", text: "Paying a supplier" },
+      { type: "p", text: "Every payment is kept with its date, amount, method and reference. History on the supplier's row lists them, each with the orders it paid and how much of each (or \u201cPaid ahead\u201d), and every order with its bill, what was paid and what is left. Open an order and it says the same from its side: Ordered, Arrived \u2014 the bill, Paid, Left to pay, and each payment that paid part of it. A payment on account spread over two orders appears on both, with its share. Payments made before 15 Oct 2026 that named no order show on the order as \u201cPaid on account earlier\u201d." },
       {
         type: "p",
         text: "Press Pay on the supplier's row. The dialog opens with what you owe at the top, and as soon as you type an amount it tells you what will still be owed after it — so you can see the figure before you hand over the money, not after.",

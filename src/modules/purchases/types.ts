@@ -78,6 +78,15 @@ export interface PurchaseOrder {
   items?: PurchaseOrderItem[];
   items_count?: number;
   payments?: SupplierPayment[];
+  /** Every payment that paid part of this order, and how much — oldest first. Absent for whoever is not sent supplier money. */
+  allocations?: OrderPayment[];
+}
+
+/** One payment's share of one order. */
+export interface OrderPayment {
+  id: string;
+  amount: string | number;
+  payment: Pick<SupplierPayment, "id" | "amount" | "method" | "reference" | "paid_at" | "notes">;
 }
 
 export interface PurchaseOrderInput {
@@ -103,6 +112,8 @@ export interface SupplierPayment {
   reference: string | null;
   paid_at: string;
   notes: string | null;
+  /** Which orders it paid, and how much of each. None: paid ahead (an advance). */
+  allocations?: Array<{ id: string; amount: string | number; purchase_order: { id: string; po_number: string } | null }>;
 }
 
 export interface PaymentInput {

@@ -14,6 +14,7 @@ import { ApiError } from "../../../common/types/api";
 import { useToast } from "../../../components/ui/toast";
 import { useAuthStore } from "../../../stores/authStore";
 import { useSuppliers, useSupplier, useSupplierMutations } from "../hooks/usePurchases";
+import { SupplierHistory } from "../components/SupplierHistory";
 import { purchaseRights } from "../stockroom";
 import type { PurchaseOrder, Supplier } from "../types";
 import Select from "../../../components/form/Select";
@@ -21,7 +22,7 @@ import Label from "../../../components/form/Label";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
-import { dueOn, openOrders, payOutlook, sentMoney } from "../payMath";
+import { dueOn, openOrders, PAY_METHODS, payOutlook, sentMoney } from "../payMath";
 import { shopToday } from "../../../common/shopDay";
 
 
@@ -51,6 +52,8 @@ export default function SuppliersPage() {
     });
 
   const payModal = useModal();
+  const historyModal = useModal();
+  const [historyOf, setHistoryOf] = useState<Supplier | null>(null);
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [target, setTarget] = useState<Supplier | null>(null);
 
@@ -207,6 +210,7 @@ export default function SuppliersPage() {
                           changes hands, and no order was ever raised — hiding
                           Pay on a settled account refused the commonest
                           payment a small shop makes. */}
+                      {seesDebt && <button className={ROW_ACTION} onClick={() => { setHistoryOf(s); historyModal.openModal(); }}>History</button>}
                       {rights.paysSuppliers && <button className={ROW_ACTION} onClick={() => openPay(s)}>Pay</button>}
                       {rights.editsSuppliers && <button className={ROW_ACTION} onClick={() => openEdit(s)}>Edit</button>}
                       {rights.editsSuppliers && <button className={ROW_ACTION_DANGER} onClick={async () => {
@@ -240,6 +244,12 @@ export default function SuppliersPage() {
           <Button size="sm" variant="outline" onClick={editor.closeModal}>Cancel</Button>
           <Button size="sm" onClick={save} disabled={mutation.isPending || !form.name?.trim()}>{mutation.isPending ? "Saving…" : "Save"}</Button>
         </div>
+      </Modal>
+
+      {/* The account: every payment and every order (the user, 2026-10-15). */}
+      <Modal isOpen={historyModal.isOpen} onClose={historyModal.closeModal} className="max-w-2xl p-6">
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{historyOf?.name}</h3>
+        {historyOf && historyModal.isOpen && <SupplierHistory supplierId={historyOf.id} />}
       </Modal>
 
       {/* Record payment */}
@@ -311,13 +321,7 @@ export default function SuppliersPage() {
                 aria-label="Payment method"
                 value={payMethod}
                 onChange={setPayMethod}
-                options={[
-                  { value: "cash", label: "Cash" },
-                  { value: "bank_transfer", label: "Bank transfer" },
-                  { value: "card", label: "Card" },
-                  { value: "wallet", label: "Mobile wallet" },
-                  { value: "cheque", label: "Cheque" },
-                ]}
+                options={PAY_METHODS}
               />
             </div>
             <div>
