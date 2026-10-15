@@ -88,6 +88,9 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L7 | P2 | Customers | A quote, advance or sale finds an existing customer by the phone EXACTLY as typed (`Customer::capture`, trimmed only): "0300-1234567" and "03001234567" are two customers, and their quotes, advances and khata split | FIXED `65acb1e` — `Customer::byPhone`: exact first, then the same number with other separators or +92 (oldest wins, nothing rewritten); capture, the till look-up, group price, loyalty; the customer form refuses the number written another way. (A name typed against an existing number still renames the customer — kept as designed, `CustomerCrmTest`; asked as Q11) |
 | L8 | P3 | Quotes & advances | The Quotations screen's New quotation / Hold goods on advance — and the till's Customer box — had no customer search: the phone had to be typed in full | FIXED `207bd67` `23ab504` — `customers-lookup?q=` (the counter's own look-up; id, name, number only) + "Already on file" under both boxes; a tap fills them |
 | L9 | P2 | Purchases | A part payment to a supplier — when, how much, how — was shown nowhere on the supplier or the order; and a payment on account spread over several orders named none of them, so no order could say what paid it (reported by the user, 2026-10-15) | FIXED `a39b51c` `659b392` — `supplier_payment_allocations`; the order shows Ordered / Arrived / Paid / Left and every payment; Suppliers → History shows every payment with its orders and every order with what is left |
+| L10 | P1 | Products | The item edit form re-filled itself from the server on every refetch — the till's catalogue sync refetches a few seconds after it opens — so "Still selling this" switched off and saved went back ON (any field changed in that time was lost); and before the item arrived the form showed a new item's defaults | FIXED `17c61c9` — filled once per item (`useFillOnce`); covered with "Opening the item…" and Save shut until it arrives |
+| L11 | P2 | Products / inventory | Opening stock given when an item is created was on the shelf but not in its stock history ("No movements yet" under 24 units) | FIXED `9a15d9e` — `OpeningShelf` writes one `in` "Opening stock" (reference `opening`) for an item, each size, a size added later, an import |
+| L12 | P3 | Products | In a shop selling online, a new item is refused for want of a description, said at the top while the box and the online switch are elsewhere | FIXED `17c61c9` — the refusal carries "Write a description" and "Sell it in the shop only" |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -279,4 +282,10 @@ Backend `a39b51c`, panel `659b392`. L9. **Migration `2026_10_15_000002`** (`supp
 deploy; already run on dev. Walk `qa-kit/p6-supplier-history.mjs`. Decision note:
 `docs/decisions/shopos-a-supplier-payment-says-what-it-paid.md`. Dev data: Zari paid Faisalabad Mills 2,000 by
 bank on account (reference QA-HIST-1), which landed on PO-000001 (owed 10,000 → 8,000).
+
+## Pass 10 — products and Add item (the user's item), fixed by the local session (2026-10-15)
+
+Backend `9a15d9e`, panel `17c61c9`. L10–L12. Walks `qa-kit/p6-add-item.mjs`, `p6-item-active.mjs` (load-test
+grocery). Decision note: `docs/decisions/shopos-an-item-form-keeps-what-you-changed.md`. Dev data: grocery item
+"QA Walk Biscuit 100g" (barcode 8964000111222, 24 on hand, in-store only) — retired and brought back, left Active.
 

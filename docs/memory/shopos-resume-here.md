@@ -1,9 +1,12 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-15 late — PUSHED supplier payment history L9 (backend a39b51c, panel 659b392, migration 2026_10_15_000002 run on dev); next = Products + Add item walk (script qa-kit/p6-add-item.mjs written, not run), then Reports / Quotes / Day & banking figures + UI
+description: RESUME POINT 2026-10-15 night — PUSHED products fixes L10–L12 (backend 9a15d9e, panel 17c61c9); the user said "report what's done/next; I'll say whether to continue" — WAIT for their word; next candidates: Reports/Quotes/Day & banking review, L3, TESTER-BRIEF §5
 metadata:
   type: project
 ---
+
+**2026-10-15 night — the user: "jo b bug mile products module main fix krk jldi sy push kro or mjhe btao kya hogeya next kya rehta — continue ya ni main btaun ga".** PUSHED backend `9a15d9e` (L11 OpeningShelf writes an `in` "Opening stock" movement, reference `opening`), panel `17c61c9` (L10 `common/hooks/useFillOnce` — the item form re-filled on every refetch, the till catalogue sync refetches seconds after opening, so "Still selling this" OFF saved ON; plus a loading cover + Save shut until the item arrives; L12 description refusal with "Write a description" / "Sell it in the shop only"). Walks `qa-kit/p6-add-item.mjs`, `p6-item-active.mjs` (grocery, "QA Walk Biscuit 100g"). Gates: phpunit 3,907, vitest 3,342. **STOPPED for the user's word.** Copy servers 8001/5198 still running.
+
 
 **2026-10-15 evening — the user: paper = a setting with a default (A4); "pos main ni hoga" (the till never asks; the document page's Print asks with the setting picked); "sb complete kro or jo hota jaye usy push krty jao" ([[shopos-push-as-each-part-lands]]).**
 - PUSHED: backend `65acb1e` (document_paper + L7 `Customer::byPhone/phoneKey`) + `207bd67` (L8 `customers-lookup?q=` → `Customer::suggest`), panel `34910ce` (PrintPaperModal, Settings → Receipt "Quotations & advances print on"; DOCUMENT_PAPERS lives in documentService.ts — a constant exported from a component file adds an eslint warning) + `23ab504` (CustomerSuggestions on the till's Customer dialog and ParkAsDocumentModal). Docs pushed with hashes after this block.

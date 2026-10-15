@@ -308,6 +308,15 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (late) — the item form keeps what you changed
+
+The user's products review. Add item walked end to end (stock, barcode, cost, alert, scan, retire and back). Fixed:
+the edit form re-filled itself when the item was refetched (the till's catalogue sync does so seconds after it
+opens), so a change made then — "Still selling this" off — was saved as it was before (L10); opening stock is now
+the first line of the item's stock history (L11); the "needs a description" refusal offers its two ways out (L12).
+Backend `9a15d9e`, panel `17c61c9`. `docs/decisions/shopos-an-item-form-keeps-what-you-changed.md`.
+
+
 ### 2026-10-15 (late) — a supplier payment says what it paid
 
 The user: a part payment's history was on no screen. Now every order shows Ordered / Arrived / Paid / Left and
