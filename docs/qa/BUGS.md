@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B63 · next question: Q11**). `L…` = found by the fixer while fixing.
+(**next bug: B63 · next question: Q12**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -85,8 +85,8 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L4 | P1 | Till / shifts | With "Require open shift" on, a shift left open since an EARLIER day passed as open: Zari rang the 14th's and 15th's sales into the 13th's drawer and day. And tab settle, New Sale, exchange and a quotation billed never read the setting at all (reported by the user, 2026-10-15) | FIXED `74c737e` `39680e3` — server `BooksDrawer::mustBeOpenToday` on every counter sale (SHIFT_REQUIRED / SHIFT_FROM_AN_EARLIER_DAY, 409); a red strip across the till with Close / Open shift; the same note and a shut button on the other four screens |
 | L5 | P2 | Till / shifts | Close shift with nothing counted went through: two presses ("Close shift" on the strip, then on the sheet) closed a drawer that should hold 22,580 as counted at 0 and booked it all short | FIXED `39680e3` — the button stays shut until a note or a total is entered, or "The drawer is empty" is ticked |
 | L6 | P2 | Reports | Reports → custom day: `totals.gross_profit` 347.31, but the chart's `series[].profit` 1,980 — the revenue | FIXED `ea900ee` — found checking the user's "are the report figures right"; each bucket now carries refunds, tax and cost of goods, and its profit is the headline's net profit, so the days add up to the total |
-| L7 | P2 | Customers | A quote, advance or sale finds an existing customer by the phone EXACTLY as typed (`Customer::capture`, trimmed only): "0300-1234567" and "03001234567" are two customers, and their quotes, advances and khata split. And a name typed against an existing phone renames the customer | OPEN — found 2026-10-15 answering the user's "existing customer ko dobara quote/advance?" |
-| L8 | P3 | Quotes & advances | The Quotations screen's New quotation / Hold goods on advance has no customer search — the phone must be typed (the till carries the cart's chosen customer) | OPEN — same question |
+| L7 | P2 | Customers | A quote, advance or sale finds an existing customer by the phone EXACTLY as typed (`Customer::capture`, trimmed only): "0300-1234567" and "03001234567" are two customers, and their quotes, advances and khata split | FIXED `65acb1e` — `Customer::byPhone`: exact first, then the same number with other separators or +92 (oldest wins, nothing rewritten); capture, the till look-up, group price, loyalty; the customer form refuses the number written another way. (A name typed against an existing number still renames the customer — kept as designed, `CustomerCrmTest`; asked as Q11) |
+| L8 | P3 | Quotes & advances | The Quotations screen's New quotation / Hold goods on advance — and the till's Customer box — had no customer search: the phone had to be typed in full | FIXED `207bd67` `23ab504` — `customers-lookup?q=` (the counter's own look-up; id, name, number only) + "Already on file" under both boxes; a tap fills them |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -115,6 +115,7 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 | Q | Question | Fixer's recommendation |
 |---|---|---|
 | Q10 | B47: a till offline across a price change sold at the OLD price (1,000) and took the cash; the server re-prices every offline sale on purpose ("the till's figure was only ever a receipt" — a till cannot be trusted with money) and so refused it, and nothing was recorded. Which wins? | Record the sale as the till rang it (money already changed hands), put the difference on the sale as "price changed while offline", and flag it in the offline report for the owner. The server still prices it — it only stops refusing what was already paid. |
+| Q11 | (2026-10-15) A name typed at the till or on a quote for a number already on file REPLACES the customer's name ("Ahmed Khan" → "Ahmed"). That is the existing design (`CustomerCrmTest`: "Ayesha" → "Ayesha K"). Keep it? | Keep the name on file; the sale or quote carries the typed name on itself, and a rename is made on the customer's own page. |
 
 ## Pass 1 — Phase 1, clothing shop (cloud tester, 2026-10-14) — details
 
@@ -263,4 +264,11 @@ Dev data from the walks (through the app): Sana's 13 Oct shift closed with NOTHI
 the L5 fault itself, before its fix) and a new shift opened on the 15th (float 5,000) with INV-000016 (Lawn
 3-Piece Teal, 4,990 cash); Hina's 13 Oct shift closed counted 400 = expected 400. Bilal's 13 Oct shift left
 open, to show the red strip.
+
+## Pass 8 — the user's paper choice and customer question, fixed by the local session (2026-10-15)
+
+Backend `65acb1e` `207bd67`, panel `34910ce` `23ab504`. The user's paper decision built (`document_paper`, default
+A4; no question at the till; the document page's Print asks with it picked). L7, L8 fixed; Q11 asked. Walks:
+`qa-kit/p6-paper.mjs`, `p6-customer-find.mjs`. Decision note: `docs/decisions/shopos-a-quotation-prints-on-its-own-paper.md`.
+Dev data: Zari's `document_paper` set to 80mm by the walk and put back to A4 (Zari's receipts stay 80mm).
 

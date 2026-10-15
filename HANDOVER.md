@@ -308,6 +308,15 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (evening) — a quotation's own paper; one number, one customer
+
+The user chose the paper: a setting "Quotations & advances print on" (A4 sheet by default), used by the till
+without asking; the document's own Print asks with it already picked. L7: a customer is found by the same number
+however it is written (+92, dashes, spaces). L8: the till's Customer box and the quotation form list who is
+already on file from three letters or four digits. Q11 asked (does a typed name rename the customer?). No
+migration. Backend `65acb1e` `207bd67`, panel `34910ce` `23ab504`. `docs/decisions/shopos-a-quotation-prints-on-its-own-paper.md`.
+
+
 ### 2026-10-15 (afternoon) — a counter sale needs today's shift
 
 The user: with "Require open shift" on, the till still sold — every Zari cashier's shift had been open since
