@@ -58,6 +58,16 @@ class PurchaseOrder extends BaseModel
     }
 
     /**
+     * Every payment that paid part of this order, and how much of it — the
+     * order's own history. `payments` above holds only those that named this
+     * order alone; one on account spread over several names none.
+     */
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(SupplierPaymentAllocation::class);
+    }
+
+    /**
      * Settled or not — measured against the DELIVERY.
      *
      * This compared `amount_paid` to `total`, so an order that arrived short
@@ -90,6 +100,6 @@ class PurchaseOrder extends BaseModel
      */
     protected function supplierMoneyKeys(): array
     {
-        return ['subtotal', 'discount', 'tax', 'total', 'amount_paid', 'received_total', 'payment_status', 'payments'];
+        return ['subtotal', 'discount', 'tax', 'total', 'amount_paid', 'received_total', 'payment_status', 'payments', 'allocations'];
     }
 }

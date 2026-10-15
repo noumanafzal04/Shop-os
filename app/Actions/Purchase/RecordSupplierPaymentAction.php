@@ -82,6 +82,16 @@ class RecordSupplierPaymentAction
                 'created_by' => auth()->id(),
             ]);
 
+            // Which orders it paid, and how much of each — the only record of
+            // it once a payment on account spans several (the user, 2026-10-15).
+            foreach ($applied as $orderId => $share) {
+                $payment->allocations()->create([
+                    'tenant_id' => $supplier->tenant_id,
+                    'purchase_order_id' => $orderId,
+                    'amount' => $share,
+                ]);
+            }
+
             // Paying a supplier from the till takes cash OUT of the drawer. It
             // was invisible to reconciliation before, so a Rs 3,500 delivery
             // paid in cash read as a Rs 3,500 shortage against the cashier.

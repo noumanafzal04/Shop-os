@@ -91,7 +91,12 @@ class PurchaseOrderController extends Controller
             // Receive dialog can prompt for serials (serialized goods) and a
             // batch/expiry (medicines) on the right lines only.
             PurchaseOrder::query()
-                ->with(['supplier', 'items.product:id,tracks_serial,item_type', 'payments', 'deliverTo:id,name,kind'])
+                ->with([
+                    'supplier', 'items.product:id,tracks_serial,item_type', 'payments', 'deliverTo:id,name,kind',
+                    // Its payment history: when, how much of this order, and how.
+                    'allocations' => fn ($q) => $q->oldest(),
+                    'allocations.payment:id,amount,method,reference,paid_at,notes',
+                ])
                 ->findOrFail($id),
         );
     }

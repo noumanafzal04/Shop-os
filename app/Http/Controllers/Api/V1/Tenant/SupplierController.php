@@ -41,6 +41,7 @@ class SupplierController extends Controller
         $supplier->setRelation('purchaseOrders', $supplier->purchaseOrders()
             ->latest('order_date')->limit(20)->get());
         $supplier->setRelation('payments', $supplier->payments()
+            ->with(['purchaseOrder:id,po_number', 'allocations.purchaseOrder:id,po_number'])
             ->latest('paid_at')->limit(20)->get());
 
         return ApiResponse::ok($supplier);
