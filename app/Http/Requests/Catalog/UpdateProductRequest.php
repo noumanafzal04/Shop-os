@@ -200,6 +200,8 @@ class UpdateProductRequest extends FormRequest
             'available_until' => ['nullable', 'required_with:available_from', 'date_format:H:i,H:i:s'],
             'is_active' => ['sometimes', 'boolean'],
             'visible_in_marketplace' => ['sometimes', 'boolean'],
+            // False = kept and used (a recipe's flour), never sold. See Product::saving.
+            'for_sale' => ['sometimes', 'boolean'],
         ];
     }
 

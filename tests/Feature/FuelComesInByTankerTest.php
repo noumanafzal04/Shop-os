@@ -128,4 +128,58 @@ class FuelComesInByTankerTest extends TestCase
         $this->as($this->attendant)->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
         $this->assertEquals(18, (float) $this->oil->fresh()->stock_quantity);
     }
+
+    /** Both have been bought before, and both have run below the level the shop set. */
+    private function bothRunLow(): void
+    {
+        $po = PurchaseOrder::withoutTenancy()->create([
+            'tenant_id' => $this->station->id, 'supplier_id' => $this->supplier, 'po_number' => 'PO-000009',
+            'status' => 'received', 'order_date' => '2026-10-01', 'subtotal' => 0, 'total' => 0,
+        ]);
+        foreach ([[$this->petrol, 250], [$this->oil, 5400]] as [$product, $cost]) {
+            PurchaseOrderItem::withoutTenancy()->create([
+                'tenant_id' => $this->station->id, 'purchase_order_id' => $po->id, 'product_id' => $product->id,
+                'product_name' => $product->name, 'quantity_ordered' => 1, 'unit_cost' => $cost, 'line_total' => $cost,
+            ]);
+        }
+        $this->petrol->update(['low_stock_threshold' => 30000]);
+        $this->oil->update(['low_stock_threshold' => 20]);
+    }
+
+    public function test_fuel_on_the_reorder_list_is_left_out_by_name_and_the_rest_is_still_ordered(): void
+    {
+        // Tester pass 4 (B54): one fuel line refused the whole press — the
+        // engine oil beside it was never drafted.
+        $this->bothRunLow();
+
+        $res = $this->as($this->owner)->postJson('/api/v1/purchase-orders/from-reorder-list', [
+            'product_ids' => [$this->petrol->id, $this->oil->id],
+        ])->assertCreated();
+
+        $this->assertStringContainsString('kept in a tank', $res->json('message'));
+        $this->assertStringContainsString('Petrol', $res->json('message'));
+        $this->assertCount(1, $res->json('data'));
+        $lines = PurchaseOrderItem::withoutTenancy()->where('purchase_order_id', $res->json('data.0.id'))->pluck('product_id')->all();
+        $this->assertSame([$this->oil->id], $lines, 'the draft is not the engine oil alone');
+    }
+
+    public function test_a_reorder_list_of_fuel_alone_is_sent_to_the_tanker(): void
+    {
+        $this->bothRunLow();
+        $before = PurchaseOrder::withoutTenancy()->count();
+
+        $this->as($this->owner)->postJson('/api/v1/purchase-orders/from-reorder-list', ['product_ids' => [$this->petrol->id]])
+            ->assertStatus(422)->assertJsonPath('meta.error_code', 'FUEL_COMES_BY_TANKER');
+        $this->assertSame($before, PurchaseOrder::withoutTenancy()->count());
+    }
+
+    public function test_the_reorder_list_says_which_rows_come_by_tanker(): void
+    {
+        $this->bothRunLow();
+
+        $rows = collect($this->as($this->owner)->getJson('/api/v1/inventory/low-stock')->assertOk()->json('data'))->keyBy('name');
+
+        $this->assertTrue($rows['Petrol']['by_tanker']);
+        $this->assertFalse($rows['Engine Oil 4L']['by_tanker']);
+    }
 }

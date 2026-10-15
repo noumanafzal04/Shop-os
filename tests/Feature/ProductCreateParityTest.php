@@ -305,6 +305,8 @@ class ProductCreateParityTest extends TestCase
             'available_from' => '09:00',
             'available_until' => '22:00',
             'is_active' => false,
+            // Kept, not sold (B62) — the opposite of the column's default.
+            'for_sale' => false,
             'visible_in_marketplace' => false,
         ];
     }

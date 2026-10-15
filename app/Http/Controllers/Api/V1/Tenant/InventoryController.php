@@ -12,6 +12,7 @@ use App\Support\BranchContext;
 use App\Support\LastBoughtFrom;
 use App\Support\LowStock;
 use App\Support\StockByPlace;
+use App\Support\TankFuel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -140,6 +141,9 @@ class InventoryController extends Controller
         // it is the LAST supplier rather than the cheapest or the most
         // frequent.
         $lastBought = LastBoughtFrom::forProducts($products->pluck('id')->all());
+        // Tank fuel runs low like anything else, and is not bought on an order
+        // (TankFuel) — the row says where it does come from (tester pass 4, B54).
+        $inATank = TankFuel::among($products->pluck('id')->all());
 
         // …and whether it needs buying at all.
         //
@@ -152,8 +156,9 @@ class InventoryController extends Controller
             ? StockByPlace::elsewhere($products->pluck('id')->all(), $branchId)
             : [];
 
-        $products->each(function (Product $p) use ($lastBought, $elsewhere): void {
+        $products->each(function (Product $p) use ($lastBought, $elsewhere, $inATank): void {
             $p->setAttribute('held_elsewhere', $elsewhere[$p->id] ?? []);
+            $p->setAttribute('by_tanker', in_array($p->id, $inATank, true));
             $last = $lastBought->get($p->id);
             // Absent, never invented. A product nobody has ever bought has no
             // supplier to suggest, and guessing one would put a real order in

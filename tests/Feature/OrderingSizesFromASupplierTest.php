@@ -88,6 +88,25 @@ class OrderingSizesFromASupplierTest extends TestCase
         $this->assertSame([2700.0, 2800.0], [(float) $m->cost, (float) $l->cost], 'each size did not take what it cost');
     }
 
+    public function test_a_sizes_first_delivery_is_averaged_with_what_the_shelf_already_held(): void
+    {
+        // Tester pass 1 (B12): nine kurtas in size S were on the shelf at the
+        // design's 1,600 (a size carded with no cost of its own), ten more came
+        // in at 1,700, and the size's cost became 1,700 — the nine already
+        // there revalued for nothing. The average is 1,652.63.
+        $kurta = $this->as()->postJson('/api/v1/products', [
+            'name' => 'Lawn Kurta', 'item_type' => 'physical_product', 'price' => 2500, 'cost' => 1600, 'track_inventory' => true,
+            'variants' => [['name' => 'S', 'price' => 2500, 'stock_quantity' => 9]],
+        ])->assertCreated()->json('data');
+        $small = $kurta['variants'][0]['id'];
+        $this->assertNull(ProductVariant::withoutTenancy()->find($small)->cost, 'the fixture is meant to be a size with no cost of its own');
+
+        $po = $this->order([['product_id' => $kurta['id'], 'variant_id' => $small, 'quantity' => 10, 'unit_cost' => 1700]])->assertCreated()->json('data');
+        $this->as()->postJson("/api/v1/purchase-orders/{$po['id']}/receive", [])->assertOk();
+
+        $this->assertEqualsWithDelta(1652.63, (float) ProductVariant::withoutTenancy()->find($small)->cost, 0.01);
+    }
+
     public function test_the_reorder_list_names_a_sized_design_instead_of_drafting_it(): void
     {
         $this->as()->postJson('/api/v1/purchase-orders/from-reorder-list', ['product_ids' => [$this->waistcoat['id']]])

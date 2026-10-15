@@ -77,6 +77,9 @@ class PurchaseOrderController extends Controller
         if ($result['sized'] !== []) {
             $message .= ' Not included, because they are sold in sizes — order them size by size: '.implode(', ', $result['sized']).'.';
         }
+        if ($result['by_tanker'] !== []) {
+            $message .= ' Not included, because it is kept in a tank — take it in from Fuel → Deliveries: '.implode(', ', $result['by_tanker']).'.';
+        }
 
         return ApiResponse::created($result['orders'], $message);
     }

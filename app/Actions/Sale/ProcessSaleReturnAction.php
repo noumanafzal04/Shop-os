@@ -300,6 +300,9 @@ class ProcessSaleReturnAction
                     // shift closed OVER by exactly the refund, which reads as a
                     // cashier with extra money and no explanation.
                     'cash_session_id' => $data['cash_session_id'] ?? BooksDrawer::tillFor(Auth::user())?->id,
+                    // Who said yes, when somebody had to (SupervisorApproval).
+                    'approved_by' => $data['approved_by'] ?? null,
+                    'approved_at' => isset($data['approved_by']) ? now() : null,
                     'return_number' => $returnNumber,
                     'idempotency_key' => $data['idempotency_key'] ?? null,
                     'refund_total' => $refundTotal,

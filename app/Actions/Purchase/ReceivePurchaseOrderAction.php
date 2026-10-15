@@ -18,6 +18,7 @@ use App\Support\ItemTypes;
 use App\Support\MovingCost;
 use App\Support\StockPlace;
 use App\Support\TankFuel;
+use App\Support\UnitCost;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -237,8 +238,16 @@ class ReceivePurchaseOrderAction
                     // Blended, not overwritten: the shelf holds both the old
                     // stock and the new. See App\Support\MovingCost.
                     if ($target !== null && $item->unit_cost !== null) {
+                        // A size with no cost of its own has been valued at the
+                        // DESIGN's — that is what every sale of it recorded
+                        // (UnitCost::of). Blending from null threw the shelf's
+                        // value away: 9 kurtas at 1,600 and 10 in at 1,700
+                        // came out 1,700, not 1,652.63 (tester pass 1, B12).
+                        $onTheShelf = $target instanceof ProductVariant
+                            ? UnitCost::of($product, $target)
+                            : ($target->cost === null ? null : (float) $target->cost);
                         $blended = MovingCost::blend(
-                            $target->cost === null ? null : (float) $target->cost,
+                            $onTheShelf,
                             $qtyBefore,
                             round((float) $item->unit_cost / $factor, 2),
                             $baseQty,

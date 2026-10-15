@@ -56,7 +56,9 @@ class ReceiptController extends Controller
         // Practice included — printing the receipt is most of what a trainee is
         // there to learn, and the paper stamps TRAINING across itself.
         $sale = Sale::withTraining()
-            ->with(['items', 'payments', 'tradeIns', 'serials', 'branch:id,name', 'register:id,name,code', 'bankOffer:id,label'])
+            // The product for what the line does not keep: its unit and its
+            // bulk rates (ReceiptLine, B59).
+            ->with(['items.product:id,sold_by,unit,price,discount_price,price_tiers', 'payments', 'tradeIns', 'serials', 'branch:id,name', 'register:id,name,code', 'bankOffer:id,label'])
             ->findOrFail($id);
 
         $tenant = $this->tenant->get();

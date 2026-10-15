@@ -188,16 +188,20 @@ class WhatAReturnIsWorthTest extends TestCase
             ->assertStatus(409)->assertJsonPath('meta.error_code', 'SALE_NOT_RETURNABLE');
     }
 
-    public function test_it_is_told_to_whoever_may_refund_and_to_nobody_else(): void
+    public function test_it_is_told_to_whoever_may_start_a_refund_and_to_nobody_else(): void
     {
         [$kurta, $medium] = $this->kurta();
         $sale = $this->sell([['product_id' => $kurta->id, 'variant_id' => $medium->id, 'quantity' => 1]]);
         $line = [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]];
 
+        // A cashier may start one now — a supervisor's PIN finishes it (B01) —
+        // so the cashier is told the figure the supervisor will be approving.
         $cashier = User::factory()->tenantStaff($this->shop, ['sales.manage'])->create();
         $desk = User::factory()->tenantStaff($this->shop, ['sales.manage', 'sales.refund'])->create();
+        $stockroom = User::factory()->tenantStaff($this->shop, ['inventory.manage'])->create();
 
-        $this->worth($sale, $line, $cashier)->assertForbidden();
+        $this->worth($sale, $line, $stockroom)->assertForbidden();
+        $this->worth($sale, $line, $cashier)->assertOk()->assertJsonPath('data.refund_total', 2625);
         $this->worth($sale, $line, $desk)->assertOk()->assertJsonPath('data.refund_total', 2625);
     }
 

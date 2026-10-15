@@ -61,6 +61,9 @@ class TillIdentityController extends Controller
                 'has_pin' => $u->hasPin(),
                 // Shown so a locked-out cashier is told why, not left guessing.
                 'pin_locked' => $u->isPinLocked(),
+                // Who may say yes to money going back (SupervisorApproval) —
+                // so the approval sheet offers only them.
+                'approves_refunds' => $u->hasPermission(Permissions::SALES_REFUND),
             ])
             ->values();
 

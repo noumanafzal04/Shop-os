@@ -42,8 +42,13 @@ class StoreSaleReturnRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:500'],
             'cash_session_id' => [
                 'nullable', 'uuid',
-                new OwnOpenShift($this->user()),
+                new OwnOpenShift($this->user(), approved: $this->filled('approval')),
             ],
+            // A supervisor's yes — see SupervisorApproval. The PIN is checked
+            // there, with the till's own lockout; it is never stored.
+            'approval' => ['nullable', 'array'],
+            'approval.user_id' => ['required_with:approval', 'uuid'],
+            'approval.pin' => ['required_with:approval', 'string', 'max:12'],
         ];
     }
 }

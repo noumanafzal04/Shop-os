@@ -8,6 +8,7 @@ use App\Models\PurchaseOrder;
 use App\Support\BranchContext;
 use App\Support\LastBoughtFrom;
 use App\Support\ShopDay;
+use App\Support\TankFuel;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -51,6 +52,14 @@ use Illuminate\Support\Facades\DB;
  * somebody's order because they happened to be first in the list would send a
  * real order to a stranger. It comes back named, so the screen can say which
  * ones need a supplier chosen by hand.
+ *
+ * ── Fuel in a tank is left out, by name ─────────────────────────────────
+ *
+ * Tank fuel comes in by tanker, with the dips, never on a purchase order
+ * (TankFuel). It still runs low and still sits on this list — and one litre
+ * of petrol on it sank the whole press: CreatePurchaseOrderAction refused the
+ * lot, the lubricants beside it included (tester pass 4, B54). It is handed
+ * back by name, the way a sized design is.
  */
 class DraftOrdersFromReorderList
 {
@@ -61,8 +70,8 @@ class DraftOrdersFromReorderList
 
     /**
      * @param  array<int, string>  $productIds
-     * @return array{orders: array<int, PurchaseOrder>, unknown: array<int, string>, sized: array<int, string>}
-     *                                                                                                          `unknown` names products with no purchase history
+     * @return array{orders: array<int, PurchaseOrder>, unknown: array<int, string>, sized: array<int, string>, by_tanker: array<int, string>}
+     *                                                                                                                                         `unknown` names products with no purchase history
      */
     public function execute(array $productIds): array
     {
@@ -80,12 +89,20 @@ class DraftOrdersFromReorderList
         }
 
         $lastBought = LastBoughtFrom::forProducts($products->keys()->all());
+        $inATank = TankFuel::among($products->keys()->all());
 
         $bySupplier = [];
         $unknown = [];
         $sized = [];
+        $byTanker = [];
 
         foreach ($products as $id => $product) {
+            if (in_array($id, $inATank, true)) {
+                $byTanker[] = $product->name;
+
+                continue;
+            }
+
             // A design in sizes is ordered size by size, and which sizes run
             // low is the buyer's call — handed back by name, not drafted as an
             // order for the design that nobody could ever receive.
@@ -108,6 +125,10 @@ class DraftOrdersFromReorderList
                 'quantity' => $this->shortfall($product),
                 'unit_cost' => $last->unit_cost,
             ];
+        }
+
+        if ($bySupplier === [] && $byTanker !== [] && $sized === [] && $unknown === []) {
+            TankFuel::refuse($inATank);
         }
 
         if ($bySupplier === [] && $sized !== [] && $unknown === []) {
@@ -139,7 +160,7 @@ class DraftOrdersFromReorderList
             ->values()
             ->all());
 
-        return ['orders' => $orders, 'unknown' => $unknown, 'sized' => $sized];
+        return ['orders' => $orders, 'unknown' => $unknown, 'sized' => $sized, 'by_tanker' => $byTanker];
     }
 
     /**

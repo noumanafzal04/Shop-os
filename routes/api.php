@@ -675,16 +675,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // cash back. Owners hold every tenant permission implicitly.
                     Route::post('/{sale}/cancel', [SaleController::class, 'cancel'])
                         ->middleware('permission:sales.void');
+                    // A cashier may START a refund or an exchange; a supervisor's
+                    // PIN finishes it (SupervisorApproval — the owner, B01). The
+                    // controller refuses a cashier without one.
                     Route::post('/{sale}/returns', [SaleController::class, 'processReturn'])
-                        ->middleware('permission:sales.refund');
+                        ->middleware(['permission:sales.refund,sales.manage', 'throttle:20,1']);
                     // What a return would hand back, before it is pressed. A
                     // POST for the list of lines it carries; it writes nothing.
                     Route::post('/{sale}/returns/worth', [SaleController::class, 'returnWorth'])
-                        ->middleware('permission:sales.refund');
+                        ->middleware('permission:sales.refund,sales.manage');
                     // Exchange rings a replacement sale, so it needs the POS module.
                     // It also returns goods, hence the refund permission.
                     Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
-                        ->middleware(['feature:pos', 'permission:sales.refund', 'once']);
+                        ->middleware(['feature:pos', 'permission:sales.refund,sales.manage', 'once', 'throttle:20,1']);
                     // Receipts. Rendering one is a counter action, not a report:
                     // the render itself is what gets logged, and the log is what
                     // decides whether the paper says ORIGINAL or REPRINT.

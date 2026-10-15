@@ -63,6 +63,8 @@ class ProductController extends Controller
             ->when($request->query('collection_id'), fn ($q, $cid) => $q->whereHas('collections', fn ($c) => $c->where('collections.id', $cid)))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
+            // The till's search asks for what may be sold (B62).
+            ->when($request->has('for_sale'), fn ($q) => $q->where('for_sale', $request->boolean('for_sale')))
             // One rule, shared with the reorder list — see LowStock. These
             // two were copies of each other and a third, divergent copy on the
             // inventory screen answered the same question differently.
@@ -282,6 +284,8 @@ class ProductController extends Controller
             ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
+            // The till's search asks for what may be sold (B62).
+            ->when($request->has('for_sale'), fn ($q) => $q->where('for_sale', $request->boolean('for_sale')))
             // One rule, shared with the reorder list — see LowStock.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderBy('name')

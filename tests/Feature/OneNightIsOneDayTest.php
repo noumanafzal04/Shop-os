@@ -210,7 +210,10 @@ final class OneNightIsOneDayTest extends TestCase
         $back = (float) $refund['refund_total'];
         $this->assertGreaterThan(0, (float) $late['tax'], 'The item must carry tax, or the tax bucket has nothing to misfile.');
         $profitSixth = $sixth - (float) $evening['tax'] - 2 * self::COST;
-        $profitSeventh = $seventh - $back - ((float) $late['tax'] - (float) $refund['refund_tax']) - 3 * self::COST;
+        // Three sold and one back on the shelf: two cost the shop anything.
+        // This said three, and the dashboard agreed with it — while Reports
+        // took the returned one's cost back (tester pass 2, B11).
+        $profitSeventh = $seventh - $back - ((float) $late['tax'] - (float) $refund['refund_tax']) - 2 * self::COST;
 
         $this->at('2026-10-07 01:45');
         $wrong = [];

@@ -46,6 +46,7 @@ class ProcessExchangeAction
                 'reason' => $data['reason'] ?? 'Exchange',
                 'refund_method' => 'other',
                 'cash_session_id' => $data['cash_session_id'] ?? null,
+                'approved_by' => $data['approved_by'] ?? null,
                 'notes' => "Exchange against {$sale->invoice_number}",
                 // A khata sale's debt must survive the exchange: the returned
                 // value funds the replacement below, so reversing the charge

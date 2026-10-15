@@ -435,8 +435,11 @@
                                 @endforeach
                             </div>
                         @endif
+                        @if(! $gift && ($why = \App\Support\ReceiptLine::priceNote($item)))
+                            <div class="lmeta">{{ $why }}</div>
+                        @endif
                         <div class="lmeta num">
-                            {{ $qty($item->quantity) }} × {{ $gift ? '—' : $money($item->unit_price) }}
+                            {{ \App\Support\ReceiptLine::quantity($item) }} × {{ $gift ? '—' : $money($item->unit_price) }}
                             @if(! $gift && (float) $item->line_discount > 0)
                                 &nbsp;· less {{ $money($item->line_discount) }}
                             @endif
@@ -485,8 +488,11 @@
                                 @endforeach
                             </div>
                         @endif
+                        @if(! $gift && ($why = \App\Support\ReceiptLine::priceNote($item)))
+                            <div class="lmeta">{{ $why }}</div>
+                        @endif
                     </td>
-                    <td class="r num">{{ $qty($item->quantity) }}</td>
+                    <td class="r num">{{ \App\Support\ReceiptLine::quantity($item) }}</td>
                     @unless($gift)
                         <td class="r num">{{ $money($item->unit_price) }}</td>
                         @if($lineDiscounts > 0)

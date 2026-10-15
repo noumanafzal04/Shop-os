@@ -96,4 +96,30 @@ class CancellingTheRestStillOwesTest extends TestCase
 
         $this->assertSame(6000.0, $this->outstanding());
     }
+
+    public function test_it_can_be_paid_by_naming_the_cancelled_order(): void
+    {
+        // Tester pass 2 (B33): the Pay sheet offered this order — it still owes
+        // for the dupattas that came — and the server refused PO_NOT_PAYABLE.
+        $this->as()->postJson("/api/v1/suppliers/{$this->supplier}/payments", [
+            'amount' => 2000, 'method' => 'cash', 'purchase_order_id' => $this->po['id'],
+        ])->assertCreated();
+
+        $this->assertSame(2000.0, (float) PurchaseOrder::withoutTenancy()->find($this->po['id'])->amount_paid);
+        $this->assertSame(4000.0, $this->outstanding());
+    }
+
+    public function test_a_cancelled_order_that_took_nothing_is_still_not_paid_against(): void
+    {
+        $other = $this->as()->postJson('/api/v1/purchase-orders', [
+            'supplier_id' => $this->supplier, 'order_date' => '2026-10-13', 'status' => 'ordered',
+            'items' => [['product_id' => $this->po['items'][0]['product_id'], 'quantity' => 3, 'unit_cost' => 600]],
+        ])->assertCreated()->json('data');
+        $this->as()->postJson("/api/v1/purchase-orders/{$other['id']}/cancel", ['reason' => 'Changed our mind'])->assertOk();
+
+        $this->as()->postJson("/api/v1/suppliers/{$this->supplier}/payments", [
+            'amount' => 500, 'method' => 'cash', 'purchase_order_id' => $other['id'],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'PO_NOT_PAYABLE');
+        $this->assertSame(6000.0, $this->outstanding());
+    }
 }

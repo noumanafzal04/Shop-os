@@ -160,14 +160,17 @@ class ManagerAuthorityTest extends TestCase
 
     // ── Refunding ───────────────────────────────────────────────────
 
-    public function test_a_cashier_cannot_hand_back_a_refund(): void
+    public function test_a_cashier_cannot_hand_back_a_refund_without_a_supervisors_pin(): void
     {
+        // Since the owner's answer to B01 (2026-10-14) a cashier may START a
+        // refund — a supervisor's PIN finishes it (SupervisorApproval). Without
+        // one it is still refused, and nothing is handed back.
         $sale = $this->ring($this->cashier, [], 2)->assertCreated()->json('data');
 
         $this->actingAsUser($this->cashier)->postJson("/api/v1/sales/{$sale['id']}/returns", [
             'refund_method' => 'cash',
             'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
-        ])->assertStatus(403)->assertJsonPath('meta.error_code', 'PERMISSION_DENIED');
+        ])->assertStatus(403)->assertJsonPath('meta.error_code', 'APPROVAL_REQUIRED');
     }
 
     public function test_a_manager_can_hand_back_a_refund(): void

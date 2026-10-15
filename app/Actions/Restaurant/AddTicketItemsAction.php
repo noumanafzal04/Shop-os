@@ -46,6 +46,7 @@ class AddTicketItemsAction
                 if ($product === null) {
                     throw DomainException::unprocessable('An item is no longer available.', 'PRODUCT_UNAVAILABLE');
                 }
+                $product->mustBeForSale();
 
                 $variant = null;
                 if (! empty($item['variant_id'])) {

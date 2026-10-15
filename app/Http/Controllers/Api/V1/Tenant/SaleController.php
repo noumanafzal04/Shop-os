@@ -21,6 +21,7 @@ use App\Support\CsvExport;
 use App\Support\Retention;
 use App\Support\ShopDay;
 use App\Support\ShopTime;
+use App\Support\SupervisorApproval;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -221,7 +222,19 @@ class SaleController extends Controller
     public function processReturn(StoreSaleReturnRequest $request, string $id, ProcessSaleReturnAction $action): JsonResponse
     {
         $sale = Sale::query()->with('items')->findOrFail($id);
-        $return = $action->execute($sale, $request->validated());
+        $data = $request->validated();
+        $actor = $request->user();
+        // Somebody else's drawer, or a cashier who may not refund: a
+        // supervisor's PIN first (B01). Nobody, for your own drawer with the
+        // permission.
+        $approver = SupervisorApproval::forRefund($actor, $data['cash_session_id'] ?? null, $data['approval'] ?? null);
+        unset($data['approval']);
+        $data['approved_by'] = $approver?->id;
+
+        $return = $action->execute($sale, $data);
+        if ($approver !== null) {
+            SupervisorApproval::record($approver, $actor, $return->cash_session_id, $return, (float) $return->refund_total, "Refund {$return->return_number} against {$sale->invoice_number}");
+        }
 
         // Cash handed back that no drawer counted: saved, and said — the same
         // warning an expense paid in cash with no shift open gets.
@@ -292,7 +305,17 @@ class SaleController extends Controller
     public function exchange(StoreExchangeRequest $request, string $id, ProcessExchangeAction $action): JsonResponse
     {
         $sale = Sale::query()->with('items')->findOrFail($id);
-        $result = $action->execute($sale, $request->validated());
+        $data = $request->validated();
+        $actor = $request->user();
+        $approver = SupervisorApproval::forRefund($actor, $data['cash_session_id'] ?? null, $data['approval'] ?? null);
+        unset($data['approval']);
+        $data['approved_by'] = $approver?->id;
+
+        $result = $action->execute($sale, $data);
+        if ($approver !== null) {
+            $return = $result['return'];
+            SupervisorApproval::record($approver, $actor, $result['sale']->cash_session_id, $return, (float) $result['difference'], "Exchange {$return->return_number} → {$result['sale']->invoice_number} against {$sale->invoice_number}");
+        }
 
         // Cash taken for a dearer swap, or handed back for a cheaper one, with
         // no drawer of the exchanger's own to count it: saved, and said — the

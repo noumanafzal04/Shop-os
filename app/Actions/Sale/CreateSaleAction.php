@@ -386,6 +386,11 @@ class CreateSaleAction
                             'PRODUCT_UNAVAILABLE',
                         );
                     }
+                    // Same reason as is_active above: a line captured earlier
+                    // was checked when it was taken.
+                    if (! $trusted) {
+                        $product->mustBeForSale();
+                    }
 
                     $variant = null;
                     if (! empty($item['variant_id'])) {

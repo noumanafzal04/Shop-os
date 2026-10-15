@@ -38,7 +38,7 @@ class LastBoughtFrom
 {
     /**
      * @param  array<int, string>  $productIds
-     * @return Collection<string, object{supplier_id: string, supplier_name: string, unit_cost: float}>
+     * @return Collection<string, object{supplier_id: string, supplier_name: string, unit_cost: float}> unit_cost per base unit (a piece), whatever pack it was bought in
      *                                                                                                  keyed by product id; products never bought are absent
      */
     public static function forProducts(array $productIds): Collection
@@ -53,6 +53,7 @@ class LastBoughtFrom
                 'purchase_orders.supplier_id',
                 'suppliers.name as supplier_name',
                 'purchase_order_items.unit_cost',
+                'purchase_order_items.unit_factor',
                 'purchase_orders.order_date',
             ])
             ->join('purchase_orders', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
@@ -73,7 +74,11 @@ class LastBoughtFrom
                     $carry->put($row->product_id, (object) [
                         'supplier_id' => $row->supplier_id,
                         'supplier_name' => $row->supplier_name,
-                        'unit_cost' => (float) $row->unit_cost,
+                        // PER PIECE. A line bought as a "Box of 5" at 3,600
+                        // carries the box's price; the reorder list orders
+                        // pieces, and drafted 37 dupattas × 3,600 (tester
+                        // pass 2, B32). 720 a piece is what it cost.
+                        'unit_cost' => round((float) $row->unit_cost / max(1.0, (float) ($row->unit_factor ?? 1)), 2),
                     ]);
                 }
 

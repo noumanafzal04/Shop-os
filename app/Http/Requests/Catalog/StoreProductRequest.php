@@ -162,7 +162,8 @@ class StoreProductRequest extends FormRequest
             // Opening-stock expiry for medicines: the day-one lot must be dated
             // (FEFO + the expired fence rely on it), so it's REQUIRED whenever a
             // medicine is created with any opening stock (product- or variant-
-            // level). Ignored for non-medicines.
+            // level). Optional for anything else that goes off; given, it dates
+            // the opening lot (CreateProductAction).
             'expiry_date' => [
                 Rule::requiredIf(fn () => $itemType === ItemTypes::MEDICINE && (
                     (float) $this->input('stock_quantity', 0) > 0
@@ -182,6 +183,8 @@ class StoreProductRequest extends FormRequest
 
             'is_active' => ['sometimes', 'boolean'],
             'visible_in_marketplace' => ['sometimes', 'boolean'],
+            // False = kept and used (a recipe's flour), never sold. See Product::saving.
+            'for_sale' => ['sometimes', 'boolean'],
 
             // Variants (not for services, and a deal is a fixed bundle)
             'variants' => [$isService || $isDeal ? 'prohibited' : 'sometimes', 'array', 'max:100'],

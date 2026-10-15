@@ -130,6 +130,7 @@ class CreateProductAction
                 'available_from' => $data['available_from'] ?? null,
                 'available_until' => $data['available_until'] ?? null,
                 'is_active' => $data['is_active'] ?? true,
+                'for_sale' => $data['for_sale'] ?? true,
                 'visible_in_marketplace' => $data['visible_in_marketplace'] ?? true,
             ]);
 
@@ -145,9 +146,18 @@ class CreateProductAction
             // aligned). Expiry is left blank for the pharmacist to fill in via
             // the Batches screen. No stock movement here: the opening quantity
             // is already on the product, the batch just records its lot.
+            //
+            // Anything else that goes off — milk, yogurt, bread — is given a lot
+            // when its maker gave one: a batch number or an expiry. Both were
+            // accepted and dropped without a word for every item that was not
+            // a medicine (tester pass 4, B60), so the first yogurt sold was
+            // never the oldest one and the expiring list never named it.
             $openingBatch = trim((string) ($data['opening_batch_number'] ?? '')) ?: 'OPENING';
             $openingStock = (float) ($tracksStock ? ($data['stock_quantity'] ?? 0) : 0);
-            if ($itemType === ItemTypes::MEDICINE && $openingStock > 0) {
+            $keepsALot = $itemType === ItemTypes::MEDICINE
+                || trim((string) ($data['opening_batch_number'] ?? '')) !== ''
+                || ! empty($data['expiry_date']);
+            if ($keepsALot && $openingStock > 0) {
                 $product->batches()->create([
                     'tenant_id' => $product->tenant_id,
                     // The lot is where the stock is.
@@ -199,7 +209,7 @@ class CreateProductAction
                 // (required by StoreProductRequest) dates every opening lot; the
                 // pharmacist can refine per-lot later on the Batches screen.
                 $variantOpening = (float) ($variant['stock_quantity'] ?? 0);
-                if ($itemType === ItemTypes::MEDICINE && $variantOpening > 0) {
+                if ($keepsALot && $variantOpening > 0) {
                     $product->batches()->create([
                         'tenant_id' => $product->tenant_id,
                         'branch_id' => $placeId,

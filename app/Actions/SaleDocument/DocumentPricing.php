@@ -40,6 +40,7 @@ final class DocumentPricing
                 'PRODUCT_UNAVAILABLE',
             );
         }
+        $product->mustBeForSale();
 
         $variant = null;
         if (! empty($item['variant_id'])) {

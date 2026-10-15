@@ -110,12 +110,17 @@ class RecordSupplierPaymentAction
             ->lockForUpdate()
             ->findOrFail($id);
 
-        // A draft is not yet an order and a cancelled one is not one any more.
-        // Paying either would subtract money from a debt that is not on the
-        // books, and the supplier's balance would go quietly wrong.
-        // `status` is cast to PurchaseStatus, so this compares enum cases. The
-        // string version of this check silently matched nothing.
-        if (in_array($po->status, [PurchaseStatus::Draft, PurchaseStatus::Cancelled], true)) {
+        // A draft is not yet an order, and a cancelled one with nothing
+        // delivered is not one any more. Paying either would subtract money
+        // from a debt that is not on the books.
+        //
+        // A cancelled order that DID take a delivery is still a bill: what
+        // arrived before the rest was cancelled is owed (Payable::billable —
+        // L1), and the Pay sheet offered it. Refusing it here sent the shop to
+        // "pay on account" for a debt it could see on the order (tester pass 2,
+        // B33). `status` is cast to PurchaseStatus, so this compares enum cases.
+        $nothingCame = (float) ($po->received_total ?? 0) <= 0;
+        if ($po->status === PurchaseStatus::Draft || ($po->status === PurchaseStatus::Cancelled && $nothingCame)) {
             throw DomainException::unprocessable(
                 $po->status === PurchaseStatus::Draft
                     ? 'Place this order before paying against it.'

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ItemType;
+use App\Exceptions\DomainException;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
@@ -101,6 +102,7 @@ class Product extends BaseModel
             'track_inventory' => 'boolean',
             'duration_minutes' => 'integer',
             'is_active' => 'boolean',
+            'for_sale' => 'boolean',
             'visible_in_marketplace' => 'boolean',
             'requires_prescription' => 'boolean',
             'tracks_serial' => 'boolean',
@@ -282,7 +284,27 @@ class Product extends BaseModel
             if (filled($product->drug_schedule)) {
                 $product->requires_prescription = true;
             }
+
+            // Kept, not sold (an ingredient): never listed on the storefront,
+            // whatever its listing switch said before (tester pass 5, B62).
+            if ($product->for_sale === false) {
+                $product->visible_in_marketplace = false;
+            }
         });
+    }
+
+    /**
+     * An item kept and not sold — a recipe's flour — is refused on a sale
+     * line, by name. It was offered on the till at 0 (tester pass 5, B62).
+     */
+    public function mustBeForSale(): void
+    {
+        if ($this->for_sale === false) {
+            throw DomainException::unprocessable(
+                "{$this->name} is kept as an ingredient and is not sold.",
+                'NOT_FOR_SALE',
+            );
+        }
     }
 
     public function batches(): HasMany

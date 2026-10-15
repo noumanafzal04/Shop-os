@@ -259,11 +259,15 @@ class PosCatalogController extends Controller
             self::PAGE,
         );
 
-        $live = $page['rows']->filter(fn (Product $p): bool => $this->alive($p));
+        // An item kept and not sold (a recipe's flour) is not the till's to
+        // offer: it goes as a tombstone, so a till that held it drops it
+        // (tester pass 5, B62).
+        $sells = fn (Product $p): bool => $this->alive($p) && $p->for_sale !== false;
+        $live = $page['rows']->filter($sells);
         // Stock for the whole page in one query rather than one per row.
         $stock = PosProjection::stockAt($this->branch->id(), $live->pluck('id'));
 
-        return $this->shape($page, fn (Product $p): ?array => $this->alive($p)
+        return $this->shape($page, fn (Product $p): ?array => $sells($p)
             ? PosProjection::item($p, $stock, $this->branch->id())
             : null);
     }

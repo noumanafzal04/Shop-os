@@ -4,6 +4,7 @@ namespace App\Rules;
 
 use App\Models\CashSession;
 use App\Models\User;
+use App\Support\BranchContext;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 
@@ -29,7 +30,14 @@ use Illuminate\Contracts\Validation\ValidationRule;
  */
 class OwnOpenShift implements ValidationRule
 {
-    public function __construct(private readonly ?User $user) {}
+    /**
+     * @param  bool  $approved  a supervisor's PIN comes with the request: another
+     *                          cashier's open drawer at this same place may then be
+     *                          named — the refund leaves the drawer it physically
+     *                          came out of (the owner, 2026-10-14, B01). The PIN
+     *                          itself is checked by SupervisorApproval.
+     */
+    public function __construct(private readonly ?User $user, private readonly bool $approved = false) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
@@ -53,6 +61,9 @@ class OwnOpenShift implements ValidationRule
         }
 
         if ($session->activeCover()?->user_id === $this->user->id) {
+            return;
+        }
+        if ($this->approved && $session->branch_id !== null && $session->branch_id === app(BranchContext::class)->id()) {
             return;
         }
 

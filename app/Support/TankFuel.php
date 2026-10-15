@@ -20,6 +20,21 @@ use App\Models\FuelTank;
  */
 final class TankFuel
 {
+    /**
+     * Which of these products are kept in a tank.
+     *
+     * @param  list<string>  $productIds
+     * @return list<string>
+     */
+    public static function among(array $productIds): array
+    {
+        return FuelTank::query()
+            ->whereIn('product_id', array_values(array_unique($productIds)))
+            ->distinct()
+            ->pluck('product_id')
+            ->all();
+    }
+
     /** @param  list<string>  $productIds */
     public static function refuse(array $productIds): void
     {

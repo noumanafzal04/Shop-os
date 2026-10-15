@@ -4,10 +4,12 @@ namespace App\Http\Resources;
 
 use App\Models\ShopRequest;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Support\BusinessTypes;
 use App\Support\Currencies;
 use App\Support\ModulePackages;
 use App\Support\Modules;
+use App\Support\Permissions;
 use App\Support\PlanLimits;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -20,6 +22,8 @@ class TenantResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $seesPlanMoney = $this->seesPlanMoney($request);
+
         return [
             'id' => $this->id,
             'business_name' => $this->business_name,
@@ -61,8 +65,7 @@ class TenantResource extends JsonResource
                 // What the list could never say: whether "Standard" means one
                 // counter or four. The price belongs beside the name on a
                 // screen whose job is chasing renewals.
-                'price' => $this->plan->price,
-            ]),
+            ] + ($seesPlanMoney ? ['price' => $this->plan->price] : [])),
             /**
              * HOW BIG THIS SHOP ACTUALLY IS.
              *
@@ -85,7 +88,7 @@ class TenantResource extends JsonResource
             // and what one period costs with them. Only where the plan has
             // been loaded — a list of fifty shops is not fifty plan lookups.
             'package' => $this->when(
-                $this->resource->relationLoaded('plan'),
+                $seesPlanMoney && $this->resource->relationLoaded('plan'),
                 fn () => ModulePackages::standing($this->business_type, $this->plan, $this->features ?? [])
                     + ['offer' => collect(ModulePackages::propose($this->business_type, $this->plan))->except('modules')->all()]
                     + ['bill' => ModulePackages::bill($this->resource), 'own_prices' => (object) ($this->addon_prices ?? [])],
@@ -152,5 +155,25 @@ class TenantResource extends JsonResource
             'deleted_at' => $this->deleted_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * WHAT THE SHOP PAYS THE PLATFORM IS THE OWNER'S (Q7, 2026-10-14).
+     *
+     * This is the platform admin's resource, and it is also what a shop's own
+     * people are sent about their shop on /auth/me and /shop. The Subscription
+     * screen was shut to staff, and the plan's price and the whole bill still
+     * reached the kitchen inside those two answers (tester pass 4, B55).
+     *
+     * A person who works in THIS shop and does not hold its settings is sent
+     * neither. The platform's own staff, and the shop's owner, are.
+     */
+    private function seesPlanMoney(Request $request): bool
+    {
+        $reader = $request->user();
+
+        return ! ($reader instanceof User
+            && $reader->tenant_id === $this->id
+            && ! $reader->hasPermission(Permissions::SETTINGS_MANAGE));
     }
 }

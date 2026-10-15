@@ -31,6 +31,7 @@ use App\Models\Sale;
 use App\Models\SaleDocument;
 use App\Models\SaleItem;
 use App\Models\SaleReturn;
+use App\Models\SaleReturnItem;
 use App\Models\SubscriptionPayment;
 use App\Models\Tenant;
 use App\Models\User;
@@ -563,7 +564,7 @@ class DashboardService
     {
         $day = ShopDay::dateSql('sales.sold_at', $tenant);
 
-        return SaleItem::query()
+        $sold = SaleItem::query()
             ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
             ->where('sale_items.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
@@ -576,6 +577,29 @@ class DashboardService
             ->get()
             ->mapWithKeys(fn ($row): array => [$row->day => (float) $row->cogs])
             ->all();
+
+        // WHAT CAME BACK IS ON THE SHELF AGAIN, so its cost is no longer the
+        // cost of goods SOLD — taken off on the day it came back, exactly as
+        // ReportService::summary does. The refund was subtracted and the goods
+        // were not, and the dashboard's profit sat below the report's by the
+        // cost of every returned line (tester pass 1, B11: 5,300).
+        $backDay = ShopDay::dateSql('sale_returns.returned_at', $tenant);
+        $back = SaleReturnItem::query()
+            ->join('sale_returns', 'sale_returns.id', '=', 'sale_return_items.sale_return_id')
+            ->join('sale_items', 'sale_items.id', '=', 'sale_return_items.sale_item_id')
+            ->where('sale_return_items.tenant_id', $tenant->id)
+            ->whereBetween('sale_returns.returned_at', [$from, $until])
+            ->when($branchId, fn ($q, $b) => $q->where('sale_returns.branch_id', $b))
+            ->selectRaw("{$backDay} as day, COALESCE(SUM(sale_return_items.quantity * sale_items.unit_cost), 0) as cost")
+            ->groupByRaw($backDay)
+            ->toBase()
+            ->get();
+
+        foreach ($back as $row) {
+            $sold[$row->day] = round(($sold[$row->day] ?? 0.0) - (float) $row->cost, 2);
+        }
+
+        return $sold;
     }
 
     /**
