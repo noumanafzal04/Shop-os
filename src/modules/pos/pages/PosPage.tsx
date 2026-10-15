@@ -38,6 +38,7 @@ import { ApiError } from "../../../common/types/api";
 import { apiGet } from "../../../common/api/client";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { useAuthStore } from "../../../stores/authStore";
+import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import { NoAccess } from "../../../common/ui/NoAccess";
 import { CouldNotLoad } from "../../../common/ui/CouldNotLoad";
@@ -5383,6 +5384,7 @@ export default function PosPage() {
             <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Phone <span className="font-normal text-gray-400">(links CRM)</span></label>
             <Input placeholder="03xx-xxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
           </div>
+          <CustomerSuggestions name={customer} phone={customerPhone} onPick={(c) => { setCustomer(c.name ?? ""); setCustomerPhone(c.phone ?? ""); }} />
         </div>
         <div className="mt-5 flex justify-between gap-3">
           <Button size="sm" variant="outline" onClick={() => { setCustomer(""); setCustomerPhone(""); customerModal.closeModal(); }}>Walk-in</Button>

@@ -12,6 +12,7 @@ import type { DocumentKind, DocumentLineInput } from "../services/documentServic
 import { useOnceKey } from "../../../common/onceKey";
 import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
 
 interface Props {
   isOpen: boolean;
@@ -153,6 +154,7 @@ export default function ParkAsDocumentModal({
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="03xx-xxxxxxx" />
           </div>
         </div>
+        <CustomerSuggestions name={name} phone={phone} onPick={(c) => { setName(c.name ?? ""); setPhone(c.phone ?? ""); }} />
 
         {missingCustomer && (
           <p className="text-theme-sm text-warning-600 dark:text-warning-400">
