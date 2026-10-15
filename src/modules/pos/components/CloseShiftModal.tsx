@@ -52,6 +52,7 @@ export default function CloseShiftModal({
   const [typed, setTyped] = useState("");
   const [declared, setDeclared] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
+  const [empty, setEmpty] = useState(false);
 
   // With no server the report never arrives, and this screen used to fall back
   // to hardcoded defaults — so a shop that counts by total got the note grid,
@@ -88,10 +89,18 @@ export default function CloseShiftModal({
     return Math.round(denominations.reduce((sum, d) => sum + d * (Number(counts[String(d)]) || 0), 0) * 100) / 100;
   }, [byNote, typed, counts, denominations]);
 
+  // NOTHING COUNTED IS NOT A COUNT OF NOTHING. Two presses of "Close shift" —
+  // the till's banner, then this sheet's — closed a drawer holding 22,580 as
+  // counted at 0, and booked the whole drawer short. A box left untouched is
+  // a count not yet made; an empty drawer is said out loud, with its own tick.
+  const counted = byNote ? Object.values(counts).some((v) => v !== "") : typed.trim() !== "";
+  const mayClose = counted || empty;
+
   // Only meaningful when the cashier is allowed to see what was expected.
   const variance = expected === undefined ? null : Math.round((countedTotal - expected) * 100) / 100;
 
   const submit = () => {
+    if (!mayClose) return;
     const denoms: Record<string, number> = {};
     for (const d of denominations) {
       const n = Number(counts[String(d)]) || 0;
@@ -244,9 +253,26 @@ export default function CloseShiftModal({
         onChange={(e) => setNotes(e.target.value)}
       />
 
-      <div className="mt-5 flex justify-end gap-3">
+      {!counted && (
+        <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+          <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={empty} onChange={(e) => setEmpty(e.target.checked)} />
+          <span>
+            <span className="text-theme-sm font-medium text-gray-700 dark:text-gray-200">The drawer is empty</span>
+            <span className="block text-theme-xs text-gray-400">
+              Close it with nothing counted. Whatever the drawer should hold is then booked as short.
+            </span>
+          </span>
+        </label>
+      )}
+
+      <div className="mt-5 flex items-center justify-end gap-3">
+        {!mayClose && (
+          <span data-testid="close-shift-uncounted" className="mr-auto text-theme-xs text-gray-500 dark:text-gray-400">
+            Count the drawer first.
+          </span>
+        )}
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={submit} disabled={busy}>
+        <Button size="sm" onClick={submit} disabled={busy || !mayClose}>
           {busy ? "Closing…" : "Close shift"}
         </Button>
       </div>

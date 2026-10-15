@@ -52,6 +52,8 @@ import { UnitsBack } from "../components/UnitsBack";
 import { GoingOutNumbers } from "../components/GoingOutNumbers";
 import { changed, differenceOf, linesOut, offersOf, taken, type Replacement } from "../replacements";
 import { shopDate, shopDateTime } from "../../../common/format/date";
+import { useCounterShift } from "../../pos/hooks/useCounterShift";
+import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 const STATUSES = [
   { value: "completed", label: "Completed" },
@@ -260,6 +262,8 @@ export default function SalesPage() {
   const [exchanging, setExchanging] = useState(false);
   // What goes out instead — by SIZE where the thing comes in sizes. See `replacements`.
   const [exItems, setExItems] = useState<Replacement[]>([]);
+  // The replacement is a counter sale: today's shift, where the shop asks for one.
+  const counterShift = useCounterShift();
   const [exSearch, setExSearch] = useState("");
   const [exMethod, setExMethod] = useState("cash");
   // Whose drawer, and who says yes (the owner, B01) — see refundApproval.ts.
@@ -958,9 +962,10 @@ export default function SalesPage() {
                     message={`${MONEY_BACK_OFFLINE.exchange.reason} ${MONEY_BACK_OFFLINE.exchange.fix}`}
                   />
                 )}
+                <ShiftNeeded why={counterShift.why} />
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || !exKnown || !approvalReady(approval, may.needsApproval)}>
+                  <Button size="sm" onClick={doExchange} disabled={!counterShift.ready || !connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || !exKnown || !approvalReady(approval, may.needsApproval)}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

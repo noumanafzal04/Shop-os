@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPost } from "../../../common/api/client";
+import { shopDate } from "../../../common/format/date";
 import type { Product } from "../../catalog/types";
 
 export interface CashSession {
@@ -22,6 +23,10 @@ export interface CashSession {
   is_training?: boolean;
   /** Somebody is standing in for me right now. */
   covered_by?: { user_id: string; user_name: string | null; started_at: string } | null;
+  /** The trading day this drawer belongs to (YYYY-MM-DD). */
+  opened_on?: string;
+  /** Opened on an earlier trading day than today's and never closed. */
+  from_an_earlier_day?: boolean;
 }
 
 /**
@@ -121,10 +126,18 @@ export const ringableSessionId = (s: SessionState): string | null =>
  * when there is none.
  */
 export function canRingASale(session: SessionState, requireShift: boolean): boolean {
+  // A shift left open from an earlier day is not today's shift. A shop that
+  // asks for shifts rang all week into Tuesday's drawer and Tuesday's day
+  // (the user, 2026-10-15) — the server now refuses it (SHIFT_FROM_AN_EARLIER_DAY).
+  if (requireShift && shiftFromAnEarlierDay(session)) return false;
   if (ringableSessionId(session) !== null) return true;
 
   return !requireShift;
 }
+
+/** My own drawer, opened on an earlier trading day and never closed. */
+export const shiftFromAnEarlierDay = (s: SessionState): boolean =>
+  s !== null && !isCover(s) && s.status === "open" && s.from_an_earlier_day === true;
 
 /**
  * Why the till will not ring, in the shop's own terms — or null when it will.
@@ -135,6 +148,11 @@ export function canRingASale(session: SessionState, requireShift: boolean): bool
  */
 export function whyCannotRing(session: SessionState, requireShift: boolean): string | null {
   if (canRingASale(session, requireShift)) return null;
+
+  if (shiftFromAnEarlierDay(session)) {
+    const since = (session as CashSession).opened_on;
+    return `Your shift has been open since ${since ? shopDate(since) : "an earlier day"} — close it and open today's to sell.`;
+  }
 
   return "Open a shift to sell — this shop requires one.";
 }

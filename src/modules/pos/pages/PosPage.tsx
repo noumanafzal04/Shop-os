@@ -59,7 +59,7 @@ import CashDrawerPanel from "../components/CashDrawerPanel";
 import CloseShiftModal from "../components/CloseShiftModal";
 import { isLocalHeld } from "../heldLocal";
 import { useCoverMutations, useCurrentSession, useHeldMutations, useHeldSales, useShiftMutations } from "../hooks/usePos";
-import { canRingASale, isCover, isTraining, ringableSessionId, whyCannotRing, type ActiveCover, type CashSession } from "../services/posService";
+import { canRingASale, isCover, isTraining, ringableSessionId, shiftFromAnEarlierDay, whyCannotRing, type ActiveCover, type CashSession } from "../services/posService";
 import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { paperLabel, receiptService, type ReceiptKind, type ReceiptPaper } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
@@ -85,7 +85,7 @@ import { asProduct, loadShelf, loadTaxRates, shelfRows } from "../../offline/loo
 import { findByCode } from "../../offline/lookup/findByCode";
 import { onSale, sellingPrice, sizePrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
-import { shopDateTime } from "../../../common/format/date";
+import { shopDate, shopDateTime } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
 
 interface CartLine {
@@ -377,6 +377,12 @@ export default function PosPage() {
    */
   const requireShift = settings.data?.pos_require_shift === true;
   const canRing = canRingASale(session.data ?? null, requireShift);
+  /** My own drawer, left open from an earlier trading day. */
+  const staleShift = shiftFromAnEarlierDay(session.data ?? null);
+  // Not before the till knows which shift is open: while it was still asking,
+  // "Open a shift to sell" and an Open shift button stood over a drawer that
+  // had been open since the 13th.
+  const shiftBanner = session.data !== undefined && (!canRing || staleShift);
   // The shop's money — from the server, or from the device when there is none.
   const currency = useTillCurrency();
   const cur = currency.symbol;
@@ -2528,6 +2534,36 @@ export default function PosPage() {
         </div>
       )}
 
+      {/* SELLING NEEDS TODAY'S SHIFT — said across the top, with the button
+          that fixes it. A shop that asks for shifts used to say so only in a
+          line of small print under a greyed Pay button, and a shift left open
+          from an earlier day passed as open (the user, 2026-10-15). Red when
+          the till will not ring; amber when it will, but the drawer is an
+          earlier day's. */}
+      {shiftBanner && (
+        <div
+          data-testid="shift-banner"
+          role="alert"
+          className={`flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-2 text-center text-theme-sm font-semibold text-white ${canRing ? "bg-warning-500" : "bg-error-600"}`}
+        >
+          <AlertIcon className="h-4 w-4 shrink-0" />
+          <span>
+            {canRing
+              ? `Your shift has been open since ${open?.opened_on ? shopDate(open.opened_on) : "an earlier day"} — close it when the day ends, so each day's money is counted on its own.`
+              : whyCannotRing(session.data ?? null, requireShift)}
+          </span>
+          {staleShift ? (
+            <button type="button" onClick={closeModal.openModal} className="rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
+              Close shift
+            </button>
+          ) : !covering && (
+            <button type="button" onClick={() => { setOpeningFloat(""); openModal.openModal(); }} className="rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
+              Open shift
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top bar — full-screen POS has no app sidebar/header, so it carries
           its own: exit, shift status, keyboard legend, shift + online.
 
@@ -3942,8 +3978,11 @@ export default function PosPage() {
                       key hint nobody can press is a promise the screen breaks. */}
                   <kbd className="hidden rounded bg-white/20 px-1.5 py-0.5 font-sans text-[11px] xl:inline">{keyLabel("pay")}</kbd>
               </button>
-              {!canRing && (
-                <p className="mt-1.5 text-center text-theme-xs text-warning-600 dark:text-warning-400">
+              {/* Said once: the banner across the top already says it. And as
+                  wide as the button, never wider — a long reason here pushed
+                  the grand total down to "Rs 4,…". */}
+              {!canRing && !shiftBanner && (
+                <p className="mt-1.5 w-0 min-w-full text-center text-theme-xs text-warning-600 dark:text-warning-400">
                   {whyCannotRing(session.data ?? null, requireShift)}
                 </p>
               )}

@@ -20,6 +20,8 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords } from "../../workshop/words";
 import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
+import { useCounterShift } from "../../pos/hooks/useCounterShift";
+import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 
 /**
@@ -535,6 +537,8 @@ function CollectModal({
   // The same key for every press of "Bill it" — a fresh one each press was a
   // second sale for a double-click.
   const once = useOnceKey();
+  // Billing is a sale at the counter: today's shift, where the shop asks for one.
+  const counterShift = useCounterShift();
   const [tendered, setTendered] = useState("");
   const [method, setMethod] = useState<string>("cash");
   /**
@@ -571,7 +575,7 @@ function CollectModal({
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
             <Button
               size="sm"
-              disabled={pending || (due > 0 && paid < due) || odoBackwards}
+              disabled={pending || (due > 0 && paid < due) || odoBackwards || !counterShift.ready}
               onClick={() =>
                 onSubmit({
                   ...(due > 0 ? { payment_method: method, amount_paid: paid } : {}),
@@ -585,6 +589,7 @@ function CollectModal({
           </>
         }
       >
+        <div className="mb-3"><ShiftNeeded why={counterShift.why} /></div>
         <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
           {due > 0
             ? `Take ${money(due)} and the goods go out.`

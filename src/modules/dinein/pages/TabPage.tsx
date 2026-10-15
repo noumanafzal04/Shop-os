@@ -28,6 +28,8 @@ import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, mayCancelTab, ma
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useCounterShift } from "../../pos/hooks/useCounterShift";
+import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 /**
  * A control in the tab's header. A real button — bordered, a finger tall.
@@ -119,6 +121,8 @@ export default function TabPage() {
   // Settle — per-line quantity chosen for this payment (0 = skip the line,
   // < line qty = split part of it, = line qty = the whole line).
   const settleModal = useModal();
+  // Settling takes the money at the counter: today's shift, where the shop asks for one.
+  const counterShift = useCounterShift();
   const [settleQty, setSettleQty] = useState<Record<string, number>>({});
   const [method, setMethod] = useState("cash");
   /**
@@ -1337,9 +1341,10 @@ export default function TabPage() {
             </div>
           </div>
         )}
+        <div className="mb-3"><ShiftNeeded why={counterShift.why} /></div>
         <div className="flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={settleModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={confirmSettle} disabled={worth === null || settleCount === 0 || settle.isPending}>
+          <Button size="sm" onClick={confirmSettle} disabled={worth === null || settleCount === 0 || settle.isPending || !counterShift.ready}>
             {settle.isPending ? "Settling…" : worth === null ? "Take payment" : `Take ${money(worth.due)}`}
           </Button>
         </div>

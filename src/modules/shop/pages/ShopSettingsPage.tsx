@@ -1129,7 +1129,7 @@ export default function ShopSettingsPage() {
                       checked={!!prefs.pos_require_shift}
                       onChange={(v) => setP("pos_require_shift", v)}
                       label="Require open shift"
-                      hint="Refuses a counter sale unless the cashier has a drawer open, so every rupee belongs to a shift that gets counted. Recommended once you have staff."
+                      hint="Refuses a counter sale unless the cashier has TODAY's drawer open — at the till, New Sale, a settled tab, an exchange and a quotation billed — so every rupee belongs to a shift that gets counted. A shift left open from an earlier day must be closed first. Recommended once you have staff."
                     />
                     <ToggleRow
                       checked={!!prefs.pos_auto_print}

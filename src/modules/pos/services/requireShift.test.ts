@@ -91,3 +91,22 @@ describe("a drawer to ring into always wins", () => {
     expect(canRingASale(closed, false)).toBe(true);
   });
 });
+
+describe("a shift left open from an earlier day (the user, 2026-10-15)", () => {
+  const tuesdays: CashSession = { ...drawer, opened_on: "2026-10-13", from_an_earlier_day: true };
+
+  it("is not today's shift where the shop asks for one", () => {
+    expect(canRingASale(tuesdays, true)).toBe(false);
+    expect(whyCannotRing(tuesdays, true)).toBe("Your shift has been open since 13 Oct 2026 — close it and open today's to sell.");
+  });
+
+  it("does not stop a shop that never asked for shifts", () => {
+    expect(canRingASale(tuesdays, false)).toBe(true);
+    expect(whyCannotRing(tuesdays, false)).toBeNull();
+  });
+
+  it("today's shift rings as before", () => {
+    const todays: CashSession = { ...drawer, opened_on: "2026-10-15", from_an_earlier_day: false };
+    expect(canRingASale(todays, true)).toBe(true);
+  });
+});

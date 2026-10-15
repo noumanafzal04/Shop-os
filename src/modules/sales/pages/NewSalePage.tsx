@@ -16,6 +16,8 @@ import type { Product, ProductVariant } from "../../catalog/types";
 import { useSaleMutations, useSaleWorth } from "../hooks/useSales";
 import type { PaymentMethod, SaleChannel, SaleInput } from "../types";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
+import { useCounterShift } from "../../pos/hooks/useCounterShift";
+import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 interface CartLine {
   key: string;
@@ -62,6 +64,10 @@ export default function NewSalePage() {
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [channel, setChannel] = useState<SaleChannel>("walk_in");
+  // A sale across the counter needs today's shift where the shop asks for one;
+  // a phone or online sale has no till to be open.
+  const counterShift = useCounterShift();
+  const shiftWhy = channel === "walk_in" || channel === "pos" ? counterShift.why : null;
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [discount, setDiscount] = useState("");
@@ -434,9 +440,10 @@ export default function NewSalePage() {
             )}
           </div>
 
+          <ShiftNeeded why={shiftWhy} />
           <Button
             className="w-full"
-            disabled={create.isPending || cart.length === 0 || !covered}
+            disabled={create.isPending || cart.length === 0 || !covered || shiftWhy !== null}
             onClick={complete}
           >
             {create.isPending ? "Completing…" : worth ? `Complete Sale · ${money(worth.due)}` : "Complete Sale"}
