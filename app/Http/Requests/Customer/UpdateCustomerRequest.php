@@ -61,6 +61,22 @@ class UpdateCustomerRequest extends FormRequest
      */
     public function withValidator($validator): void
     {
+        // The same number written another way is the same customer (L7): the
+        // exact-match rule above let "0300-1234567" in beside "03001234567".
+        $validator->after(function ($v): void {
+            $phone = trim((string) $this->input('phone', ''));
+            if ($phone === '' || $v->errors()->has('phone')) {
+                return;
+            }
+
+            $self = $this->route('customer');
+            $same = Customer::byPhone((string) $this->user()->tenant_id, $phone);
+
+            if ($same !== null && $same->id !== ($self instanceof Customer ? $self->id : $self)) {
+                $v->errors()->add('phone', 'This number is already '.($same->knownName() ?? 'a customer')."'s, written another way.");
+            }
+        });
+
         $validator->after(function ($v): void {
             if (! $this->wantsCredit()) {
                 return;

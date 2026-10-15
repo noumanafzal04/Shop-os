@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Support\ApiResponse;
 use App\Support\CsvExport;
 use App\Support\ShopTime;
+use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -83,7 +84,7 @@ class CustomerController extends Controller
             return ApiResponse::ok(null);
         }
 
-        $customer = Customer::query()->where('phone', $phone)->first();
+        $customer = Customer::byPhone((string) app(TenantContext::class)->id(), $phone);
 
         /*
          * WHAT THE GROUP WILL DO TO THE BILL.

@@ -371,9 +371,7 @@ class CreateSaleAction
 
                 $customerGroup = null;
                 if (! $trusted && $hasCustomers && ! empty($data['customer_phone'])) {
-                    $customerGroup = Customer::query()
-                        ->where('phone', trim((string) $data['customer_phone']))
-                        ->first()?->group;
+                    $customerGroup = Customer::byPhone((string) $this->context->id(), $data['customer_phone'])?->group;
                 }
                 $groupPriceLevel = ($customerGroup?->price_level === 'wholesale') ? 'wholesale' : 'retail';
 
@@ -846,7 +844,7 @@ class CreateSaleAction
                             'LOYALTY_REQUIRES_CUSTOMER',
                         );
                     }
-                    $existing = Customer::query()->where('phone', trim((string) $data['customer_phone']))->first();
+                    $existing = Customer::byPhone((string) $this->context->id(), $data['customer_phone']);
                     if ($existing === null || $existing->loyalty_points < $redeemPoints) {
                         throw DomainException::unprocessable('The customer does not have enough points.', 'INSUFFICIENT_POINTS');
                     }

@@ -25,7 +25,8 @@
                   taken in, when it will be ready, and what has been paid.
 --}}
 @php
-    $width   = $paper ?? ($settings['receipt_width'] ?? 'standard');
+    // Its own paper, not the till roll's (`document_paper`); one print may ask for another.
+    $width   = $paper ?? ($settings['document_paper'] ?? 'standard');
     $roll    = in_array($width, ['thermal_58', 'thermal_80'], true);
     $rollMm  = $width === 'thermal_58' ? '48mm' : '72mm';
 

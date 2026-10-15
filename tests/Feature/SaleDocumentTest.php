@@ -590,6 +590,31 @@ class SaleDocumentTest extends TestCase
         $this->assertStringNotContainsString('Balance due', $html);
     }
 
+    /**
+     * A quotation's paper is its own (the user, 2026-10-15). It used to be the
+     * till roll's, so a shop on 80mm receipts handed a customer an estimate on
+     * a curl of thermal paper.
+     */
+    public function test_a_quotation_prints_on_its_own_paper_not_the_till_roll(): void
+    {
+        $doc = $this->quote([['product_id' => $this->fan->id, 'quantity' => 1]]);
+        $page = fn (string $query = ''): string => $this->actingAsUser($this->cashier)
+            ->get("/api/v1/sale-documents/{$doc['id']}/print{$query}")->assertOk()->getContent();
+
+        // The till prints on an 80mm roll; the quotation is still a sheet.
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['receipt_width' => 'thermal_80'])->assertOk();
+        $this->assertStringContainsString('size:A4', $page(), 'the quotation followed the till roll');
+
+        // The shop chose 58mm for its quotations.
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['document_paper' => 'thermal_58'])->assertOk();
+        $this->assertStringContainsString('size:58mm', $page());
+
+        // One print asks for a sheet.
+        $this->assertStringContainsString('size:A4', $page('?paper=standard'));
+
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/settings', ['document_paper' => 'a5'])->assertStatus(422);
+    }
+
     public function test_a_shop_can_switch_layaway_off(): void
     {
         $this->shop->forceFill(['settings' => ['layaway_enabled' => false]])->save();

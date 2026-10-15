@@ -224,6 +224,65 @@ class Customer extends BaseModel
      * anonymous walk-in). Never blanks an existing name/email.
      */
     /**
+     * THE SAME NUMBER, HOWEVER IT WAS TYPED.
+     *
+     * Every path that names a customer keys off the phone — the khata, the
+     * group price, the loyalty balance, a quote, an advance — and it was
+     * matched exactly as typed. The till's own box suggests "03xx-xxxxxxx",
+     * so "0300-1234567" and "03001234567" were two customers, and their quotes,
+     * advances and khata split between them (L7). Digits only; a Pakistani
+     * number written +92 / 0092 is the same number as its 0 form.
+     */
+    public static function phoneKey(?string $phone): string
+    {
+        $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
+
+        if (str_starts_with($digits, '0092')) {
+            $digits = substr($digits, 2);
+        }
+        if (strlen($digits) === 12 && str_starts_with($digits, '92')) {
+            $digits = '0'.substr($digits, 2);
+        }
+
+        return $digits;
+    }
+
+    /**
+     * This shop's customer with this number: the one stored exactly so first,
+     * then one stored with other spacing, dashes or +92. The oldest wins
+     * where a shop already holds two — nothing existing is rewritten.
+     */
+    public static function byPhone(string $tenantId, ?string $phone): ?self
+    {
+        $phone = trim((string) $phone);
+        if ($phone === '') {
+            return null;
+        }
+
+        $mine = fn () => self::withoutTenancy()->where('tenant_id', $tenantId);
+
+        $exact = $mine()->where('phone', $phone)->first();
+        if ($exact !== null) {
+            return $exact;
+        }
+
+        $key = self::phoneKey($phone);
+        if (strlen($key) < 7) {
+            return null;
+        }
+
+        // Narrowed in the database by the last seven digits with the usual
+        // separators taken out; decided here, on the whole number.
+        $bare = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', ''), '(', ''), ')', '')";
+
+        return $mine()
+            ->whereRaw("{$bare} LIKE ?", ['%'.substr($key, -7)])
+            ->orderBy('created_at')
+            ->get()
+            ->first(fn (self $c): bool => self::phoneKey($c->phone) === $key);
+    }
+
+    /**
      * What a customer is called before anybody has said their name.
      *
      * A sale needs only a phone number, and the row has to be called something.
@@ -253,10 +312,7 @@ class Customer extends BaseModel
             return null;
         }
 
-        $customer = self::withoutTenancy()
-            ->where('tenant_id', $tenantId)
-            ->where('phone', $phone)
-            ->first();
+        $customer = self::byPhone($tenantId, $phone);
 
         if ($customer !== null) {
             $customer->forceFill(array_filter([

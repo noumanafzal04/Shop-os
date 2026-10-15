@@ -101,6 +101,11 @@ class ShopSettings
             'invoice_footer' => 'Thank you for your business!',
             'invoice_show_logo' => true,
             'receipt_width' => 'standard',  // standard | thermal_80 | thermal_58
+            // What a quotation, an advance slip or a job card prints on — its
+            // own choice, not the till roll's: an estimate is filed, a
+            // receipt is torn off. A sheet unless the shop says otherwise
+            // (the user, 2026-10-15). Changed for one print from its page.
+            'document_paper' => 'standard', // standard | thermal_80 | thermal_58
             // Who served you — the receipt is the customer's copy of the audit
             // trail, and a complaint about a sale is useless without the lane
             // and the cashier on the slip.
@@ -331,6 +336,7 @@ class ShopSettings
             'invoice_footer' => ['sometimes', 'nullable', 'string', 'max:300'],
             'invoice_show_logo' => ['sometimes', 'boolean'],
             'receipt_width' => ['sometimes', 'in:standard,thermal_80,thermal_58'],
+            'document_paper' => ['sometimes', 'in:standard,thermal_80,thermal_58'],
             'receipt_show_cashier' => ['sometimes', 'boolean'],
             'invoice_ntn' => ['sometimes', 'nullable', 'string', 'max:30'],
             'invoice_strn' => ['sometimes', 'nullable', 'string', 'max:30'],
