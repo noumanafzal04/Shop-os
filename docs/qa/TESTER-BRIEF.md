@@ -44,8 +44,8 @@ Owner decisions already taken are in `BUGS.md` → "Owner's answers"; their chan
 
 Passes 1–5 are in `BUGS.md`. **From 2026-10-15 the local session also tests** (the cloud tester's credits ran
 out); this section is kept so any tester — or a new chat — can pick up. Pull the newest backend and
-panel, docs (newest `main`). Run `php artisan migrate` (two new: `sale_returns.approved_by/approved_at`,
-`products.for_sale`).
+panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns.approved_by/approved_at`,
+`products.for_sale`, `supplier_payment_allocations`).
 
 ### 5a. Re-test what was fixed (do this first)
 
@@ -73,6 +73,7 @@ panel, docs (newest `main`). Run `php artisan migrate` (two new: `sale_returns.a
 | R20 | L2 | A shop that requires shifts, someone with no shift: hold goods on advance with CASH (till F7 and the Quotations screen); then Card. Take an instalment in cash on an open advance. Then open today's shift and take cash. | Cash: the form says "Open a shift to take cash …" and its button is shut; the API answers 409 SHIFT_REQUIRED "Open a shift before taking cash." Card: goes through. With today's shift: the cash lands in that shift's drawer (`deposit_in`). |
 | R21 | paper | A shop with receipts on 80mm: save a quotation at the till; print it again from its page; change Settings → Receipt → "Quotations & advances print on". | The till prints it on A4 without asking. Its page's Print asks with A4 picked; 58mm prints that copy on 58mm and Settings is unchanged. After the setting changes, both follow it. |
 | R22 | L7, L8 | A customer on file as "0300-1234567". At the till type "03001234567"; on a quote "+92 300 1234567"; add a customer "0300 1234567". Then type three letters of their name in the till's Customer box and on the quotation form. | One customer throughout (khata, points, quotes); the new customer is refused, naming who has the number. Both boxes list them under "Already on file"; a tap fills name and number; a cashier without the customers permission sees the same. |
+| R23 | L9 | A supplier with two delivered orders. Pay part of the first naming it (cash); then pay on account (bank, with a reference) more than the first still owes. Open each order; open Suppliers → History. As a stock keeper, open an order. | Each order: Ordered, Arrived, Paid, Left; every payment with its date, method, reference and its share ("part of a Rs X payment" for the split one); the lines add up to Paid. History: the on-account payment lists both orders and their shares; the orders show bill / paid / left. The stock keeper sees no payments. |
 
 ### 5b. What no pass has reached yet
 

@@ -308,6 +308,14 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (late) — a supplier payment says what it paid
+
+The user: a part payment's history was on no screen. Now every order shows Ordered / Arrived / Paid / Left and
+every payment on it; Suppliers → History lists every payment with the orders it paid and every order with what is
+left. A new table records which orders each payment paid (`supplier_payment_allocations`). **Deploy: `php artisan
+migrate`** (one new table). Backend `a39b51c`, panel `659b392`. `docs/decisions/shopos-a-supplier-payment-says-what-it-paid.md`.
+
+
 ### 2026-10-15 (evening) — a quotation's own paper; one number, one customer
 
 The user chose the paper: a setting "Quotations & advances print on" (A4 sheet by default), used by the till

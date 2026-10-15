@@ -87,6 +87,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L6 | P2 | Reports | Reports → custom day: `totals.gross_profit` 347.31, but the chart's `series[].profit` 1,980 — the revenue | FIXED `ea900ee` — found checking the user's "are the report figures right"; each bucket now carries refunds, tax and cost of goods, and its profit is the headline's net profit, so the days add up to the total |
 | L7 | P2 | Customers | A quote, advance or sale finds an existing customer by the phone EXACTLY as typed (`Customer::capture`, trimmed only): "0300-1234567" and "03001234567" are two customers, and their quotes, advances and khata split | FIXED `65acb1e` — `Customer::byPhone`: exact first, then the same number with other separators or +92 (oldest wins, nothing rewritten); capture, the till look-up, group price, loyalty; the customer form refuses the number written another way. (A name typed against an existing number still renames the customer — kept as designed, `CustomerCrmTest`; asked as Q11) |
 | L8 | P3 | Quotes & advances | The Quotations screen's New quotation / Hold goods on advance — and the till's Customer box — had no customer search: the phone had to be typed in full | FIXED `207bd67` `23ab504` — `customers-lookup?q=` (the counter's own look-up; id, name, number only) + "Already on file" under both boxes; a tap fills them |
+| L9 | P2 | Purchases | A part payment to a supplier — when, how much, how — was shown nowhere on the supplier or the order; and a payment on account spread over several orders named none of them, so no order could say what paid it (reported by the user, 2026-10-15) | FIXED `a39b51c` `659b392` — `supplier_payment_allocations`; the order shows Ordered / Arrived / Paid / Left and every payment; Suppliers → History shows every payment with its orders and every order with what is left |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -271,4 +272,11 @@ Backend `65acb1e` `207bd67`, panel `34910ce` `23ab504`. The user's paper decisio
 A4; no question at the till; the document page's Print asks with it picked). L7, L8 fixed; Q11 asked. Walks:
 `qa-kit/p6-paper.mjs`, `p6-customer-find.mjs`. Decision note: `docs/decisions/shopos-a-quotation-prints-on-its-own-paper.md`.
 Dev data: Zari's `document_paper` set to 80mm by the walk and put back to A4 (Zari's receipts stay 80mm).
+
+## Pass 9 — supplier payment history (the user's item), fixed by the local session (2026-10-15)
+
+Backend `a39b51c`, panel `659b392`. L9. **Migration `2026_10_15_000002`** (`supplier_payment_allocations`) — run on
+deploy; already run on dev. Walk `qa-kit/p6-supplier-history.mjs`. Decision note:
+`docs/decisions/shopos-a-supplier-payment-says-what-it-paid.md`. Dev data: Zari paid Faisalabad Mills 2,000 by
+bank on account (reference QA-HIST-1), which landed on PO-000001 (owed 10,000 → 8,000).
 

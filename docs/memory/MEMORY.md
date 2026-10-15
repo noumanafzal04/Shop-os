@@ -1,6 +1,6 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-15 evening: PUSHED paper + L7 + L8 (207bd67/23ab504); ON COPY: supplier payment history (allocations migration, PO + supplier screens) — tests done, not walked/gated
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-15 late: PUSHED L9 supplier payment history (a39b51c/659b392, migration run on dev); next = Products + Add item walk, then Reports/Quotes/Day figures + UI
 - [Counter Needs Today's Shift](shopos-counter-needs-todays-shift.md) — STANDING: pos_require_shift = TODAY's own shift for every counter sale + cash advance; one rule mustBeOpenToday; a walk that closes a shift counts it
 - [Push As Each Part Lands](shopos-push-as-each-part-lands.md) — USER 2026-10-15: finish the whole list; push every part as soon as it is gated, keep going without waiting
 - [Tester And Fixer](shopos-tester-and-fixer.md) — CHANGED (USER 2026-10-15): the cloud tester's credits ran out — I now TEST AND FIX; keep BUGS.md, report files and the SYSTEM-TEST §7 log as before
