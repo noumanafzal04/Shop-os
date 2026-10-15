@@ -308,6 +308,14 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (night) — khata part 1 pushed
+
+The user: "market standard bnana bs mjhe abhi kuch idea ni — continue kro", then "jo huwa push kro". Q12–Q15
+taken as recommended. Part 1 pushed (backend `5badf6e`, panel `cae1da4`): `customers/components/KhataBox.tsx`
+asks before an overpayment (L13), says an advance as one, names statement lines and links a credit sale's
+invoice (`/tenant/sales?open=<id>`, new on SalesPage) (L15). Part 2 (Customers Owes column, filters,
+`customers/summary`) is on the copy, tested, not landed.
+
 ### 2026-10-15 (night) — khata, advances and installments: the flow, not built
 
 The user, from Ali Raza's khata screen: does a khata payment count in sales and reports; a filter for the

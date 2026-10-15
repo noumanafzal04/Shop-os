@@ -1,9 +1,14 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-15 late night — khata/advances/installments FLOW written, NOT built (docs/flows/khata-and-installments.md); WAIT for the user's OK + Q12–Q15; build order parts 1–5
+description: RESUME POINT 2026-10-15 night — khata flow BEING BUILT (user: "market standard", Q12–Q15 as recommended); part 1 PUSHED 5badf6e/cae1da4; part 2 (Customers Owes/filters) on the copy, tested, not landed; then parts 3–5
 metadata:
   type: project
 ---
+
+**2026-10-15 night (cont.) — the user: "market standard bnana bs mjhe abhi kuch idea ni — Continue kro", then "jo huwa push kro".** Q12–Q15 taken as recommended (goods home now; optional markup %; plan not held to khata limit; no late fee/SMS yet) — written in BUGS.md.
+- PUSHED part 1: backend `5badf6e` (ledger loads sale:id,invoice_number), panel `cae1da4` (`customers/khata.ts` standing/overpaid/ledgerLine/saleLink, `components/KhataBox.tsx`, SalesPage `?open=<id>`, button renamed "Take payment" — journey 08 + p1-khata updated). Docs pushed with it.
+- ON THE COPY, tested, NOT landed — part 2 (L16): `Customer::STANDINGS/NEAR_LIMIT/NOT_COLLECTIONS`, `scopeStanding`, `khataPayments()`; index `?standing=` + `last_paid_at` (withMax), `GET customers/summary` (route before apiResource), export keeps the filter; test `TheCustomerListSaysWhoOwesTest` (4; 4 mutations caught). Panel: `common/format/since.ts` (+test), `components/OwesCell.tsx` (+test), CustomersPage chips/summary/Owes/Last paid/row tint/Take payment, `?show=owes`. OWED: MoneyPanel tile → `/tenant/customers?show=owes`, help, walk, land, gates, push.
+- Dev data: Zari "QA Khata Walk" 03009990001 — INV-000017 (990 khata), paid 1,040 transfer → advance 50.
 
 **2026-10-15 late night — the user pasted Ali Raza's khata screen + asked: khata payment in sales/reports? a "on khata / owes" filter on Customers; installments on Quotations & advances (months, monthly, due day, highlighted, filters, calc checked, links). Then: "isko note krlo or pehle flow bna lo" — NOTE + FLOW FIRST, do not build.**
 - Flow written: `docs/flows/khata-and-installments.md` (parts 1–5, links table, build order, Q12–Q15). BUGS.md: L13 overpay confirm missing (P2), L14 non-cash khata collections in no report/Day & banking (P2), L15 advance shows "−22.70 owed" + raw method words, L16 Customers no Owes column/filter (P2), L17 On advance list UX; F1 installments TO BUILD; Q12 goods now vs held, Q13 markup, Q14 credit limit, Q15 late fee/SMS. Next question Q16.

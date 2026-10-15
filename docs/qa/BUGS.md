@@ -91,9 +91,9 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L10 | P1 | Products | The item edit form re-filled itself from the server on every refetch — the till's catalogue sync refetches a few seconds after it opens — so "Still selling this" switched off and saved went back ON (any field changed in that time was lost); and before the item arrived the form showed a new item's defaults | FIXED `17c61c9` — filled once per item (`useFillOnce`); covered with "Opening the item…" and Save shut until it arrives |
 | L11 | P2 | Products / inventory | Opening stock given when an item is created was on the shelf but not in its stock history ("No movements yet" under 24 units) | FIXED `9a15d9e` — `OpeningShelf` writes one `in` "Opening stock" (reference `opening`) for an item, each size, a size added later, an import |
 | L12 | P3 | Products | In a shop selling online, a new item is refused for want of a description, said at the top while the box and the online switch are elsewhere | FIXED `17c61c9` — the refusal carries "Write a description" and "Sell it in the shop only" |
-| L13 | P2 | Customers / khata | Paying MORE than a customer owes (Ali Raza owes 4,227.30, pays 4,250 by transfer) is refused with "Confirm to keep the extra 22.70 as an advance", and the screen has no confirm, so the payment cannot be recorded at all (reported by the user, 2026-10-15) | OPEN — flow `docs/flows/khata-and-installments.md` part 1 |
+| L13 | P2 | Customers / khata | Paying MORE than a customer owes (Ali Raza owes 4,227.30, pays 4,250 by transfer) is refused with "Confirm to keep the extra 22.70 as an advance", and the screen has no confirm, so the payment cannot be recorded at all (reported by the user, 2026-10-15) | FIXED `5badf6e` `cae1da4` — the khata box asks first: "Keep 22.70 as advance" or "Take 4,227.30 only" (`KhataBox`); walk `qa-kit/p6-khata-advance.mjs` |
 | L14 | P2 | Reports / Day & banking | A khata payment by transfer, card or wallet shows up in no report and not in Day & banking, only on the customer's statement (cash reaches the drawer as `khata_in`). The sale itself is counted on its own day, correctly | OPEN — flow part 3 |
-| L15 | P3 | Customers / khata | An advance in the customer's favour reads "Rs −22.70 owed" and hides the payment box; statement lines say "Payment (bank_transfer)" and the credit sale does not link to its invoice | OPEN — flow part 1 |
+| L15 | P3 | Customers / khata | An advance in the customer's favour reads "Rs −22.70 owed" and hides the payment box; statement lines say "Payment (bank_transfer)" and the credit sale does not link to its invoice | FIXED `5badf6e` `cae1da4` — "Advance Rs 22.70" in green, the payment box stays open; "Paid · Transfer", "Returned · RET-…", "Sale cancelled"; a credit sale's invoice opens the sale (`/tenant/sales?open=`) |
 | L16 | P2 | Customers | The customer list has no Owes column and no filter: the people on khata are mixed in with everyone else, and the dashboard's "Owed to you" tile opens the plain list (reported by the user, 2026-10-15) | OPEN — flow part 2 |
 | L17 | P3 | Quotes & advances | The On advance list has no last payment, no paid progress, no colours, and no "paid up — hand over" or "not paid 30+ days" filter; everything is mixed together (reported by the user, 2026-10-15) | OPEN — flow part 4 |
 | F1 | — | Installments | Installments (qist) do not exist: no months, monthly amount or due day; a layaway holds the goods, and khata has no schedule (asked by the user, 2026-10-15) | TO BUILD after Q12–Q15 — flow part 5 |
@@ -126,10 +126,10 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 |---|---|---|
 | Q10 | B47: a till offline across a price change sold at the OLD price (1,000) and took the cash; the server re-prices every offline sale on purpose ("the till's figure was only ever a receipt" — a till cannot be trusted with money) and so refused it, and nothing was recorded. Which wins? | Record the sale as the till rang it (money already changed hands), put the difference on the sale as "price changed while offline", and flag it in the offline report for the owner. The server still prices it — it only stops refusing what was already paid. |
 | Q11 | (2026-10-15) A name typed at the till or on a quote for a number already on file REPLACES the customer's name ("Ahmed Khan" → "Ahmed"). That is the existing design (`CustomerCrmTest`: "Ayesha" → "Ayesha K"). Keep it? | Keep the name on file; the sale or quote carries the typed name on itself, and a rename is made on the customer's own page. |
-| Q12 | (2026-10-15, installments) On installments, do the goods go home NOW (advance + monthly payments), or stay in the shop until paid off (which is "On advance" today)? | Now — that is qist; On advance stays for goods held. |
-| Q13 | Is the installment price the cash price, or higher (markup)? | An optional markup % per plan, its own "Installment charge" line on the bill; default 0. |
-| Q14 | Does an installment plan count against the customer's khata credit limit? | No — a plan is approved on its own; only staff who may sell on credit can start one. |
-| Q15 | A late fee, or an SMS reminder before the due date? | Not now — late shows in red; a reminder later (the "CartZe" SMS sender exists). |
+| Q12 | **ANSWERED (the user: "market standard bnana") — as recommended.** (2026-10-15, installments) On installments, do the goods go home NOW (advance + monthly payments), or stay in the shop until paid off (which is "On advance" today)? | Now — that is qist; On advance stays for goods held. |
+| Q13 | **ANSWERED — as recommended.** Is the installment price the cash price, or higher (markup)? | An optional markup % per plan, its own "Installment charge" line on the bill; default 0. |
+| Q14 | **ANSWERED — as recommended.** Does an installment plan count against the customer's khata credit limit? | No — a plan is approved on its own; only staff who may sell on credit can start one. |
+| Q15 | **ANSWERED — as recommended.** A late fee, or an SMS reminder before the due date? | Not now — late shows in red; a reminder later (the "CartZe" SMS sender exists). |
 
 ## Pass 1 — Phase 1, clothing shop (cloud tester, 2026-10-14) — details
 
@@ -292,6 +292,14 @@ Backend `a39b51c`, panel `659b392`. L9. **Migration `2026_10_15_000002`** (`supp
 deploy; already run on dev. Walk `qa-kit/p6-supplier-history.mjs`. Decision note:
 `docs/decisions/shopos-a-supplier-payment-says-what-it-paid.md`. Dev data: Zari paid Faisalabad Mills 2,000 by
 bank on account (reference QA-HIST-1), which landed on PO-000001 (owed 10,000 → 8,000).
+
+## Pass 11 — khata, advances and installments (the user's item), by the local session (2026-10-15)
+
+Flow: `docs/flows/khata-and-installments.md`. The user left Q12–Q15 to "market standard" — the recommended
+answers are taken (goods go home now; optional markup %; a plan is not held to the khata limit; no late fee or
+SMS yet). Part 1 pushed: backend `5badf6e`, panel `cae1da4` (L13, L15). Decision note:
+`docs/decisions/shopos-a-khata-payment-asks-before-keeping-an-advance.md`. Dev data: Zari customer "QA Khata
+Walk" (03009990001): INV-000017 on khata (990), paid 1,040 by transfer → Advance 50.
 
 ## Pass 10 — products and Add item (the user's item), fixed by the local session (2026-10-15)
 
