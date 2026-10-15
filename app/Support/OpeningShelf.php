@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Branch;
 use App\Models\BranchStock;
 use App\Models\Product;
+use App\Models\StockMovement;
 
 /**
  * WHERE A NEW ITEM'S OPENING STOCK IS PUT: where its maker is standing.
@@ -28,6 +29,14 @@ use App\Models\Product;
  * product whose sixty units were put in the godown would then be read as
  * having sixty at Main as well, the first time either shelf was touched. An
  * explicit nought at Main says "it holds none" and stops that.
+ *
+ * ── Why it is written in the stock history too ──────────────────────────
+ *
+ * A grocer carded a biscuit with 24 on hand, opened its stock and read "No
+ * movements yet" under 24 units (2026-10-15 review: "inventory track ho rhi jb
+ * product create krty"). The opening quantity is an arrival like any other —
+ * one `in`, "Opening stock", referenced `opening` so nothing that reads
+ * purchases, sales or batches mistakes it for one of theirs.
  */
 final class OpeningShelf
 {
@@ -62,6 +71,22 @@ final class OpeningShelf
         ]);
 
         $shelf($place, $quantity);
+
+        if ($quantity > 0) {
+            StockMovement::withoutTenancy()->create([
+                'tenant_id' => $product->tenant_id,
+                'branch_id' => $place,
+                'product_id' => $product->id,
+                'variant_id' => $variantId,
+                'type' => 'in',
+                'quantity_change' => $quantity,
+                'quantity_after' => $quantity,
+                'reason' => 'Opening stock',
+                'reference_type' => 'opening',
+                'reference_id' => $product->id,
+                'created_by' => auth()->id(),
+            ]);
+        }
 
         $main = self::mainOf($product->tenant_id);
         if ($main !== null && $main !== $place) {
