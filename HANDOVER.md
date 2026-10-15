@@ -308,6 +308,19 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (afternoon) — a counter sale needs today's shift
+
+The user: with "Require open shift" on, the till still sold — every Zari cashier's shift had been open since
+13 Oct, and the 14th's and 15th's sales went into the 13th's drawer and day. Now the server refuses every
+counter sale (till, tab settle, New Sale, exchange, quotation billed) without TODAY's shift (409
+SHIFT_REQUIRED / SHIFT_FROM_AN_EARLIER_DAY), the till shows a red strip with Close / Open shift, and the four
+other screens say so with the money button shut. Found on the way: Close shift went through with nothing
+counted (L5, fixed), the Reports bucket "profit" was the revenue (L6, fixed — the buckets now add up to the
+net profit), and a cash advance follows the same shift rule (L2, fixed). Open: a customer is found by the phone
+exactly as typed (L7) and the Quotations screen has no customer search (L8). Backend `74c737e` `ea900ee`,
+panel `39680e3` `43f4228`. No migration. `docs/decisions/shopos-a-counter-sale-needs-todays-shift.md`.
+
+
 ### 2026-10-15 — passes 4 and 5 fixed, the owner's PIN built, and the tester's work handed to this session
 
 The cloud tester's passes 4 (re-tests, Phase 4 grocery) and 5 (pharmacist's PO, recipe stock) found B52–B62;

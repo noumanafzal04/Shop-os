@@ -43,8 +43,8 @@ Owner decisions already taken are in `BUGS.md` → "Owner's answers"; their chan
 ## 5. Pass 6 — what to test now
 
 Passes 1–5 are in `BUGS.md`. **From 2026-10-15 the local session also tests** (the cloud tester's credits ran
-out); this section is kept so any tester — or a new chat — can pick up. Pull backend `8d60f93`, panel
-`ba50d68`, docs (newest `main`). Run `php artisan migrate` (two new: `sale_returns.approved_by/approved_at`,
+out); this section is kept so any tester — or a new chat — can pick up. Pull the newest backend and
+panel, docs (newest `main`). Run `php artisan migrate` (two new: `sale_returns.approved_by/approved_at`,
 `products.for_sale`).
 
 ### 5a. Re-test what was fixed (do this first)
@@ -67,6 +67,10 @@ out); this section is kept so any tester — or a new chat — can pick up. Pull
 | R14 | B61 | Pharmacy: Receive with details, leave one medicine line's expiry empty. | Receive stays shut; that line says the expiry is needed. |
 | R15 | B62 | Café: an ingredient with "Sold to customers" off, in a dish's recipe. Till search, a table's menu, Take order, storefront; a sale/tab/order/quote naming it; sell the dish. | Offered nowhere; every way of selling refused NOT_FOR_SALE by name; the products list says "Not sold — ingredient"; selling the dish still takes the ingredient off the shelf. |
 | R16 | B07 shape | Double-click: park as layaway WITH an advance; Bill & hand over; Take order; storefront checkout. | One record each (the key is kept from the first press). |
+| R17 | L4 | A shop with "Require open shift" on. (a) No shift: till, tab settle, New Sale (walk-in), exchange, Bill & hand over. (b) A shift opened on an EARLIER day: the same five. (c) Close it, open today's, sell. (d) A phone order with no shift. | (a)(b) The till's red strip says why with Open / Close shift; Pay shut; the other four show the note and a shut button; the API answers 409 SHIFT_REQUIRED / SHIFT_FROM_AN_EARLIER_DAY. (c) Sells, on the new shift, in today's day. (d) Not refused. A shop with the setting off: amber strip, still sells. |
+| R18 | L5 | Close shift, typing nothing; then tick "The drawer is empty"; then a real count. | Nothing typed: Close shift shut, "Count the drawer first." Ticked: closes at 0, short by what was expected. Counted: closes with the right variance. |
+| R19 | L6 | Reports, a custom range of 2+ days with sales at a cost, a return and an expense. | Each day's `series[].profit` = that day's revenue − refunds − tax − cost of goods + other income − expenses, equals the dashboard's day, and the days add up to `totals.net_profit`. |
+| R20 | L2 | A shop that requires shifts, someone with no shift: hold goods on advance with CASH (till F7 and the Quotations screen); then Card. Take an instalment in cash on an open advance. Then open today's shift and take cash. | Cash: the form says "Open a shift to take cash …" and its button is shut; the API answers 409 SHIFT_REQUIRED "Open a shift before taking cash." Card: goes through. With today's shift: the cash lands in that shift's drawer (`deposit_in`). |
 
 ### 5b. What no pass has reached yet
 

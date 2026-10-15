@@ -1,6 +1,7 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-15 PUSHED 8d60f93 / ba50d68 (B01 PIN, B52–B62, once-keys, New quotation); NEXT = user's review list: Reports + Quotes + Day&banking, Products + Add item, supplier payment history, L2; then explain advance + paper size
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-15 late: committed 74c737e/ea900ee + 39680e3/43f4228 (L4 today's shift, L5, L2, L6); ON COPY: L7 phone match (tested, not gated); next L8 customer search, then review list
+- [Counter Needs Today's Shift](shopos-counter-needs-todays-shift.md) — STANDING: pos_require_shift = TODAY's own shift for every counter sale + cash advance; one rule mustBeOpenToday; a walk that closes a shift counts it
 - [Tester And Fixer](shopos-tester-and-fixer.md) — CHANGED (USER 2026-10-15): the cloud tester's credits ran out — I now TEST AND FIX; keep BUGS.md, report files and the SYSTEM-TEST §7 log as before
 - [Hidden Is Still Sent](shopos-hidden-is-still-sent.md) — STANDING: a figure the screen hides leaks if the API sends it; strip on the model/asSeenBy, null not 0, no tile for what never arrived
 - [One Press, One Record](shopos-one-press-one-record.md) — STANDING: money forms send useOnceKey(); route gets `once` (AnswerOnce); renew only on success; a key minted AT THE PRESS is no key (guard test)

@@ -80,8 +80,13 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B61 | P3 | PO receive (medicine) | "Expiry *" is marked required but Receive can be pressed with it empty → 422 EXPIRY_REQUIRED, the whole delivery refused (`receiveBlocked` checks serials only) | FIXED `ba50d68` — Receive held until every medicine line coming in has its expiry |
 | B62 | P2 | Till / ingredients | An ingredient with no price (QA Flour kg, price 0) is offered on the till catalog and in till search at 0; nothing marks an item "ingredient — not sold" | FIXED `8d60f93` `ba50d68` — "Sold to customers" switch (`products.for_sale`): off the till, menu, Take order, storefront; refused NOT_FOR_SALE on every way of selling; recipes still use it up |
 | L1 | P1 | Purchases | Cancelling the rest of a part-received PO wiped what was owed for what arrived | FIXED `e14bf9e` `db44390` · re-tested PASS (pass 2) |
-| L2 | P2 | Advances / drawer | A CASH advance (layaway, job card) taken by someone with no open shift is recorded and reaches no drawer, without a word — the B01 shape (`RecordCashMovementAction::record` returns null) | OPEN — found 2026-10-15 reading the code for the user's "advance kab/kahan" question |
+| L2 | P2 | Advances / drawer | A CASH advance (layaway, job card) taken by someone with no open shift is recorded and reaches no drawer, without a word — the B01 shape (`RecordCashMovementAction::record` returns null) | FIXED `ea900ee` `43f4228` — a shop that requires shifts refuses a cash advance without TODAY's shift (409, "Open a shift before taking cash."); both advance forms say so and shut the button; card / bank / wallet never held up. A shop that does not require shifts: as a sale, it belongs to no shift (help says so) |
 | L3 | P3 | Speed | Opening the product form (and the products list) on a shop with a registered till pulls the till's whole offline catalogue: /pos/bootstrap 387–795 KB and /pos/catalog pages of ~744 KB each (grocery, 6,000 items) | OPEN — seen in the pass-6 walks |
+| L4 | P1 | Till / shifts | With "Require open shift" on, a shift left open since an EARLIER day passed as open: Zari rang the 14th's and 15th's sales into the 13th's drawer and day. And tab settle, New Sale, exchange and a quotation billed never read the setting at all (reported by the user, 2026-10-15) | FIXED `74c737e` `39680e3` — server `BooksDrawer::mustBeOpenToday` on every counter sale (SHIFT_REQUIRED / SHIFT_FROM_AN_EARLIER_DAY, 409); a red strip across the till with Close / Open shift; the same note and a shut button on the other four screens |
+| L5 | P2 | Till / shifts | Close shift with nothing counted went through: two presses ("Close shift" on the strip, then on the sheet) closed a drawer that should hold 22,580 as counted at 0 and booked it all short | FIXED `39680e3` — the button stays shut until a note or a total is entered, or "The drawer is empty" is ticked |
+| L6 | P2 | Reports | Reports → custom day: `totals.gross_profit` 347.31, but the chart's `series[].profit` 1,980 — the revenue | FIXED `ea900ee` — found checking the user's "are the report figures right"; each bucket now carries refunds, tax and cost of goods, and its profit is the headline's net profit, so the days add up to the total |
+| L7 | P2 | Customers | A quote, advance or sale finds an existing customer by the phone EXACTLY as typed (`Customer::capture`, trimmed only): "0300-1234567" and "03001234567" are two customers, and their quotes, advances and khata split. And a name typed against an existing phone renames the customer | OPEN — found 2026-10-15 answering the user's "existing customer ko dobara quote/advance?" |
+| L8 | P3 | Quotes & advances | The Quotations screen's New quotation / Hold goods on advance has no customer search — the phone must be typed (the till carries the cart's chosen customer) | OPEN — same question |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -245,4 +250,17 @@ Receive shut with 10 lines asking for an expiry; B54 "Comes by tanker", "Order t
 list says "Not sold — ingredient", Take order and the till's sync leave it out, a sale is refused NOT_FOR_SALE.
 Two old tests encoded the old behaviour and were corrected: `OneNightIsOneDayTest` (profit took 3 costs for 3 sold
 and 1 back — B11) and `ProductCreateParityTest` (the new field).
+
+## Pass 7 — the user's shift report, fixed by the local session (2026-10-15)
+
+Backend `74c737e` `ea900ee`, panel `39680e3` `43f4228`. 
+The user: "settings main open shift required hai to POS main bagair open shift ke sell q ho rahi?" — L4. Walking
+the fix found L5 (Close shift with nothing counted) and the review of Reports found L6. Walks:
+`panel/e2e/qa-kit/p6-shift.mjs`, `p6-shift-close.mjs` (copy stack, Zari). Decision note:
+`docs/decisions/shopos-a-counter-sale-needs-todays-shift.md`.
+
+Dev data from the walks (through the app): Sana's 13 Oct shift closed with NOTHING counted (variance −22,580 —
+the L5 fault itself, before its fix) and a new shift opened on the 15th (float 5,000) with INV-000016 (Lawn
+3-Piece Teal, 4,990 cash); Hina's 13 Oct shift closed counted 400 = expected 400. Bilal's 13 Oct shift left
+open, to show the red strip.
 
