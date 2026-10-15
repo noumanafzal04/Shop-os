@@ -1,9 +1,14 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-15 night — PUSHED products fixes L10–L12 (backend 9a15d9e, panel 17c61c9); the user said "report what's done/next; I'll say whether to continue" — WAIT for their word; next candidates: Reports/Quotes/Day & banking review, L3, TESTER-BRIEF §5
+description: RESUME POINT 2026-10-15 late night — khata/advances/installments FLOW written, NOT built (docs/flows/khata-and-installments.md); WAIT for the user's OK + Q12–Q15; build order parts 1–5
 metadata:
   type: project
 ---
+
+**2026-10-15 late night — the user pasted Ali Raza's khata screen + asked: khata payment in sales/reports? a "on khata / owes" filter on Customers; installments on Quotations & advances (months, monthly, due day, highlighted, filters, calc checked, links). Then: "isko note krlo or pehle flow bna lo" — NOTE + FLOW FIRST, do not build.**
+- Flow written: `docs/flows/khata-and-installments.md` (parts 1–5, links table, build order, Q12–Q15). BUGS.md: L13 overpay confirm missing (P2), L14 non-cash khata collections in no report/Day & banking (P2), L15 advance shows "−22.70 owed" + raw method words, L16 Customers no Owes column/filter (P2), L17 On advance list UX; F1 installments TO BUILD; Q12 goods now vs held, Q13 markup, Q14 credit limit, Q15 late fee/SMS. Next question Q16.
+- Facts checked: credit sale counted on its day at full total (accrual); `customer_ledger_entries` read ONLY by CustomerController; cash khata → `khata_in` drawer movement; DashboardService::receivable = SUM(credit_balance>0); layaway convert accepts `credit` tender (counterOrCredit); `chargeCredit` enforces credit_limit; negative balance = advance, used by next charge.
+- **WAIT for the user's OK on the flow and Q12–Q15.** Recommended build order: part 1 (L13/L15) → 2 (L16) → 3 (L14) → 4 (L17) → 5 (F1).
 
 **2026-10-15 night — the user: "jo b bug mile products module main fix krk jldi sy push kro or mjhe btao kya hogeya next kya rehta — continue ya ni main btaun ga".** PUSHED backend `9a15d9e` (L11 OpeningShelf writes an `in` "Opening stock" movement, reference `opening`), panel `17c61c9` (L10 `common/hooks/useFillOnce` — the item form re-filled on every refetch, the till catalogue sync refetches seconds after opening, so "Still selling this" OFF saved ON; plus a loading cover + Save shut until the item arrives; L12 description refusal with "Write a description" / "Sell it in the shop only"). Walks `qa-kit/p6-add-item.mjs`, `p6-item-active.mjs` (grocery, "QA Walk Biscuit 100g"). Gates: phpunit 3,907, vitest 3,342. **STOPPED for the user's word.** Copy servers 8001/5198 still running.
 

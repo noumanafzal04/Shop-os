@@ -308,6 +308,16 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (night) — khata, advances and installments: the flow, not built
+
+The user, from Ali Raza's khata screen: does a khata payment count in sales and reports; a filter for the
+customers on khata; and on Quotations & advances, installments (months, monthly amount, due day,
+highlighted, filters, calculations checked) plus links. Then: "isko note krlo or pehle flow bna lo" —
+note it and design the flow first. **Nothing built.** Flow: `docs/flows/khata-and-installments.md`.
+Found: L13 (overpay refused with "Confirm…", but the screen has no confirm), L14 (non-cash khata
+collections in no report), L15, L16, L17; F1 installments TO BUILD; questions Q12–Q15. Answer given:
+a credit sale counts on its own day at full price; a later khata payment is a collection, never a sale.
+
 ### 2026-10-15 (late) — the item form keeps what you changed
 
 The user's products review. Add item walked end to end (stock, barcode, cost, alert, scan, retire and back). Fixed:
