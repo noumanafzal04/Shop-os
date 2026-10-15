@@ -36,6 +36,7 @@ import { PRODUCT } from "../../../common/brand";
 import { turnHourChoices } from "../../../common/shopDay";
 import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { settingsWords } from "../settingsWords";
+import { DOCUMENT_PAPERS } from "../../documents/services/documentService";
 
 /** One saved shop preference. Arrays exist because kitchen stations are a list. */
 type PrefValue = string | number | boolean | string[] | null;
@@ -937,6 +938,15 @@ export default function ShopSettingsPage() {
                         options={[{ value: "standard", label: "Standard (A4/Letter)" }, { value: "thermal_80", label: "Thermal 80mm" }, { value: "thermal_58", label: "Thermal 58mm" }]}
                         placeholder="Standard"
                         onChange={(v) => setP("receipt_width", v)}
+                      />
+                    </Field>
+                    <Field label="Quotations & advances print on" hint="Quotations, advance slips and job cards. The till prints them on this without asking; their own page asks, with this already picked.">
+                      <Select
+                        className="max-w-xs"
+                        value={String(prefs.document_paper ?? "standard")}
+                        options={DOCUMENT_PAPERS.map((p) => ({ value: p.value, label: p.label }))}
+                        placeholder="A4 sheet"
+                        onChange={(v) => setP("document_paper", v)}
                       />
                     </Field>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

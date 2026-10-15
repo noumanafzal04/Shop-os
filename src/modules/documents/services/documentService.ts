@@ -136,6 +136,15 @@ export interface CreateDocumentInput {
   idempotency_key?: string;
 }
 
+export type DocumentPaper = "standard" | "thermal_80" | "thermal_58";
+
+/** The papers a quotation, an advance slip or a job card can come out on. */
+export const DOCUMENT_PAPERS: Array<{ value: DocumentPaper; label: string; hint: string }> = [
+  { value: "standard", label: "A4 sheet", hint: "To file or hand over" },
+  { value: "thermal_80", label: "80mm roll", hint: "The till's printer" },
+  { value: "thermal_58", label: "58mm roll", hint: "A small roll printer" },
+];
+
 export const documentService = {
   list: (params: {
     kind?: DocumentKind;

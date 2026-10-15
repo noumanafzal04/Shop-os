@@ -192,6 +192,8 @@ export interface ShopSettings {
   invoice_footer: string | null;
   invoice_show_logo: boolean;
   receipt_width: "standard" | "thermal_80" | "thermal_58";
+  /** What quotations, advance slips and job cards print on — their own paper, not the till roll's. */
+  document_paper: "standard" | "thermal_80" | "thermal_58";
   receipt_show_cashier: boolean;
   /** Pakistan tax identifiers. Null for an unregistered shop — they don't print. */
   invoice_ntn: string | null;

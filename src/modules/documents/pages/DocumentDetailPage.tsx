@@ -22,6 +22,7 @@ import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
 import { useCashNeedsShift, useCounterShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { PrintPaperModal } from "../components/PrintPaperModal";
 
 
 /**
@@ -45,6 +46,7 @@ export default function DocumentDetailPage() {
   const depositModal = useModal();
   const collectModal = useModal();
   const cancelModal = useModal();
+  const paperModal = useModal();
 
   if (query.isLoading) {
     return <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
@@ -82,8 +84,9 @@ export default function DocumentDetailPage() {
   const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
   const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "That could not be changed.");
 
-  const print = () => {
-    documentService.print(doc.id).catch(() => toast.error("Couldn't open the print dialog."));
+  const print = (paper: string) => {
+    paperModal.closeModal();
+    documentService.print(doc.id, paper).catch(() => toast.error("Couldn't open the print dialog."));
   };
 
   return (
@@ -122,7 +125,7 @@ export default function DocumentDetailPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={print}>Print</Button>
+          <Button size="sm" variant="outline" onClick={paperModal.openModal}>Print</Button>
           {open && takesAdvance && (
             <Button size="sm" variant="outline" onClick={depositModal.openModal}>{job ? "Take an advance" : "Take instalment"}</Button>
           )}
@@ -367,6 +370,13 @@ export default function DocumentDetailPage() {
             onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't record it."),
           })
         }
+      />
+
+      <PrintPaperModal
+        isOpen={paperModal.isOpen}
+        onClose={paperModal.closeModal}
+        shopPaper={settings.data?.document_paper ?? "standard"}
+        onPrint={print}
       />
 
       {/* ── Bill and hand over ───────────────────────────────────── */}
