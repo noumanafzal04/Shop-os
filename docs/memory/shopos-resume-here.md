@@ -1,13 +1,13 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-15 night — khata flow BEING BUILT (user: "market standard", Q12–Q15 as recommended); part 1 PUSHED 5badf6e/cae1da4; part 2 (Customers Owes/filters) on the copy, tested, not landed; then parts 3–5
+description: RESUME POINT 2026-10-15 night — khata flow being built (market standard); parts 1+2 PUSHED (backend 2a6d657, panel c6a2ade); next part 3 collections (L14), 4 On advance list, 5 installments
 metadata:
   type: project
 ---
 
 **2026-10-15 night (cont.) — the user: "market standard bnana bs mjhe abhi kuch idea ni — Continue kro", then "jo huwa push kro".** Q12–Q15 taken as recommended (goods home now; optional markup %; plan not held to khata limit; no late fee/SMS yet) — written in BUGS.md.
 - PUSHED part 1: backend `5badf6e` (ledger loads sale:id,invoice_number), panel `cae1da4` (`customers/khata.ts` standing/overpaid/ledgerLine/saleLink, `components/KhataBox.tsx`, SalesPage `?open=<id>`, button renamed "Take payment" — journey 08 + p1-khata updated). Docs pushed with it.
-- ON THE COPY, tested, NOT landed — part 2 (L16): `Customer::STANDINGS/NEAR_LIMIT/NOT_COLLECTIONS`, `scopeStanding`, `khataPayments()`; index `?standing=` + `last_paid_at` (withMax), `GET customers/summary` (route before apiResource), export keeps the filter; test `TheCustomerListSaysWhoOwesTest` (4; 4 mutations caught). Panel: `common/format/since.ts` (+test), `components/OwesCell.tsx` (+test), CustomersPage chips/summary/Owes/Last paid/row tint/Take payment, `?show=owes`. OWED: MoneyPanel tile → `/tenant/customers?show=owes`, help, walk, land, gates, push.
+- PUSHED part 2 (backend `2a6d657`, panel `c6a2ade`) — (L16): `Customer::STANDINGS/NEAR_LIMIT/NOT_COLLECTIONS`, `scopeStanding`, `khataPayments()`; index `?standing=` + `last_paid_at` (withMax), `GET customers/summary` (route before apiResource), export keeps the filter; test `TheCustomerListSaysWhoOwesTest` (4; 4 mutations caught). Panel: `common/format/since.ts` (+test), `components/OwesCell.tsx` (+test), CustomersPage chips/summary/Owes/Last paid/row tint/Take payment, `?show=owes`. MoneyPanel → `?show=owes`. Walk `p6-customers-owe.mjs` (grocery@loadtest.test). The user asked "backend push ni kia" — it WAS pushed (ls-remote showed 2a6d657); they may look at `main`. Gate oddity: vitest collected 270/285 once, exit 0 — re-ran 285/3,356.
 - Dev data: Zari "QA Khata Walk" 03009990001 — INV-000017 (990 khata), paid 1,040 transfer → advance 50.
 
 **2026-10-15 late night — the user pasted Ali Raza's khata screen + asked: khata payment in sales/reports? a "on khata / owes" filter on Customers; installments on Quotations & advances (months, monthly, due day, highlighted, filters, calc checked, links). Then: "isko note krlo or pehle flow bna lo" — NOTE + FLOW FIRST, do not build.**

@@ -94,7 +94,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L13 | P2 | Customers / khata | Paying MORE than a customer owes (Ali Raza owes 4,227.30, pays 4,250 by transfer) is refused with "Confirm to keep the extra 22.70 as an advance", and the screen has no confirm, so the payment cannot be recorded at all (reported by the user, 2026-10-15) | FIXED `5badf6e` `cae1da4` — the khata box asks first: "Keep 22.70 as advance" or "Take 4,227.30 only" (`KhataBox`); walk `qa-kit/p6-khata-advance.mjs` |
 | L14 | P2 | Reports / Day & banking | A khata payment by transfer, card or wallet shows up in no report and not in Day & banking, only on the customer's statement (cash reaches the drawer as `khata_in`). The sale itself is counted on its own day, correctly | OPEN — flow part 3 |
 | L15 | P3 | Customers / khata | An advance in the customer's favour reads "Rs −22.70 owed" and hides the payment box; statement lines say "Payment (bank_transfer)" and the credit sale does not link to its invoice | FIXED `5badf6e` `cae1da4` — "Advance Rs 22.70" in green, the payment box stays open; "Paid · Transfer", "Returned · RET-…", "Sale cancelled"; a credit sale's invoice opens the sale (`/tenant/sales?open=`) |
-| L16 | P2 | Customers | The customer list has no Owes column and no filter: the people on khata are mixed in with everyone else, and the dashboard's "Owed to you" tile opens the plain list (reported by the user, 2026-10-15) | OPEN — flow part 2 |
+| L16 | P2 | Customers | The customer list has no Owes column and no filter: the people on khata are mixed in with everyone else, and the dashboard's "Owed to you" tile opens the plain list (reported by the user, 2026-10-15) | FIXED `2a6d657` `c6a2ade` — Owes column (bar against the limit, Near / Over limit), Last paid, owing rows tinted, filters with counts (Owe money / Over or near limit / Advance held, `customers/summary`), Take payment in the row; the export keeps the filter; the dashboard tile opens `?show=owes`; walk `qa-kit/p6-customers-owe.mjs` |
 | L17 | P3 | Quotes & advances | The On advance list has no last payment, no paid progress, no colours, and no "paid up — hand over" or "not paid 30+ days" filter; everything is mixed together (reported by the user, 2026-10-15) | OPEN — flow part 4 |
 | F1 | — | Installments | Installments (qist) do not exist: no months, monthly amount or due day; a layaway holds the goods, and khata has no schedule (asked by the user, 2026-10-15) | TO BUILD after Q12–Q15 — flow part 5 |
 
@@ -297,7 +297,7 @@ bank on account (reference QA-HIST-1), which landed on PO-000001 (owed 10,000 �
 
 Flow: `docs/flows/khata-and-installments.md`. The user left Q12–Q15 to "market standard" — the recommended
 answers are taken (goods go home now; optional markup %; a plan is not held to the khata limit; no late fee or
-SMS yet). Part 1 pushed: backend `5badf6e`, panel `cae1da4` (L13, L15). Decision note:
+SMS yet). Part 1 pushed: backend `5badf6e`, panel `cae1da4` (L13, L15). Part 2 pushed: backend `2a6d657`, panel `c6a2ade` (L16). Decision note:
 `docs/decisions/shopos-a-khata-payment-asks-before-keeping-an-advance.md`. Dev data: Zari customer "QA Khata
 Walk" (03009990001): INV-000017 on khata (990), paid 1,040 by transfer → Advance 50.
 

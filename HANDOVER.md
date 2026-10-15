@@ -308,6 +308,13 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (night) — khata part 2 pushed
+
+Backend `2a6d657`, panel `c6a2ade` (L16): `Customer::scopeStanding` (owes / limit / advance), `khataPayments()`
+(not returns/cancellations), `GET customers/summary`, export keeps `standing`; panel `OwesCell`, `common/format/
+since.ts`, filter chips, MoneyPanel → `/tenant/customers?show=owes`. Note: the gate's vitest collected 270 of
+285 files once and still exited 0 — re-run on the pushed tree, 285 / 3,356 pass. Watch the file count.
+
 ### 2026-10-15 (night) — khata part 1 pushed
 
 The user: "market standard bnana bs mjhe abhi kuch idea ni — continue kro", then "jo huwa push kro". Q12–Q15
