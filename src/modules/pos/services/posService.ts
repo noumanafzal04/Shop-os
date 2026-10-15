@@ -146,15 +146,15 @@ export const shiftFromAnEarlierDay = (s: SessionState): boolean =>
  * gate disagreeing is its own bug: "Open a shift to sell." was printed under a
  * disabled Tender button on shops that had never asked for shifts.
  */
-export function whyCannotRing(session: SessionState, requireShift: boolean): string | null {
+export function whyCannotRing(session: SessionState, requireShift: boolean, doing = "to sell"): string | null {
   if (canRingASale(session, requireShift)) return null;
 
   if (shiftFromAnEarlierDay(session)) {
     const since = (session as CashSession).opened_on;
-    return `Your shift has been open since ${since ? shopDate(since) : "an earlier day"} — close it and open today's to sell.`;
+    return `Your shift has been open since ${since ? shopDate(since) : "an earlier day"} — close it and open today's ${doing}.`;
   }
 
-  return "Open a shift to sell — this shop requires one.";
+  return `Open a shift ${doing} — this shop requires one.`;
 }
 
 /**

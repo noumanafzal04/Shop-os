@@ -10,6 +10,8 @@ import { useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import type { DocumentKind, DocumentLineInput } from "../services/documentService";
 import { useOnceKey } from "../../../common/onceKey";
+import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
+import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 interface Props {
   isOpen: boolean;
@@ -80,6 +82,7 @@ export default function ParkAsDocumentModal({
   const depositValue = Number(deposit) || 0;
   const belowMinimum = layaway && minPct > 0 && depositValue < minimum;
   const missingCustomer = layaway && !phone.trim();
+  const shiftWhy = useCashNeedsShift(layaway ? method : "", depositValue);
 
   const submit = () => {
     create.mutate(
@@ -204,11 +207,13 @@ export default function ParkAsDocumentModal({
         )}
       </div>
 
+      {shiftWhy && <div className="mt-4"><ShiftNeeded why={shiftWhy} /></div>}
+
       <div className="mt-6 flex justify-end gap-2">
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
         <Button
           size="sm"
-          disabled={create.isPending || lines.length === 0 || missingCustomer || belowMinimum}
+          disabled={create.isPending || lines.length === 0 || missingCustomer || belowMinimum || shiftWhy !== null}
           onClick={submit}
         >
           {layaway ? "Hold the goods" : "Save quotation"}

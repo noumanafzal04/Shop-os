@@ -20,7 +20,7 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords } from "../../workshop/words";
 import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
-import { useCounterShift } from "../../pos/hooks/useCounterShift";
+import { useCashNeedsShift, useCounterShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 
 
@@ -444,6 +444,7 @@ function DepositModal({
   const [method, setMethod] = useState<string>("cash");
   const [reference, setReference] = useState("");
   const money = useMoney();
+  const shiftWhy = useCashNeedsShift(method, Number(amount) || 0);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
@@ -454,7 +455,7 @@ function DepositModal({
             <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
             <Button
               size="sm"
-              disabled={pending || !(Number(amount) > 0)}
+              disabled={pending || !(Number(amount) > 0) || shiftWhy !== null}
               onClick={() => onSubmit({ amount: Number(amount), method, reference: reference || undefined })}
             >
               Record
@@ -494,6 +495,7 @@ function DepositModal({
               ))}
             </div>
           </div>
+          <ShiftNeeded why={shiftWhy} />
           {method !== "cash" && (
             <div>
               <Label>Reference</Label>

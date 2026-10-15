@@ -1590,7 +1590,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "p", text: "Or start one from this screen, without the till: 'New quotation' or 'Hold goods on advance' at the top. Pick the items (each size is its own row, with how many are left), press Next, then give the customer, the date and — for an advance — what they paid. The list turns to the one you just made." },
-      { type: "note", text: "An advance in cash goes into the open drawer of whoever takes it, on the day it is taken — so take it with your shift open: taken with none, it is recorded but counted in no drawer. A card or bank advance is recorded with its method and reaches no drawer. More can be taken later from the advance's own page, and when the goods go out only the balance is asked for." },
+      { type: "note", text: "An advance in cash goes into the open drawer of whoever takes it, on the day it is taken — so take it with today's shift open. A shop that requires shifts refuses a cash advance without one and says so on the form; in a shop that does not, cash taken with no shift is recorded but counted in no drawer. A card or bank advance is recorded with its method and reaches no drawer. More can be taken later from the advance's own page, and when the goods go out only the balance is asked for." },
       {
         type: "warn",
         text: "An advance is a customer's money you are holding. It sits with the daily screens rather than in a reports folder for exactly that reason — you should see it every day until it is settled.",

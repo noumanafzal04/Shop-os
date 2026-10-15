@@ -169,7 +169,10 @@ export interface ReportSummary {
     revenue: number;
     other_income: number;
     refunds: number;
+    tax: number;
+    cogs: number;
     expenses: number;
+    /** The headline's net profit for this bucket alone — the buckets add up to `totals.net_profit`. */
     profit: number;
   }>;
   top_products: Array<{ name: string; units: number; revenue: number }>;

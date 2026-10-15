@@ -12,14 +12,28 @@ import { useCurrentSession } from "./usePos";
  * press. Unknown while the session is still loading — never a refusal on a
  * guess.
  */
-export function useCounterShift(): { ready: boolean; why: string | null } {
+export function useCounterShift(doing?: string): { ready: boolean; why: string | null } {
   const settings = useShopSettings();
   const session = useCurrentSession();
   const required = settings.data?.pos_require_shift === true;
 
   if (!required || session.data === undefined) return { ready: true, why: null };
 
-  const why = whyCannotRing(session.data ?? null, true);
+  const why = whyCannotRing(session.data ?? null, true, doing);
 
   return { ready: why === null, why };
+}
+
+/**
+ * CASH TAKEN AS AN ADVANCE GOES INTO A DRAWER TOO.
+ *
+ * A layaway's or a job's cash advance, taken by someone with no shift, was
+ * recorded and reached no drawer, without a word (L2). A shop that asks for
+ * shifts now refuses it as it refuses a sale; card, bank and wallet money
+ * needs no drawer and is never held up. Null when the money may be taken.
+ */
+export function useCashNeedsShift(method: string, amount: number): string | null {
+  const { why } = useCounterShift("to take cash");
+
+  return method === "cash" && amount > 0 && why !== null ? `${why} Card, bank or wallet money needs no drawer.` : null;
 }
