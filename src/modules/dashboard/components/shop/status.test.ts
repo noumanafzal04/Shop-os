@@ -14,7 +14,7 @@ import { shopStatus } from "./status";
  */
 
 const caps = (over: Partial<Capabilities> = {}): Capabilities =>
-  ({ sells: true, takesOrders: true, tracksStock: true, ...over }) as Capabilities;
+  ({ sells: true, takesOrders: true, tracksStock: true, visit: () => true, ...over }) as Capabilities;
 
 const day = (over: Record<string, unknown> = {}): TenantDashboard =>
   ({
@@ -196,5 +196,21 @@ describe("what the books are waiting on", () => {
 
   it("an older server that sends no books block changes nothing", () => {
     expect(shopStatus(day({ recent_expenses: entry }), office).text).toBe("Nothing needs you right now.");
+  });
+});
+
+describe("said to the person who can act on it (tester pass 4, B58)", () => {
+  it("does not ask someone who cannot open Orders to accept an order", () => {
+    const kitchen = caps({ visit: (path: string) => path !== "/tenant/orders" });
+
+    expect(shopStatus(day({ pending_orders: 14 }), caps()).text).toBe("14 orders are waiting for you to accept.");
+    expect(shopStatus(day({ pending_orders: 14 }), kitchen).text).not.toMatch(/accept/);
+  });
+
+  it("says nothing about the day's sales to someone who is not sent them", () => {
+    const status = shopStatus(day({ today: { sales_count: null } }), caps());
+
+    expect(status.text).toBe("Nothing needs you right now.");
+    expect(status.text).not.toMatch(/rung|sale/i);
   });
 });

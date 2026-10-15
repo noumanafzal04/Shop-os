@@ -9,7 +9,7 @@ import { useShopSettings, useMoney } from "../../shop/hooks/useShop";
 import { useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import type { DocumentKind, DocumentLineInput } from "../services/documentService";
-import { uuid } from "../../../common/uuid";
+import { useOnceKey } from "../../../common/onceKey";
 
 interface Props {
   isOpen: boolean;
@@ -20,8 +20,10 @@ interface Props {
   customerPhone: string;
   /** The till's own estimate — used only to size the deposit hint. */
   total: number;
-  /** Clear the ticket once the promise is on paper. */
-  onDone: () => void;
+  /** Clear the ticket once the promise is on paper — told which kind was saved. */
+  onDone: (saved: DocumentKind) => void;
+  /** Which of the two it opens on — the Quotations screen's own buttons say. */
+  startAs?: DocumentKind;
 }
 
 /**
@@ -40,13 +42,18 @@ export default function ParkAsDocumentModal({
   customerPhone,
   total,
   onDone,
+  startAs = "quotation",
 }: Props) {
   const toast = useToast();
   const money = useMoney();
   const settings = useShopSettings();
   const { create } = useDocumentMutations();
+  // One key for this booking until it is saved — a press minted a new one
+  // each time, so a double-click held the goods twice and took the advance
+  // twice (tester pass 4: the layaway's opening advance, B07's shape).
+  const once = useOnceKey();
 
-  const [kind, setKind] = useState<DocumentKind>("quotation");
+  const [kind, setKind] = useState<DocumentKind>(startAs);
   const [name, setName] = useState(customerName);
   const [phone, setPhone] = useState(customerPhone);
   const [expires, setExpires] = useState("");
@@ -64,10 +71,10 @@ export default function ParkAsDocumentModal({
     if (!isOpen) return;
     setName(customerName);
     setPhone(customerPhone);
-    setKind(quotesOn ? "quotation" : "layaway");
+    setKind(startAs === "layaway" || !quotesOn ? "layaway" : "quotation");
     setExpires("");
     setDeposit("");
-  }, [isOpen, customerName, customerPhone, quotesOn]);
+  }, [isOpen, customerName, customerPhone, quotesOn, startAs]);
 
   const layaway = kind === "layaway";
   const depositValue = Number(deposit) || 0;
@@ -84,10 +91,11 @@ export default function ParkAsDocumentModal({
         customer_phone: phone.trim() || undefined,
         expires_at: expires || undefined,
         deposit: layaway ? { amount: depositValue, method } : undefined,
-        idempotency_key: uuid(),
+        idempotency_key: once.key,
       },
       {
         onSuccess: (res) => {
+          once.renew();
           const doc = res.data;
           toast.success(
             layaway ? `Goods held · ${doc.number}` : `Quotation ${doc.number} saved`,
@@ -96,7 +104,7 @@ export default function ParkAsDocumentModal({
           void documentService.print(doc.id).catch(() => {
             toast.error("Saved, but the print dialog didn't open.");
           });
-          onDone();
+          onDone(kind);
           onClose();
         },
         onError: (e) =>

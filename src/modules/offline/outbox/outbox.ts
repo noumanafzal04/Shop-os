@@ -87,6 +87,16 @@ export interface OutboxRow {
   /** The sale payload, in the shape the sync endpoint takes. */
   sale: Record<string, unknown>;
   /**
+   * What the till said the sale came to, when it was rung.
+   *
+   * The payload is what the online path would have POSTed, and that never
+   * carries a total — the server works it out. So a refused sale could not
+   * say how much cash sat in the drawer with no sale against it: "amount
+   * unreadable", every time (tester pass 4, B57). Only for that list; the
+   * server still prices the sale itself. Absent on rows from older builds.
+   */
+  tillTotal?: number | null;
+  /**
    * Was this till standing at a PRACTICE drawer when it rang this?
    *
    * Sent alongside the sale, and read as false whenever it is missing. The
@@ -133,11 +143,13 @@ export function newRow(
     tenantId = null,
     clientAt,
     rungBy = null,
+    tillTotal = null,
   }: {
     training?: boolean;
     tenantId?: string | null;
     clientAt?: string;
     rungBy?: string | null;
+    tillTotal?: number | null;
   } = {},
 ): OutboxRow {
   return {
@@ -148,6 +160,7 @@ export function newRow(
     offlineNumber,
     offlineSince,
     sale,
+    tillTotal,
     training,
     tenantId,
     status: OUTBOX_STATUS.PENDING,
@@ -412,10 +425,25 @@ export async function refusedCount(): Promise<number> {
  * printing "Rs 0", which a shopkeeper would read as a sale worth nothing.
  */
 export function refusedTotal(row: OutboxRow): number | null {
-  const total = (row.sale as { total?: unknown } | null)?.total;
-  const n = typeof total === "string" ? Number(total) : total;
+  const asNumber = (v: unknown): number | null => {
+    const n = typeof v === "string" ? Number(v) : v;
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  };
 
-  return typeof n === "number" && Number.isFinite(n) ? n : null;
+  // What the till said when it rang it — every row since B57.
+  const rung = asNumber(row.tillTotal);
+  if (rung !== null) return rung;
+
+  // An older row: a total if the payload ever had one, else what was taken
+  // method by method (a split's payments add up to the sale). Never the cash
+  // handed over — a 1,000 note for a 500 sale is not a 1,000 sale.
+  const sale = row.sale as { total?: unknown; payments?: unknown } | null;
+  const total = asNumber(sale?.total);
+  if (total !== null) return total;
+
+  const paid = Array.isArray(sale?.payments) ? sale.payments.map((p) => asNumber((p as { amount?: unknown })?.amount)) : [];
+
+  return paid.length > 0 && paid.every((a) => a !== null) ? paid.reduce<number>((sum, a) => sum + (a as number), 0) : null;
 }
 
 export async function markSending(rows: OutboxRow[]): Promise<void> {

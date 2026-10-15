@@ -240,6 +240,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // too. Without this the only way to stop selling something was to DELETE it,
   // which takes its sales history's link with it.
   const [isActive, setIsActive] = useState(true);
+  // Kept and used, never sold — a recipe's flour. It was offered on the till
+  // at 0, with no way to say otherwise (tester pass 5, B62).
+  const [forSale, setForSale] = useState(true);
   const [visibleOnline, setVisibleOnline] = useState(true);
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [variants, setVariants] = useState<MatrixRow[]>([]);
@@ -297,6 +300,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   const stockManaged = canTrackStock && inventoryEnabled;
   // A plain sellable good (has SKU/brand/packs/barcodes); not a service or deal.
   const isGood = !isService && !isCombo;
+  /** Its opening stock can be a dated lot: a medicine must be, a packet that goes off may be. */
+  const keepsLots = isMedicine || isPhysical;
 
   // A new medicine with opening stock (product- or variant-level) must carry an
   // opening-lot expiry — mirror the server rule so we block save with a hint
@@ -477,6 +482,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       setTrackChoice(p.track_inventory);
       wasCounted.current = p.track_inventory;
       setIsActive(p.is_active);
+      setForSale(p.for_sale !== false);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
       setModifierGroups(
@@ -583,7 +589,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       min_order_qty: isGood ? (minOrderQty ? Number(minOrderQty) : null) : undefined,
       low_stock_threshold: stockManaged && trackStock && lowStockThreshold ? Number(lowStockThreshold) : undefined,
       is_active: isActive,
-      visible_in_marketplace: visibleOnline,
+      for_sale: forSale,
+      // The server lists nothing kept only as an ingredient; say the same here.
+      visible_in_marketplace: forSale && visibleOnline,
       collection_ids: collectionIds,
       ...(isFood ? { available_from: availableFrom || null, available_until: availableUntil || null } : {}),
     };
@@ -635,10 +643,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 stock_quantity: trackStock ? Number(stock) || 0 : 0,
               }
             : {}),
-          // Opening-lot expiry + batch number for a medicine (backend requires
-          // the expiry when there's opening stock; both harmless otherwise).
-          ...(isMedicine && expiryDate ? { expiry_date: expiryDate } : {}),
-          ...(isMedicine && openingBatch.trim() ? { opening_batch_number: openingBatch.trim() } : {}),
+          // Opening-lot expiry + batch number. Required of a medicine with
+          // opening stock; optional for anything else that goes off, and
+          // given, it dates the opening lot (tester pass 4, B60).
+          ...(keepsLots && expiryDate ? { expiry_date: expiryDate } : {}),
+          ...(keepsLots && openingBatch.trim() ? { opening_batch_number: openingBatch.trim() } : {}),
           ...(isService ? { duration_minutes: duration ? Number(duration) : undefined } : {}),
           // Sizes ride BOTH paths now. On create they are new rows; on edit
           // each row carries its id, so the server can tell an edit from an
@@ -1382,7 +1391,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     placeholder="e.g. 5"
                   />
                 </div>
-                {isMedicine && !isEdit && (
+                {keepsLots && !isEdit && (
                   <>
                     <div>
                       <Label>Opening batch number</Label>
@@ -1399,7 +1408,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       </Label>
                       <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
                       <p className="mt-1 text-theme-xs text-gray-400">
-                        Medicines need an expiry on their opening lot (refine per-lot later on the Batches screen).
+                        {isMedicine
+                          ? "Medicines need an expiry on their opening lot (refine per-lot later on the Batches screen)."
+                          : "Only for goods that go off — milk, yogurt, bread. The oldest is sold first, and it shows on the expiring list."}
                       </p>
                     </div>
                   </>
@@ -1438,6 +1449,17 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           title="Still selling this"
           hint="Turn off to retire the item — it leaves the till and your online shop but keeps its sales history, unlike deleting it. Turn it back on any time."
         />
+
+        {/* A packet (flour) or something the kitchen makes for its own dishes
+            (a gravy base) — never a service, a deal or a medicine. */}
+        {(isPhysical || isFood) && (
+          <Toggle
+            checked={forSale}
+            onChange={setForSale}
+            title="Sold to customers"
+            hint="Turn off for something you keep and use but never sell — flour for the parathas, oil for the kitchen. It stays counted and is used up by recipes, but it is never on the till, the menu or your online shop."
+          />
+        )}
 
         {/* What this item used to cost, and who moved it. Edit only — a new item
             has no history, and the section renders nothing for anyone whose job

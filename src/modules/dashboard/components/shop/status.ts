@@ -38,8 +38,10 @@ export function shopStatus(data: TenantDashboard, caps: Capabilities): ShopStatu
     };
   }
 
-  // A customer has asked for something and nobody has answered.
-  if (caps.takesOrders && data.pending_orders > 0) {
+  // A customer has asked for something and nobody has answered — said to the
+  // people who may answer it. The kitchen was told "14 orders are waiting for
+  // you to accept" with no Orders screen to accept them on (tester pass 4, B58).
+  if (caps.takesOrders && caps.visit("/tenant/orders") && data.pending_orders > 0) {
     return {
       tone: "alert",
       text: `${n(data.pending_orders, "order is", "orders are")} waiting for you to accept.`,
@@ -82,6 +84,10 @@ export function shopStatus(data: TenantDashboard, caps: Capabilities): ShopStatu
   // ever have to say. Same figures as the rows below it. See booksWaiting.
   const books = caps.keepsBooks ? booksSentence(data.books) : null;
   if (books) return books;
+
+  // A person who is not sent the day's sales is told nothing about them —
+  // "nothing rung up yet" over a busy day is a figure nobody sent.
+  if (caps.sells && data.today.sales_count === null) return { tone: "calm", text: "Nothing needs you right now." };
 
   const rung = data.today.sales_count ?? 0;
   if (caps.sells && rung > 0) {

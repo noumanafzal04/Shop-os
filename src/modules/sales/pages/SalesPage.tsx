@@ -21,6 +21,8 @@ import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
 import { ArchivedBefore } from "../../../components/ui/retention/ArchivedBefore";
 import { useReturnWorth, useSale, useSaleMutations, useSaleWorth, useSales } from "../hooks/useSales";
+import { RefundApproval } from "../components/RefundApproval";
+import { NO_APPROVAL, approvalPayload, approvalReady, type ApprovalState } from "../refundApproval";
 import { useProducts } from "../../catalog/hooks/useCatalog";
 import { useQuery } from "@tanstack/react-query";
 import { posService } from "../../pos/services/posService";
@@ -121,7 +123,7 @@ const STATUS_COLOR: Record<SaleStatus, "success" | "error" | "warning" | "info">
 const NO_DRAWER = {
   none: {
     title: "You have no shift open",
-    message: "Cash you hand back or take now is not counted by any drawer — the till it goes through will be out by this much at close. Open your own shift first, or let the cashier whose drawer it is do it.",
+    message: "Cash you hand back or take now is not counted by any drawer — the till it goes through will be out by this much at close. Open your own shift first, or choose below the cashier's drawer it comes out of — with a supervisor's PIN.",
   },
   practice: {
     title: "Your open shift is a practice till",
@@ -260,6 +262,8 @@ export default function SalesPage() {
   const [exItems, setExItems] = useState<Replacement[]>([]);
   const [exSearch, setExSearch] = useState("");
   const [exMethod, setExMethod] = useState("cash");
+  // Whose drawer, and who says yes (the owner, B01) — see refundApproval.ts.
+  const [approval, setApproval] = useState<ApprovalState>(NO_APPROVAL);
   const [exAmount, setExAmount] = useState("");
   // What the customer takes INSTEAD is a sale like any other: only what is on sale.
   const exProducts = useProducts({ search: exSearch || undefined, for_sale: true });
@@ -278,6 +282,7 @@ export default function SalesPage() {
     setExSearch("");
     setExMethod("cash");
     setExAmount("");
+    setApproval(NO_APPROVAL);
     setCancelReason("");
     detailModal.openModal();
   };
@@ -334,8 +339,8 @@ export default function SalesPage() {
       // Back the way the server says (back_by): the sale's own method, or cash
       // for a split or khata sale. Sending "split" or "credit" was refused —
       // tester pass 1, B03 / B04.
-      { id: detailId, items, refund_method: backWorth?.back_by, idempotency_key: returnIdemRef.current },
-      { onSuccess: () => { setReturning(false); setReturnQty({}); setUnitsBack({}); } },
+      { id: detailId, items, refund_method: backWorth?.back_by, idempotency_key: returnIdemRef.current, ...approvalPayload(approval, may.needsApproval) },
+      { onSuccess: () => { setReturning(false); setReturnQty({}); setUnitsBack({}); setApproval(NO_APPROVAL); } },
     );
   };
 
@@ -348,8 +353,8 @@ export default function SalesPage() {
     exchange.mutate(
       // The replacement is rung where the sale was (pass 1, B30: it said walk_in
       // for a till sale), and once per press (B07).
-      { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: detail.data?.channel ?? "pos", idempotency_key: exchangeOnce.key },
-      { onSuccess: () => { exchangeOnce.renew(); setExchanging(false); setExItems([]); setReturnQty({}); setUnitsBack({}); setExAmount(""); setExSearch(""); } },
+      { id: detailId, return_items, items, payments: amount > 0 ? [{ method: exMethod, amount }] : [], channel: detail.data?.channel ?? "pos", idempotency_key: exchangeOnce.key, ...approvalPayload(approval, may.needsApproval) },
+      { onSuccess: () => { exchangeOnce.renew(); setApproval(NO_APPROVAL); setExchanging(false); setExItems([]); setReturnQty({}); setUnitsBack({}); setExAmount(""); setExSearch(""); } },
     );
   };
 
@@ -807,11 +812,12 @@ export default function SalesPage() {
                     </span>
                   </div>
                 )}
-                {backWorth && (backWorth.handed_back ?? backWorth.refund_total) > 0 && noDrawerFor(backWorth.drawer, backWorth.back_by ?? detail.data?.payment_method) && (
+                {backWorth && approval.drawerId === "" && (backWorth.handed_back ?? backWorth.refund_total) > 0 && noDrawerFor(backWorth.drawer, backWorth.back_by ?? detail.data?.payment_method) && (
                   <div data-testid="refund-no-drawer">
                     <Alert variant="warning" title={NO_DRAWER[backWorth.drawer as "none" | "practice"].title} message={NO_DRAWER[backWorth.drawer as "none" | "practice"].message} />
                   </div>
                 )}
+                {!nothingBack && <RefundApproval needsApproval={may.needsApproval} ownDrawer={backWorth?.drawer} value={approval} onChange={setApproval} />}
                 {processReturn.error instanceof ApiError && (
                   <Alert variant="error" title="Return failed" message={processReturn.error.message} />
                 )}
@@ -824,7 +830,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setReturning(false)}>Back</Button>
-                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q) || !saidWhichUnits}>
+                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q) || !saidWhichUnits || !approvalReady(approval, may.needsApproval)}>
                     {processReturn.isPending ? "Processing…" : "Refund & restock"}
                   </Button>
                 </div>
@@ -936,11 +942,12 @@ export default function SalesPage() {
                   )}
                 </div>
 
-                {worth.data && worth.data.drawer && worth.data.drawer !== "open" && exKnown && (exDiff < 0 || (exDiff > 0 && exMethod === "cash")) && (
+                {worth.data && worth.data.drawer && worth.data.drawer !== "open" && approval.drawerId === "" && exKnown && (exDiff < 0 || (exDiff > 0 && exMethod === "cash")) && (
                   <div data-testid="exchange-no-drawer">
                     <Alert variant="warning" title={NO_DRAWER[worth.data.drawer].title} message={NO_DRAWER[worth.data.drawer].message} />
                   </div>
                 )}
+                {exItems.length > 0 && <RefundApproval needsApproval={may.needsApproval} ownDrawer={worth.data?.drawer} value={approval} onChange={setApproval} />}
                 {exchange.error instanceof ApiError && (
                   <Alert variant="error" title="Exchange failed" message={exchange.error.message} />
                 )}
@@ -953,7 +960,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setExchanging(false)}>Back</Button>
-                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || !exKnown}>
+                  <Button size="sm" onClick={doExchange} disabled={!connected || exchange.isPending || Object.values(returnQty).every((q) => !q) || exItems.length === 0 || !saidWhichUnits || !exKnown || !approvalReady(approval, may.needsApproval)}>
                     {exchange.isPending ? "Processing…" : "Complete exchange"}
                   </Button>
                 </div>

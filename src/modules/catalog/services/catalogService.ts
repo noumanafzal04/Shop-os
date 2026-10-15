@@ -49,6 +49,8 @@ export const catalogService = {
         category_id: filters.category_id || undefined,
         low_stock: filters.low_stock ? 1 : undefined,
         is_active: filters.for_sale ? 1 : undefined,
+        // …and not an item kept only as an ingredient (tester pass 5, B62).
+        for_sale: filters.for_sale ? 1 : undefined,
         page: filters.page ?? 1,
         per_page: filters.per_page || undefined,
       },

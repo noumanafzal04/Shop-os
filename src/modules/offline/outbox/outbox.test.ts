@@ -338,12 +338,20 @@ describe("sales the server refused for good", () => {
     expect(rows[0].error, "the server's own words, so the shop can act").toBe("Item may not be sold offline.");
   });
 
-  it("reads the amount off the sale, and admits when it cannot", async () => {
-    // "Rs 0" would read as a sale worth nothing, which is a different story
-    // from one whose amount this build cannot parse.
-    expect(refusedTotal(row("1"))).toBe(100);
-    expect(refusedTotal(row("2", { sale: {} }))).toBeNull();
+  it("reads the amount the till rang, and admits when it cannot", async () => {
+    // The payload as the till really queues it: no total — the server works
+    // that out. Read off `sale.total` alone, every refused sale said "amount
+    // unreadable" (tester pass 4, B57).
+    const asQueued = { channel: "pos", items: [{ product_id: "p", quantity: 1 }], payment_method: "cash", amount_paid: 1000 };
+    expect(refusedTotal(row("1", { sale: asQueued, tillTotal: 500 }))).toBe(500);
+    // Not the note handed over.
+    expect(refusedTotal(row("2", { sale: asQueued, tillTotal: null }))).toBeNull();
+    // Rows from older builds: a total if there was one, else what was taken.
     expect(refusedTotal(row("3", { sale: { total: "250.50" } }))).toBe(250.5);
+    expect(refusedTotal(row("4", { sale: { payments: [{ method: "cash", amount: 300 }, { method: "card", amount: 200 }] } }))).toBe(500);
+    // "Rs 0" would read as a sale worth nothing — a different story from one
+    // whose amount cannot be read.
+    expect(refusedTotal(row("5", { sale: {} }))).toBeNull();
   });
 });
 

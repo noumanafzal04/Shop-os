@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { asksAbout } from "../../../common/asksAbout";
 import {
   ordersService,
   type CounterOrderPayload,
@@ -13,7 +14,6 @@ import {
   type OrderStatus,
   type PlaceOrderPayload,
 } from "../services/ordersService";
-import { uuid } from "../../../common/uuid";
 import type { OrdersWaiting } from "../../../layout/ordersWaiting";
 import { useAuthStore } from "../../../stores/authStore";
 import { useNotifications } from "../../notifications/hooks/useNotifications";
@@ -32,7 +32,7 @@ export function usePlaceOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: PlaceOrderPayload) =>
-      ordersService.place({ idempotency_key: uuid(), ...payload }),
+      ordersService.place(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
   });
 }
@@ -62,7 +62,8 @@ export function useOrderWorth(asked: string, enabled: boolean) {
   return useQuery({
     queryKey: ["order-worth", asked],
     queryFn: async () => (await ordersService.worth(JSON.parse(asked) as OrderAsked)).data,
-    enabled,
+    // Never the empty order a moment before the first line (B27).
+    enabled: enabled && asksAbout(asked),
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -75,7 +76,7 @@ export function useTakeOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: CounterOrderPayload) =>
-      ordersService.takeOrder({ idempotency_key: uuid(), ...payload }),
+      ordersService.takeOrder(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", "shop"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });

@@ -117,6 +117,8 @@ describe("ringing it", () => {
     const queued = await allRows();
     expect(queued).toHaveLength(1);
     expect(queued[0].status).toBe(OUTBOX_STATUS.PENDING);
+    // Kept so a refusal can say how much cash has no sale against it (B57).
+    expect(queued[0].tillTotal).toBe(200);
   });
 
   it("queues the payload the ONLINE path would have sent", async () => {

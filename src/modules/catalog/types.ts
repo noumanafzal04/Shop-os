@@ -175,8 +175,12 @@ export interface Product {
    * run down while the godown holds forty is not a purchase order.
    */
   held_elsewhere?: Array<{ branch_id: string; name: string; kind: "shop" | "warehouse"; quantity: number }>;
+  /** Reorder list only: kept in a tank, so it comes in by tanker, never on a purchase order. */
+  by_tanker?: boolean;
   duration_minutes: number | null;
   is_active: boolean;
+  /** False = kept and used (a recipe's flour), never sold: off the till, the menu and the storefront. */
+  for_sale?: boolean;
   visible_in_marketplace: boolean;
   available_from: string | null;
   available_until: string | null;

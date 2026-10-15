@@ -60,7 +60,8 @@ export interface PlaceOrderPayload {
   payment_method?: "cod" | "paid";
   items?: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
   notes?: string;
-  idempotency_key?: string;
+  /** Held by the form from its first press until the order is placed (useOnceKey). */
+  idempotency_key: string;
   coupon_code?: string;
 }
 
@@ -83,7 +84,8 @@ export interface CounterOrderPayload {
   coupon_code?: string;
   /** The kitchen starts on it now: accepted and being prepared in the breath it is taken. */
   send_to_kitchen?: boolean;
-  idempotency_key?: string;
+  /** Held by the form from its first press until the order is placed (useOnceKey). */
+  idempotency_key: string;
 }
 
 /**

@@ -148,6 +148,9 @@ export default function InventoryPage() {
   // In the reorder view the server decides the rows, so there is no paging and
   // no client-side search — the whole point is that the list is already short.
   const lowRows = lowStock.data?.rows ?? [];
+  // Tank fuel runs low too, but comes in by tanker with the dips; one litre of
+  // petrol on the press refused the whole list (tester pass 4, B54).
+  const orderable = lowRows.filter((p) => !p.by_tanker);
   /** How many items have a reorder level at all — see the empty state below. */
   const watched = lowStock.data?.watched ?? null;
   const lowShown = lowStock.data?.shown ?? null;
@@ -178,7 +181,7 @@ export default function InventoryPage() {
    * a draft is for.
    */
   const orderTheseItems = () => {
-    raiseOrders.mutate(lowRows.map((p) => p.id), {
+    raiseOrders.mutate(orderable.map((p) => p.id), {
       onSuccess: (res) => {
         // The server's own sentence, because it is the one that names any
         // items it could not place and says why.
@@ -368,9 +371,9 @@ export default function InventoryPage() {
           {/* Only offered to whoever can actually raise the order. */}
           {/* …and only in a shop that HAS purchase orders: the button posts
               to the Purchasing module, which Inventory no longer implies. */}
-          {reorderOnly && lowRows.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
+          {reorderOnly && orderable.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
             <Button size="sm" variant="outline" onClick={orderTheseItems}>
-              Order these {lowRows.length} item{lowRows.length > 1 ? "s" : ""}
+              Order these {orderable.length} item{orderable.length > 1 ? "s" : ""}
             </Button>
           )}
         </div>
@@ -473,7 +476,11 @@ export default function InventoryPage() {
                             {p.held_elsewhere![0].name} has {formatQuantity(p.held_elsewhere![0].quantity)} — bring it
                           </Link>
                         )}
-                        {p.last_supplier_name ? (
+                        {p.by_tanker ? (
+                          <span data-testid="by-tanker" className="text-theme-xs text-gray-600 dark:text-gray-300">
+                            Comes by tanker — take it in from Fuel → Deliveries
+                          </span>
+                        ) : p.last_supplier_name ? (
                           <span className="text-gray-700 dark:text-gray-300">{p.last_supplier_name}</span>
                         ) : (
                           /* Absent, never invented. A product nobody has bought

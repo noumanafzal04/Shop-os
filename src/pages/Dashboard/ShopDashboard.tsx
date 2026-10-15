@@ -130,7 +130,11 @@ export default function ShopDashboard() {
               ]
             : undefined
         }
-        loadingChips={caps.sells && basic ? 2 : 0}
+        // Held places for the two chips while the figures are on their way —
+        // and only then. A person who is sent no takings gets no chips, and a
+        // placeholder that never fills reads as a screen still loading
+        // (tester pass 4, B53).
+        loadingChips={isLoading && caps.sells && basic ? 2 : 0}
         aside={
           branchName ? (
             <span className="flex items-center gap-2 rounded-full bg-white/12 px-3.5 py-1.5 text-theme-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur">

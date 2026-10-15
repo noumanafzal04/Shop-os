@@ -441,6 +441,9 @@ export default function ProductsPage() {
                       <Badge size="sm" color={p.is_active ? "success" : "light"}>
                         {p.is_active ? "Active" : "Inactive"}
                       </Badge>
+                      {p.for_sale === false && (
+                        <div className="mt-1 text-theme-xs text-gray-400">Not sold — ingredient</div>
+                      )}
                       {marketplaceEnabled && !p.visible_in_marketplace && (
                         <div className="mt-1 text-theme-xs text-gray-400">In-store only</div>
                       )}

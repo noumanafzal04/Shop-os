@@ -25,6 +25,7 @@ const SELLS = [
   "../sales/pages/NewSalePage.tsx",
   "../sales/pages/SalesPage.tsx",
   "../orders/pages/TakeOrderPage.tsx",
+  "../documents/components/NewDocumentSheet.tsx",
 ];
 
 /**

@@ -79,6 +79,9 @@ export const salesService = {
       /** Replay guard — a retried/double-clicked partial return must not
        *  refund cash twice. Same key returns the original refund. */
       idempotency_key?: string;
+      /** Another cashier's drawer, with a supervisor's PIN — see refundApproval.ts. */
+      cash_session_id?: string;
+      approval?: { user_id: string; pin: string };
     },
   ) => apiPost<SaleReturn>(`/sales/${id}/returns`, payload),
 
@@ -98,6 +101,8 @@ export const salesService = {
       channel?: string;
       reason?: string;
       idempotency_key?: string;
+      cash_session_id?: string;
+      approval?: { user_id: string; pin: string };
     },
   ) => apiPost<{ return: SaleReturn; sale: Sale; difference: number }>(`/sales/${id}/exchange`, payload),
 

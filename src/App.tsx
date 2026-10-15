@@ -549,9 +549,13 @@ export default function App() {
                       <Route path="warranty" element={<WarrantyLookupPage />} />
                     </Route>
                   </Route>
-                  {/* What the shop pays is not a secret from the people who
-                      work in it, and the server asks for no permission. */}
-                  <Route path="subscription" element={<SubscriptionPage />} />
+                  {/* What the shop pays the platform is the owner's (Q7,
+                      2026-10-14): whoever holds the shop's settings. Outside
+                      the gate it opened to a cashier who typed it in, and
+                      filled with a 403 (tester pass 4, B56). */}
+                  <Route element={<RequireTenantScreen />}>
+                    <Route path="subscription" element={<SubscriptionPage />} />
+                  </Route>
                   {/* Your own password. Ungated on purpose — every person
                       signed in to the shop has one, from the owner to the
                       newest cashier. */}

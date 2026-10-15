@@ -440,6 +440,8 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
         tenantId: input.tenantId,
         clientAt: new Date(clientAt).toISOString(),
         rungBy: input.rungBy,
+        // For the refused list only: what this till said the sale came to (B57).
+        tillTotal: totals.total,
       },
     ),
   );

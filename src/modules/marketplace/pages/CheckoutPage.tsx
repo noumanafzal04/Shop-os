@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQueries } from "@tanstack/react-query";
 
+import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
 import Input from "../../../components/form/input/InputField";
 import { useToast } from "../../../components/ui/toast";
@@ -62,6 +63,10 @@ export default function CheckoutPage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const placeOrder = usePlaceOrder();
+  // One key per shop's order, kept from the first press until that order is
+  // placed: a retry after a dropped line is the same order, not a second one.
+  const orderKeys = useRef<Record<string, string>>({});
+  const keyFor = (slug: string) => (orderKeys.current[slug] ??= uuid());
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -130,6 +135,7 @@ export default function CheckoutPage() {
       try {
         const how = howFor(group.shop_slug);
         await placeOrder.mutateAsync({
+          idempotency_key: keyFor(group.shop_slug),
           shop_slug: group.shop_slug,
           fulfillment_type: how,
           delivery_address: how === "delivery" ? mine.address.trim() : undefined,
@@ -151,6 +157,7 @@ export default function CheckoutPage() {
         // Out of the basket the moment it is real. Leaving it there is how a
         // customer ends up placing the same order twice.
         cart.clearShop(group.shop_slug);
+        delete orderKeys.current[group.shop_slug];
         placed++;
       } catch (error) {
         problems[group.shop_slug] =

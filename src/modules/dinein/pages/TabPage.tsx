@@ -160,7 +160,9 @@ export default function TabPage() {
     return () => window.clearInterval(t);
   }, []);
 
-  const allDishes = products.data?.rows ?? [];
+  // An item kept only as an ingredient (the paratha's flour) is never on the
+  // menu — it was offered at 0 (tester pass 5, B62).
+  const allDishes = (products.data?.rows ?? []).filter((p) => p.for_sale !== false);
   const menu = allDishes.filter((p) => {
     if (catFilter && p.category_id !== catFilter) return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;

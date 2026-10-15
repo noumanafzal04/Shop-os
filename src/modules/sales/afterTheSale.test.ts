@@ -15,8 +15,8 @@ const holding = (...permissions: string[]) => (permission: string) => permission
 describe("a cashier — rings sales, gives a discount, keeps the customer book", () => {
   const may = afterTheSale(holding("sales.manage", "discounts.apply", "customers.manage", "tables.serve_any"));
 
-  it("is offered none of it: they can ring a sale, not undo one", () => {
-    expect(may).toEqual({ refunds: false, exchanges: false, voids: false });
+  it("may start a return or an exchange — a supervisor's PIN finishes it (B01) — and never a void", () => {
+    expect(may).toEqual({ refunds: true, exchanges: true, voids: false, needsApproval: true });
   });
 });
 
@@ -24,17 +24,17 @@ describe("a shift supervisor — holds both", () => {
   const may = afterTheSale(holding("sales.manage", "sales.void", "sales.refund", "discounts.override"));
 
   it("is offered all of it", () => {
-    expect(may).toEqual({ refunds: true, exchanges: true, voids: true });
+    expect(may).toEqual({ refunds: true, exchanges: true, voids: true, needsApproval: false });
   });
 });
 
 describe("the two are separate keys", () => {
   it("Refund a sale gives the return and the exchange, and not the void", () => {
-    expect(afterTheSale(holding("sales.manage", "sales.refund"))).toEqual({ refunds: true, exchanges: true, voids: false });
+    expect(afterTheSale(holding("sales.manage", "sales.refund"))).toEqual({ refunds: true, exchanges: true, voids: false, needsApproval: false });
   });
 
-  it("Void a completed sale gives the cancel, and not a refund", () => {
-    expect(afterTheSale(holding("sales.manage", "sales.void"))).toEqual({ refunds: false, exchanges: false, voids: true });
+  it("Void a completed sale gives the cancel; a refund still asks a supervisor's PIN", () => {
+    expect(afterTheSale(holding("sales.manage", "sales.void"))).toEqual({ refunds: true, exchanges: true, voids: true, needsApproval: true });
   });
 
   it("an exchange goes with the refund — it hands goods back", () => {

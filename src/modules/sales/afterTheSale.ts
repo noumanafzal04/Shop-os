@@ -17,15 +17,22 @@
  *   Refund a sale           sales.refund   Return / Refund, and Exchange —
  *                                          an exchange hands goods back too
  *   Void a completed sale   sales.void     Cancel sale
+ *
+ * Since the owner's answer to B01 (2026-10-14) a cashier may START a return or
+ * an exchange: the sheet asks for a supervisor's PIN, and the server takes it
+ * only with one (SupervisorApproval). `needsApproval` says so.
  */
 export interface AfterTheSale {
   refunds: boolean;
   exchanges: boolean;
   voids: boolean;
+  /** Return / Exchange are offered, and finish only with a supervisor's PIN. */
+  needsApproval: boolean;
 }
 
 export function afterTheSale(can: (permission: string) => boolean): AfterTheSale {
-  const refunds = can("sales.refund");
+  const own = can("sales.refund");
+  const refunds = own || can("sales.manage");
 
-  return { refunds, exchanges: refunds, voids: can("sales.void") };
+  return { refunds, exchanges: refunds, voids: can("sales.void"), needsApproval: refunds && !own };
 }

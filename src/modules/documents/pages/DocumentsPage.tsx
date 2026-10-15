@@ -11,6 +11,9 @@ import { boardWords, hasJobBoard, type BoardWords } from "../../workshop/words";
 import { isPastDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
+import Button from "../../../components/ui/button/Button";
+import { useShopSettings } from "../../shop/hooks/useShop";
+import NewDocumentSheet from "../components/NewDocumentSheet";
 
 /**
  * WHICH KINDS THIS SHOP ACTUALLY WRITES.
@@ -71,6 +74,11 @@ export default function DocumentsPage() {
   const [search, setSearch] = useState("");
 
   const money = useMoney();
+  const settings = useShopSettings();
+  // Started here, not only at the till (the user, 2026-10-15).
+  const [starting, setStarting] = useState<DocumentKind | null>(null);
+  const quotesOn = settings.data?.quotations_enabled !== false;
+  const layawayOn = settings.data?.layaway_enabled !== false;
   const summary = useDocumentSummary();
   const list = useDocuments({ kind, status, search });
   const rows = list.data?.rows ?? [];
@@ -79,12 +87,27 @@ export default function DocumentsPage() {
     <>
       <PageMeta title="Quotations & advances" description="Quotations and goods held on advance" />
 
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Quotations &amp; advances</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Prices you've promised, and goods you're holding until they're paid for.
-        </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Quotations &amp; advances</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Prices you've promised, and goods you're holding until they're paid for.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {layawayOn && (
+            <Button size="sm" variant="outline" onClick={() => setStarting("layaway")}>Hold goods on advance</Button>
+          )}
+          {quotesOn && <Button size="sm" onClick={() => setStarting("quotation")}>New quotation</Button>}
+        </div>
       </div>
+
+      <NewDocumentSheet
+        isOpen={starting !== null}
+        onClose={() => setStarting(null)}
+        startAs={starting ?? "quotation"}
+        onSaved={(saved) => { setKind(saved); setStatus("open"); }}
+      />
 
       {/* ── What's outstanding ─────────────────────────────────────── */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

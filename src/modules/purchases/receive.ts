@@ -71,3 +71,15 @@ export function needsDetails(items: Outstanding[]): boolean {
       && (!!it.product?.tracks_serial || it.product?.item_type === "medicine"),
   );
 }
+
+/**
+ * A medicine line being received is held until it has its expiry.
+ *
+ * The field was marked * and the button stayed lit: pressed with one expiry
+ * empty, the server refused the WHOLE delivery (EXPIRY_REQUIRED), the line
+ * that was filled in included (tester pass 5, B61). A line not being received
+ * this time (quantity 0) needs nothing.
+ */
+export function needsExpiry(itemType: string | undefined, quantity: number, expiry: string): boolean {
+  return itemType === "medicine" && Number.isFinite(quantity) && quantity > 0 && expiry.trim() === "";
+}

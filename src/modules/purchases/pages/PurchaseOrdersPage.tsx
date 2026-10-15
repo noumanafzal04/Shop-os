@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
-import { checkNumbers, needsDetails, parseSerials } from "../receive";
+import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "../receive";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -106,7 +106,9 @@ export default function PurchaseOrdersPage() {
   // and why before the press, not the server after it.
   const receiveBlocked = (detail.data?.items ?? []).some((it) => {
     const row = rcv[it.id];
-    return !!row && !!it.product?.tracks_serial && !checkNumbers(row.serials, Number(row.quantity)).ok;
+    if (!row) return false;
+    if (needsExpiry(it.product?.item_type, Number(row.quantity), row.expiry_date)) return true;
+    return !!it.product?.tracks_serial && !checkNumbers(row.serials, Number(row.quantity)).ok;
   });
 
   const submitReceive = (id: string) => {
@@ -467,7 +469,13 @@ export default function PurchaseOrdersPage() {
                   {isMedicine && (
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <div><label className="mb-1 block text-theme-xs text-gray-400">Batch # (optional)</label><Input value={row.batch_number} onChange={(e) => setRcvField(it.id, { batch_number: e.target.value })} placeholder="Auto = PO number" /></div>
-                      <div><label className="mb-1 block text-theme-xs text-gray-400">Expiry <span className="text-error-500">*</span></label><Input type="date" value={row.expiry_date} onChange={(e) => setRcvField(it.id, { expiry_date: e.target.value })} /></div>
+                      <div>
+                        <label className="mb-1 block text-theme-xs text-gray-400">Expiry <span className="text-error-500">*</span></label>
+                        <Input type="date" value={row.expiry_date} onChange={(e) => setRcvField(it.id, { expiry_date: e.target.value })} />
+                        {needsExpiry(it.product?.item_type, Number(row.quantity), row.expiry_date) && (
+                          <p className="mt-1 text-theme-xs text-error-500">Needed before this delivery can be received.</p>
+                        )}
+                      </div>
                     </div>
                   )}
 

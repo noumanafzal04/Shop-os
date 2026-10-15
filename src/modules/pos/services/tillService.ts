@@ -9,6 +9,8 @@ export interface TillUser {
   has_pin: boolean;
   /** Frozen by repeated wrong PINs — the screen says so instead of just failing. */
   pin_locked: boolean;
+  /** May approve money going back with their PIN (SupervisorApproval). Absent from an older server. */
+  approves_refunds?: boolean;
 }
 
 export interface UnlockResult {

@@ -198,6 +198,8 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Delete the item and add it again with exactly the same codes.", expect: "It saves. A deleted item's codes used to stay taken for ever." },
           { do: "Try to save a product with no name.", expect: "The field is named in an error next to it. A save that fails with nothing on screen is one of the defects this product has had before and must not have again." },
           { do: "Mark a product sold out (86) from the list.", expect: "It is refused at the TILL, on the dine-in tab and in an online order — all three. One of them still selling it is a bug." },
+          { do: "Make an ingredient (flour, price 0) with \u201cSold to customers\u201d switched off, and put it in a dish's recipe. Search for it at the till, on a table's tab and in Take order; sell the dish.", expect: "The flour is in none of them, the products list says \u201cNot sold \u2014 ingredient\u201d, and it is never listed online. Selling the dish still takes the flour off the shelf. (It used to be offered at the till at 0.)" },
+          { do: "Card a packet that goes off (yogurt) with opening stock, a batch number and an expiry. Open its Batches.", expect: "One lot with that number, that expiry and the whole opening stock \u2014 and the yogurt shows on the expiring list when its day comes. (Only a medicine used to keep them.)" },
         ],
         wrong: [
           "A price the browser can change. Open the network tab, edit the price in the request, and send it: the sale must be priced by the server anyway.",
@@ -264,6 +266,8 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Create a supplier, raise a PO for 10 of something at a price different from its current cost, and receive it.", expect: "Stock rises by 10, the product's cost moves to a blend of old and new, and the supplier's balance rises by the order value." },
           { do: "Pay the supplier from their own card.", expect: "The balance falls by what you paid. A Pay button that answers success and moves nothing is a defect this product has had — check the balance, not the message." },
           { do: "Receive only part of an order.", expect: "Stock rises by what arrived, and the order still shows what is outstanding." },
+          { do: "Receive a medicine order with details, and leave one line's expiry empty.", expect: "That line says the expiry is needed and Receive stays shut until it is filled. Nothing is sent to be refused." },
+          { do: "At a fuel station, put petrol and an engine oil on Needs reordering and press \u201cOrder these\u201d.", expect: "Petrol's row says it comes by tanker (Fuel \u2192 Deliveries) and is not counted in the button; the oil gets its draft order. One fuel line used to sink the whole list." },
           { do: "Order two sizes; when only one arrives, set the other to 0 on the receive sheet and receive.", expect: "Only the size that came goes into stock and is owed for; the other stays outstanding on the order. It used to be booked in full." },
           { do: "Sign in as a Stock keeper (Products + Inventory, nothing else) and open Purchase orders and Suppliers from the menu.", expect: "Both OPEN. They can read an order and receive it; there is no New purchase order, Place order, Cancel or Pay, and no way to add or edit a supplier. \"No access\" on a screen the menu offered is a defect this product has had." },
         ],

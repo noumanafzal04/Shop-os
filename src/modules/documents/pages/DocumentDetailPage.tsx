@@ -15,7 +15,6 @@ import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
-import { uuid } from "../../../common/uuid";
 import { formatQuantity } from "../../../common/format/quantity";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords } from "../../workshop/words";
@@ -533,6 +532,9 @@ function CollectModal({
     idempotency_key: string;
   }) => void;
 }) {
+  // The same key for every press of "Bill it" — a fresh one each press was a
+  // second sale for a double-click.
+  const once = useOnceKey();
   const [tendered, setTendered] = useState("");
   const [method, setMethod] = useState<string>("cash");
   /**
@@ -574,7 +576,7 @@ function CollectModal({
                 onSubmit({
                   ...(due > 0 ? { payment_method: method, amount_paid: paid } : {}),
                   ...(odoOut !== null ? { odometer: odoOut } : {}),
-                  idempotency_key: uuid(),
+                  idempotency_key: once.key,
                 })
               }
             >

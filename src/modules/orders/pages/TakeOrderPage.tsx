@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { useOnceKey } from "../../../common/onceKey";
 import { counted } from "../../../common/format/counted";
 import { formatQuantity } from "../../../common/format/quantity";
 import PageMeta from "../../../components/common/PageMeta";
@@ -75,6 +76,9 @@ export default function TakeOrderPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const take = useTakeOrder();
+  // One order, one key, until it is taken: a key minted per press was a
+  // second order for a double-click.
+  const once = useOnceKey();
 
   const [channel, setChannel] = useState("phone");
   const [name, setName] = useState("");
@@ -216,9 +220,11 @@ export default function TakeOrderPage() {
         coupon_code: coupon.trim() || undefined,
         notes: notes.trim() || undefined,
         send_to_kitchen: hasKitchen && sendNow ? true : undefined,
+        idempotency_key: once.key,
       },
       {
         onSuccess: (res) => {
+          once.renew();
           const order = res.data;
           // Its slip, where the kitchen works off paper — printed by this
           // screen, which is the one that sent it. Said either way.

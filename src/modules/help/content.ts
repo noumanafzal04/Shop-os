@@ -508,6 +508,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "If any ingredient has no cost price, the dish says it cannot be costed and names which ones — rather than showing a smaller figure. A part-costed dish looks more profitable than it is, and that is how a menu gets underpriced." },
       { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
       { type: "note", text: "The ingredient list — and the item list on a deal — offers ALL your products, not the first screenful. Start typing while the dropdown is open and it jumps to what you want." },
+      { type: "h", text: "Something you use but never sell" },
+      { type: "p", text: "Flour for the parathas, oil for the kitchen: open the item and turn OFF 'Sold to customers' on Details. It stays counted, you still buy it on a purchase order, and every dish that uses it takes it off the shelf \u2014 but it is never on the till, a table's menu, Take order or your online shop, and a sale that names it is refused. Your products list marks it 'Not sold \u2014 ingredient'." },
       { type: "h", text: "If you have more than one branch" },
       { type: "p", text: "Sold out is about ONE kitchen. Marking something off at Gulberg leaves DHA selling it, because DHA still has a tray of it — a branch runs out, a chain does not. The sheet names the branch you are marking so there is no doubt which evening you are describing." },
       { type: "note", text: "Putting it back is the same: one press puts it back where you pressed it, and nowhere else. Each branch's kitchen keeps its own list." },
@@ -679,7 +681,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       },
       {
         type: "warn",
-        text: "A medicine batch must have an expiry date. The form will not accept one without, because an expiry you cannot see is an expiry nobody checks.",
+        text: "A medicine batch must have an expiry date. The form will not accept one without, because an expiry you cannot see is an expiry nobody checks. Receiving a medicine order is held until every line coming in has its expiry.",
+      },
+      {
+        type: "p",
+        text: "Anything else that goes off \u2014 milk, yogurt, bread \u2014 can have lots too. When you add the item with opening stock, give it a batch number or an expiry (both optional) and that stock becomes its first lot; the oldest is sold first and it shows on the expiring list.",
       },
       { type: "h", text: "The brand is out \u2014 the same salt" },
       { type: "p", text: "At the till, a medicine that has run out is not a dead end. Its tile says \u201cOut \u2014 tap for same salt\u201d: tap it and the till lists what else on your shelf has the same salt and is in stock, with a warning if the strength or the form is different. Pick one and it goes on the bill at its own price." },
@@ -1526,7 +1532,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     screen: "/tenant/sales",
     keywords: ["sale", "invoice", "receipt", "reprint", "return", "refund", "void", "exchange", "history"],
     body: [
-      { type: "note", text: "Return / Refund and Exchange are shown only to somebody who holds Refund a sale, and Cancel sale only to somebody who holds Void a completed sale. A cashier who can ring a sale and nothing more opens a sale, can print it again, and is offered neither \u2014 undoing a sale hands money back or erases it, and that is a manager\u2019s decision (Staff \u2192 the person \u2192 Permissions)." },
+      { type: "note", text: "Cancel sale is shown only to somebody who holds Void a completed sale. A cashier may START a Return / Refund or an Exchange: the sheet asks for a supervisor and their till PIN, and the money comes out of the cashier\u2019s own drawer. A supervisor with no shift of their own chooses the drawer the cash comes out of and types their own PIN. Every approval is kept \u2014 who approved, how much, whose drawer." },
       { type: "h", text: "Finding a sale" },
       { type: "p", text: "Every completed sale, newest first. Search by receipt number, customer or amount, then narrow it: pick a date range by name (Today, Last 7 days, This month, or any two dates you choose), and filter by status, how it was paid, where it was rung — the till, the phone, an online order — and, where your shop records it, who served the customer." },
       { type: "note", text: "Whatever the list is showing is what Export CSV writes. Narrow it to one week of card sales and the file has one week of card sales in it — there is no separate set of options to fill in twice." },
@@ -1581,6 +1587,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
           "An advance's deposit is already counted, so only the balance is collected.",
         ],
       },
+      { type: "p", text: "Or start one from this screen, without the till: 'New quotation' or 'Hold goods on advance' at the top. Pick the items (each size is its own row, with how many are left), press Next, then give the customer, the date and — for an advance — what they paid. The list turns to the one you just made." },
+      { type: "note", text: "An advance in cash goes into the open drawer of whoever takes it, on the day it is taken — so take it with your shift open: taken with none, it is recorded but counted in no drawer. A card or bank advance is recorded with its method and reaches no drawer. More can be taken later from the advance's own page, and when the goods go out only the balance is asked for." },
       {
         type: "warn",
         text: "An advance is a customer's money you are holding. It sits with the daily screens rather than in a reports folder for exactly that reason — you should see it every day until it is settled.",

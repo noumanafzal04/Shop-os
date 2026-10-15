@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkNumbers, needsDetails, parseSerials } from "./receive";
+import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "./receive";
 
 describe("the numbers written down when goods arrive", () => {
   it("reads one number per line, or per comma, and ignores the gaps", () => {
@@ -61,5 +61,22 @@ describe("an order that has to be received on the sheet that asks", () => {
 
   it("is not one whose product is gone", () => {
     expect(needsDetails([line({ product: null })])).toBe(false);
+  });
+});
+
+describe("a medicine is received with its expiry (tester pass 5, B61)", () => {
+  it("holds a medicine line being received with no expiry", () => {
+    expect(needsExpiry("medicine", 4, "")).toBe(true);
+    expect(needsExpiry("medicine", 4, "  ")).toBe(true);
+  });
+
+  it("lets it go once dated, or when none of it is coming this time", () => {
+    expect(needsExpiry("medicine", 4, "2026-11-20")).toBe(false);
+    expect(needsExpiry("medicine", 0, "")).toBe(false);
+  });
+
+  it("asks nothing of anything that is not a medicine", () => {
+    expect(needsExpiry("physical_product", 4, "")).toBe(false);
+    expect(needsExpiry(undefined, 4, "")).toBe(false);
   });
 });

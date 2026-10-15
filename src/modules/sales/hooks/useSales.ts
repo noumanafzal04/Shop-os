@@ -4,6 +4,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { asksAbout } from "../../../common/asksAbout";
 import { salesService, type SaleFilters, type VoidReasonCode } from "../services/salesService";
 import type { SaleInput } from "../types";
 
@@ -61,7 +62,8 @@ export function useSaleWorth(asked: string, enabled: boolean) {
   return useQuery({
     queryKey: ["sale-worth", asked],
     queryFn: async () => (await salesService.worth(JSON.parse(asked) as SaleInput)).data,
-    enabled,
+    // Never the empty bill a moment before the first line (B52).
+    enabled: enabled && asksAbout(asked),
     staleTime: 0,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -99,7 +101,7 @@ export function useSaleMutations() {
   });
 
   const processReturn = useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>; reason?: string; refund_method?: string; idempotency_key?: string }) =>
+    mutationFn: ({ id, ...payload }: { id: string; items: Array<{ sale_item_id: string; quantity: number; serials?: string[] }>; reason?: string; refund_method?: string; idempotency_key?: string; cash_session_id?: string; approval?: { user_id: string; pin: string } }) =>
       salesService.processReturn(id, payload),
     onSuccess: invalidate,
   });
@@ -112,6 +114,8 @@ export function useSaleMutations() {
       payments?: Array<{ method: string; amount: number }>;
       channel?: string;
       idempotency_key?: string;
+      cash_session_id?: string;
+      approval?: { user_id: string; pin: string };
     }) => salesService.exchange(id, payload),
     onSuccess: invalidate,
   });
