@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Exceptions\DomainException;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -31,6 +32,46 @@ class Customer extends BaseModel
     protected function auditOnly(): array
     {
         return ['credit_limit'];
+    }
+
+    /**
+     * Where a customer stands on the khata — the Customers list's filters.
+     *
+     * The list showed everybody alike, so the people who owe money were mixed
+     * in with everyone who ever bought a biscuit (the owner, 2026-10-15, L16).
+     */
+    public const STANDING_OWES = 'owes';
+
+    /** At or past this share of their credit limit. */
+    public const STANDING_LIMIT = 'limit';
+
+    /** The shop holds money of theirs (balance below zero). */
+    public const STANDING_ADVANCE = 'advance';
+
+    public const STANDINGS = [self::STANDING_OWES, self::STANDING_LIMIT, self::STANDING_ADVANCE];
+
+    /** "Near the limit" starts here — said once, for the filter and its count alike. */
+    public const NEAR_LIMIT = 0.8;
+
+    /**
+     * A return and a cancellation take a khata down as a `payment` too. They
+     * are not money handed over, so "last paid" and the day's collections
+     * leave them out.
+     */
+    public const NOT_COLLECTIONS = ['return', 'cancellation'];
+
+    /** Narrow and order a list to one standing; null leaves it as it was. */
+    public function scopeStanding(Builder $query, ?string $standing): void
+    {
+        match ($standing) {
+            self::STANDING_OWES => $query->where('credit_balance', '>', 0)->orderByDesc('credit_balance'),
+            self::STANDING_LIMIT => $query->where('credit_balance', '>', 0)
+                ->where('credit_limit', '>', 0)
+                ->whereRaw('credit_balance >= credit_limit * ?', [self::NEAR_LIMIT])
+                ->orderByRaw('credit_balance / credit_limit DESC'),
+            self::STANDING_ADVANCE => $query->where('credit_balance', '<', 0)->orderBy('credit_balance'),
+            default => null,
+        };
     }
 
     protected function casts(): array
@@ -78,6 +119,14 @@ class Customer extends BaseModel
         return $this->hasMany(CustomerLedgerEntry::class)
             ->orderByDesc('created_at')
             ->orderByDesc('id');
+    }
+
+    /** Money actually handed over against the khata — see NOT_COLLECTIONS. */
+    public function khataPayments(): HasMany
+    {
+        return $this->hasMany(CustomerLedgerEntry::class)
+            ->where('type', 'payment')
+            ->whereNotIn('method', self::NOT_COLLECTIONS);
     }
 
     /** Points, same shape and the same reason — `balance_after` per row. */

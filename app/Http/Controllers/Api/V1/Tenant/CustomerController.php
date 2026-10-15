@@ -17,25 +17,65 @@ use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $standing = $this->standing($request);
+
         $customers = Customer::query()
             ->withCount(['sales as sales_count' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)])
             ->withSum(['sales as sales_total' => fn ($q) => $q->where('status', '!=', SaleStatus::Cancelled->value)], 'total')
+            // When they last handed money over — a khata nobody has paid into
+            // for six weeks is the one to phone.
+            ->withMax('khataPayments as last_paid_at', 'created_at')
             ->when($request->query('search'), fn ($q, $s) => $q->where(function ($q) use ($s): void {
                 $q->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%");
             }))
+            ->standing($standing)
             ->orderByDesc('last_seen_at')
             ->stably()->paginate(min((int) $request->query('per_page', 20), 100));
 
         return ApiResponse::paginated($customers);
     }
 
-    /** Export the customer directory to CSV — honours the list search filter. */
+    /**
+     * The counts on the list's filters, and what is out on khata.
+     *
+     * `owed` is the dashboard's "Owed to you" figure, asked the same way
+     * (every balance above zero), so the tile and the list cannot disagree.
+     */
+    public function summary(): JsonResponse
+    {
+        $row = Customer::query()->toBase()->selectRaw(
+            'COUNT(*) AS everyone,
+             COALESCE(SUM(CASE WHEN credit_balance > 0 THEN credit_balance END), 0) AS owed,
+             COUNT(CASE WHEN credit_balance > 0 THEN 1 END) AS owing,
+             COALESCE(SUM(CASE WHEN credit_balance < 0 THEN -credit_balance END), 0) AS held,
+             COUNT(CASE WHEN credit_balance < 0 THEN 1 END) AS in_credit,
+             COUNT(CASE WHEN credit_balance > 0 AND credit_limit > 0 AND credit_balance >= credit_limit * ? THEN 1 END) AS near_limit',
+            [Customer::NEAR_LIMIT],
+        )->first();
+
+        return ApiResponse::ok([
+            'everyone' => (int) $row->everyone,
+            'owed' => ['total' => round((float) $row->owed, 2), 'accounts' => (int) $row->owing],
+            'advance' => ['total' => round((float) $row->held, 2), 'accounts' => (int) $row->in_credit],
+            'near_limit' => (int) $row->near_limit,
+        ]);
+    }
+
+    private function standing(Request $request): ?string
+    {
+        return $request->validate([
+            'standing' => ['nullable', Rule::in(Customer::STANDINGS)],
+        ])['standing'] ?? null;
+    }
+
+    /** Export the customer directory to CSV — honours the list's search and filter. */
     public function export(Request $request): StreamedResponse
     {
         $header = ['name', 'phone', 'email', 'address', 'credit_balance', 'credit_limit', 'sales_count', 'total_spent', 'last_seen_at', 'notes'];
@@ -46,6 +86,8 @@ class CustomerController extends Controller
             ->when($request->query('search'), fn ($q, $s) => $q->where(function ($q) use ($s): void {
                 $q->where('name', 'like', "%{$s}%")->orWhere('phone', 'like', "%{$s}%")->orWhere('email', 'like', "%{$s}%");
             }))
+            // The file is the list on the screen: a filter chosen there is kept.
+            ->standing($this->standing($request))
             ->orderBy('name')
             ->get()
             ->map(fn (Customer $c) => [

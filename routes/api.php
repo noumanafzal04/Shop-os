@@ -380,6 +380,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Money forms answer once per key (AnswerOnce) — tester pass 1, B07.
                 Route::post('customers/{customer}/payments', [CustomerController::class, 'recordPayment'])->middleware('once');
                 Route::get('customers/export', [CustomerController::class, 'export']);
+                // The counts on the list's filters (L16). Before the resource, so
+                // "summary" is not read as a customer id.
+                Route::get('customers/summary', [CustomerController::class, 'summary']);
                 // Customer groups — tiered pricing segments.
                 Route::apiResource('customer-groups', CustomerGroupController::class)
                     ->only(['index', 'store', 'update', 'destroy']);
