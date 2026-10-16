@@ -375,7 +375,29 @@ class CreateSaleAction
                 }
                 $groupPriceLevel = ($customerGroup?->price_level === 'wholesale') ? 'wholesale' : 'retail';
 
-                foreach ($data['items'] as $item) {
+                // ── OFFLINE: THE PRICE IT WAS RUNG AT (Q10) ─────────────
+                //
+                // A till offline across a price change sold at the price it
+                // held — Rs 1,000 — took Rs 1,000 and printed it; the shop
+                // changed it to 1,200 meanwhile. Re-pricing the synced cart at
+                // 1,200 refused the sale ("paid less than the total"), so the
+                // money sat in the drawer with no sale and the goods left with
+                // no stock movement (B47). The owner: "jab online hai to updated
+                // price jaye gi, agar offline hai to wohi price jo save thi".
+                //
+                // So a synced line keeps the price the till charged — sent by
+                // the till per line, never accepted from any other door (only
+                // PosSyncController sets `offline_till_prices`, and only with
+                // `trusted_offline`) — and every line whose price differs from
+                // the shop's price now is written into the sale's offline notes
+                // for the owner, with both figures. A pack or a line that named
+                // money is still priced here: the till's engine prices neither.
+                $tillPrices = $trustedOffline && is_array($data['offline_till_prices'] ?? null)
+                    ? array_values($data['offline_till_prices'])
+                    : [];
+                $offlinePriceNotes = [];
+
+                foreach ($data['items'] as $itemIndex => $item) {
                     /** @var Product|null $product */
                     // The trusted path (order/reservation completion, dine-in
                     // settlement) replays a line captured EARLIER — the product may
@@ -639,6 +661,26 @@ class CreateSaleAction
                         : null;
 
                     $unitPrice = round($basePrice + $modifierDelta, 2);
+
+                    $rung = $tillPrices[$itemIndex] ?? null;
+                    if (
+                        is_array($rung) && isset($rung['unit_price'])
+                        && $askedAmount === null && empty($item['product_unit_id'])
+                        && ($rung['product_id'] ?? null) === $product->id
+                        && (($rung['variant_id'] ?? null) ?: null) === ($variant?->id)
+                    ) {
+                        $rungAt = round((float) $rung['unit_price'], 2);
+                        if (abs($rungAt - $unitPrice) > 0.004) {
+                            $offlinePriceNotes[] = sprintf(
+                                'Sold at the till\'s price while offline: %s at %s (the price is now %s) × %s — recorded as charged.',
+                                $product->name.($variant !== null ? " ({$variant->name})" : ''),
+                                number_format($rungAt, 2),
+                                number_format($unitPrice, 2),
+                                rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.'),
+                            );
+                            $unitPrice = $rungAt;
+                        }
+                    }
 
                     // ── THE AMOUNT IS THE AMOUNT ────────────────────────
                     //
@@ -1403,8 +1445,8 @@ class CreateSaleAction
                     'synced_at' => $trustedOffline && ! empty($data['sold_at']) ? now() : null,
                     'beyond_offline_window' => (bool) ($trustedOffline && ! empty($data['beyond_offline_window'])),
                     // Recorded, not corrected. See the migration.
-                    'offline_violations' => $trustedOffline && ! empty($data['offline_violations'])
-                        ? $data['offline_violations']
+                    'offline_violations' => $trustedOffline && (! empty($data['offline_violations']) || $offlinePriceNotes !== [])
+                        ? array_values(array_merge($data['offline_violations'] ?? [], $offlinePriceNotes))
                         : null,
                     // Its trading day had already been counted, closed and
                     // banked before this arrived. Nothing in the books moves —

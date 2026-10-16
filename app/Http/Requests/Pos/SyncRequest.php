@@ -111,6 +111,14 @@ class SyncRequest extends FormRequest
             // is not.
             'operations.*.training' => ['nullable', 'boolean'],
             'operations.*.sale' => ['required', 'array'],
+            // What the till charged for each line, in the sale's own order
+            // (Q10). Kept only by the sync path, only on a line that names the
+            // same product, and every difference is noted for the owner.
+            'operations.*.till_prices' => ['nullable', 'array', 'max:500'],
+            'operations.*.till_prices.*' => ['nullable', 'array'],
+            'operations.*.till_prices.*.product_id' => ['nullable', 'uuid'],
+            'operations.*.till_prices.*.variant_id' => ['nullable', 'uuid'],
+            'operations.*.till_prices.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ];
     }
 }

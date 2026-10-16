@@ -180,11 +180,17 @@ class PosSyncController extends Controller
                 // Half of the practice test. The shift is the other half, and
                 // this can only ever say NO — see the veto in CreateSaleAction.
                 'offline_training' => (bool) ($operation['training'] ?? false),
-                // Trusted about WHEN and WHICH DEVICE. Emphatically not
-                // trusted about money: the server prices this cart itself,
-                // exactly as it would have online. That is the whole point of
-                // Phase 2 — the till's figure was only ever a receipt.
+                // Trusted about WHEN and WHICH DEVICE. About money, the
+                // server prices this cart itself, exactly as it would have
+                // online — except a line the till says it charged a different
+                // price for: that price was printed and paid, so it is kept
+                // and noted (`offline_till_prices`, Q10).
                 'trusted_offline' => true,
+                // What the till CHARGED, line by line (Q10): a sale rung offline
+                // is recorded at the price it was rung at, and any line whose
+                // price has changed since is noted for the owner. Older tills
+                // send none and are priced here, as before.
+                'offline_till_prices' => $operation['till_prices'] ?? null,
                 // Dead today, and deliberately kept. `SyncRequest` borrows a
                 // rule set with no `unit_price`, so no price ever reaches here
                 // and flipping this line changes nothing — a mutation proved
@@ -468,7 +474,10 @@ class PosSyncController extends Controller
             // The real number, so the till can reconcile the slip it printed.
             'invoice_number' => $sale->invoice_number,
             'offline_number' => $sale->offline_number,
-            'violations' => $violations,
+            // What the sale itself carries — the policy flags AND the prices
+            // that changed while the till was offline (Q10), which are only
+            // known once the server has priced it.
+            'violations' => array_values($sale->offline_violations ?? $violations),
         ];
     }
 
