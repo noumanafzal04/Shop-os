@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Exceptions\DomainException;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\BranchContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -222,6 +223,7 @@ class Customer extends BaseModel
 
         return $this->ledgerEntries()->create([
             'tenant_id' => $this->tenant_id,
+            'branch_id' => app(BranchContext::class)->id(),
             'type' => 'charge',
             'amount' => $amount,
             'balance_after' => $newBalance,
@@ -245,6 +247,9 @@ class Customer extends BaseModel
 
         return $this->ledgerEntries()->create([
             'tenant_id' => $this->tenant_id,
+            // Which counter took it — a day's collections are that day's
+            // branch's (KhataCollected).
+            'branch_id' => app(BranchContext::class)->id(),
             'type' => 'payment',
             'amount' => $amount,
             'balance_after' => $newBalance,

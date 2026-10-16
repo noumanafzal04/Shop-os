@@ -8,9 +8,11 @@ use App\Http\Controllers\Controller;
 use App\Models\BankDeposit;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
+use App\Models\CustomerLedgerEntry;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
 use App\Support\DrawerMath;
+use App\Support\KhataCollected;
 use App\Support\Permissions;
 use App\Support\Retention;
 use App\Support\ShopDay;
@@ -157,7 +159,45 @@ class BusinessDayController extends Controller
                 ->where('business_day_id', $day->id)
                 ->orderByDesc('deposited_at')
                 ->get(),
+            'collections' => $this->collections($request, $day),
         ]);
+    }
+
+    /**
+     * WHAT CAME IN AGAINST KHATA ON THIS DAY — not a sale, and not in the figures above.
+     *
+     * A transfer or a card against a customer's khata reached no screen but the
+     * customer's own statement (L14). Cash ones are already inside "In the
+     * drawers" (`khata_in`), so they are listed here and NOT added again.
+     *
+     * Customers' names and what they paid are khata, which is the customer
+     * book's — sent to whoever keeps it, and to nobody else (null, not empty).
+     */
+    private function collections(Request $request, BusinessDay $day): ?array
+    {
+        if (! $request->user()->hasPermission(Permissions::CUSTOMERS_MANAGE)) {
+            return null;
+        }
+
+        [$from, $to] = ShopDay::span($day->trading_date->toDateString(), $day->trading_date->toDateString(), ShopDay::shop($day->tenant_id));
+
+        return KhataCollected::between($day->tenant_id, $day->branch_id, $from, $to) + [
+            'entries' => KhataCollected::query($day->tenant_id, $day->branch_id, $from, $to)
+                ->with(['customer:id,name,phone', 'takenBy:id,name'])
+                ->orderByDesc('created_at')
+                ->limit(50)
+                ->get(['id', 'customer_id', 'amount', 'method', 'reference', 'created_by', 'created_at'])
+                ->map(fn (CustomerLedgerEntry $e) => [
+                    'id' => $e->id,
+                    'amount' => round((float) $e->amount, 2),
+                    'method' => $e->method,
+                    'reference' => $e->reference,
+                    'at' => $e->created_at?->toIso8601String(),
+                    'customer' => $e->customer === null ? null : ['id' => $e->customer->id, 'name' => $e->customer->name, 'phone' => $e->customer->phone],
+                    'taken_by' => $e->takenBy?->name,
+                ])
+                ->all(),
+        ];
     }
 
     public function index(Request $request): JsonResponse

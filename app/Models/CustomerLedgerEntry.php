@@ -37,4 +37,10 @@ class CustomerLedgerEntry extends Model
     {
         return $this->belongsTo(Sale::class);
     }
+
+    /** Who took the payment at the counter. */
+    public function takenBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

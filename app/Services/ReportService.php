@@ -12,6 +12,7 @@ use App\Models\SaleReturnItem;
 use App\Models\SupplierPayment;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\KhataCollected;
 use App\Support\Payable;
 use App\Support\Retention;
 use App\Support\ShopDay;
@@ -214,6 +215,9 @@ class ReportService
                 'expenses' => round($expensesTotal, 2),
                 'net_profit' => round($kept - $tax + $otherIncome - $cogs - $expensesTotal, 2),
             ],
+            // Paid against khata in the period — beside the sales, never in
+            // them: the credit sale was counted on its own day (L14).
+            'collections' => KhataCollected::between($tenantId, $branchId, $fromStart, $toEnd),
             'series' => $this->series($tenantId, $branchId, $from, $to, $granularity),
             'top_products' => $this->topProducts($tenantId, $branchId, $fromStart, $toEnd),
             'expenses_by_category' => $this->expensesByCategory($tenantId, $branchId, $from, $to),
