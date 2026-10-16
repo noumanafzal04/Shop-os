@@ -308,6 +308,12 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-16 — khata part 4 pushed
+
+Backend `8721241`, panel `5616dcb` (L17): `SaleDocument::scopePaidUp/scopeQuiet/quietSince` (QUIET_DAYS 30),
+`sale-documents?status=paid_up|quiet`, `last_paid_at`, `summary.layaway_counts`; panel `documents/advanceRow.ts`,
+status chips, tiles as buttons. Part 5 (installments) started on the copy.
+
 ### 2026-10-15 (night) — khata part 3 pushed
 
 Backend `43af111`, panel `8b9e4f1` (L14). **New migration `2026_10_15_000003_a_khata_payment_says_where_it_was_taken`**

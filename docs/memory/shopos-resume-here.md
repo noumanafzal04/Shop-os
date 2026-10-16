@@ -1,6 +1,6 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-16 — khata flow being built (market standard); parts 1–3 PUSHED (backend 43af111, panel 8b9e4f1; migration 2026_10_15_000003); next part 4 On advance list (L17), 5 installments (F1)
+description: RESUME POINT 2026-10-16 — khata flow; parts 1–4 PUSHED (backend 8721241, panel 5616dcb); part 5 installments (F1) being built on the copy
 metadata:
   type: project
 ---
@@ -9,6 +9,8 @@ metadata:
 - PUSHED part 1: backend `5badf6e` (ledger loads sale:id,invoice_number), panel `cae1da4` (`customers/khata.ts` standing/overpaid/ledgerLine/saleLink, `components/KhataBox.tsx`, SalesPage `?open=<id>`, button renamed "Take payment" — journey 08 + p1-khata updated). Docs pushed with it.
 - PUSHED part 2 (backend `2a6d657`, panel `c6a2ade`) — (L16): `Customer::STANDINGS/NEAR_LIMIT/NOT_COLLECTIONS`, `scopeStanding`, `khataPayments()`; index `?standing=` + `last_paid_at` (withMax), `GET customers/summary` (route before apiResource), export keeps the filter; test `TheCustomerListSaysWhoOwesTest` (4; 4 mutations caught). Panel: `common/format/since.ts` (+test), `components/OwesCell.tsx` (+test), CustomersPage chips/summary/Owes/Last paid/row tint/Take payment, `?show=owes`. MoneyPanel → `?show=owes`. Walk `p6-customers-owe.mjs` (grocery@loadtest.test). The user asked "backend push ni kia" — it WAS pushed (ls-remote showed 2a6d657); they may look at `main`. Gate oddity: vitest collected 270/285 once, exit 0 — re-ran 285/3,356.
 - PUSHED part 3 (backend `43af111`, panel `8b9e4f1`) — L14: migration `2026_10_15_000003` (ledger branch_id, RUN on dev), `Support/KhataCollected` (strict branch; not return/cancellation), reports/summary.collections, pos/day.collections (null w/o customers.manage), panel `CollectedOnKhata`. Walk `p6-khata-collected.mjs`.
+- PUSHED part 4 (backend `8721241`, panel `5616dcb`) — L17 On advance list (paid_up/quiet filters, last_paid_at, layaway_counts, advanceRow.ts). Zari LAY-000002 "QA Paid Up" 990 card (paid in full).
+- PART 5 DESIGN (on the copy): migration `2026_10_16_000001` installment_plans; `Support/InstallmentSchedule` (ceil monthly, last takes rest, addMonthsNoOverflow, FIFO, late/due/upcoming); `Models/InstallmentPlan` (payments = ledger payments with the plan's sale_id; refreshStanding; scopes late/dueSoon); START = CreateSaleAction quote_only (SaleQuoted) for the cash price, then sale with tenders advance + credit (credit limit bypassed by internal `installment_plan` flag), markup = extra khata charge on the same sale + an Income row "Installment charge" (other income). Installments = recordCreditPayment with the plan's sale_id (+ khata_in for cash, shift rule).
 - Dev data: Zari "QA Khata Walk" also INV-000018 (990 khata) paid 600 transfer; 03009990001 — INV-000017 (990 khata), paid 1,040 transfer → advance 50.
 
 **2026-10-15 late night — the user pasted Ali Raza's khata screen + asked: khata payment in sales/reports? a "on khata / owes" filter on Customers; installments on Quotations & advances (months, monthly, due day, highlighted, filters, calc checked, links). Then: "isko note krlo or pehle flow bna lo" — NOTE + FLOW FIRST, do not build.**
