@@ -28,18 +28,19 @@ export function useCurrentDay() {
 }
 
 /**
- * Today's day when it has been closed off and nothing is trading — or null.
+ * Today's day when it has been closed off — or null.
  *
  * The same request as `useCurrentDay` (one key, one fetch): the server sends
  * it beside an empty current day, so the screen can tell "nobody has started
- * yet" from "somebody closed off at two".
+ * yet" from "somebody closed off at two" — and beside an OLDER day still
+ * open, which used to hide today's close and its way back (BUG-70).
  */
 export function useClosedToday() {
   return useQuery({
     queryKey: ["pos", "day"],
     queryFn: () => dayService.current(),
     select: (envelope): ClosedToday | null =>
-      envelope.data === null ? ((envelope.meta as { closed_today?: ClosedToday | null }).closed_today ?? null) : null,
+      (envelope.meta as { closed_today?: ClosedToday | null } | undefined)?.closed_today ?? null,
     enabled: useTillShop(),
     refetchInterval: 60_000,
     staleTime: 30_000,

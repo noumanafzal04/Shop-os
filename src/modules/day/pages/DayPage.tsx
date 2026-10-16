@@ -24,7 +24,7 @@ import {
 } from "../hooks/useDay";
 import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
 import ClosedTodayCard from "../components/ClosedTodayCard";
-import { turnsAtLabel } from "../../../common/shopDay";
+import { shopToday, turnsAtLabel } from "../../../common/shopDay";
 import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 import { useBranchStore } from "../../../stores/branchStore";
@@ -327,6 +327,25 @@ export default function DayPage() {
             </div>
           ) : (
             <>
+              {/* AN OLDER DAY STILL OPEN DOES NOT HIDE TODAY'S CLOSE (Codex
+                  QA 2026-10-16, BUG-70): the 13th and 15th were never signed
+                  off, so this screen showed the 15th as "the day" and today's
+                  closed day, with its way back, was nowhere. Both are said. */}
+              {view.day.trading_date.slice(0, 10) < shopToday() && (
+                <div data-testid="older-day-open" className="rounded-2xl border border-warning-300 bg-warning-50 p-4 text-theme-sm text-warning-800 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-300">
+                  {dayDate(view.day.trading_date)} was never closed off and is still open. Count its shifts and close it below.
+                </div>
+              )}
+              {closedToday.data && (
+                <ClosedTodayCard
+                  closed={closedToday.data}
+                  date={dayDate(closedToday.data.trading_date)}
+                  closedAt={clock(closedToday.data.closed_at)}
+                  money={money}
+                  busy={reopen.isPending}
+                  onReopen={(reason) => openAgain(closedToday.data!.id, reason)}
+                />
+              )}
               <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
                 <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                   <div>
