@@ -29,6 +29,7 @@ import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
 import { printHtmlDocument } from "../../../common/print";
 import { useBranchStore } from "../../../stores/branchStore";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import CollectedOnKhata from "../../customers/components/CollectedOnKhata";
 import { shopDate, shopShortDate, timeOf, weekdayOf } from "../../../common/format/date";
 
 type Tab = "today" | "shifts" | "history" | "banking";
@@ -408,6 +409,10 @@ export default function DayPage() {
                   </div>
                 </div>
               </div>
+
+              {view.collections && view.collections.count > 0 && (
+                <div className="mb-6"><CollectedOnKhata collections={view.collections} cashInDrawers /></div>
+              )}
 
               {/* Shifts ───────────────────────────────────────────── */}
               <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">

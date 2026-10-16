@@ -1,3 +1,4 @@
+import type { KhataCollections } from "../../customers/components/CollectedOnKhata";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 import { rangeParams, type ReportRange } from "../reportPeriod";
 import { toParams, type MoneyFilters } from "./moneyFilters";
@@ -177,6 +178,8 @@ export interface ReportSummary {
   }>;
   top_products: Array<{ name: string; units: number; revenue: number }>;
   expenses_by_category: Array<{ category: string; total: number }>;
+  /** Paid against khata in the period — beside the sales, never in them (L14). */
+  collections?: KhataCollections;
 }
 
 export const expensesService = {

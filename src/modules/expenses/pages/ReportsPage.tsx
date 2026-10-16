@@ -7,6 +7,7 @@ import Chart from "react-apexcharts";
 import type { ApexOptions } from "apexcharts";
 import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
+import CollectedOnKhata from "../../customers/components/CollectedOnKhata";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
 import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
@@ -206,6 +207,12 @@ export default function ReportsPage() {
           </>
         )}
       </div>
+
+      {/* Paid against khata — its own strip, outside the row above, because
+          it is not part of the sum that row makes (L14). */}
+      {sells && data?.collections && data.collections.count > 0 && (
+        <div className="mb-6"><CollectedOnKhata collections={data.collections} /></div>
+      )}
 
       {/* Revenue vs Expenses chart */}
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">

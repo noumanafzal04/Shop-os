@@ -1,3 +1,4 @@
+import type { KhataCollections } from "../../customers/components/CollectedOnKhata";
 import { api, apiGet, apiPost } from "../../../common/api/client";
 
 /**
@@ -141,6 +142,11 @@ export interface DayView {
   /** Today's takings still in the shop. Floats excluded — they stay. */
   unbanked: number;
   deposits?: BankDeposit[];
+  /**
+   * Paid against khata today, at this day's counter (L14). Null for somebody
+   * who does not keep the customer book — never an empty stand-in.
+   */
+  collections?: KhataCollections | null;
 }
 
 export type DayDetail = BusinessDay & { sessions?: DayShift[]; deposits?: BankDeposit[] };

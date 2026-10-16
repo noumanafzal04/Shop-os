@@ -1316,6 +1316,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A shift close counts one drawer. This counts the day, across every drawer in the shop, and records what was deposited." },
       { type: "note", text: "Anyone at the till can read the day. Closing it off is a manager's job." },
+      { type: "p", text: "Collected on khata lists what customers paid today against earlier credit sales, at this counter: who paid, how (cash, transfer, card, wallet), when, and who took it. It is not a sale and is not added to Rung up — the credit sale was counted on its own day. Cash ones are already in \"In the drawers\". Only people who keep the customer book see this list." },
       { type: "p", text: "A deposit you record goes against the day the counter is trading — the one shown at the top of this screen. If last night was never closed off, you will see more than one day still open; the money still lands on today, and last night stays open until someone signs it off." },
       { type: "h", text: "With more than one shop" },
       { type: "p", text: "A trading day belongs to a BRANCH \u2014 each shop opens its own when its first drawer is opened, and closes its own at night. On All branches this screen shows the counter that is trading, names it under the date, and lists any other branch that is also open. The figures underneath are that one branch\u2019s; pick a branch at the top to read another." },
@@ -2601,6 +2602,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "A size or colour costs what its design costs, unless a purchase order received that size at a price of its own. So a kurta carded once at 1,600 is costed at 1,600 in every size, in Margins, Profit and Stock value alike." },
       { type: "p", text: "What sold, who bought it, and who sold it." },
       { type: "p", text: "Profit is takings, less anything refunded, less the sales tax inside them, plus other income, minus the cost of what was sold, minus expenses." },
+      { type: "p", text: "Collected on khata, under the figures, is what customers paid in the period against earlier credit sales, by method. It is not part of Revenue or Profit: a credit sale is counted once, on the day it was rung, at its full amount." },
       { type: "warn", text: "Sales tax is not yours, and profit no longer counts it. A bill of Rs 1,180 at 18% is Rs 1,000 of your money and Rs 180 you are holding for the government. Profit used to be worked out on the whole 1,180, so a shop that charged tax looked more profitable than it was by exactly the amount it would later have to hand over. The card reads 'Sales Tax (not yours)' and sits in the row between Refunds and Cost of Goods, so the cards add up left to right with a calculator." },
       { type: "h", text: "The Tax tab" },
       { type: "keys", items: [
