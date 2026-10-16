@@ -16,7 +16,7 @@ import {
   refusalsFor,
   type OfflineCart,
 } from "./canSellOffline";
-import { enqueue, newRow } from "./outbox";
+import { enqueue, newRow, type TillPrice } from "./outbox";
 import { nextOfflineNumber } from "./receiptNumber";
 import { uuid } from "../../../common/uuid";
 
@@ -219,7 +219,7 @@ export async function unpriceableOffer(): Promise<boolean> {
 export async function priceLocally(
   lines: CartLine[],
   cartDiscount: number,
-): Promise<{ subtotal: number; discount: number; tax: number; total: number }> {
+): Promise<{ subtotal: number; discount: number; tax: number; total: number; unitPrices: number[] }> {
   const priced = await pricedFromCache(lines, cartDiscount);
 
   return {
@@ -227,7 +227,32 @@ export async function priceLocally(
     discount: priced.discount,
     tax: priced.tax,
     total: priced.total,
+    // Each line's price as charged, in the cart's order — kept with the sale
+    // so the server records it at these (see `tillPricesFor`).
+    unitPrices: priced.lines.map((l) => l.unit_price),
   };
+}
+
+/**
+ * The price each line was rung at, for the server to keep (Q10) — in the
+ * sale's own order, naming each line's product so a price can never land on
+ * the wrong line. A pack and a line that named money are left to the server
+ * (null): this engine prices neither. A cart and a payload that are not the
+ * same length send nothing at all, and the server prices it as before.
+ */
+export function tillPricesFor(sale: Record<string, unknown>, unitPrices: number[]): Array<TillPrice | null> | null {
+  const items = Array.isArray(sale.items) ? (sale.items as Array<Record<string, unknown>>) : [];
+  if (items.length === 0 || items.length !== unitPrices.length) return null;
+
+  return items.map((item, i) => {
+    if (typeof item.product_id !== "string" || item.product_unit_id || item.amount != null) return null;
+
+    return {
+      product_id: item.product_id,
+      variant_id: typeof item.variant_id === "string" && item.variant_id !== "" ? item.variant_id : null,
+      unit_price: unitPrices[i],
+    };
+  });
 }
 
 /**
@@ -442,14 +467,18 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
         rungBy: input.rungBy,
         // For the refused list only: what this till said the sale came to (B57).
         tillTotal: totals.total,
+        // What each line was rung at — the price of record for this sale (Q10).
+        tillPrices: tillPricesFor(input.sale, totals.unitPrices),
       },
     ),
   );
 
+  const { unitPrices: _unitPrices, ...shown } = totals;
+
   return {
     id: op,
     invoice_number: offlineNumber,
-    ...totals,
+    ...shown,
     payment_method: (input.sale.payment_method as string | undefined) ?? null,
     offline: true,
   };

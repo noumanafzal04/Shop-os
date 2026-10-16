@@ -97,6 +97,18 @@ export interface OutboxRow {
    */
   tillTotal?: number | null;
   /**
+   * What the till CHARGED for each line, in the sale's own order (Q10).
+   *
+   * The owner: "jab online hai to updated price jaye gi, agar offline hai to
+   * wohi price jo save thi". A price changed while the till was offline used to
+   * be applied on sync — the sale came back "paid less than the total" and was
+   * refused, with the money already in the drawer (B47). The server now keeps
+   * these prices and notes every one that differs from the shop's price for
+   * the owner. Null for a pack line or a line that named money (the server
+   * prices those), and absent on rows from older builds.
+   */
+  tillPrices?: Array<TillPrice | null> | null;
+  /**
    * Was this till standing at a PRACTICE drawer when it rang this?
    *
    * Sent alongside the sale, and read as false whenever it is missing. The
@@ -129,6 +141,13 @@ export interface OutboxRow {
  * older one. Widening is safe; renaming is how a queue of paid sales becomes
  * unreadable during an upgrade.
  */
+/** One line's price as the till charged it — matched on the server to the same product. */
+export interface TillPrice {
+  product_id: string;
+  variant_id: string | null;
+  unit_price: number;
+}
+
 export function newRow(
   op: string,
   at: string,
@@ -144,12 +163,14 @@ export function newRow(
     clientAt,
     rungBy = null,
     tillTotal = null,
+    tillPrices = null,
   }: {
     training?: boolean;
     tenantId?: string | null;
     clientAt?: string;
     rungBy?: string | null;
     tillTotal?: number | null;
+    tillPrices?: Array<TillPrice | null> | null;
   } = {},
 ): OutboxRow {
   return {
@@ -161,6 +182,7 @@ export function newRow(
     offlineSince,
     sale,
     tillTotal,
+    tillPrices,
     training,
     tenantId,
     status: OUTBOX_STATUS.PENDING,

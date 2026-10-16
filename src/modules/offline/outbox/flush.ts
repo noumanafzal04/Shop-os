@@ -109,6 +109,10 @@ function wire(row: OutboxRow): Record<string, unknown> {
     // practice is invisible, which is exactly what the flag guards against.
     training: row.training === true,
     sale: row.sale,
+    // What it was rung at, line by line (Q10) — the server keeps these and
+    // notes any that differ from the shop's price now. A row from an older
+    // build has none, and is priced by the server as before.
+    ...(row.tillPrices ? { till_prices: row.tillPrices } : {}),
   };
 }
 

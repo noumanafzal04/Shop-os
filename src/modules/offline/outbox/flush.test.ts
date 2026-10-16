@@ -124,6 +124,16 @@ describe("what goes on the wire", () => {
     expect(await sent(row("1"))).toMatchObject({ training: false });
   });
 
+  it("sends the price each line was rung at, so the server keeps it (Q10)", async () => {
+    const prices = [{ product_id: "p1", variant_id: null, unit_price: 1000 }];
+
+    expect(await sent(row("1", { tillPrices: prices }))).toMatchObject({ till_prices: prices });
+  });
+
+  it("sends no prices for a row written before they were kept — the server prices it as before", async () => {
+    expect(await sent(row("1"))).not.toHaveProperty("till_prices");
+  });
+
   it("says 'real' for a row written before the field existed", async () => {
     // Silence must not be read as practice. A practice sale recorded as real
     // is visible and can be voided; a real sale recorded as practice is

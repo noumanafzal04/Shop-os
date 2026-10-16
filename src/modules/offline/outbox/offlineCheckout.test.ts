@@ -7,7 +7,7 @@ import { putMany, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import type { CatalogItem } from "../sync/catalogService";
 import type { OfflineCart } from "./canSellOffline";
-import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally, promotionLocally, unpriceableOffer } from "./offlineCheckout";
+import { completeOffline, linesFromCatalog, OfflineRefused, priceLocally, promotionLocally, tillPricesFor, unpriceableOffer } from "./offlineCheckout";
 import { allRows, OUTBOX_STATUS } from "./outbox";
 import { useAuthStore } from "../../../stores/authStore";
 import type { User } from "../../auth/types";
@@ -158,6 +158,33 @@ describe("ringing it", () => {
 
     const rows = await allRows();
     expect(rows.map((r) => r.training).sort()).toEqual([false, true]);
+  });
+});
+
+describe("the price it was rung at (Q10)", () => {
+  it("keeps each line's price with the sale, in the sale's order, naming its product", async () => {
+    // "Agar offline hai to wohi price jaye gi jo save thi": the server keeps
+    // these, so a price changed while the till was offline cannot refuse a
+    // sale that was already paid for.
+    await seed([item({ id: "p1", price: 1000 }), item({ id: "p2", price: 100 })]);
+    const { lines } = await linesFromCatalog([{ product_id: "p1", quantity: 1 }, { product_id: "p2", quantity: 2 }]);
+    const sale = { channel: "pos", payment_method: "cash", amount_paid: 1200, items: [{ product_id: "p1", quantity: 1 }, { product_id: "p2", quantity: 2 }] };
+
+    const shown = await completeOffline(input({ sale, lines }));
+
+    expect((await allRows())[0].tillPrices).toEqual([
+      { product_id: "p1", variant_id: null, unit_price: 1000 },
+      { product_id: "p2", variant_id: null, unit_price: 100 },
+    ]);
+    expect(shown).not.toHaveProperty("unitPrices");
+  });
+
+  it("leaves a pack and a line that named money to the server, and sends nothing for a cart out of step", () => {
+    const sale = { items: [{ product_id: "p1", quantity: 1, product_unit_id: "carton" }, { product_id: "p2", amount: 2000 }, { product_id: "p3", variant_id: "v3", quantity: 1 }] };
+
+    expect(tillPricesFor(sale, [100, 268.5, 990])).toEqual([null, null, { product_id: "p3", variant_id: "v3", unit_price: 990 }]);
+    expect(tillPricesFor(sale, [100, 268.5]), "a price may land on the wrong line").toBeNull();
+    expect(tillPricesFor({}, [])).toBeNull();
   });
 });
 
