@@ -1,6 +1,6 @@
 # Memory Index
 
-- [RESUME HERE](shopos-resume-here.md) — 2026-10-16 ~13:30: khata parts 1–5 ALL PUSHED (installments f6454cb/eac6a67, migration 2026_10_16_000001); waiting for the user's next word
+- [RESUME HERE](shopos-resume-here.md) — 2026-10-16 ~14:15: khata 1–5 + Q11/Q6 + Q10/B47 ALL PUSHED (offline sale keeps the till's price; capture never renames; points on every paid sale); waiting for the user
 - [Counter Needs Today's Shift](shopos-counter-needs-todays-shift.md) — STANDING: pos_require_shift = TODAY's own shift for every counter sale + cash advance; one rule mustBeOpenToday; a walk that closes a shift counts it
 - [Push As Each Part Lands](shopos-push-as-each-part-lands.md) — USER 2026-10-15: finish the whole list; push every part as soon as it is gated, keep going without waiting
 - [Tester And Fixer](shopos-tester-and-fixer.md) — CHANGED (USER 2026-10-15): the cloud tester's credits ran out — I now TEST AND FIX; keep BUGS.md, report files and the SYSTEM-TEST §7 log as before

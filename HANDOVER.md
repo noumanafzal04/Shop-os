@@ -308,6 +308,18 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-16 — the owner's answers built: Q11, Q6, Q10 (B47)
+
+Q11 + Q6: backend `a549989`, panel `95e4f48`. `Customer::capture` fills a placeholder name / empty email only (the
+sale and the quote keep the typed name; `CreateSaleDocumentAction` typed name first). `CreateSaleAction`
+`$earnsPoints` (Customers module + loyalty on) — earned on the trusted path too (completed order, settled tab, billed
+document); redeeming still `! $trusted`. Q10 / B47: backend `0a4bf4b`, panel `02da955` — till `tillPricesFor` →
+outbox row `tillPrices` → sync `till_prices` → `PosSyncController` `offline_till_prices` (only with `trusted_offline`)
+→ `CreateSaleAction` keeps the till's unit price per matching line (not packs, not money lines) and writes the
+difference into `offline_violations`; the sync answer returns the sale's notes. Decision:
+`docs/decisions/shopos-three-owner-answers-q6-q10-q11.md`. New L20 (offline slip prices a carton at a single's
+price — to verify). No migration.
+
 ### 2026-10-16 — khata part 5 pushed: installments (F1, L18, L19)
 
 Backend `f6454cb`, panel `eac6a67`. **New migration `2026_10_16_000001_a_customer_can_pay_in_installments`**
