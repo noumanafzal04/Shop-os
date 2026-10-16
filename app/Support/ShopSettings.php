@@ -234,6 +234,9 @@ class ShopSettings
             'expiring_soon_days' => null,
             // "Advance rakh do." Money down, goods set aside, balance later.
             'layaway_enabled' => true,
+            // Goods on installments (F1). On, like the other two promises a
+            // counter makes; a shop that never sells "qiston pe" turns it off.
+            'installments_enabled' => true,
             // The floor under an advance. A token deposit isn't a commitment —
             // Rs 100 against a Rs 90,000 fridge takes it off the floor for six
             // weeks and costs the customer nothing to abandon. 20% is the
@@ -366,6 +369,7 @@ class ShopSettings
             // trade default rather than pinning a number the shop didn't choose.
             'expiring_soon_days' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:365'],
             'layaway_enabled' => ['sometimes', 'boolean'],
+            'installments_enabled' => ['sometimes', 'boolean'],
             'layaway_min_deposit_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],
             'layaway_days' => ['sometimes', 'integer', 'min:0', 'max:730'],
             'layaway_cancellation_fee_percent' => ['sometimes', 'numeric', 'min:0', 'max:100'],

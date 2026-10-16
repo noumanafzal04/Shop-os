@@ -1675,7 +1675,10 @@ class CreateSaleAction
                     // terminals ringing khata sales for the same customer must not
                     // lose an update or race past the credit limit.
                     $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->first();
-                    $locked->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}");
+                    // `installment_plan` is set by StartInstallmentPlanAction and
+                    // is in no request's rules: a plan is not held to the khata
+                    // limit (Q14), and no client can claim to be one.
+                    $locked->chargeCredit($creditTotal, $sale->id, "Sale {$invoiceNumber}", heldToLimit: empty($data['installment_plan']));
                 }
 
                 // THE KITCHEN.

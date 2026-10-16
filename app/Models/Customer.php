@@ -49,7 +49,13 @@ class Customer extends BaseModel
     /** The shop holds money of theirs (balance below zero). */
     public const STANDING_ADVANCE = 'advance';
 
-    public const STANDINGS = [self::STANDING_OWES, self::STANDING_LIMIT, self::STANDING_ADVANCE];
+    /** Has goods on installments still being paid for (F1). */
+    public const STANDING_INSTALLMENTS = 'installments';
+
+    /** …and a month of it has gone by unpaid. */
+    public const STANDING_LATE = 'late_installments';
+
+    public const STANDINGS = [self::STANDING_OWES, self::STANDING_LIMIT, self::STANDING_ADVANCE, self::STANDING_INSTALLMENTS, self::STANDING_LATE];
 
     /** "Near the limit" starts here — said once, for the filter and its count alike. */
     public const NEAR_LIMIT = 0.8;
@@ -71,6 +77,9 @@ class Customer extends BaseModel
                 ->whereRaw('credit_balance >= credit_limit * ?', [self::NEAR_LIMIT])
                 ->orderByRaw('credit_balance / credit_limit DESC'),
             self::STANDING_ADVANCE => $query->where('credit_balance', '<', 0)->orderBy('credit_balance'),
+            // The plan list's own scopes, so a count here and a row there agree.
+            self::STANDING_INSTALLMENTS => $query->whereHas('installmentPlans', fn (Builder $q) => $q->running())->orderByDesc('credit_balance'),
+            self::STANDING_LATE => $query->whereHas('installmentPlans', fn (Builder $q) => $q->late())->orderByDesc('credit_balance'),
             default => null,
         };
     }
@@ -120,6 +129,12 @@ class Customer extends BaseModel
         return $this->hasMany(CustomerLedgerEntry::class)
             ->orderByDesc('created_at')
             ->orderByDesc('id');
+    }
+
+    /** Goods that went home on installments (F1). */
+    public function installmentPlans(): HasMany
+    {
+        return $this->hasMany(InstallmentPlan::class);
     }
 
     /** Money actually handed over against the khata — see NOT_COLLECTIONS. */
@@ -206,12 +221,14 @@ class Customer extends BaseModel
      * Add a credit-sale charge to the khata (+owed). Enforces the credit limit
      * when one is set. Writes a ledger entry with the running balance.
      */
-    public function chargeCredit(float $amount, ?string $saleId = null, ?string $note = null): CustomerLedgerEntry
+    public function chargeCredit(float $amount, ?string $saleId = null, ?string $note = null, bool $heldToLimit = true): CustomerLedgerEntry
     {
         $amount = round($amount, 2);
         $newBalance = round((float) $this->credit_balance + $amount, 2);
 
-        if ($this->credit_limit !== null && $newBalance > (float) $this->credit_limit + 0.001) {
+        // An installment plan is approved on its own terms and is not held to
+        // the everyday khata limit (Q14, the owner: "market standard").
+        if ($heldToLimit && $this->credit_limit !== null && $newBalance > (float) $this->credit_limit + 0.001) {
             throw DomainException::unprocessable(
                 'This sale would exceed the customer\'s credit limit ('
                 .number_format((float) $this->credit_limit, 2).').',
@@ -245,7 +262,7 @@ class Customer extends BaseModel
         $newBalance = round((float) $this->credit_balance - $amount, 2);
         $this->forceFill(['credit_balance' => $newBalance])->save();
 
-        return $this->ledgerEntries()->create([
+        $entry = $this->ledgerEntries()->create([
             'tenant_id' => $this->tenant_id,
             // Which counter took it — a day's collections are that day's
             // branch's (KhataCollected).
@@ -259,6 +276,15 @@ class Customer extends BaseModel
             'note' => $note,
             'created_by' => auth()->id(),
         ]);
+
+        // Against a sale that went home on installments, this is that plan's
+        // payment (or its return / cancellation): the plan re-reads where it
+        // stands. Here, because every khata payment against a sale passes here.
+        if ($saleId !== null) {
+            InstallmentPlan::withoutTenancy()->where('tenant_id', $this->tenant_id)->where('sale_id', $saleId)->get()->each->refreshStanding();
+        }
+
+        return $entry;
     }
 
     /**

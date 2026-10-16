@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Tenant;
 
-use App\Actions\Pos\RecordCashMovementAction;
+use App\Actions\Customer\TakeKhataPaymentAction;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
@@ -10,9 +10,11 @@ use App\Http\Requests\Customer\RecordCustomerPaymentRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Models\Customer;
+use App\Models\InstallmentPlan;
 use App\Models\Order;
 use App\Support\ApiResponse;
 use App\Support\CsvExport;
+use App\Support\ShopDay;
 use App\Support\ShopTime;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +67,8 @@ class CustomerController extends Controller
             'owed' => ['total' => round((float) $row->owed, 2), 'accounts' => (int) $row->owing],
             'advance' => ['total' => round((float) $row->held, 2), 'accounts' => (int) $row->in_credit],
             'near_limit' => (int) $row->near_limit,
+            'installments' => Customer::query()->standing(Customer::STANDING_INSTALLMENTS)->count(),
+            'late_installments' => Customer::query()->standing(Customer::STANDING_LATE)->count(),
         ]);
     }
 
@@ -187,8 +191,24 @@ class CustomerController extends Controller
         ]);
 
         // Khata statement — most recent ledger movements, each with the
-        // invoice it belongs to, so a credit sale on the statement opens.
-        $customer->setAttribute('ledger', $customer->ledgerEntries()->with('sale:id,invoice_number')->limit(50)->get());
+        // invoice it belongs to, so a credit sale on the statement opens; and
+        // the plan, when the sale went home on installments — so the goods,
+        // the installment charge and each installment read as what they are,
+        // not as one more "credit sale" and "paid".
+        $planOf = $customer->installmentPlans()->whereNotNull('sale_id')->pluck('number', 'sale_id');
+        $customer->setAttribute('ledger', $customer->ledgerEntries()->with('sale:id,invoice_number')->limit(50)->get()
+            ->each(fn ($entry) => $entry->setAttribute('plan', $entry->sale_id === null ? null : ($planOf[$entry->sale_id] ?? null))));
+        // Goods on installments — the ones still being paid for first, each
+        // with where it stands today (F1).
+        $today = ShopDay::calendarToday();
+        $customer->setAttribute('installment_plans', $customer->installmentPlans()
+            ->orderByRaw("CASE WHEN status = 'running' THEN 0 ELSE 1 END")->orderByDesc('created_at')->limit(20)->get()
+            ->map(fn (InstallmentPlan $p) => [
+                'id' => $p->id, 'number' => $p->number, 'status' => $p->status,
+                'total' => (float) $p->total, 'monthly' => (float) $p->monthly, 'months' => $p->months,
+                'next_due_on' => $p->next_due_on?->toDateString(),
+            ] + array_intersect_key($p->schedule($today), array_flip(['left', 'late', 'late_months', 'due_now', 'months_paid']))));
+
         // Loyalty statement — most recent points movements.
         $customer->setAttribute('loyalty_ledger', $customer->loyaltyEntries()->limit(50)->get());
 
@@ -198,7 +218,7 @@ class CustomerController extends Controller
     /**
      * Record a repayment against the customer's khata (credit balance).
      */
-    public function recordPayment(RecordCustomerPaymentRequest $request, string $id): JsonResponse
+    public function recordPayment(RecordCustomerPaymentRequest $request, TakeKhataPaymentAction $payments, string $id): JsonResponse
     {
         /** @var Customer $customer */
         $customer = Customer::query()->findOrFail($id);
@@ -219,26 +239,18 @@ class CustomerController extends Controller
             );
         }
 
-        $entry = $customer->recordCreditPayment(
+        // Khata collected in CASH physically lands in whichever drawer the
+        // cashier has open (`khata_in`) — until that was recorded it produced a
+        // phantom OVERAGE at close. And it needs that drawer: without today's
+        // shift, in a shop that asks for one, it is refused (L18).
+        $entry = $payments->execute(
+            $customer,
+            $request->user(),
             $amount,
             $data['method'],
             $data['reference'] ?? null,
             $data['note'] ?? null,
         );
-
-        // Khata collected in CASH physically lands in whichever drawer the
-        // cashier has open. Until this was recorded it produced a phantom
-        // OVERAGE at close — daily reality in every mart, and it made the
-        // variance number untrustworthy exactly where it mattered most.
-        if ($data['method'] === 'cash') {
-            app(RecordCashMovementAction::class)->record($request->user(), [
-                'type' => 'khata_in',
-                'amount' => $amount,
-                'reason' => 'Khata payment · '.$customer->name,
-                'source_type' => 'customer_ledger_entry',
-                'source_id' => $entry->id,
-            ]);
-        }
 
         return ApiResponse::created([
             'entry' => $entry,

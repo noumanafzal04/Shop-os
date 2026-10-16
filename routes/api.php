@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\V1\Tenant\GalleryController;
 use App\Http\Controllers\Api\V1\Tenant\HardwareDeviceController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeCategoryController;
 use App\Http\Controllers\Api\V1\Tenant\IncomeController;
+use App\Http\Controllers\Api\V1\Tenant\InstallmentPlanController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
 use App\Http\Controllers\Api\V1\Tenant\KeepShopController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
@@ -743,6 +744,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // enforced in the controller, since a quotation cancel moves
                 // nothing and must stay available to a plain cashier.
                 Route::post('/{document}/cancel', [SaleDocumentController::class, 'cancel']);
+            });
+
+            // Goods on installments (F1): they go home on the day, an advance
+            // now and the rest month by month on the customer's khata — so it
+            // rides the customer book, and is rung by whoever sells.
+            Route::prefix('installment-plans')->middleware(['feature:customers', 'permission:sales.manage'])->group(function (): void {
+                Route::get('/', [InstallmentPlanController::class, 'index']);
+                // Before /{plan} so it isn't captured as an id.
+                Route::get('/summary', [InstallmentPlanController::class, 'summary']);
+                Route::post('/', [InstallmentPlanController::class, 'store'])->middleware('once');
+                Route::get('/{plan}', [InstallmentPlanController::class, 'show']);
+                Route::post('/{plan}/payments', [InstallmentPlanController::class, 'pay'])->middleware('once');
             });
 
             // Pharmacy depth. Rides the inventory module rather than a module
