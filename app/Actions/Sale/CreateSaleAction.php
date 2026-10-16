@@ -869,8 +869,23 @@ class CreateSaleAction
                 // customer will be linked (a phone was given).
                 // Never on a practice sale: a trainee ringing their own phone
                 // number all afternoon would earn a real balance to spend.
+                //
+                // ── EARNED WHEREVER A PAID SALE IS MADE (Q6) ────────────────
+                //
+                // Redeeming stays a till's act (above). EARNING was switched
+                // off with it on the trusted path, so an online order that was
+                // delivered and paid, a restaurant tab settled and a quotation
+                // or advance billed — every one of them a paid sale to a known
+                // customer — earned nothing, while the same goods at the till
+                // did. The owner asked for "market standard": one programme
+                // across channels, earned when the sale is made and paid. A
+                // completed order is that moment (a cancelled one never gets
+                // here); the delivery fee is not goods and is not on the sale.
+                // An automatic rule, so it still needs the Customers module.
+                $earnsPoints = ($shop === null || $shop->featureEnabled('customers'))
+                    && (bool) ($tenant?->setting('loyalty_enabled', false));
                 $pointsEarned = 0;
-                if ($loyaltyOn && ! $training && ! empty($data['customer_phone'])) {
+                if ($earnsPoints && ! $training && ! empty($data['customer_phone'])) {
                     $earnPer = (float) ($tenant?->setting('loyalty_earn_per_amount', 0));
                     $earnBase = round($subtotal - $discount, 2);
                     if ($earnPer > 0 && $earnBase > 0) {

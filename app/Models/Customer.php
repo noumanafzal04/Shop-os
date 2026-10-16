@@ -434,10 +434,19 @@ class Customer extends BaseModel
 
         $customer = self::byPhone($tenantId, $phone);
 
+        // ── A NAME ON FILE IS NEVER REPLACED FROM THE COUNTER (Q11) ─────
+        //
+        // "Ahmed Khan" bought on credit; next week a cashier typed "Ahmed"
+        // against the same number and the khata, the statement and every
+        // later bill said "Ahmed". The till, a quote, an order and a car's
+        // owner only FILL what is missing — a phone filed under the
+        // placeholder gets its first real name, an empty email its first
+        // address. What was typed stays on the sale or the quote itself, as
+        // that paper's own copy; renaming a customer is done on their page.
         if ($customer !== null) {
             $customer->forceFill(array_filter([
-                'name' => $name ?: null,
-                'email' => $email ?: null,
+                'name' => $customer->knownName() === null && filled($name) ? trim((string) $name) : null,
+                'email' => blank($customer->email) && filled($email) ? $email : null,
             ]) + ['last_seen_at' => now()])->save();
 
             return $customer;

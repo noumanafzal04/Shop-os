@@ -233,9 +233,10 @@ class CreateSaleDocumentAction
             'branch_id' => $branchId,
             'register_id' => $this->registerContext->id(),
             'customer_id' => $customer?->id,
-            // The name somebody GAVE. A phone with no name is filed under a
-            // placeholder, and the paper must not print the placeholder.
-            'customer_name' => $customer?->knownName() ?? ($data['customer_name'] ?? null),
+            // The name typed for THIS paper wins — the record on file is not
+            // renamed by it (Q11), so the paper keeps its own copy. Else the
+            // name somebody gave before; never the placeholder.
+            'customer_name' => filled($data['customer_name'] ?? null) ? trim((string) $data['customer_name']) : $customer?->knownName(),
             'customer_phone' => $customer?->phone ?? ($data['customer_phone'] ?? null),
             'subtotal' => $subtotal,
             'discount' => $discount,

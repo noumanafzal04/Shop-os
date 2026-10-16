@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\City;
 use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -67,13 +68,58 @@ class CustomerCrmTest extends TestCase
         $this->assertSame(1, $customer->sales()->count());
     }
 
-    public function test_repeat_phone_is_one_customer(): void
+    /**
+     * Q11 (the owner: "market standard khud krdo"): one number is one
+     * customer, and a name typed at the counter never renames the one on
+     * file — the sale keeps what was typed as its own copy.
+     */
+    public function test_repeat_phone_is_one_customer_and_keeps_its_name(): void
     {
+        $this->makeSale('Ayesha Khan', '+923001234567');
         $this->makeSale('Ayesha', '+923001234567');
-        $this->makeSale('Ayesha K', '+923001234567');
 
         $this->assertSame(1, Customer::withoutTenancy()->where('phone', '+923001234567')->count());
-        $this->assertSame('Ayesha K', Customer::withoutTenancy()->where('phone', '+923001234567')->first()->name);
+        $this->assertSame('Ayesha Khan', Customer::withoutTenancy()->where('phone', '+923001234567')->first()->name, 'a name typed at the till renamed the customer on file');
+        $this->assertSame(['Ayesha Khan', 'Ayesha'], Sale::withoutTenancy()->orderBy('created_at')->orderBy('invoice_number')->pluck('customer_name')->all(), 'the sale did not keep the name typed for it');
+    }
+
+    /** A quotation carries the name typed for it, and the customer on file keeps theirs. */
+    public function test_a_quote_keeps_the_name_typed_for_it_without_renaming_the_customer(): void
+    {
+        $this->makeSale('Ahmed Khan', '+923004445556');
+
+        $quote = $this->actingAsUser($this->owner)->postJson('/api/v1/sale-documents', [
+            'kind' => 'quotation', 'customer_name' => 'Ahmed (brother)', 'customer_phone' => '+923004445556',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('Ahmed (brother)', $quote['customer_name']);
+        $this->assertSame('Ahmed Khan', Customer::withoutTenancy()->where('phone', '+923004445556')->first()->name);
+
+        // No name typed: the paper says the name on file, never the placeholder.
+        $bare = $this->actingAsUser($this->owner)->postJson('/api/v1/sale-documents', [
+            'kind' => 'quotation', 'customer_phone' => '+923004445556',
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+        $this->assertSame('Ahmed Khan', $bare['customer_name']);
+    }
+
+    /** A number filed with no name gets its first real name, and an empty email its first address. */
+    public function test_a_placeholder_name_is_filled_and_a_real_one_kept(): void
+    {
+        $this->makeSale('', '+923001112223');
+        $this->assertSame(Customer::UNNAMED, Customer::withoutTenancy()->where('phone', '+923001112223')->first()->name);
+
+        $this->makeSale('Bilal Ahmed', '+923001112223');
+        $this->assertSame('Bilal Ahmed', Customer::withoutTenancy()->where('phone', '+923001112223')->first()->name);
+
+        $this->assertSame('Bilal Ahmed', Customer::capture($this->shop->id, '+923001112223', 'B.', 'bilal@example.test')->name);
+        $this->assertSame('bilal@example.test', Customer::capture($this->shop->id, '+923001112223', null, 'other@example.test')->email, 'an email on file was replaced');
+
+        // The customer's own page is where a rename is made.
+        $id = Customer::withoutTenancy()->where('phone', '+923001112223')->value('id');
+        $this->actingAsUser($this->owner)->putJson("/api/v1/customers/{$id}", ['name' => 'Bilal A. Khan'])->assertOk();
+        $this->assertSame('Bilal A. Khan', Customer::withoutTenancy()->find($id)->name);
     }
 
     public function test_walk_in_without_phone_is_not_captured(): void
