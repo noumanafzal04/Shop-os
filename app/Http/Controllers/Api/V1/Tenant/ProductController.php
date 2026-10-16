@@ -69,6 +69,9 @@ class ProductController extends Controller
             // two were copies of each other and a third, divergent copy on the
             // inventory screen answered the same question differently.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
+            // The stock screen's "Out of stock" (not the kitchen's 86, `sold_out`):
+            // the dashboard's count and the rows it opens, at the place looked at.
+            ->when($request->boolean('out_of_stock'), fn ($q) => LowStock::soldOut($q, $branch->scopeId()))
             ->orderByDesc('created_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 

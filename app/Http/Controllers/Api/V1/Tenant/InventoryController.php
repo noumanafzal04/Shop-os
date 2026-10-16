@@ -57,14 +57,33 @@ class InventoryController extends Controller
 
     /**
      * Movement history — filterable by product, newest first.
+     *
+     * OF THE PLACE BEING LOOKED AT. Each line's "after" is that place's own
+     * running balance, so a history that mixed the godown into the shop's read
+     * 429, 275, 428, 273 — stock leaping by a hundred and fifty with every
+     * sale. With a place chosen, its lines only; the whole shop's view keeps
+     * them all and names the place on each. A line written before places
+     * existed carries no place, which is Main's.
+     *
+     * NEWEST FIRST ALL THE WAY DOWN. A sale with the item on two lines writes
+     * two movements in one second, and the tie fell to the id ascending — the
+     * older line on top, so the balances read backwards. The id is time-ordered,
+     * so it breaks the tie the same way the date does.
      */
-    public function movements(Request $request): JsonResponse
+    public function movements(Request $request, BranchContext $branch): JsonResponse
     {
+        $place = $branch->scopeId();
+        $isMain = $place !== null && $branch->get()?->is_default;
+
         $movements = StockMovement::query()
-            ->with(['product:id,name', 'variant:id,name'])
+            ->with(['product:id,name', 'variant:id,name', 'creator:id,name'])
             ->when($request->query('product_id'), fn ($q, $id) => $q->where('product_id', $id))
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
+            ->when($place !== null, fn ($q) => $q->where(fn ($at) => $at
+                ->where('branch_id', $place)
+                ->when($isMain, fn ($main) => $main->orWhereNull('branch_id'))))
             ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->stably()->paginate(min((int) $request->query('per_page', 20), 100));
 
         return ApiResponse::paginated($movements);

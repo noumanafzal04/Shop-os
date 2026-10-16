@@ -37,4 +37,10 @@ class StockMovement extends Model
     {
         return $this->belongsTo(ProductVariant::class, 'variant_id')->withTrashed();
     }
+
+    /** Who made it — the stock history says "by Bilal", not just a number. */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 }

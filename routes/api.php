@@ -488,7 +488,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive']);
                 });
                 Route::middleware('permission:purchases.manage')->group(function (): void {
-                    Route::post('purchase-orders', [PurchaseOrderController::class, 'store']);
+                    // Pressed twice it is ONE order (Codex QA 2026-10-16: two Rs 7,200 POs).
+                    Route::post('purchase-orders', [PurchaseOrderController::class, 'store'])->middleware('once');
                     // The link that was missing: what is running out, turned
                     // into orders somebody can actually send. One DRAFT per
                     // supplier — a Monday reorder list holds twenty lines from
@@ -537,7 +538,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::get('/session/movements', [PosController::class, 'movements']);
                     Route::post('/session/movements', [PosController::class, 'storeMovement']);
                     Route::get('/held', [PosController::class, 'heldIndex']);
-                    Route::post('/held', [PosController::class, 'heldStore']);
+                    Route::post('/held', [PosController::class, 'heldStore'])->middleware('once');
                     // Claim = resume atomically, so only one lane can take it.
                     Route::post('/held/{id}/claim', [PosController::class, 'heldClaim']);
                     Route::delete('/held/{id}', [PosController::class, 'heldDestroy']);
@@ -828,7 +829,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // shop. Sent, then counted in at the other end; a shortage is
                 // settled by the place that sent it.
                 Route::get('/transfers', [TransferController::class, 'index']);
-                Route::post('/transfers', [TransferController::class, 'store']);
+                // Pressed twice it is ONE transfer: two left Main 4 units short (Codex QA 2026-10-16).
+                Route::post('/transfers', [TransferController::class, 'store'])->middleware('once');
                 Route::post('/transfers/{transfer}/send', [TransferController::class, 'send']);
                 Route::post('/transfers/{transfer}/receive', [TransferController::class, 'receive']);
                 Route::post('/transfers/{transfer}/settle', [TransferController::class, 'settle']);
