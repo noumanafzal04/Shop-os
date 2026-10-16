@@ -244,6 +244,16 @@ class CreateProductAction
                 $recipeWarnings = app(SyncRecipeItemsAction::class)->execute($product, $data['recipe_items']);
             }
 
+            // THE ITEM'S OWN CODE IS IN THE SAME NAMESPACE AS EVERY OTHER.
+            // The form checked it against other items' codes only — not a
+            // size's, an extra's or a pack's — so a new item took the code on
+            // a suit's size S and one scan had two owners (Codex QA
+            // 2026-10-16, BUG-71). Asked last, so its own sizes and packs
+            // are in the room; a refusal undoes the whole item.
+            if (filled($product->barcode)) {
+                BarcodeNamespace::assertFree((string) $product->barcode, $product);
+            }
+
             return $product;
         });
 

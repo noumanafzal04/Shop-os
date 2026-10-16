@@ -3,6 +3,7 @@
 namespace App\Actions\Catalog;
 
 use App\Models\Product;
+use App\Support\BarcodeNamespace;
 use Illuminate\Support\Facades\DB;
 
 class UpdateProductAction
@@ -66,6 +67,9 @@ class UpdateProductAction
             }
 
             $product->fill($data)->save();
+            // Asked at the end, against everything this edit wrote (BUG-71) —
+            // and only when the code changed: an untouched code is not news.
+            $newCode = $product->wasChanged('barcode') && filled($product->barcode);
 
             if ($collectionIds !== null) {
                 $product->collections()->sync($collectionIds);
@@ -99,6 +103,10 @@ class UpdateProductAction
             // of the edit, so the form is never half-saved behind an error.
             if ($counted !== null) {
                 $warnings = [...$warnings, ...$this->stockTracking->execute($product, $counted)];
+            }
+
+            if ($newCode) {
+                BarcodeNamespace::assertFree((string) $product->barcode, $product);
             }
         });
 

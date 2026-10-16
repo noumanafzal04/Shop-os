@@ -158,7 +158,10 @@ class FoodTenantWalkthroughTest extends TestCase
         $this->assertSame('Extra spicy', $line['modifiers'][0]['name'] ?? null, 'The kitchen was not told how spicy to make it.');
         $this->assertArrayNotHasKey('price_delta', $line['modifiers'][0]);
         $this->assertSame('No onions', $line['note']);
-        $this->assertStringNotContainsString('1450', json_encode($board));
+        // As a VALUE, not as four characters: the board's ids are
+        // time-ordered, and every id minted around 14:00 UTC on 16 Oct 2026
+        // began "01a1450…" — a price check that failed on the clock.
+        $this->assertDoesNotMatchRegularExpression('/[:\[,]\s*"?1450(\.0+)?"?\s*[,\]}]/', json_encode($board));
     }
 
     // ── catalog:variants → floor → kitchen board ────────────────────
