@@ -79,6 +79,8 @@ export interface TransferInput {
   to_branch_id: string;
   notes?: string | null;
   items: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
+  /** The key the form was opened with: pressed twice, the server answers the first (AnswerOnce). */
+  idempotency_key?: string;
 }
 
 export interface ReceiveInput {

@@ -15,6 +15,10 @@ import { useAuthStore } from "../../stores/authStore";
  */
 
 const answered = { success: true, message: "", data: null, errors: {}, meta: {} };
+
+// Each test sends a write of its own. A success is held for a moment and handed
+// to its twin (`TWIN_SETTLES_MS` — one press, one request), so the same body
+// sent again by the next test would be answered without being sent.
 let heard: string[];
 let stop: () => void;
 
@@ -67,7 +71,7 @@ describe("what is not a write", () => {
       throw refused;
     };
 
-    await expect(apiPost("/products", { name: "Kurta" })).rejects.toThrow("The name is taken.");
+    await expect(apiPost("/products", { name: "Kurta (taken)" })).rejects.toThrow("The name is taken.");
 
     expect(heard).toEqual([]);
   });
@@ -77,7 +81,7 @@ describe("what is not a write", () => {
       throw new AxiosError("Network Error", "ERR_NETWORK", config as never);
     };
 
-    await expect(apiPost("/products", { name: "Kurta" })).rejects.toThrow();
+    await expect(apiPost("/products", { name: "Kurta (offline)" })).rejects.toThrow();
 
     expect(heard).toEqual([]);
   });
@@ -87,7 +91,7 @@ describe("a listener", () => {
   it("is not told after it has stopped listening", async () => {
     stop();
 
-    await apiPost("/products", { name: "Kurta" });
+    await apiPost("/products", { name: "Kurta (nobody listening)" });
 
     expect(heard).toEqual([]);
   });
@@ -99,7 +103,7 @@ describe("a listener", () => {
     });
     stop = onServerWrite((method, path) => heard.push(`${method} ${path}`));
 
-    await expect(apiPost("/products", { name: "Kurta" })).resolves.toMatchObject({ success: true });
+    await expect(apiPost("/products", { name: "Kurta (a broken listener)" })).resolves.toMatchObject({ success: true });
     stopBroken();
 
     expect(heard).toEqual(["post /products"]);

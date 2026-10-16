@@ -128,6 +128,8 @@ export interface StockMovement {
   created_at: string;
   product?: { id: string; name: string };
   variant?: { id: string; name: string } | null;
+  /** Who made it. Null for a line written by the system with nobody signed in. */
+  creator?: { id: string; name: string } | null;
 }
 
 export interface AdjustPayload {
@@ -143,9 +145,9 @@ export interface AdjustPayload {
 export const inventoryService = {
   adjust: (payload: AdjustPayload) => apiPost<StockMovement>("/inventory/adjust", payload),
 
-  movements: (params: { product_id?: string; page?: number }) =>
+  movements: (params: { product_id?: string; page?: number; per_page?: number }) =>
     apiGet<StockMovement[]>("/inventory/movements", {
-      params: { product_id: params.product_id || undefined, page: params.page ?? 1 },
+      params: { product_id: params.product_id || undefined, page: params.page ?? 1, per_page: params.per_page || undefined },
     }),
 
   lowStock: () => apiGet<Product[]>("/inventory/low-stock"),

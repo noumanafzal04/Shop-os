@@ -14,6 +14,7 @@ import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import Pager from "../../../components/ui/pager";
 import { ApiError } from "../../../common/types/api";
+import { useOnceKey } from "../../../common/onceKey";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { useAuthStore } from "../../../stores/authStore";
 import { useBranches } from "../../branches/hooks/useBranches";
@@ -105,6 +106,8 @@ export default function TransfersPage() {
   const [status, setStatus] = useState<TransferStatus | "">("");
   const transfers = useTransfers(page, status || undefined);
   const create = useCreateTransfer();
+  // One press, one transfer: a double "Send" made two and took the stock off twice.
+  const once = useOnceKey();
   const sendAsked = useSendTransfer();
   const receive = useReceiveTransfer();
   const settle = useSettleTransfer();
@@ -196,9 +199,10 @@ export default function TransfersPage() {
         to_branch_id: toId,
         notes: notes.trim() || undefined,
         items: lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: Number(l.quantity) })),
+        idempotency_key: once.key,
       },
       {
-        onSuccess: (res) => { toast.success(res.message); close(); },
+        onSuccess: (res) => { once.renew(); toast.success(res.message); close(); },
         onError: (e) => toast.error(e instanceof ApiError ? e.message : "The transfer could not be saved."),
       },
     );

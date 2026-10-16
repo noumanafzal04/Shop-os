@@ -19,6 +19,13 @@ const BASE_URL =
  */
 export const REQUEST_TIMEOUT_MS = 20_000;
 
+/**
+ * How long a press that found its twin still being written waits before
+ * asking again, and how many times — 0.3 s, 0.6 s, … about 6 s in all.
+ */
+export const IN_FLIGHT_WAIT_MS = 300;
+export const IN_FLIGHT_TRIES = 6;
+
 export const api = axios.create({
   baseURL: BASE_URL,
   headers: { Accept: "application/json" },
@@ -206,6 +213,25 @@ api.interceptors.response.use(
       }
     }
 
+    // ── The same press is still being written: wait for its answer ────────
+    //
+    // A keyed write the server is still recording is refused 409
+    // REQUEST_IN_FLIGHT. That is not a failure — the first press IS the
+    // record — but it was shown as one: the second press put an error on
+    // the screen for something that had just been saved (Codex QA
+    // 2026-10-16). Ask again in a moment; once the first is written the
+    // server hands back its answer (Idempotent-Replay) and both presses see
+    // the same success.
+    if (status === 409 && error.response?.data?.meta?.error_code === "REQUEST_IN_FLIGHT") {
+      const waited = (original as { _waited?: number })._waited ?? 0;
+
+      if (waited < IN_FLIGHT_TRIES) {
+        (original as { _waited?: number })._waited = waited + 1;
+        await new Promise((resolve) => setTimeout(resolve, IN_FLIGHT_WAIT_MS * (waited + 1)));
+        return api(original);
+      }
+    }
+
     const body = error.response?.data;
 
     // No response at all — say which kind of nothing, because the fix differs:
@@ -231,28 +257,94 @@ api.interceptors.response.use(
   },
 );
 
+// ── One press, one request ───────────────────────────────────────────
+//
+// A double-click sends the same write twice before the screen has had a
+// chance to grey the button. Where the route keeps an idempotency key the
+// server turned the second into the first's answer; where it did not, the
+// shop got two of everything — two transfers out of one Send (stock left the
+// shelf twice), two purchase orders, two suppliers, two held tickets (Codex
+// QA 2026-10-16).
+//
+// So a write that is the SAME as one still on its way — same verb, address,
+// query and body — is not sent again: the second caller is handed the first
+// one's answer. A different body is a different thing and goes. Files are
+// never compared (an upload is not twinned).
+//
+// AND FOR A MOMENT AFTER IT SUCCEEDED. A double-click on a quick server is
+// two presses on either side of the answer: the first closed the shift, the
+// second asked to close a closed shift and put "No open shift" over the
+// success (Codex QA 2026-10-16, BUG-63 — six screens: shift close, day close,
+// transfer receive, count apply, order confirm, bill it). So a success is
+// kept for `TWIN_SETTLES_MS` and handed to its twin. A refusal is let go at
+// once — the corrected form must be able to go — and any OTHER write to the
+// same address lets go of the ones before it: a switch pressed off, on and
+// off again sends all three.
+export const TWIN_SETTLES_MS = 1_000;
+
+const writesOnTheirWay = new Map<string, { address: string; answer: Promise<unknown> }>();
+
+function twinOf(method: string, url: string, body: unknown, config?: AxiosRequestConfig): string | null {
+  if (config?.signal) return null;
+  if (typeof FormData !== "undefined" && body instanceof FormData) return null;
+  if (typeof Blob !== "undefined" && body instanceof Blob) return null;
+  if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) return null;
+
+  const headers = (config?.headers ?? {}) as Record<string, unknown>;
+
+  try {
+    return JSON.stringify([method, url, config?.params ?? null, headers["Idempotency-Key"] ?? null, body ?? null]);
+  } catch {
+    return null;
+  }
+}
+
+function onceOnItsWay<T>(address: string, twin: string | null, send: () => Promise<T>): Promise<T> {
+  if (twin === null) return send();
+
+  const already = writesOnTheirWay.get(twin);
+  if (already) return already.answer as Promise<T>;
+
+  for (const [other, held] of writesOnTheirWay) {
+    if (held.address === address) writesOnTheirWay.delete(other);
+  }
+
+  const letGo = () => {
+    if (writesOnTheirWay.get(twin)?.answer === answer) writesOnTheirWay.delete(twin);
+  };
+  const answer: Promise<T> = send().then(
+    (res) => {
+      setTimeout(letGo, TWIN_SETTLES_MS);
+      return res;
+    },
+    (err: unknown) => {
+      letGo();
+      throw err;
+    },
+  );
+  writesOnTheirWay.set(twin, { address, answer });
+
+  return answer;
+}
+
 // ── Typed helpers: unwrap the envelope ───────────────────────────────
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
   const { data } = await api.get<ApiEnvelope<T>>(url, config);
   return data;
 }
 
-export async function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
-  const { data } = await api.post<ApiEnvelope<T>>(url, body, config);
-  return data;
+export function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
+  return onceOnItsWay(`post ${url}`, twinOf("post", url, body, config), async () => (await api.post<ApiEnvelope<T>>(url, body, config)).data);
 }
 
-export async function apiPut<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
-  const { data } = await api.put<ApiEnvelope<T>>(url, body, config);
-  return data;
+export function apiPut<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
+  return onceOnItsWay(`put ${url}`, twinOf("put", url, body, config), async () => (await api.put<ApiEnvelope<T>>(url, body, config)).data);
 }
 
-export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
-  const { data } = await api.patch<ApiEnvelope<T>>(url, body, config);
-  return data;
+export function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
+  return onceOnItsWay(`patch ${url}`, twinOf("patch", url, body, config), async () => (await api.patch<ApiEnvelope<T>>(url, body, config)).data);
 }
 
-export async function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
-  const { data } = await api.delete<ApiEnvelope<T>>(url, config);
-  return data;
+export function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<ApiEnvelope<T>> {
+  return onceOnItsWay(`delete ${url}`, twinOf("delete", url, config?.data, config), async () => (await api.delete<ApiEnvelope<T>>(url, config)).data);
 }

@@ -365,6 +365,11 @@ export interface ProductFilters {
   category_id?: string;
   low_stock?: boolean;
   /**
+   * Only what has NONE left at the place being looked at — the stock screen's
+   * "Out of stock" tile. Not `sold_out`, which is the kitchen's 86.
+   */
+  out_of_stock?: boolean;
+  /**
    * Only what is ON SALE — a product switched off is left out.
    *
    * Every screen that sells asks for this. A retired product was listed on

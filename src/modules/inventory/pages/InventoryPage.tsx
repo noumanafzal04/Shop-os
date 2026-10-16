@@ -5,7 +5,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
-import { catalogStock } from "../../pos/availability";
+import { catalogSizeStock, catalogStock } from "../../pos/availability";
 import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
 import Input from "../../../components/form/input/InputField";
@@ -29,9 +29,25 @@ import { isPastDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { useBranchStore } from "../../../stores/branchStore";
 import { refillLink } from "../../transfers/stockWords";
+import { useBranches } from "../../branches/hooks/useBranches";
+import { useNarrow } from "../../../common/hooks/useNarrow";
+import { shopShortDateTime } from "../../../common/format/date";
+import { StockTiles, type StockView } from "../components/StockTiles";
+import { StockHistoryModal } from "../components/StockHistoryModal";
+import { movementChange, movementWhat } from "../movementWords";
 
 
 type AdjustType = "in" | "out" | "set";
+
+/** One tap for the reasons a shop writes every day; the box still takes anything. */
+const QUICK_REASONS: Record<AdjustType, string[]> = {
+  in: ["Supplier delivery", "Customer return", "Found in count"],
+  out: ["Damaged", "Expired", "Used in the shop", "Lost"],
+  set: ["Physical recount"],
+};
+
+/** "SKU MAR-000001 · Rice" — the second line under an item's name. */
+const itemLine = (p: Product) => [p.sku ? `SKU ${p.sku}` : null, p.category?.name ?? null].filter(Boolean).join(" · ");
 
 // Decimal stock renders clean: 5.000 → 5, 2.500 → 2.5
 
@@ -52,22 +68,29 @@ export default function InventoryPage() {
    * merely badged is not an answer to that sentence.
    */
   const [params, setParams] = useSearchParams();
-  const reorderOnly = params.get("filter") === "low";
+  const view: StockView = params.get("filter") === "low" ? "low" : params.get("filter") === "out" ? "out" : "all";
+  const reorderOnly = view === "low";
   // The place a "bring it" link fills: the one chosen in the header, or — for
   // somebody pinned to a place — the one they work at. Unknown, the transfer
   // opens with the destination still to pick.
   const chosenPlace = useBranchStore((s) => s.activeBranchId);
   const ownPlace = useAuthStore((s) => s.user?.branch_id);
   const here = chosenPlace ?? ownPlace ?? null;
-  const setReorderOnly = (on: boolean) => {
+  const setView = (to: StockView) => {
     const next = new URLSearchParams(params);
-    if (on) next.set("filter", "low");
-    else next.delete("filter");
+    if (to === "all") next.delete("filter");
+    else next.set("filter", to);
     setParams(next, { replace: true });
     setPage(1);
   };
 
-  const products = useProducts({ search: debounced, type: "product", page });
+  const products = useProducts({ search: debounced, type: "product", page, out_of_stock: view === "out" || undefined });
+  // The tiles' own counts: the whole shelf and what is gone, whatever the
+  // list below is showing or searching for. One row each — only the total is read.
+  const everything = useProducts({ type: "product", per_page: 1 });
+  const goneCount = useProducts({ type: "product", out_of_stock: true, per_page: 1 });
+  const narrow = useNarrow();
+  const [historyOf, setHistoryOf] = useState<Product | null>(null);
   // Server-computed, and branch-correct: a product with no row on THIS
   // branch's shelf holds none of it, which the endpoint counts as the most
   // urgent case rather than dropping it.
@@ -112,8 +135,16 @@ export default function InventoryPage() {
   } | null>(null);
   const batches = useBatches(batchTarget?.id ?? null);
 
-  const movements = useMovements({ product_id: target?.id });
+  const movements = useMovements({ product_id: target?.id, per_page: 5 }, target !== null);
   const branchCol = useBranchColumn();
+  // Where an adjustment lands: the place chosen in the header, the place this
+  // person works at — or, in the whole-shop view, Main (the server's rule).
+  const places = useBranches(branchCol.show);
+  const placeName = (() => {
+    const list = places.data ?? [];
+    const id = here ?? list.find((b) => b.is_default)?.id ?? null;
+    return list.find((b) => b.id === id)?.name ?? null;
+  })();
 
   const openBatches = (p: Product) => {
     setBatchTarget(p);
@@ -156,6 +187,13 @@ export default function InventoryPage() {
   const lowShown = lowStock.data?.shown ?? null;
   const lowTotal = lowStock.data?.total ?? null;
   const rows = reorderOnly ? lowRows : products.data?.data ?? [];
+  /** The one query the list below is drawn from — what it waits on, and what its empty state is about. */
+  const listQuery = reorderOnly ? lowStock : products;
+  const counts: Record<StockView, number | null> = {
+    all: everything.data?.meta.pagination?.total ?? null,
+    low: lowStock.data ? (lowTotal ?? lowRows.length) : null,
+    out: goneCount.data?.meta.pagination?.total ?? null,
+  };
   const pagination = reorderOnly ? undefined : products.data?.meta.pagination;
 
   /**
@@ -233,6 +271,45 @@ export default function InventoryPage() {
     );
   };
 
+  /** What an empty list says — the words differ by which tile is open. */
+  const emptyWords =
+    view === "out"
+      ? `Nothing has run out${debounced ? " that matches your search" : ""}.`
+      : `No tracked products${debounced ? " match your search" : " yet"}.`;
+
+  /** The reorder view's "where does this come from" — one answer for the table and the cards. */
+  const reorderNote = (p: Product) => (
+    <>
+      {/* BRING IT BEFORE BUYING IT. A shelf that has run
+          down while the godown holds forty is not a
+          purchase order, and this list used to offer a
+          supplier for it all the same. */}
+      {(p.held_elsewhere ?? []).length > 0 && (
+        <Link
+          to={refillLink(p.held_elsewhere![0].branch_id, here, p.name)}
+          data-testid="held-elsewhere"
+          className="mb-1 block text-theme-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+        >
+          {p.held_elsewhere![0].name} has {formatQuantity(p.held_elsewhere![0].quantity)} — bring it
+        </Link>
+      )}
+      {p.by_tanker ? (
+        <span data-testid="by-tanker" className="text-theme-xs text-gray-600 dark:text-gray-300">
+          Comes by tanker — take it in from Fuel → Deliveries
+        </span>
+      ) : p.last_supplier_name ? (
+        <span className="text-gray-700 dark:text-gray-300">{p.last_supplier_name}</span>
+      ) : (
+        /* Absent, never invented. A product nobody has bought
+           has no supplier to propose, and guessing one would
+           send a real order to a stranger. */
+        <span className="text-theme-xs text-warning-600 dark:text-warning-400">
+          Never bought — pick a supplier by hand
+        </span>
+      )}
+    </>
+  );
+
   const adjustError =
     adjust.error instanceof ApiError
       ? adjust.error.firstFieldError() ?? adjust.error.message
@@ -245,9 +322,11 @@ export default function InventoryPage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Inventory</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Every stock change is recorded — nothing moves without a trace.
+          Every stock change is recorded — open an item's History to see when, where and who.
         </p>
       </div>
+
+      <StockTiles view={view} counts={counts} onPick={setView} />
 
       {/* Expiry alerts. The window is the SHOP's — 90 days for a pharmacy,
           30 for everyone else, or whatever it set. A distributor takes medicine
@@ -349,34 +428,19 @@ export default function InventoryPage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {!reorderOnly && (
-          <div className="max-w-sm flex-1">
+          <div className="min-w-0 flex-1 sm:max-w-sm">
             <Input placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={reorderOnly ? "primary" : "outline"}
-            onClick={() => setReorderOnly(!reorderOnly)}
-          >
-            {reorderOnly ? "Show all stock" : "Needs reordering"}
-            {!reorderOnly && lowRows.length > 0 && (
-              <span className="ml-2 rounded-full bg-warning-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                {lowRows.length}
-              </span>
-            )}
+        {/* Only offered to whoever can actually raise the order. */}
+        {/* …and only in a shop that HAS purchase orders: the button posts
+            to the Purchasing module, which Inventory no longer implies. */}
+        {reorderOnly && orderable.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
+          <Button size="sm" onClick={orderTheseItems}>
+            Order these {orderable.length} item{orderable.length > 1 ? "s" : ""}
           </Button>
-
-          {/* Only offered to whoever can actually raise the order. */}
-          {/* …and only in a shop that HAS purchase orders: the button posts
-              to the Purchasing module, which Inventory no longer implies. */}
-          {reorderOnly && orderable.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
-            <Button size="sm" variant="outline" onClick={orderTheseItems}>
-              Order these {orderable.length} item{orderable.length > 1 ? "s" : ""}
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
       {reorderOnly && (
@@ -412,88 +476,138 @@ export default function InventoryPage() {
         </p>
       )}
 
+      {narrow ? (
+        /* A HAND HOLDS CARDS, NOT A TABLE. On a phone the table squeezed each
+           name onto four lines and pushed Adjust past the edge of the screen —
+           the one thing a person opens this screen on a phone to do. */
+        <div className="space-y-2" data-testid="stock-cards">
+          {listQuery.isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800" />
+            ))
+          ) : rows.length === 0 ? (
+            <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+              <ListEmpty from={listQuery} what="the stock list">
+                <p className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">{emptyWords}</p>
+              </ListEmpty>
+            </div>
+          ) : (
+            rows.map((p) => {
+              const held = catalogStock(p);
+              const low = p.low_stock_threshold !== null && held <= Number(p.low_stock_threshold);
+              const sizes = p.variants ?? [];
+
+              return (
+                <div key={p.id} data-testid="stock-card" className="rounded-2xl border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-white/[0.03]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-800 dark:text-white/90">{p.name}</p>
+                      {itemLine(p) && <p className="mt-0.5 truncate text-theme-xs text-gray-400">{itemLine(p)}</p>}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-lg font-semibold tabular-nums ${held <= 0 ? "text-error-600 dark:text-error-400" : low ? "text-warning-600 dark:text-warning-400" : "text-gray-800 dark:text-white/90"}`}>
+                        {formatQuantityWithUnit(held, p.sold_by, p.unit)}
+                      </p>
+                      <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+                        {held <= 0 ? "Out of stock" : low ? "Low" : "In stock"}
+                        {p.low_stock_threshold != null && ` · alert at ${formatQuantity(p.low_stock_threshold)}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {sizes.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {sizes.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => openAdjust(p, v)}
+                          aria-label={`Adjust ${p.name} — ${v.name}`}
+                          className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-theme-xs text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"
+                        >
+                          {v.name} · <span className="font-semibold tabular-nums">{formatQuantity(catalogSizeStock(v))}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {reorderOnly && <div className="mt-2.5 text-theme-sm">{reorderNote(p)}</div>}
+
+                  <div className="mt-3 flex gap-2">
+                    {sizes.length === 0 && (
+                      <Button size="sm" className="flex-1" onClick={() => openAdjust(p)}>Adjust</Button>
+                    )}
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => setHistoryOf(p)}>History</Button>
+                    <Button size="sm" variant="outline" onClick={() => openBatches(p)}>Batches</Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <Pager pagination={pagination} onPage={setPage} noun="products" />
+        </div>
+      ) : (
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
-                <th className="px-6 py-3 font-medium">Product</th>
-                <th className="px-6 py-3 font-medium">Stock</th>
-                <th className="px-6 py-3 font-medium">Alert level</th>
+                <th className="px-5 py-3 font-medium">Product</th>
+                <th className="px-5 py-3 font-medium">Stock</th>
+                <th className="px-5 py-3 font-medium">Alert level</th>
                 {/* Reorder view only. The button below raises real orders, and
                     a buyer pressing it without knowing who each line goes to is
                     guessing — so the screen says it before they press. */}
-                {reorderOnly && <th className="px-6 py-3 font-medium">Last bought from</th>}
-                <th className="px-6 py-3 font-medium text-right">Actions</th>
+                {reorderOnly && <th className="px-5 py-3 font-medium">Last bought from</th>}
+                <th className="px-5 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {products.isLoading ? (
+              {listQuery.isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={reorderOnly ? 5 : 4} className="px-6 py-4">
+                    <td colSpan={reorderOnly ? 5 : 4} className="px-5 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : rows.length === 0 ? (
                 <tr>
-                  <TableEmpty from={products} what="the stock list" colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                    No tracked products{debounced ? " match your search" : " yet"}.
+                  <TableEmpty from={listQuery} what="the stock list" colSpan={reorderOnly ? 5 : 4} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                    {emptyWords}
                   </TableEmpty>
                 </tr>
               ) : (
                 rows.flatMap((p) => [
                   <tr key={p.id} className="text-theme-sm text-gray-700 dark:text-gray-300">
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3">
                       <span className="font-medium text-gray-800 dark:text-white/90">{p.name}</span>
-                      {p.sku && <span className="ml-2 text-theme-xs text-gray-400">SKU {p.sku}</span>}
+                      {itemLine(p) && <span className="mt-0.5 block text-theme-xs text-gray-400">{itemLine(p)}</span>}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-3">
                       {/* The PARENT row of a sized product holds no stock of
                           its own — `catalogStock` sums the sizes, the same way
                           the till and the server's LowStock rule do. Reading
                           `stock_quantity` badged a full rail of shirts "0 low". */}
-                      {p.low_stock_threshold !== null && catalogStock(p) <= Number(p.low_stock_threshold) ? (
+                      {/* None left is its own news, not "0 low" — and a shelf
+                          sold below nought (offline) still shows its number. */}
+                      {catalogStock(p) <= 0 ? (
+                        <Badge size="sm" color="error">{catalogStock(p) === 0 ? "Out of stock" : `${formatQuantity(catalogStock(p))} · out`}</Badge>
+                      ) : p.low_stock_threshold !== null && catalogStock(p) <= Number(p.low_stock_threshold) ? (
                         <Badge size="sm" color="warning">{formatQuantity(catalogStock(p))} low</Badge>
                       ) : (
-                        <>{formatQuantityWithUnit(catalogStock(p), p.sold_by, p.unit)}</>
+                        <span className={`font-semibold tabular-nums ${catalogStock(p) <= 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"}`}>
+                          {formatQuantityWithUnit(catalogStock(p), p.sold_by, p.unit)}
+                        </span>
                       )}
                     </td>
-                    <td className="px-6 py-4">{p.low_stock_threshold != null ? formatQuantity(p.low_stock_threshold) : "—"}</td>
-                    {reorderOnly && (
-                      <td className="px-6 py-4">
-                        {/* BRING IT BEFORE BUYING IT. A shelf that has run
-                            down while the godown holds forty is not a
-                            purchase order, and this list used to offer a
-                            supplier for it all the same. */}
-                        {(p.held_elsewhere ?? []).length > 0 && (
-                          <Link
-                            to={refillLink(p.held_elsewhere![0].branch_id, here, p.name)}
-                            data-testid="held-elsewhere"
-                            className="mb-1 block text-theme-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
-                          >
-                            {p.held_elsewhere![0].name} has {formatQuantity(p.held_elsewhere![0].quantity)} — bring it
-                          </Link>
-                        )}
-                        {p.by_tanker ? (
-                          <span data-testid="by-tanker" className="text-theme-xs text-gray-600 dark:text-gray-300">
-                            Comes by tanker — take it in from Fuel → Deliveries
-                          </span>
-                        ) : p.last_supplier_name ? (
-                          <span className="text-gray-700 dark:text-gray-300">{p.last_supplier_name}</span>
-                        ) : (
-                          /* Absent, never invented. A product nobody has bought
-                             has no supplier to propose, and guessing one would
-                             send a real order to a stranger. */
-                          <span className="text-theme-xs text-warning-600 dark:text-warning-400">
-                            Never bought — pick a supplier by hand
-                          </span>
-                        )}
-                      </td>
-                    )}
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-3">
+                    <td className="px-5 py-3">{p.low_stock_threshold != null ? formatQuantity(p.low_stock_threshold) : "—"}</td>
+                    {reorderOnly && <td className="px-5 py-3">{reorderNote(p)}</td>}
+                    <td className="px-5 py-3 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button className={ROW_ACTION} onClick={() => setHistoryOf(p)}>
+                          History
+                        </button>
                         <button
                           className={ROW_ACTION}
                           onClick={() => openBatches(p)}
@@ -523,19 +637,22 @@ export default function InventoryPage() {
                      .map on undefined blanks the whole page. */
                   ...(p.variants ?? []).map((v) => (
                     <tr key={v.id} className="bg-gray-50/50 text-theme-sm text-gray-600 dark:bg-white/[0.01] dark:text-gray-400">
-                      <td className="px-6 py-3 pl-10">
+                      <td className="px-5 py-2.5 pl-10">
                         ↳ {v.name}
                         {v.sku && <span className="ml-2 text-theme-xs text-gray-400">SKU {v.sku}</span>}
                       </td>
-                      <td className="px-6 py-3">
-                        {v.low_stock_threshold !== null && Number(v.stock_quantity) <= Number(v.low_stock_threshold) ? (
-                          <Badge size="sm" color="warning">{formatQuantity(v.stock_quantity)} low</Badge>
+                      {/* The size's stock HERE (`branch_stock`), like its
+                          parent above — the bare column is the whole shop's. */}
+                      <td className={`px-5 py-2.5 tabular-nums ${catalogSizeStock(v) <= 0 ? "font-semibold text-error-600 dark:text-error-400" : ""}`}>
+                        {v.low_stock_threshold !== null && catalogSizeStock(v) <= Number(v.low_stock_threshold) ? (
+                          <Badge size="sm" color="warning">{formatQuantity(catalogSizeStock(v))} low</Badge>
                         ) : (
-                          formatQuantity(v.stock_quantity)
+                          formatQuantity(catalogSizeStock(v))
                         )}
                       </td>
-                      <td className="px-6 py-3">{v.low_stock_threshold != null ? formatQuantity(v.low_stock_threshold) : "—"}</td>
-                      <td className="px-6 py-3 text-right">
+                      <td className="px-5 py-2.5">{v.low_stock_threshold != null ? formatQuantity(v.low_stock_threshold) : "—"}</td>
+                      {reorderOnly && <td />}
+                      <td className="px-5 py-2.5 text-right">
                         <button
                           className={ROW_ACTION}
                           onClick={() => openAdjust(p, v)}
@@ -553,6 +670,7 @@ export default function InventoryPage() {
 
         <Pager pagination={pagination} onPage={setPage} noun="products" />
       </div>
+      )}
 
       {/* Adjust modal with recent movements for the product */}
       <Modal isOpen={modal.isOpen} onClose={modal.closeModal} className="max-w-lg p-6">
@@ -565,6 +683,15 @@ export default function InventoryPage() {
           <span className="font-semibold">
             {formatQuantityWithUnit(currentStock, target?.sold_by, target?.unit)}
           </span>
+          {/* WHICH SHELF. With more than one place, an adjustment made from
+              the whole-shop view lands on Main — and nothing on this dialog
+              used to say so. */}
+          {branchCol.show && placeName && (
+            <span className="ml-1">
+              · {adjustType === "in" ? "goes into" : adjustType === "out" ? "comes out of" : "counted at"}{" "}
+              <span className="font-medium text-gray-700 dark:text-gray-300">{placeName}</span>
+            </span>
+          )}
         </p>
 
         {adjustError && (
@@ -606,6 +733,21 @@ export default function InventoryPage() {
             onChange={(e) => setQuantity(e.target.value)}
             placeholder={adjustType === "set" ? "e.g. 42" : target?.sold_by === "weight" ? "e.g. 2.5" : "e.g. 5"}
           />
+          {/* The answer before the press: "After this: 36" — or a warning
+              when taking out more than the shelf holds. */}
+          {quantity !== "" && Number.isFinite(Number(quantity)) && (() => {
+            const q = Number(quantity);
+            const now = Number(currentStock);
+            const after = adjustType === "in" ? now + q : adjustType === "out" ? now - q : q;
+
+            return (
+              <p data-testid="adjust-after" className={`mt-1.5 text-theme-xs ${after < 0 ? "text-error-600 dark:text-error-400" : "text-gray-500 dark:text-gray-400"}`}>
+                After this:{" "}
+                <span className="font-semibold tabular-nums">{formatQuantity(now)} → {formatQuantity(after)}</span>
+                {after < 0 && " — more than you have"}
+              </p>
+            );
+          })()}
         </div>
 
         <div className="mb-6">
@@ -617,6 +759,23 @@ export default function InventoryPage() {
               adjustType === "in" ? "e.g. Supplier delivery" : adjustType === "out" ? "e.g. Damaged" : "e.g. Physical recount"
             }
           />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {QUICK_REASONS[adjustType].map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setReason(r)}
+                aria-pressed={reason === r}
+                className={`rounded-full border px-2.5 py-1 text-theme-xs transition ${
+                  reason === r
+                    ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mb-6 flex justify-end gap-3">
@@ -626,22 +785,35 @@ export default function InventoryPage() {
           </Button>
         </div>
 
-        {/* Recent movements for this product */}
+        {/* The last few changes, and the door to all of them. */}
         {target && (
           <div className="border-t border-gray-200 pt-4 dark:border-gray-800">
-            <h4 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">Recent movements</h4>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent movements</h4>
+              <button
+                type="button"
+                className="text-theme-xs font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                onClick={() => {
+                  const item = target;
+                  modal.closeModal();
+                  setHistoryOf(item);
+                }}
+              >
+                See full history
+              </button>
+            </div>
             {movements.isLoading ? (
               <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-            ) : (movements.data?.data ?? []).length === 0 ? (
+            ) : (movements.data?.data ?? []).filter((m) => m.product_id === target.id).length === 0 ? (
               <ListEmpty from={movements} what="the stock movements">
                 <p className="text-theme-xs text-gray-400">No movements yet.</p>
               </ListEmpty>
             ) : (
-              <ul className="max-h-40 space-y-1 overflow-y-auto text-theme-xs text-gray-500 dark:text-gray-400">
-                {(movements.data?.data ?? []).slice(0, 8).map((m) => (
-                  <li key={m.id} className="flex justify-between">
-                    <span>
-                      {m.type === "set" ? "Recount" : m.quantity_change > 0 ? "In" : "Out"}
+              <ul className="space-y-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                {(movements.data?.data ?? []).filter((m) => m.product_id === target.id).slice(0, 5).map((m) => (
+                  <li key={m.id} className="flex justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="text-gray-700 dark:text-gray-300">{movementWhat(m)}</span>
                       {m.variant ? ` · ${m.variant.name}` : ""}
                       {/* WHICH branch moved it. An owner looking at the
                           all-branches view sees "Out −3" twice with no way to
@@ -649,11 +821,10 @@ export default function InventoryPage() {
                           one figure where that distinction is the whole
                           question. */}
                       {branchCol.show ? ` · ${branchCol.label(m.branch_id)}` : ""}
-                      {m.reason ? ` — ${m.reason}` : ""}
+                      {` · ${shopShortDateTime(m.created_at)}`}
                     </span>
-                    <span className={m.quantity_change > 0 ? "text-success-500" : "text-error-500"}>
-                      {m.quantity_change > 0 ? "+" : ""}
-                      {m.quantity_change} → {m.quantity_after}
+                    <span className={`shrink-0 tabular-nums ${Number(m.quantity_change) > 0 ? "text-success-600" : "text-error-600"}`}>
+                      {movementChange(m.quantity_change)} → {formatQuantity(m.quantity_after)}
                     </span>
                   </li>
                 ))}
@@ -827,6 +998,15 @@ export default function InventoryPage() {
           )}
         </div>
       </Modal>
+
+      <StockHistoryModal
+        product={historyOf}
+        onClose={() => setHistoryOf(null)}
+        onAdjust={(p) => {
+          setHistoryOf(null);
+          openAdjust(p);
+        }}
+      />
 
       {/* A lot with stock in it is an event, not a confirmation. */}
       {disposing && (

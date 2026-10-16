@@ -11,11 +11,12 @@ import {
   type DisposalFilters,
 } from "../services/inventoryService";
 
-export function useMovements(params: { product_id?: string; page?: number }) {
+export function useMovements(params: { product_id?: string; page?: number; per_page?: number }, enabled = true) {
   return useQuery({
     queryKey: ["inventory", "movements", params],
     queryFn: () => inventoryService.movements(params),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

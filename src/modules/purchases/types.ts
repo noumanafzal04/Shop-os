@@ -100,6 +100,8 @@ export interface PurchaseOrderInput {
   notes?: string | null;
   status?: "draft" | "ordered";
   items?: Array<{ product_id: string; variant_id?: string | null; product_unit_id?: string | null; quantity: number; unit_cost: number }>;
+  /** The key the form was opened with: pressed twice, the server answers the first (AnswerOnce). */
+  idempotency_key?: string;
 }
 
 export interface SupplierPayment {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios, { AxiosError } from "axios";
 
-import { api, apiGet, apiPost, sessionHasExpired } from "./client";
+import { api, apiDelete, apiGet, apiPost, apiPut, IN_FLIGHT_TRIES, sessionHasExpired, TWIN_SETTLES_MS } from "./client";
 import { useAuthStore } from "../../stores/authStore";
 
 /**
@@ -46,6 +46,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // A test that hung with fake timers installed must not hand them on.
+  vi.useRealTimers();
   vi.restoreAllMocks();
   delete api.defaults.adapter;
 });
@@ -150,5 +152,196 @@ describe("a 401 that is about the request, not the session", () => {
       expect(sessionHasExpired(401, code), code).toBe(false);
     }
     expect(sessionHasExpired(403, "UNAUTHENTICATED")).toBe(false);
+  });
+});
+
+describe("one press, one request", () => {
+  /**
+   * A double-click sent the same write twice before the button greyed. Where
+   * the route kept no idempotency key, the shop got two of everything: two
+   * transfers out of one Send, two purchase orders, two suppliers, two held
+   * tickets (Codex QA 2026-10-16).
+   */
+  type Sent = { method: string; url: string; body: unknown };
+
+  /** The server answers each write after `ms`, with a fresh id per request it SAW. */
+  const slowServer = (sent: Sent[], ms = 20) => {
+    api.defaults.adapter = async (config) => {
+      sent.push({ method: String(config.method), url: String(config.url), body: config.data });
+      const id = `rec-${sent.length}`;
+      await new Promise((r) => setTimeout(r, ms));
+      return { status: 201, statusText: "", headers: {}, config, data: { success: true, message: "Saved.", data: { id }, meta: {} } } as never;
+    };
+  };
+
+  it("sends a write pressed twice ONCE, and both presses get its answer", async () => {
+    const sent: Sent[] = [];
+    slowServer(sent);
+    const transfer = { mode: "send", product_id: "p1", quantity: 2 };
+
+    const [first, second] = await Promise.all([
+      apiPost<{ id: string }>("/inventory/transfers", transfer),
+      apiPost<{ id: string }>("/inventory/transfers", { ...transfer }),
+    ]);
+
+    expect(sent, "a double-click sent the transfer twice — stock left the shelf twice").toHaveLength(1);
+    expect(first.data.id).toBe("rec-1");
+    expect(second.data.id, "the second press was not given the first one's record").toBe("rec-1");
+  });
+
+  it("twins PUT and DELETE the same way", async () => {
+    const sent: Sent[] = [];
+    slowServer(sent);
+
+    await Promise.all([apiPut("/suppliers/s1", { name: "Ali" }), apiPut("/suppliers/s1", { name: "Ali" })]);
+    await Promise.all([apiDelete("/held/h1"), apiDelete("/held/h1")]);
+
+    expect(sent.map((s) => s.method)).toEqual(["put", "delete"]);
+  });
+
+  it("sends a different write — another body, address or key — as its own", async () => {
+    const sent: Sent[] = [];
+    slowServer(sent);
+
+    await Promise.all([
+      apiPost("/suppliers", { name: "Ali" }),
+      apiPost("/suppliers", { name: "Bilal" }),
+      apiPost("/customers", { name: "Ali" }),
+      apiPost("/expenses", { amount: 500 }, { headers: { "Idempotency-Key": "k1" } }),
+      apiPost("/expenses", { amount: 500 }, { headers: { "Idempotency-Key": "k2" } }),
+    ]);
+
+    expect(sent, "two different things were taken for one press").toHaveLength(5);
+  });
+
+  it("hands a click that lands just AFTER the answer the same answer — and lets go a moment later", async () => {
+    // BUG-63: the first click closed the shift, the second asked to close a
+    // closed shift and put "No open shift" over the success.
+    vi.useFakeTimers();
+    try {
+      const sent: Sent[] = [];
+      slowServer(sent, 5);
+      const close = () => apiPost<{ id: string }>("/pos/session/close", { counted: 25726 });
+
+      const first = close();
+      await vi.advanceTimersByTimeAsync(10);
+      const closed = await first;
+
+      const second = await close();
+      expect(sent, "the second click of a double-click was sent after the first came back").toHaveLength(1);
+      expect(second.data.id).toBe(closed.data.id);
+
+      await vi.advanceTimersByTimeAsync(TWIN_SETTLES_MS + 10);
+      const later = close();
+      await vi.advanceTimersByTimeAsync(10);
+      await later;
+      expect(sent, "a press long after the answer was swallowed").toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets go of a success when another write goes to the same address", async () => {
+    // A switch pressed off, on and off again is three things, not two.
+    const sent: Sent[] = [];
+    slowServer(sent, 1);
+
+    await apiPut("/products/p9/active", { is_active: false });
+    await apiPut("/products/p9/active", { is_active: true });
+    await apiPut("/products/p9/active", { is_active: false });
+
+    expect(sent.map((s) => JSON.parse(String(s.body)).is_active)).toEqual([false, true, false]);
+  });
+
+  it("frees a refused write, so the corrected form can be sent", async () => {
+    let calls = 0;
+    api.defaults.adapter = async (config) => {
+      calls++;
+      await new Promise((r) => setTimeout(r, 5));
+      const err = new AxiosError("no", "ERR_BAD_REQUEST", config as never);
+      err.response = { status: 422, statusText: "", headers: {}, config, data: { success: false, message: "Name is required.", meta: {} } } as never;
+      throw err;
+    };
+
+    const both = await Promise.allSettled([apiPost("/suppliers", {}), apiPost("/suppliers", {})]);
+    expect(both.map((r) => r.status)).toEqual(["rejected", "rejected"]);
+    expect(calls).toBe(1);
+
+    await expect(apiPost("/suppliers", {})).rejects.toMatchObject({ message: "Name is required." });
+    expect(calls, "a refusal stayed on its way and swallowed the next press").toBe(2);
+  });
+
+  it("never twins a file upload", async () => {
+    const sent: Sent[] = [];
+    slowServer(sent);
+    const photo = () => {
+      const form = new FormData();
+      form.append("name", "Rice");
+      return form;
+    };
+
+    await Promise.all([apiPost("/products", photo()), apiPost("/products", photo())]);
+
+    expect(sent).toHaveLength(2);
+  });
+});
+
+describe("a press whose twin is still being written", () => {
+  /**
+   * The server refuses a key it is still recording with 409
+   * REQUEST_IN_FLIGHT. The first press IS the record, but the second one put
+   * an error on the screen for something that had just been saved.
+   */
+  const inFlight = (config: never) => {
+    const err = new AxiosError("busy", "ERR_BAD_REQUEST", config);
+    err.response = {
+      status: 409, statusText: "", headers: {}, config,
+      data: { success: false, message: "This is already being recorded — one moment.", meta: { error_code: "REQUEST_IN_FLIGHT" } },
+    } as never;
+    return err;
+  };
+
+  it("waits, asks again, and is given the first press's answer", async () => {
+    const answers = ["busy", "busy", "replay"];
+    let asked = 0;
+    api.defaults.adapter = async (config) => {
+      const now = answers[asked++];
+      if (now === "busy") throw inFlight(config as never);
+      return { status: 201, statusText: "", headers: { "idempotent-replay": "true" }, config, data: { success: true, message: "Payment recorded.", data: { id: "pay-1" }, meta: {} } } as never;
+    };
+
+    const res = await apiPost<{ id: string }>("/customers/c1/payments", { amount: 500, idempotency_key: "k-replayed" });
+
+    expect(res.data.id, "the second press showed an error for a payment that was saved").toBe("pay-1");
+    expect(asked).toBe(3);
+  });
+
+  it("gives up after a few tries and says what it was told", async () => {
+    vi.useFakeTimers();
+    let asked = 0;
+    api.defaults.adapter = async (config) => {
+      asked++;
+      throw inFlight(config as never);
+    };
+
+    const outcome = apiPost("/customers/c1/payments", { amount: 500, idempotency_key: "k-never-written" }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(60_000);
+    vi.useRealTimers();
+
+    expect(await outcome).toMatchObject({ status: 409, errorCode: "REQUEST_IN_FLIGHT" });
+    expect(asked, "it asked forever, or never asked again").toBe(1 + IN_FLIGHT_TRIES);
+  });
+
+  it("does not ask again over any other 409", async () => {
+    let asked = 0;
+    api.defaults.adapter = async (config) => {
+      asked++;
+      const err = new AxiosError("taken", "ERR_BAD_REQUEST", config as never);
+      err.response = { status: 409, statusText: "", headers: {}, config, data: { success: false, message: "That barcode is taken.", meta: { error_code: "CONFLICT" } } } as never;
+      throw err;
+    };
+
+    await expect(apiPost("/products", { barcode: "123" })).rejects.toMatchObject({ message: "That barcode is taken." });
+    expect(asked).toBe(1);
   });
 });

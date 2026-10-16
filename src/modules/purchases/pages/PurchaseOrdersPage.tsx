@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useOnceKey } from "../../../common/onceKey";
 import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "../receive";
@@ -65,6 +66,8 @@ export default function PurchaseOrdersPage() {
   const orders = usePurchaseOrders({ status: statusFilter || undefined, page });
   const suppliers = useSuppliers({ is_active: true });
   const { create, place, receive, cancel } = usePurchaseOrderMutations();
+  // One press, one order: a double "Place order" made two Rs 7,200 orders.
+  const once = useOnceKey();
 
   const createModal = useModal();
   const detailModal = useModal();
@@ -200,8 +203,9 @@ export default function PurchaseOrdersPage() {
         // Left unchosen, the server addresses it by the same rule the form shows.
         deliver_to_branch_id: deliverTo || undefined,
         items: lines.map(lineOut),
+        idempotency_key: once.key,
       },
-      { onSuccess: () => createModal.closeModal() },
+      { onSuccess: () => { once.renew(); createModal.closeModal(); } },
     );
   };
 
