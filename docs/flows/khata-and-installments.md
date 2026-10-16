@@ -1,7 +1,11 @@
-# Khata, advances and installments — the flow (PROPOSED, 2026-10-15)
+# Khata, advances and installments — the flow (2026-10-15, BUILT 2026-10-16)
 
-Status: **waiting for the owner.** Nothing here is built yet. Questions Q12–Q15 at the end decide the
-installment part; parts 1–4 can be built without them.
+Status: **all five parts built and pushed** (2026-10-16). Q12–Q15 were left to "market standard" and the
+recommended answers taken. What was built, rule by rule, and what differs from this proposal:
+`docs/decisions/shopos-goods-go-home-on-installments.md` (part 5) and
+`docs/decisions/shopos-a-khata-payment-asks-before-keeping-an-advance.md` (parts 1–4). Not built from part 5:
+selling on installments from the till (it starts from Quotations & advances only), a printed receipt per
+installment, late fees and SMS (Q15).
 
 Asked by the owner on 2026-10-15, from Ali Raza's khata screen:
 
@@ -107,7 +111,7 @@ Asked by the owner on 2026-10-15, from Ali Raza's khata screen:
 - **Paid** shows a progress bar and a %. **Last paid** shows a date, amber after 30 days.
 - The filters above, each with a count. The tiles at the top are clickable and set the filter.
 
-## Part 5 — Installments, qist (F1 — waits for Q12–Q15)
+## Part 5 — Installments, qist (F1 — BUILT 2026-10-16, from Quotations & advances; not from the till)
 
 ### Setting one up
 

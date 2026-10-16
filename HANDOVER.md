@@ -308,6 +308,20 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-16 — khata part 5 pushed: installments (F1, L18, L19)
+
+Backend `f6454cb`, panel `eac6a67`. **New migration `2026_10_16_000001_a_customer_can_pay_in_installments`**
+(`installment_plans`) — deploy runs it; dev already has it. `InstallmentPlan` + `InstallmentSchedule` (worked out,
+never stored: split, due dates, FIFO, late, due within SOON_DAYS 7, owedThisMonth), `StartInstallmentPlanAction`
+(quote → sale at cash price, advance + credit, markup = own khata charge + Income, `installment_plan` flag skips the
+khata limit), `TakeInstallmentAction`, one `TakeKhataPaymentAction` (L18: cash needs today's shift). Routes
+`installment-plans` (+ `/summary`, `/{plan}/payments`, both POSTs `once`); filters running · late · due_soon ·
+this_month · paid_off · closed · all; search by item and bill. Customer card ledger lines carry `plan`. Panel: On
+installments tab, plan sheet, StartInstallmentModal (asks for today's shift whatever the advance), KhataBox asks "Is
+this an installment?", statement names plans. Decision: `docs/decisions/shopos-goods-go-home-on-installments.md`.
+Walk `panel/e2e/qa-kit/p6-installments.mjs` (24 checks). Not done: selling on installments from the till, a
+receipt per installment, markup on a part return.
+
 ### 2026-10-16 — khata part 4 pushed
 
 Backend `8721241`, panel `5616dcb` (L17): `SaleDocument::scopePaidUp/scopeQuiet/quietSince` (QUIET_DAYS 30),
