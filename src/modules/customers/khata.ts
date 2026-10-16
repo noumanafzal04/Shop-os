@@ -55,14 +55,22 @@ export const methodWords = (method: string | null | undefined): string =>
  * One statement line. A return and a cancellation are written to the ledger as
  * `payment`s (they take the debt down), and read as "Payment (return)" — they
  * are not money handed over, and the line now says what they are.
+ *
+ * Against goods on installments (`plan`, F1) the lines say so: the goods, the
+ * installment charge, and each installment — not "Credit sale" twice and "Paid".
  */
-export function ledgerLine(e: Pick<LedgerEntry, "type" | "method" | "reference">): string {
-  if (e.type === "charge") return "Credit sale";
+export function ledgerLine(e: Pick<LedgerEntry, "type" | "method" | "reference"> & { note?: string | null; plan?: string | null }): string {
+  const plan = e.plan ? ` · ${e.plan}` : "";
+  if (e.type === "charge") {
+    if (!e.plan) return "Credit sale";
+
+    return e.note?.startsWith("Installment charge") ? `Installment charge${plan}` : `On installments${plan}`;
+  }
   if (e.type === "adjustment") return "Adjustment";
   if (e.method === "return") return `Returned${e.reference ? ` · ${e.reference}` : ""}`;
   if (e.method === "cancellation") return "Sale cancelled";
 
-  return `Paid · ${methodWords(e.method)}`;
+  return e.plan ? `Installment · ${methodWords(e.method)}${plan}` : `Paid · ${methodWords(e.method)}`;
 }
 
 /** Where a sale is opened from anywhere else in the panel. */

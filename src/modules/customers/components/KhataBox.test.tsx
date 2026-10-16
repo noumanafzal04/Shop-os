@@ -76,4 +76,47 @@ describe("a khata payment", () => {
     expect(link).toHaveAttribute("href", "/tenant/sales?q=INV-000005&open=s1");
     expect(screen.getByTestId("khata-statement")).toHaveTextContent("2026-10-15 · Credit sale · INV-000005");
   });
+
+  it("asks whether money from a customer on installments is an installment — and puts it on the plan when it is", () => {
+    const onPay = vi.fn();
+    const onInstallment = vi.fn();
+    const plans = [{ id: "p1", number: "INS-000001", left: 45000, due_now: 5000 }];
+    render(<MemoryRouter><KhataBox customer={ali({ credit_balance: "45000" })} pending={false} onPay={onPay} plans={plans} onInstallment={onInstallment} /></MemoryRouter>);
+
+    typeAmount("5000");
+    fireEvent.click(screen.getByRole("button", { name: "Take payment" }));
+    expect(onPay, "money from an installment customer went on the khata without asking").not.toHaveBeenCalled();
+    expect(screen.getByTestId("khata-installment")).toHaveTextContent("Ali Raza is paying for goods on installments. Is this Rs 5,000 an installment?");
+    expect(screen.getByTestId("khata-installment")).toHaveTextContent("INS-000001: Rs 5,000 to bring up to date · Rs 45,000 left");
+
+    fireEvent.click(screen.getByRole("button", { name: "Yes — on INS-000001" }));
+    expect(onInstallment).toHaveBeenCalledWith("p1", { amount: 5000, method: "cash" }, expect.any(Function));
+    expect(onPay).not.toHaveBeenCalled();
+  });
+
+  it("still takes it on the khata when told it is not an installment, and will not put more on a plan than is left", () => {
+    const onPay = vi.fn();
+    const onInstallment = vi.fn();
+    const plans = [{ id: "p1", number: "INS-000001", left: 3000, due_now: 3000 }];
+    render(<MemoryRouter><KhataBox customer={ali({ credit_balance: "8000" })} pending={false} onPay={onPay} plans={plans} onInstallment={onInstallment} /></MemoryRouter>);
+
+    typeAmount("4000");
+    fireEvent.change(screen.getByLabelText("Paid by"), { target: { value: "card" } });
+    fireEvent.click(screen.getByRole("button", { name: "Take payment" }));
+    expect(screen.getByRole("button", { name: "INS-000001: only Rs 3,000 left" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "No — on the khata" }));
+    expect(onPay).toHaveBeenCalledWith({ amount: 4000, method: "card" }, expect.any(Function));
+    expect(onInstallment).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing about installments of a customer with none running", () => {
+    const onPay = vi.fn();
+    render(<MemoryRouter><KhataBox customer={ali()} pending={false} onPay={onPay} plans={[]} onInstallment={vi.fn()} /></MemoryRouter>);
+
+    typeAmount("1000");
+    fireEvent.click(screen.getByRole("button", { name: "Take payment" }));
+    expect(screen.queryByTestId("khata-installment")).toBeNull();
+    expect(onPay).toHaveBeenCalledWith({ amount: 1000, method: "cash" }, expect.any(Function));
+  });
 });

@@ -239,6 +239,8 @@ export interface ShopSettings {
   quotation_valid_days: number;
   quotation_terms: string | null;
   layaway_enabled: boolean;
+  /** Goods on installments (F1) — needs Customers & Khata. */
+  installments_enabled?: boolean;
   /** The floor under an advance, as a % of the total. 0 = accept anything. */
   layaway_min_deposit_percent: number;
   layaway_days: number;

@@ -11,6 +11,11 @@ import { changed, offersOf, taken, type Replacement } from "../../sales/replacem
 import { useMoney } from "../../shop/hooks/useShop";
 import type { DocumentKind } from "../services/documentService";
 import ParkAsDocumentModal from "./ParkAsDocumentModal";
+import StartInstallmentModal from "./StartInstallmentModal";
+import type { InstallmentPlan } from "../services/installmentService";
+
+/** What the sheet starts: one of the two documents, or goods on installments (F1). */
+export type Starting = DocumentKind | "installments";
 
 /**
  * A QUOTATION — OR GOODS HELD ON ADVANCE — STARTED FROM THEIR OWN SCREEN.
@@ -33,10 +38,11 @@ export default function NewDocumentSheet({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  startAs: DocumentKind;
+  startAs: Starting;
   /** Which kind was saved — the list turns to it, so the new one is in view. */
-  onSaved: (kind: DocumentKind) => void;
+  onSaved: (kind: Starting, plan?: InstallmentPlan) => void;
 }) {
+  const installments = startAs === "installments";
   const money = useMoney();
   const [search, setSearch] = useState("");
   const [lines, setLines] = useState<Replacement[]>([]);
@@ -56,10 +62,12 @@ export default function NewDocumentSheet({
     <>
       <Modal isOpen={isOpen && !saving} onClose={closeAll} className="max-w-lg p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
-          {startAs === "layaway" ? "Hold goods on advance" : "New quotation"}
+          {installments ? "Sell on installments" : startAs === "layaway" ? "Hold goods on advance" : "New quotation"}
         </h3>
         <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
-          Pick what goes on it. The customer, the date{startAs === "layaway" ? " and the advance" : ""} come next.
+          {installments
+            ? "Pick what goes home. The customer, the advance and the months come next."
+            : <>Pick what goes on it. The customer, the date{startAs === "layaway" ? " and the advance" : ""} come next.</>}
         </p>
 
         <Input placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -123,10 +131,18 @@ export default function NewDocumentSheet({
         </div>
       </Modal>
 
-      <ParkAsDocumentModal
-        isOpen={isOpen && saving}
+      <StartInstallmentModal
+        isOpen={isOpen && saving && installments}
         onClose={() => setSaving(false)}
-        startAs={startAs}
+        lines={lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity }))}
+        about={about}
+        onDone={(plan) => { onSaved("installments", plan); closeAll(); }}
+      />
+
+      <ParkAsDocumentModal
+        isOpen={isOpen && saving && !installments}
+        onClose={() => setSaving(false)}
+        startAs={installments ? "layaway" : startAs}
         lines={lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity }))}
         discount={0}
         customerName=""

@@ -35,9 +35,12 @@ export function useCustomerMutations() {
     onSuccess: invalidate,
   });
   const remove = useMutation({ mutationFn: (id: string) => customersService.remove(id), onSuccess: invalidate });
+  // Money taken: the day's collections, the drawer, the reports and the dashboard read it too.
   const recordPayment = useMutation({
     mutationFn: ({ id, ...p }: { id: string } & CreditPaymentInput) => customersService.recordPayment(id, p),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      for (const queryKey of [["customers"], ["pos", "day"], ["pos", "days"], ["pos", "session"], ["reports"], ["dashboard"]]) void qc.invalidateQueries({ queryKey });
+    },
   });
 
   return { create, update, remove, recordPayment };

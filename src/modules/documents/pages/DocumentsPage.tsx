@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import { FilterBar } from "../../../components/ui/filters";
 import Badge from "../../../components/ui/badge/Badge";
@@ -13,7 +13,10 @@ import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
 import Button from "../../../components/ui/button/Button";
 import { useShopSettings } from "../../shop/hooks/useShop";
-import NewDocumentSheet from "../components/NewDocumentSheet";
+import NewDocumentSheet, { type Starting } from "../components/NewDocumentSheet";
+import InstallmentsTab from "../components/InstallmentsTab";
+import InstallmentPlanSheet from "../components/InstallmentPlanSheet";
+import { useAuthStore } from "../../../stores/authStore";
 import { advanceRow } from "../advanceRow";
 import { sinceWords } from "../../../common/format/since";
 import type { DocumentSummary } from "../services/documentService";
@@ -51,14 +54,20 @@ const countFor = (c: DocumentSummary["layaway_counts"], status: string): number 
  * table with "Nothing is being held right now" — which is true of layaways
  * and false of the shop.
  */
-function tabsFor(businessType: string | null, words: BoardWords): Array<[DocumentKind, string]> {
-  const tabs: Array<[DocumentKind, string]> = [];
+type Tab = DocumentKind | "installments";
+
+function tabsFor(businessType: string | null, words: BoardWords, installments: boolean): Array<[Tab, string]> {
+  const tabs: Array<[Tab, string]> = [];
 
   // A trade that takes work in leads with it — it is the day's work, and the
   // other two are occasional.
   if (hasJobBoard(businessType)) tabs.push(["job_card", words.units]);
 
-  tabs.push(["layaway", "On advance"], ["quotation", "Quotations"]);
+  tabs.push(["layaway", "On advance"]);
+  // Goods that went home and are paid for month by month (F1) — beside the
+  // goods held on advance, because a shop asks about both in one breath.
+  if (installments) tabs.push(["installments", "On installments"]);
+  tabs.push(["quotation", "Quotations"]);
 
   return tabs;
 }
@@ -94,20 +103,32 @@ const ADVANCE_STATUSES = [
 export default function DocumentsPage() {
   const trade = usePrimaryBusinessType();
   const words = boardWords(trade);
-  const tabs = tabsFor(trade, words);
+  const settings = useShopSettings();
+  // Installments ride the customer book: the rest of the price is on a khata.
+  const keepsCustomers = useAuthStore(
+    (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.customers === true,
+  );
+  const installmentsOn = keepsCustomers && settings.data?.installments_enabled !== false;
+  const tabs = tabsFor(trade, words, installmentsOn);
 
-  const [kind, setKind] = useState<DocumentKind>(tabs[0][0]);
+  // ?plan=<id> — a plan named elsewhere (the customer's card) opens on its own sheet.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const planParam = searchParams.get("plan");
+  const [openPlan, setOpenPlan] = useState<string | null>(planParam);
+  const [kind, setKind] = useState<Tab>(planParam ? "installments" : tabs[0][0]);
+  useEffect(() => {
+    if (planParam) { setKind("installments"); setOpenPlan(planParam); }
+  }, [planParam]);
   const [status, setStatus] = useState<string>("open");
   const [search, setSearch] = useState("");
 
   const money = useMoney();
-  const settings = useShopSettings();
   // Started here, not only at the till (the user, 2026-10-15).
-  const [starting, setStarting] = useState<DocumentKind | null>(null);
+  const [starting, setStarting] = useState<Starting | null>(null);
   const quotesOn = settings.data?.quotations_enabled !== false;
   const layawayOn = settings.data?.layaway_enabled !== false;
   const summary = useDocumentSummary();
-  const list = useDocuments({ kind, status, search });
+  const list = useDocuments({ kind: kind === "installments" ? "layaway" : kind, status, search });
   const rows = list.data?.rows ?? [];
 
   return (
@@ -122,6 +143,9 @@ export default function DocumentsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {installmentsOn && (
+            <Button size="sm" variant="outline" onClick={() => setStarting("installments")}>Sell on installments</Button>
+          )}
           {layawayOn && (
             <Button size="sm" variant="outline" onClick={() => setStarting("layaway")}>Hold goods on advance</Button>
           )}
@@ -133,11 +157,22 @@ export default function DocumentsPage() {
         isOpen={starting !== null}
         onClose={() => setStarting(null)}
         startAs={starting ?? "quotation"}
-        onSaved={(saved) => { setKind(saved); setStatus("open"); }}
+        onSaved={(saved, plan) => {
+          setKind(saved);
+          if (saved === "installments") { if (plan) setOpenPlan(plan.id); } else setStatus("open");
+        }}
+      />
+
+      <InstallmentPlanSheet
+        planId={openPlan}
+        onClose={() => {
+          setOpenPlan(null);
+          if (planParam) { searchParams.delete("plan"); setSearchParams(searchParams, { replace: true }); }
+        }}
       />
 
       {/* ── What's outstanding ─────────────────────────────────────── */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${kind === "installments" ? "hidden" : ""}`}>
         <Tile
           label="Advances held"
           value={money(summary.data?.deposits_held ?? 0)}
@@ -186,6 +221,7 @@ export default function DocumentsPage() {
 
       </div>
 
+      {kind === "installments" ? <InstallmentsTab onOpen={setOpenPlan} /> : (<>
       <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Show" data-testid="document-filters">
         {(kind === "layaway" ? ADVANCE_STATUSES : DOC_STATUSES).map(({ value, label }) => {
           const n = kind === "layaway" ? countFor(summary.data?.layaway_counts, value) : undefined;
@@ -267,6 +303,7 @@ export default function DocumentsPage() {
           </div>
         )}
       </section>
+      </>)}
     </>
   );
 }

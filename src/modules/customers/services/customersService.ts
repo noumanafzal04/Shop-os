@@ -11,6 +11,8 @@ export interface LedgerEntry {
   created_at: string;
   /** The sale a charge (or its return) belongs to — so the line can open it. */
   sale?: { id: string; invoice_number: string } | null;
+  /** The installment plan whose sale this is (F1), so the line says so. */
+  plan?: string | null;
 }
 
 export interface Customer {
@@ -41,16 +43,24 @@ export interface Customer {
     orders_count: number;
   };
   ledger?: LedgerEntry[];
+  /** Goods on installments (F1), running ones first, each as it stands today. */
+  installment_plans?: Array<{
+    id: string; number: string; status: "running" | "paid_off" | "closed";
+    total: number; monthly: number; months: number; next_due_on: string | null;
+    left: number; late: number; late_months: number; due_now: number; months_paid: number;
+  }>;
 }
 
 /** The list's filters: owes money, at or past 80% of the limit, or in credit. */
-export type CustomerFilter = "owes" | "limit" | "advance";
+export type CustomerFilter = "owes" | "limit" | "advance" | "installments" | "late_installments";
 
 export interface CustomerSummary {
   everyone: number;
   owed: { total: number; accounts: number };
   advance: { total: number; accounts: number };
   near_limit: number;
+  installments?: number;
+  late_installments?: number;
 }
 
 export interface LoyaltyLedgerEntry {

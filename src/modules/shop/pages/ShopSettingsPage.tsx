@@ -1273,6 +1273,12 @@ export default function ShopSettingsPage() {
                           label="Hold goods on advance"
                           hint="Goods come off the floor and wait until they're paid for."
                         />
+                        <ToggleRow
+                          checked={prefs.installments_enabled !== false}
+                          onChange={(v) => setP("installments_enabled", v)}
+                          label="Sell on installments"
+                          hint="Goods go home today: an advance now, the rest month by month on the customer's khata."
+                        />
                       </div>
 
                       {prefs.quotations_enabled !== false && (

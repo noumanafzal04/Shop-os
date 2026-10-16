@@ -29,6 +29,14 @@ describe("a khata, said the way a shopkeeper says it", () => {
     expect(ledgerLine({ type: "payment", method: "cancellation", reference: "INV-000005" })).toBe("Sale cancelled");
   });
 
+  it("says goods on installments as what they are — the goods, the charge, each installment", () => {
+    expect(ledgerLine({ type: "charge", method: null, reference: null, note: "Sale INV-000021", plan: "INS-000003" })).toBe("On installments · INS-000003");
+    expect(ledgerLine({ type: "charge", method: null, reference: null, note: "Installment charge · INS-000003", plan: "INS-000003" })).toBe("Installment charge · INS-000003");
+    expect(ledgerLine({ type: "payment", method: "cash", reference: null, note: "Installment · INS-000003", plan: "INS-000003" })).toBe("Installment · Cash · INS-000003");
+    expect(ledgerLine({ type: "payment", method: "return", reference: "RET-000004", plan: "INS-000003" })).toBe("Returned · RET-000004");
+    expect(ledgerLine({ type: "charge", method: null, reference: null, note: "Sale INV-000009", plan: null })).toBe("Credit sale");
+  });
+
   it("opens a sale on its own sheet", () => {
     expect(saleLink({ id: "s-1", invoice_number: "INV-000005" })).toBe("/tenant/sales?q=INV-000005&open=s-1");
   });

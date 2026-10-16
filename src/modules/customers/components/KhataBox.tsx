@@ -13,6 +13,14 @@ export interface KhataPayment {
   allow_advance?: boolean;
 }
 
+/** A plan the customer is still paying off (F1) — as the card has it. */
+export interface RunningPlan {
+  id: string;
+  number: string;
+  left: number;
+  due_now: number;
+}
+
 /**
  * A customer's khata on their card: what they owe (or what the shop holds of
  * theirs), a payment, and the statement.
@@ -24,35 +32,56 @@ export interface KhataPayment {
  * "Confirm to keep the extra…" on a screen with no confirm — so the payment
  * could not be recorded at all (L13). Now the box asks first: keep the extra,
  * or take only what is owed.
+ *
+ * ── An installment is asked about too ──────────────────────────────────
+ *
+ * Money from a customer paying for goods on installments, taken here as a
+ * plain khata payment, came off the khata but not off the plan: the plan went
+ * on saying "late" for money already in the drawer, and taking it again on the
+ * plan would have put it in the drawer twice. So while a plan is running the
+ * box asks whether this is an installment, and puts it on the plan if it is.
  */
 export default function KhataBox({
   customer,
   pending,
   onPay,
+  plans = [],
+  onInstallment,
 }: {
   customer: Customer;
   pending: boolean;
   /** `done` is called once the payment is in, to clear the box. */
   onPay: (payment: KhataPayment, done: () => void) => void;
+  /** The customer's running installment plans; a payment is asked about while there are any. */
+  plans?: RunningPlan[];
+  onInstallment?: (planId: string, payment: { amount: number; method: KhataMethod }, done: () => void) => void;
 }) {
   const money = useMoney();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<KhataMethod>("cash");
   const [asking, setAsking] = useState(false);
+  const [askingPlan, setAskingPlan] = useState(false);
 
   const now = standing(customer.credit_balance);
   const typed = Number(amount);
   const over = overpaid(typed, customer.credit_balance);
-  const clear = () => { setAmount(""); setAsking(false); };
+  const clear = () => { setAmount(""); setAsking(false); setAskingPlan(false); };
+  const onPlans = onInstallment !== undefined && plans.length > 0;
 
   const send = (payment: KhataPayment) => {
     if (pending) return;
     onPay(payment, clear);
   };
-  const take = () => {
-    if (!(typed > 0) || pending) return;
+  // Past the installment question: a plain khata payment, asked about if it is more than owed.
+  const onTheKhata = () => {
+    setAskingPlan(false);
     if (over) { setAsking(true); return; }
     send({ amount: typed, method });
+  };
+  const take = () => {
+    if (!(typed > 0) || pending) return;
+    if (onPlans) { setAsking(false); setAskingPlan(true); return; }
+    onTheKhata();
   };
 
   return (
@@ -86,13 +115,13 @@ export default function KhataBox({
             aria-label="Payment amount"
             placeholder={now.kind === "owes" ? "Payment amount" : "Advance amount"}
             value={amount}
-            onChange={(e) => { setAmount(e.target.value); setAsking(false); }}
+            onChange={(e) => { setAmount(e.target.value); setAsking(false); setAskingPlan(false); }}
           />
         </div>
         <select
           aria-label="Paid by"
           value={method}
-          onChange={(e) => setMethod(e.target.value as KhataMethod)}
+          onChange={(e) => { setMethod(e.target.value as KhataMethod); setAskingPlan(false); }}
           className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
         >
           {KHATA_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -101,6 +130,29 @@ export default function KhataBox({
           {pending ? "…" : "Take payment"}
         </Button>
       </div>
+
+      {askingPlan && onPlans && (
+        <div className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 dark:border-brand-500/30 dark:bg-brand-500/10" data-testid="khata-installment" role="alert">
+          <p className="text-theme-sm text-gray-700 dark:text-gray-200">
+            {customer.name} is paying for goods on installments. Is this {money(typed)} an installment?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {plans.map((pl) => {
+              const fits = typed <= pl.left + 0.004;
+
+              return (
+                <Button key={pl.id} size="sm" disabled={pending || !fits} onClick={() => onInstallment!(pl.id, { amount: typed, method }, clear)}>
+                  {fits ? `Yes — on ${pl.number}` : `${pl.number}: only ${money(pl.left)} left`}
+                </Button>
+              );
+            })}
+            <Button size="sm" variant="outline" onClick={onTheKhata} disabled={pending}>No — on the khata</Button>
+          </div>
+          <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+            {plans.map((pl) => `${pl.number}: ${pl.due_now > 0 ? `${money(pl.due_now)} to bring up to date` : "up to date"} · ${money(pl.left)} left`).join("  ·  ")}
+          </p>
+        </div>
+      )}
 
       {asking && over && (
         <div className="mt-3 rounded-lg border border-warning-300 bg-warning-50 p-3 dark:border-warning-500/40 dark:bg-warning-500/10" data-testid="khata-overpay" role="alert">

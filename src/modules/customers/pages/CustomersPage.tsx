@@ -31,9 +31,10 @@ import { counted } from "../../../common/format/counted";
 import KhataBox, { type KhataPayment } from "../components/KhataBox";
 import { QUIET_DAYS, saleLink, standing } from "../khata";
 import OwesCell from "../components/OwesCell";
+import { useInstallmentMutations } from "../../documents/hooks/useInstallments";
 import { daysSince, sinceWords } from "../../../common/format/since";
 
-const FILTERS: CustomerFilter[] = ["owes", "limit", "advance"];
+const FILTERS: CustomerFilter[] = ["owes", "limit", "advance", "installments", "late_installments"];
 const isFilter = (v: string | null): v is CustomerFilter => FILTERS.includes(v as CustomerFilter);
 
 
@@ -60,6 +61,8 @@ export default function CustomersPage() {
   const summary = useCustomerSummary();
   const { create, update, remove, recordPayment } = useCustomerMutations();
   const payOnce = useOnceKey();
+  const { pay: payInstallment } = useInstallmentMutations();
+  const planOnce = useOnceKey();
 
   const toast = useToast();
   const [exporting, setExporting] = useState(false);
@@ -153,6 +156,19 @@ export default function CustomersPage() {
     });
   };
 
+  // An installment taken from the card (KhataBox asked): on the plan, so it
+  // counts towards its months — the khata comes down with it.
+  const doInstallment = (planId: string, payment: { amount: number; method: string }, done: () => void) => {
+    if (payInstallment.isPending) return;
+    payInstallment.mutate(
+      { id: planId, ...payment, idempotency_key: planOnce.key },
+      {
+        onSuccess: (res) => { done(); planOnce.renew(); toast.success(`${money(payment.amount)} taken on ${res.data.plan.number}`); },
+        ...failed(toast, "That installment was not recorded — the plan and the khata are unchanged."),
+      },
+    );
+  };
+
   // Record a khata repayment against the open customer, then refresh the detail.
   const doRecordPayment = (payment: KhataPayment, done: () => void) => {
     if (!detailId || recordPayment.isPending) return;
@@ -210,6 +226,11 @@ export default function CustomersPage() {
           ["owes", "Owe money", summary.data?.owed.accounts],
           ["limit", "Over / near limit", summary.data?.near_limit],
           ["advance", "Advance held", summary.data?.advance.accounts],
+          // Only once there is something to show — a shop that never sells on
+          // installments is not given two empty buttons.
+          ...((summary.data?.installments ?? 0) > 0 || filter === "installments" || filter === "late_installments"
+            ? [["installments", "On installments", summary.data?.installments], ["late_installments", "Late installments", summary.data?.late_installments]]
+            : []),
         ] as Array<[CustomerFilter | "", string, number | undefined]>).map(([key, label, n]) => (
           <button
             key={key || "all"}
@@ -251,6 +272,8 @@ export default function CustomersPage() {
                 {filter === "owes" ? "Nobody owes you anything right now."
                   : filter === "limit" ? "Nobody is near their credit limit."
                     : filter === "advance" ? "You are not holding anybody's money."
+                : filter === "installments" ? "Nobody has goods on installments."
+                : filter === "late_installments" ? "Nobody is late with an installment."
                       : "No customers yet — they'll appear as you make sales."}
               </TableEmpty></tr>
             ) : (
@@ -389,8 +412,35 @@ export default function CustomersPage() {
             {d.notes && <div className="mb-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-white/[0.03] dark:text-gray-300">{d.notes}</div>}
             {d.address && <p className="mb-3 text-theme-xs text-gray-400">{d.address}</p>}
 
+            {/* Goods on installments — each plan opens on Quotations & advances */}
+            {(d.installment_plans?.length ?? 0) > 0 && (
+              <div className="mb-4 rounded-xl border border-gray-200 p-3 dark:border-gray-800" data-testid="customer-plans">
+                <p className="mb-2 text-theme-xs font-medium uppercase text-gray-400">On installments</p>
+                <div className="space-y-1.5">
+                  {d.installment_plans!.map((pl) => (
+                    <Link key={pl.id} to={`/tenant/documents?plan=${pl.id}`} className={`flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-theme-sm hover:bg-gray-50 dark:hover:bg-white/5 ${pl.late > 0 ? "bg-error-50/60 dark:bg-error-500/[0.06]" : ""}`}>
+                      <span className="text-brand-500">{pl.number}</span>
+                      <span className="text-theme-xs text-gray-500 dark:text-gray-400">
+                        {pl.status === "paid_off" ? "Paid off" : pl.status === "closed" ? "Closed"
+                          : pl.late > 0 ? <span className="font-semibold text-error-600 dark:text-error-400">Late {pl.late_months} month{pl.late_months === 1 ? "" : "s"} · {money(pl.late)}</span>
+                            : <>{pl.months_paid} of {pl.months} paid{pl.next_due_on ? ` · next ${shopDate(pl.next_due_on)}` : ""}</>}
+                      </span>
+                      <span className="tabular-nums font-medium text-gray-800 dark:text-white/90">{pl.status === "running" ? `${money(pl.left)} left` : money(pl.total)}</span>
+                    </Link>
+                  ))}
+                </div>
+                <p className="mt-2 text-theme-xs text-gray-400">Take an installment on the plan itself, so it counts towards its months.</p>
+              </div>
+            )}
+
             {/* Khata (sell-on-credit) — what they owe or what is theirs, a payment, the statement */}
-            <KhataBox customer={d} pending={recordPayment.isPending} onPay={doRecordPayment} />
+            <KhataBox
+              customer={d}
+              pending={recordPayment.isPending || payInstallment.isPending}
+              onPay={doRecordPayment}
+              plans={(d.installment_plans ?? []).filter((pl) => pl.status === "running")}
+              onInstallment={doInstallment}
+            />
 
             {/* Loyalty points — balance + statement (shown once they've earned any). */}
             {((d.loyalty_points ?? 0) > 0 || (d.loyalty_ledger?.length ?? 0) > 0) && (
