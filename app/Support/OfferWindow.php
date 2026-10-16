@@ -52,13 +52,20 @@ class OfferWindow
         ?string $startTime,
         ?string $endTime,
     ): bool {
-        $today = $now->copy()->startOfDay();
+        // DATES, NOT INSTANTS. `starts_on` is a box date — "the 16th" — and
+        // arrives as midnight in the app's zone (UTC); `$now` is in the shop's.
+        // Compared as moments, the shop's whole 16th (which starts at 19:00 UTC
+        // on the 15th) fell before "midnight on the 16th", so an offer starting
+        // today did not run until tomorrow — while the till's offline mirror,
+        // which compares the calendar dates, applied it (Codex QA 2026-10-16,
+        // BUG-69: a promotion and a bank offer, both missed on their first day).
+        $today = $now->toDateString();
 
-        if ($startsOn !== null && $today->lt($startsOn->copy()->startOfDay())) {
+        if ($startsOn !== null && $today < $startsOn->toDateString()) {
             return false;
         }
 
-        if ($endsOn !== null && $today->gt($endsOn->copy()->startOfDay())) {
+        if ($endsOn !== null && $today > $endsOn->toDateString()) {
             return false;
         }
 

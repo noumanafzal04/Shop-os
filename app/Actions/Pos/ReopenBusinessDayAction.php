@@ -169,9 +169,9 @@ class ReopenBusinessDayAction
      * switcher and sends no branch — so answering only for a chosen branch
      * would have offered the way back to nobody but chains.
      *
-     * Reached only when no counter anywhere is trading (the screen shows the
-     * open day otherwise), so the first is the one to offer; its branch is
-     * named beside it.
+     * Reached when no counter anywhere is trading, or only a day older than
+     * today is still open (BUG-70) — so the first is the one to offer; its
+     * branch is named beside it.
      */
     public static function candidateAnywhere(?User $user): ?BusinessDay
     {

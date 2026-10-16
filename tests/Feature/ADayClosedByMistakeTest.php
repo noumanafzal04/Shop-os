@@ -124,6 +124,44 @@ final class ADayClosedByMistakeTest extends TestCase
             ->assertJsonPath('data.reopen_reason', 'Closed it by mistake');
     }
 
+    public function test_an_older_day_left_open_does_not_hide_todays_close(): void
+    {
+        // Codex QA 2026-10-16 (BUG-70): the 13th and 15th were never signed
+        // off; the 16th was closed; Day & banking showed the 15th as "today"
+        // and today's closed day, with its way back, was on no screen.
+        $this->at('2026-10-05 10:00');
+        $this->openShift(500);
+        $this->closeShift(500);                                      // the 5th: counted, never signed off
+        $older = BusinessDay::withoutTenancy()->where('tenant_id', $this->shop->id)->firstOrFail();
+
+        $this->at('2026-10-06 10:00');
+        $this->openShift(1000);
+        $this->sell(3);
+        $this->closeShift(1300);
+        $today = BusinessDay::withoutTenancy()->where('tenant_id', $this->shop->id)->whereKeyNot($older->id)->firstOrFail();
+        $this->as()->postJson("/api/v1/pos/days/{$today->id}/close", [])->assertOk();
+
+        $this->at('2026-10-06 14:00');
+        foreach ([null, $today->branch_id] as $looking) {
+            $this->as(branch: $looking)->getJson('/api/v1/pos/day')->assertOk()
+                ->assertJsonPath('data.day.id', $older->id)
+                ->assertJsonPath('meta.closed_today.id', $today->id)
+                ->assertJsonPath('meta.closed_today.trading_date', '2026-10-06')
+                ->assertJsonPath('meta.closed_today.can_reopen', true);
+        }
+
+        // …and the way back works with the older day still open beside it.
+        $this->as()->postJson("/api/v1/pos/days/{$today->id}/reopen", ['reason' => 'Closed before the evening rush'])->assertOk();
+        $this->assertSame('open', BusinessDay::withoutTenancy()->find($today->id)->status);
+        $this->assertSame('open', BusinessDay::withoutTenancy()->find($older->id)->status, 'the older day was touched');
+    }
+
+    public function test_a_day_open_today_says_nothing_about_a_closed_one(): void
+    {
+        $this->openShift(1000);
+        $this->as()->getJson('/api/v1/pos/day')->assertOk()->assertJsonPath('meta.closed_today', null);
+    }
+
     public function test_the_trail_says_who_undid_the_sign_off_and_what_it_had_said(): void
     {
         $day = $this->aDayClosedAt('2026-10-06 14:00', takings: 3);

@@ -67,22 +67,16 @@ class BusinessDayController extends Controller
             // say so, and say whether it can be opened again. "No day open"
             // alone reads as "nobody has started yet", which at two in the
             // afternoon after a mis-pressed close is the opposite of the truth.
-            $closed = $this->branch->scopesAll()
-                ? ReopenBusinessDayAction::candidateAnywhere($request->user())
-                : ReopenBusinessDayAction::candidate($this->branch->id(), $request->user());
-
-            return ApiResponse::ok(null, 'No day open', array_filter([
-                'closed_today' => $closed === null ? null : [
-                    'id' => $closed->id,
-                    'trading_date' => $closed->trading_date->toDateString(),
-                    'closed_at' => $closed->closed_at?->toIso8601String(),
-                    'closed_by' => $closed->closedBy?->name,
-                    'branch' => $closed->branch?->name,
-                    'sales_total' => (float) $closed->sales_total,
-                    'can_reopen' => $request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS),
-                ],
-            ]));
+            return ApiResponse::ok(null, 'No day open', $this->closedToday($request));
         }
+
+        // AN OLDER DAY STILL OPEN DOES NOT HIDE TODAY'S CLOSE. Codex QA
+        // 2026-10-16 (BUG-70): the 13th and 15th were never signed off, so
+        // this answered with the 15th as "the day" and never looked further —
+        // today's closed day, and its way back, were on no screen at all.
+        $meta = $day->trading_date->toDateString() < ShopDay::today($request->user()?->tenant)
+            ? $this->closedToday($request)
+            : [];
 
         // Named, because "a day" means nothing across three shops. The row
         // already carries its branch; this says how many OTHERS are trading,
@@ -160,6 +154,31 @@ class BusinessDayController extends Controller
                 ->orderByDesc('deposited_at')
                 ->get(),
             'collections' => $this->collections($request, $day),
+        ], 'OK', $meta);
+    }
+
+    /**
+     * Today's day at this counter, when it has been closed off — with whether
+     * this person may open it again. Empty when there is none.
+     *
+     * @return array<string, mixed>
+     */
+    private function closedToday(Request $request): array
+    {
+        $closed = $this->branch->scopesAll()
+            ? ReopenBusinessDayAction::candidateAnywhere($request->user())
+            : ReopenBusinessDayAction::candidate($this->branch->id(), $request->user());
+
+        return array_filter([
+            'closed_today' => $closed === null ? null : [
+                'id' => $closed->id,
+                'trading_date' => $closed->trading_date->toDateString(),
+                'closed_at' => $closed->closed_at?->toIso8601String(),
+                'closed_by' => $closed->closedBy?->name,
+                'branch' => $closed->branch?->name,
+                'sales_total' => (float) $closed->sales_total,
+                'can_reopen' => $request->user()->hasAnyPermission(Permissions::SUPERVISES_TILLS),
+            ],
         ]);
     }
 
