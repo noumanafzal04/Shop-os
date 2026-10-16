@@ -106,10 +106,10 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B66 | P2 | Suppliers | Double Save makes two identical suppliers — Codex BUG-66 | FIXED `d714e4f` — client twin |
 | B67 | P1 | Purchase orders | Double Place order makes two Rs 7,200 POs — Codex BUG-67 | FIXED `c12de2a` `d714e4f` — the form sends a once-key; the route answers once (`once`); client twin |
 | B68 | P0 | Stock transfers | Double Send makes two transfers; Main M fell 5 → 1 for 2 sent — Codex BUG-68 | FIXED `c12de2a` `d714e4f` — same three; `StockAndOrdersPressedTwiceAreOneTest` |
-| B69 | P1 | Promotions / bank offers | An offer dated today gives nothing today (Karachi), works once its start is moved to yesterday; the till's offline mirror DID apply it — Codex BUG-69 | OPEN — cause found: `OfferWindow` compared the shop's today as a moment with a UTC midnight; fixed on the copy (compare calendar dates), in the next push |
-| B70 | P1 | Day & banking | Older days left open (13th, 15th) hide today's closed day and its "Open again" — Codex BUG-70 | OPEN — cause found: `/pos/day` sent `closed_today` only when no day was open; fixed on the copy, in the next push |
-| B71 | P2 | Products / barcodes | A new item accepts a barcode already on another item's size — Codex BUG-71 | OPEN — the primary check reads `products.barcode` only |
-| B72 | P3 | Customers (phone) | At 390 px the khata amount box shows 1040.50 as "104" — Codex BUG-72 | OPEN |
+| B69 | P1 | Promotions / bank offers | An offer dated today gives nothing today (Karachi), works once its start is moved to yesterday; the till's offline mirror DID apply it — Codex BUG-69 | FIXED `3009a8b` — `OfferWindow` compares calendar dates (the till's offline mirror already did); `AnOfferStartingTodayRunsTodayTest` |
+| B70 | P1 | Day & banking | Older days left open (13th, 15th) hide today's closed day and its "Open again" — Codex BUG-70 | FIXED `3009a8b` `d61f53f` — `/pos/day` sends `closed_today` beside an older open day; Day & banking names the older day still open and shows today's close with Open again |
+| B71 | P2 | Products / barcodes | A new item accepts a barcode already on another item's size — Codex BUG-71 | FIXED `aa660f4` — the item's own code goes through `BarcodeNamespace::assertFree` (create; edit when changed); `OneCodeHasOneOwnerTest` |
+| B72 | P3 | Customers (phone) | At 390 px the khata amount box shows 1040.50 as "104" — Codex BUG-72 | FIXED `f059d4a` — the amount takes its own row under 640 px (282 px at 390, value whole) |
 | L21 | P2 | Inventory | The user (2026-10-16): "inventory page ka UI acha ni … entries theek hain jb products sy stock add krty?" Entries from the item form are right (L11). But the history mixed places (balances 429, 275, 428, 273), put same-second lines oldest first, named nobody, showed "+24.000" and only 8 lines inside Adjust; on a phone Adjust was past the edge | FIXED `c12de2a` `d714e4f` — history of the place looked at, newest first, `creator`; tiles All / Needs reordering / Out of stock (`products?out_of_stock=1`); History per item; phone cards; Adjust says where it lands, "After this", one-tap reasons |
 | L22 | P3 | Demo data | `demo:shops` puts stock on the shelf with no "Opening stock" line, so a demo item's history does not add up (477 of 540 in the mart) | OPEN — demo only; the app's own ways in write it (L11) |
 
@@ -330,4 +330,8 @@ Report: `docs/qa/TESTER-REPORT-2026-10-16-retail.md` (A0–A18 on Zari, local Ch
 Sales, Day, Cashbook, Ledger, Reports and Dashboard). Ten new: B63–B72 (Codex's BUG-63…72 keep their numbers).
 Part 1 pushed: backend `c12de2a`, panel `d714e4f` — B63, B64, B66, B67, B68 and the user's inventory item L21
 (gates: phpunit 3,958 / 3,936 passed / 22 skipped · vitest 291 / 3,398 · build · eslint 0 errors · tsc-e2e).
+Part 2 pushed: backend `3009a8b`, panel `d61f53f` — B69, B70 (gates: phpunit 3,963 / 3,941 · vitest 291 / 3,398 · build ·
+eslint 0 errors · tsc-e2e). Part 3 pushed: backend `aa660f4`, panel `f059d4a` — B71, B72; and `FoodTenantWalkthroughTest`
+searched the kitchen board for the price "1450" as four characters — ids minted near 14:00 UTC on 16 Oct begin "01a1450…"; it
+looks for the value now. Left: B65 (the owner's choice: what becomes of the quotation), L22.
 
