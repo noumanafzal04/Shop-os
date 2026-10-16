@@ -40,7 +40,9 @@ class SaleDocumentController extends Controller
             'work_status' => ['nullable', Rule::in(SaleDocument::WORK_STATUSES)],
             // 'lapsed' is a filter, never a stored status — see
             // SaleDocument::hasLapsed().
-            'status' => ['nullable', 'in:open,converted,cancelled,lapsed'],
+            // 'paid_up' and 'quiet' are filters too (L17): paid in full and
+            // waiting to be handed over; open and nothing paid in 30 days.
+            'status' => ['nullable', 'in:open,converted,cancelled,lapsed,paid_up,quiet'],
             'search' => ['nullable', 'string', 'max:120'],
             'customer_id' => ['nullable', 'uuid'],
             'from' => ['nullable', 'date'],
@@ -54,6 +56,9 @@ class SaleDocumentController extends Controller
                 // The bay board prints a registration, not a uuid.
                 'vehicle:id,registration,make,model',
             ])
+            // When the customer last paid in — an advance nobody has paid
+            // into for six weeks is the one to phone.
+            ->withMax('payments as last_paid_at', 'paid_at')
             ->when($filters['kind'] ?? null, fn ($q, $kind) => $q->where('kind', $kind))
             ->when($filters['work_status'] ?? null, fn ($q, $w) => $q->where('work_status', $w))
             ->when($filters['customer_id'] ?? null, fn ($q, $id) => $q->where('customer_id', $id))
@@ -75,6 +80,10 @@ class SaleDocumentController extends Controller
             $query->where('status', SaleDocument::STATUS_OPEN)
                 ->whereNotNull('expires_at')
                 ->whereDate('expires_at', '<', ShopDay::calendarToday());
+        } elseif ($status === 'paid_up') {
+            $query->paidUp();
+        } elseif ($status === 'quiet') {
+            $query->quiet(SaleDocument::quietSince());
         } elseif ($status !== null) {
             $query->where('status', $status);
         }
@@ -137,6 +146,17 @@ class SaleDocumentController extends Controller
                 ->whereNotNull('expires_at')
                 ->whereDate('expires_at', '<', ShopDay::calendarToday())
                 ->count(),
+            // The counts on the On advance list's filters (L17) — each asked
+            // with the very scope its filter uses.
+            'layaway_counts' => [
+                'open' => (int) (clone $layaways)->count(),
+                'overdue' => (int) (clone $layaways)
+                    ->whereNotNull('expires_at')
+                    ->whereDate('expires_at', '<', ShopDay::calendarToday())
+                    ->count(),
+                'quiet' => (int) SaleDocument::query()->where('kind', SaleDocument::KIND_LAYAWAY)->quiet(SaleDocument::quietSince())->count(),
+                'paid_up' => (int) SaleDocument::query()->where('kind', SaleDocument::KIND_LAYAWAY)->paidUp()->count(),
+            ],
         ]);
     }
 

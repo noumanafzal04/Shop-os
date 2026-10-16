@@ -5,6 +5,9 @@ namespace App\Models;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\ShopDay;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -147,6 +150,40 @@ class SaleDocument extends BaseModel
     public function isOpen(): bool
     {
         return $this->status === self::STATUS_OPEN;
+    }
+
+    /** An open advance nobody has paid into for this long is the one to phone (L17). */
+    public const QUIET_DAYS = 30;
+
+    /**
+     * Paid in full and still in the back room — the customer can take it.
+     *
+     * The list showed these mixed in with every other open advance (L17); it
+     * is the one row the counter should act on today.
+     */
+    public function scopePaidUp(Builder $query): void
+    {
+        $query->where('status', self::STATUS_OPEN)
+            ->where('total', '>', 0)
+            ->whereColumn('deposit_paid', '>=', 'total');
+    }
+
+    /**
+     * Open, not paid up, and nothing paid in since `$since` — counted from when
+     * it was made when nothing has been paid at all.
+     */
+    public function scopeQuiet(Builder $query, CarbonInterface $since): void
+    {
+        $query->where('status', self::STATUS_OPEN)
+            ->whereColumn('deposit_paid', '<', 'total')
+            ->where('created_at', '<', $since)
+            ->whereDoesntHave('payments', fn (Builder $q) => $q->where('paid_at', '>=', $since));
+    }
+
+    /** The start of the shop's day QUIET_DAYS ago — "not paid in 30 days" counts whole days. */
+    public static function quietSince(): CarbonInterface
+    {
+        return ShopDay::startOf(CarbonImmutable::parse(ShopDay::calendarToday())->subDays(self::QUIET_DAYS)->toDateString());
     }
 
     /** What the customer still owes before they can take the goods. */
