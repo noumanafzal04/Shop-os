@@ -308,6 +308,13 @@ machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
 
+### 2026-10-15 (night) — khata part 3 pushed
+
+Backend `43af111`, panel `8b9e4f1` (L14). **New migration `2026_10_15_000003_a_khata_payment_says_where_it_was_taken`**
+(`customer_ledger_entries.branch_id` + index) — deploy runs it; dev already has it. `App\Support\KhataCollected`
+is the one rule (payments, not return/cancellation; strict branch). `reports/summary.collections`, `pos/day.collections`
+(null without customers.manage). Panel `customers/components/CollectedOnKhata.tsx` on Day & banking and Reports.
+
 ### 2026-10-15 (night) — khata part 2 pushed
 
 Backend `2a6d657`, panel `c6a2ade` (L16): `Customer::scopeStanding` (owes / limit / advance), `khataPayments()`

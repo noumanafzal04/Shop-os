@@ -1,6 +1,6 @@
 ---
 name: shopos-resume-here
-description: RESUME POINT 2026-10-15 night — khata flow being built (market standard); parts 1+2 PUSHED (backend 2a6d657, panel c6a2ade); next part 3 collections (L14), 4 On advance list, 5 installments
+description: RESUME POINT 2026-10-16 — khata flow being built (market standard); parts 1–3 PUSHED (backend 43af111, panel 8b9e4f1; migration 2026_10_15_000003); next part 4 On advance list (L17), 5 installments (F1)
 metadata:
   type: project
 ---
@@ -8,7 +8,8 @@ metadata:
 **2026-10-15 night (cont.) — the user: "market standard bnana bs mjhe abhi kuch idea ni — Continue kro", then "jo huwa push kro".** Q12–Q15 taken as recommended (goods home now; optional markup %; plan not held to khata limit; no late fee/SMS yet) — written in BUGS.md.
 - PUSHED part 1: backend `5badf6e` (ledger loads sale:id,invoice_number), panel `cae1da4` (`customers/khata.ts` standing/overpaid/ledgerLine/saleLink, `components/KhataBox.tsx`, SalesPage `?open=<id>`, button renamed "Take payment" — journey 08 + p1-khata updated). Docs pushed with it.
 - PUSHED part 2 (backend `2a6d657`, panel `c6a2ade`) — (L16): `Customer::STANDINGS/NEAR_LIMIT/NOT_COLLECTIONS`, `scopeStanding`, `khataPayments()`; index `?standing=` + `last_paid_at` (withMax), `GET customers/summary` (route before apiResource), export keeps the filter; test `TheCustomerListSaysWhoOwesTest` (4; 4 mutations caught). Panel: `common/format/since.ts` (+test), `components/OwesCell.tsx` (+test), CustomersPage chips/summary/Owes/Last paid/row tint/Take payment, `?show=owes`. MoneyPanel → `?show=owes`. Walk `p6-customers-owe.mjs` (grocery@loadtest.test). The user asked "backend push ni kia" — it WAS pushed (ls-remote showed 2a6d657); they may look at `main`. Gate oddity: vitest collected 270/285 once, exit 0 — re-ran 285/3,356.
-- Dev data: Zari "QA Khata Walk" 03009990001 — INV-000017 (990 khata), paid 1,040 transfer → advance 50.
+- PUSHED part 3 (backend `43af111`, panel `8b9e4f1`) — L14: migration `2026_10_15_000003` (ledger branch_id, RUN on dev), `Support/KhataCollected` (strict branch; not return/cancellation), reports/summary.collections, pos/day.collections (null w/o customers.manage), panel `CollectedOnKhata`. Walk `p6-khata-collected.mjs`.
+- Dev data: Zari "QA Khata Walk" also INV-000018 (990 khata) paid 600 transfer; 03009990001 — INV-000017 (990 khata), paid 1,040 transfer → advance 50.
 
 **2026-10-15 late night — the user pasted Ali Raza's khata screen + asked: khata payment in sales/reports? a "on khata / owes" filter on Customers; installments on Quotations & advances (months, monthly, due day, highlighted, filters, calc checked, links). Then: "isko note krlo or pehle flow bna lo" — NOTE + FLOW FIRST, do not build.**
 - Flow written: `docs/flows/khata-and-installments.md` (parts 1–5, links table, build order, Q12–Q15). BUGS.md: L13 overpay confirm missing (P2), L14 non-cash khata collections in no report/Day & banking (P2), L15 advance shows "−22.70 owed" + raw method words, L16 Customers no Owes column/filter (P2), L17 On advance list UX; F1 installments TO BUILD; Q12 goods now vs held, Q13 markup, Q14 credit limit, Q15 late fee/SMS. Next question Q16.
