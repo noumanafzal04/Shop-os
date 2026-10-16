@@ -76,6 +76,8 @@ export interface SaleDocument {
   tax_inclusive: boolean;
   total: string;
   deposit_paid: string;
+  /** When the customer last paid in (the list sends it; L17). */
+  last_paid_at?: string | null;
   refunded_amount: string;
   forfeited_amount: string;
   expires_at: string | null;
@@ -103,6 +105,8 @@ export interface DocumentSummary {
   layaway_value: number;
   balance_outstanding: number;
   overdue: number;
+  /** The On advance list's filter counts — each asked with its filter's own rule (L17). */
+  layaway_counts?: { open: number; overdue: number; quiet: number; paid_up: number };
 }
 
 export interface DocumentLineInput {

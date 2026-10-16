@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
-import { FilterBar, FilterSelect } from "../../../components/ui/filters";
+import { FilterBar } from "../../../components/ui/filters";
 import Badge from "../../../components/ui/badge/Badge";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useDocumentSummary, useDocuments } from "../hooks/useDocuments";
@@ -14,6 +14,20 @@ import { shopDate } from "../../../common/format/date";
 import Button from "../../../components/ui/button/Button";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import NewDocumentSheet from "../components/NewDocumentSheet";
+import { advanceRow } from "../advanceRow";
+import { sinceWords } from "../../../common/format/since";
+import type { DocumentSummary } from "../services/documentService";
+
+const CHIP_ON = {
+  brand: "border-brand-500 bg-brand-500 text-white",
+  error: "border-error-500 bg-error-500 text-white",
+  warning: "border-warning-500 bg-warning-500 text-white",
+  success: "border-success-500 bg-success-500 text-white",
+} as const;
+
+const countFor = (c: DocumentSummary["layaway_counts"], status: string): number | undefined =>
+  c === undefined ? undefined
+    : status === "open" ? c.open : status === "lapsed" ? c.overdue : status === "quiet" ? c.quiet : status === "paid_up" ? c.paid_up : undefined;
 
 /**
  * WHICH KINDS THIS SHOP ACTUALLY WRITES.
@@ -60,6 +74,19 @@ function tabsFor(businessType: string | null, words: BoardWords): Array<[Documen
 const DOC_STATUSES = [
   { value: "open", label: "Open" },
   { value: "lapsed", label: "Overdue" },
+  { value: "converted", label: "Collected" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+/**
+ * Goods on advance get two more (L17): the ones paid in full and waiting to be
+ * handed over, and the ones nobody has paid into for 30 days.
+ */
+const ADVANCE_STATUSES = [
+  { value: "open", label: "Open" },
+  { value: "lapsed", label: "Overdue" },
+  { value: "quiet", label: "Not paid 30+ days" },
+  { value: "paid_up", label: "Paid up — hand over" },
   { value: "converted", label: "Collected" },
   { value: "cancelled", label: "Cancelled" },
 ];
@@ -121,17 +148,20 @@ export default function DocumentsPage() {
           label="Still to collect"
           value={money(summary.data?.balance_outstanding ?? 0)}
           hint={`Across ${summary.data?.open_layaways ?? 0} booking${summary.data?.open_layaways === 1 ? "" : "s"}`}
+          onClick={tabs.some(([k]) => k === "layaway") ? () => { setKind("layaway"); setStatus("open"); } : undefined}
         />
         <Tile
           label="Open quotations"
           value={String(summary.data?.open_quotations ?? 0)}
           hint="Prices you're still standing behind"
+          onClick={tabs.some(([k]) => k === "quotation") ? () => { setKind("quotation"); setStatus("open"); } : undefined}
         />
         <Tile
           label="Overdue"
           value={String(summary.data?.overdue ?? 0)}
           hint="Past the date — worth a phone call"
           tone={(summary.data?.overdue ?? 0) > 0 ? "warn" : undefined}
+          onClick={() => setStatus("lapsed")}
         />
       </div>
 
@@ -142,7 +172,7 @@ export default function DocumentsPage() {
             <button
               key={key}
               type="button"
-              onClick={() => setKind(key)}
+              onClick={() => { setKind(key); if (key !== "layaway" && (status === "quiet" || status === "paid_up")) setStatus("open"); }}
               className={`rounded-md px-3.5 py-1.5 text-theme-sm font-medium transition ${
                 kind === key
                   ? "bg-brand-500 text-white"
@@ -156,6 +186,28 @@ export default function DocumentsPage() {
 
       </div>
 
+      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Show" data-testid="document-filters">
+        {(kind === "layaway" ? ADVANCE_STATUSES : DOC_STATUSES).map(({ value, label }) => {
+          const n = kind === "layaway" ? countFor(summary.data?.layaway_counts, value) : undefined;
+          const on = status === value;
+          const tone = value === "paid_up" ? "success" : value === "lapsed" ? "error" : value === "quiet" ? "warning" : "brand";
+
+          return (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setStatus(value)}
+              className={`rounded-full border px-3 py-1.5 text-theme-sm font-medium transition ${
+                on ? CHIP_ON[tone] : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
+              }`}
+            >
+              {label}{n != null && <span className={`ml-1.5 tabular-nums ${on ? "text-white/80" : "text-gray-400"}`}>{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+
       <FilterBar
         search={{
           value: search,
@@ -163,14 +215,7 @@ export default function DocumentsPage() {
           placeholder: "Number, customer or phone…",
           label: "Search documents",
         }}
-      >
-        <FilterSelect
-          label="All"
-          value={status}
-          onChange={setStatus}
-          options={DOC_STATUSES}
-        />
-      </FilterBar>
+      />
 
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
         {list.isLoading ? (
@@ -201,8 +246,9 @@ export default function DocumentsPage() {
                   <th className="px-3 py-2.5 font-medium">Customer</th>
                   <th className="px-3 py-2.5 font-medium">Items</th>
                   <th className="px-3 py-2.5 text-right font-medium">Total</th>
-                  {kind === "layaway" && <th className="px-3 py-2.5 text-right font-medium">Paid</th>}
-                  {kind === "layaway" && <th className="px-3 py-2.5 text-right font-medium">Balance</th>}
+                  {kind === "layaway" && <th className="px-3 py-2.5 font-medium">Paid</th>}
+                  {kind === "layaway" && <th className="px-3 py-2.5 text-right font-medium">Left to pay</th>}
+                  {kind === "layaway" && <th className="px-3 py-2.5 font-medium">Last paid</th>}
                   {/* The same column means three different things, so it is
                       named three ways. "Valid until" over a job card's
                       promised date is a quotation's word on a car that is
@@ -234,14 +280,18 @@ function Row({
   kind: DocumentKind;
   money: (n: string | number) => string;
 }) {
-  const balance = Number(doc.total) - Number(doc.deposit_paid);
   // Past its date on the shop's wall — the rule the server's own "lapsed"
   // list uses, so a row is never overdue here and live there.
   const overdue = doc.status === "open" && isPastDate(doc.expires_at);
   const summary = (doc.items ?? []).map((i) => i.product_name).join(", ");
+  const adv = advanceRow(doc);
+  const tint = kind !== "layaway" ? "hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+    : adv.state === "paid_up" ? "bg-success-50/60 hover:bg-success-50 dark:bg-success-500/[0.06]"
+      : adv.state === "overdue" ? "bg-error-50/50 hover:bg-error-50 dark:bg-error-500/[0.06]"
+        : "hover:bg-gray-50 dark:hover:bg-white/[0.02]";
 
   return (
-    <tr className="border-b border-gray-100 last:border-0 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-white/[0.02]">
+    <tr className={`border-b border-gray-100 last:border-0 dark:border-gray-800 ${tint}`} data-state={kind === "layaway" ? adv.state : undefined}>
       <td className="px-5 py-3">
         <Link to={`/tenant/documents/${doc.id}`} className="font-medium text-brand-500 hover:text-brand-600">
           {doc.number}
@@ -265,16 +315,37 @@ function Row({
       </td>
       <td className="px-3 py-3 text-right tabular-nums text-gray-800 dark:text-white/90">{money(doc.total)}</td>
       {kind === "layaway" && (
-        <td className="px-3 py-3 text-right tabular-nums text-gray-500 dark:text-gray-400">
-          {money(doc.deposit_paid)}
+        <td className="px-3 py-3">
+          <div className="flex items-center gap-2" title={`${Math.round(adv.share * 100)}% paid`}>
+            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+              <div className={`h-full rounded-full ${adv.state === "paid_up" ? "bg-success-500" : "bg-brand-500"}`} style={{ width: `${Math.round(adv.share * 100)}%` }} />
+            </div>
+            <span className="tabular-nums text-gray-600 dark:text-gray-300">{money(adv.paid)}</span>
+            <span className="text-theme-xs tabular-nums text-gray-400">{Math.round(adv.share * 100)}%</span>
+          </div>
         </td>
       )}
       {kind === "layaway" && (
-        <td className="px-3 py-3 text-right font-semibold tabular-nums text-gray-800 dark:text-white/90">
-          {money(balance)}
+        <td className="px-3 py-3 text-right">
+          {adv.state === "paid_up" ? (
+            <Link to={`/tenant/documents/${doc.id}`} className="inline-block rounded-full bg-success-500 px-2.5 py-1 text-theme-xs font-semibold text-white hover:bg-success-600">
+              Paid up — hand over
+            </Link>
+          ) : adv.state === "collected" || adv.state === "cancelled" ? (
+            <span className="tabular-nums text-gray-400">{money(adv.left)}</span>
+          ) : (
+            <span className={`font-semibold tabular-nums ${adv.state === "overdue" ? "text-error-600 dark:text-error-400" : "text-warning-600 dark:text-warning-400"}`}>
+              {money(adv.left)}
+            </span>
+          )}
         </td>
       )}
-      <td className="px-5 py-3 text-theme-xs text-gray-500 dark:text-gray-400">
+      {kind === "layaway" && (
+        <td className={`px-3 py-3 text-theme-xs ${adv.quiet ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-500 dark:text-gray-400"}`} title={doc.last_paid_at ? shopDate(doc.last_paid_at) : undefined}>
+          {sinceWords(doc.last_paid_at) ?? "—"}
+        </td>
+      )}
+      <td className={`px-5 py-3 text-theme-xs ${overdue ? "font-medium text-error-600 dark:text-error-400" : "text-gray-500 dark:text-gray-400"}`}>
         {doc.expires_at ? shopDate(doc.expires_at) : "No expiry"}
       </td>
     </tr>
@@ -287,11 +358,14 @@ function Tile({
   value,
   hint,
   tone,
+  onClick,
 }: {
   label: string;
   value: string;
   hint: string;
   tone?: "brand" | "warn";
+  /** A tile that is a list opens that list. */
+  onClick?: () => void;
 }) {
   const accent =
     tone === "brand"
@@ -300,11 +374,18 @@ function Tile({
         ? "text-warning-500"
         : "text-gray-800 dark:text-white/90";
 
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]">
+  const body = (
+    <>
       <div className="text-theme-xs uppercase tracking-wide text-gray-400">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tabular-nums ${accent}`}>{value}</div>
       <div className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">{hint}</div>
-    </div>
+    </>
+  );
+  const shell = "rounded-2xl border border-gray-200 bg-white p-5 text-left shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03]";
+
+  return onClick ? (
+    <button type="button" onClick={onClick} className={`${shell} transition hover:border-brand-300 hover:bg-brand-50/30 dark:hover:border-brand-500/40`}>{body}</button>
+  ) : (
+    <div className={shell}>{body}</div>
   );
 }
