@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B63 · next question: Q16**). `L…` = found by the fixer while fixing.
+(**next bug: B73 · next question: Q16**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -100,6 +100,18 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L18 | P2 | Customers / khata | Cash taken on a khata (the card's Take payment) with no shift open was written to the khata and reached no drawer, without a word — in a shop that asks for shifts (found while building F1, 2026-10-16) | FIXED `f6454cb` — one `TakeKhataPaymentAction` for the card and a plan: cash needs today's shift where the shop asks (`SHIFT_REQUIRED`), card/bank/wallet never held up |
 | L19 | P2 | Installments | Found in the money review before push (2026-10-16): money from an installment customer taken on their card came off the khata but not the plan (plan kept saying late; taking it again would double the drawer); "Due this month" tile opened this week's list; a plan's "Paid" counted goods returned as money; "To collect" asked a customer who paid ahead for next month; the start form let a card advance through with no shift (server refused); a refused plan; the statement called the installment charge a "Credit sale" | FIXED before push, same commits — the card asks "Is this an installment?"; `this_month` filter; Installments paid / Goods returned; To collect = late + the next month within a week ("Up to date" otherwise); the form asks for today's shift; the statement names the plan |
 | L20 | P3 | Offline / packs | Found reading the code for Q10 (2026-10-16), NOT yet walked: the till's offline engine (`linesFromCatalog`) ignores `product_unit_id`, so a carton rung offline may print its slip and offline total at a single's price; the server prices the carton right on sync (books right, slip wrong). Q10 deliberately leaves pack lines server-priced. | OPEN — to verify with an offline walk, then price packs in the till's engine (the catalogue would need pack prices) |
+| B63 | P2 | Shift / Day / transfers / stocktake / orders / documents | A second click after a successful state change posts again and puts a 409 over the success (6 of 6: close shift, close day, receive, apply count, confirm order, bill it) — Codex BUG-63 | FIXED `d714e4f` — the API client hands a write that matches one on its way, or one that succeeded under a second ago, the same answer (`onceOnItsWay`, `TWIN_SETTLES_MS`); a refusal is let go at once; a keyed write refused 409 REQUEST_IN_FLIGHT is asked again and given the first answer |
+| B64 | P2 | Till / held | Double Hold parks the cart twice — Codex BUG-64 | FIXED `c12de2a` `d714e4f` — client twin; POST /pos/held answers once per key |
+| B65 | P2 | Quotes & advances | A saved quotation has no way to hold its goods on advance; the advance has to be typed again — Codex BUG-65 | OPEN — a missing step (Convert to held goods) |
+| B66 | P2 | Suppliers | Double Save makes two identical suppliers — Codex BUG-66 | FIXED `d714e4f` — client twin |
+| B67 | P1 | Purchase orders | Double Place order makes two Rs 7,200 POs — Codex BUG-67 | FIXED `c12de2a` `d714e4f` — the form sends a once-key; the route answers once (`once`); client twin |
+| B68 | P0 | Stock transfers | Double Send makes two transfers; Main M fell 5 → 1 for 2 sent — Codex BUG-68 | FIXED `c12de2a` `d714e4f` — same three; `StockAndOrdersPressedTwiceAreOneTest` |
+| B69 | P1 | Promotions / bank offers | An offer dated today gives nothing today (Karachi), works once its start is moved to yesterday; the till's offline mirror DID apply it — Codex BUG-69 | OPEN — cause found: `OfferWindow` compared the shop's today as a moment with a UTC midnight; fixed on the copy (compare calendar dates), in the next push |
+| B70 | P1 | Day & banking | Older days left open (13th, 15th) hide today's closed day and its "Open again" — Codex BUG-70 | OPEN — cause found: `/pos/day` sent `closed_today` only when no day was open; fixed on the copy, in the next push |
+| B71 | P2 | Products / barcodes | A new item accepts a barcode already on another item's size — Codex BUG-71 | OPEN — the primary check reads `products.barcode` only |
+| B72 | P3 | Customers (phone) | At 390 px the khata amount box shows 1040.50 as "104" — Codex BUG-72 | OPEN |
+| L21 | P2 | Inventory | The user (2026-10-16): "inventory page ka UI acha ni … entries theek hain jb products sy stock add krty?" Entries from the item form are right (L11). But the history mixed places (balances 429, 275, 428, 273), put same-second lines oldest first, named nobody, showed "+24.000" and only 8 lines inside Adjust; on a phone Adjust was past the edge | FIXED `c12de2a` `d714e4f` — history of the place looked at, newest first, `creator`; tiles All / Needs reordering / Out of stock (`products?out_of_stock=1`); History per item; phone cards; Adjust says where it lands, "After this", one-tap reasons |
+| L22 | P3 | Demo data | `demo:shops` puts stock on the shelf with no "Opening stock" line, so a demo item's history does not add up (477 of 540 in the mart) | OPEN — demo only; the app's own ways in write it (L11) |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -311,4 +323,11 @@ installments in cash and by transfer; Sana's 15 Oct shift closed counted at 9,99
 Backend `9a15d9e`, panel `17c61c9`. L10–L12. Walks `qa-kit/p6-add-item.mjs`, `p6-item-active.mjs` (load-test
 grocery). Decision note: `docs/decisions/shopos-an-item-form-keeps-what-you-changed.md`. Dev data: grocery item
 "QA Walk Biscuit 100g" (barcode 8964000111222, 24 on hand, in-store only) — retired and brought back, left Active.
+
+## Pass 12 — Codex, retail Part A (2026-10-16)
+
+Report: `docs/qa/TESTER-REPORT-2026-10-16-retail.md` (A0–A18 on Zari, local Chromium; figures agree across
+Sales, Day, Cashbook, Ledger, Reports and Dashboard). Ten new: B63–B72 (Codex's BUG-63…72 keep their numbers).
+Part 1 pushed: backend `c12de2a`, panel `d714e4f` — B63, B64, B66, B67, B68 and the user's inventory item L21
+(gates: phpunit 3,958 / 3,936 passed / 22 skipped · vitest 291 / 3,398 · build · eslint 0 errors · tsc-e2e).
 
