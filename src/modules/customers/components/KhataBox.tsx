@@ -107,8 +107,11 @@ export default function KhataBox({
         </div>
       </div>
 
-      <div className="mt-3 flex items-end gap-2">
-        <div className="flex-1">
+      {/* On a phone the amount has the row to itself: squeezed beside the
+          method and the button it showed 1040.50 as "104", and a shopkeeper
+          checks the paisa before pressing (Codex QA 2026-10-16, BUG-72). */}
+      <div className="mt-3 flex flex-wrap items-end gap-2 sm:flex-nowrap">
+        <div className="w-full sm:w-auto sm:min-w-0 sm:flex-1">
           <Input
             type="number"
             min="0"
@@ -122,7 +125,7 @@ export default function KhataBox({
           aria-label="Paid by"
           value={method}
           onChange={(e) => { setMethod(e.target.value as KhataMethod); setAskingPlan(false); }}
-          className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          className="h-11 flex-1 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 sm:flex-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
         >
           {KHATA_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
