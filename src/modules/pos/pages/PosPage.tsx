@@ -2514,7 +2514,6 @@ export default function PosPage() {
         discount={Number(discount) || 0}
         customerName={customer}
         customerPhone={customerPhone}
-        total={total}
         onDone={clearSale}
       />}
 

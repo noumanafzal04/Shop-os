@@ -33,6 +33,26 @@ export function useDocumentSummary() {
   });
 }
 
+/**
+ * WHAT IT WILL BE WRITTEN AT — asked of the server, never worked out here.
+ *
+ * The advance sheet took 20 % of the goods at shelf prices, before tax, and
+ * offered a floor the server then refused (money pass 2026-10-16, $7).
+ * Keyed apart from the documents, and never served from an old answer.
+ */
+export function useDocumentWorth(ask: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone">, enabled: boolean) {
+  return useQuery({
+    queryKey: ["sale-document-worth", JSON.stringify(ask)],
+    queryFn: async () => (await documentService.worth(ask)).data,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    // A refusal is an answer ("this discount is past your limit"), not a blip.
+    retry: false,
+  });
+}
+
 export function useDocument(id: string | undefined) {
   return useQuery({
     queryKey: [...KEY, "one", id],

@@ -57,8 +57,28 @@ export interface StartPlanInput {
   months: number;
   first_due_on: string;
   notes?: string;
+  /** The bill the sheet read out — the server refuses to write another (PLAN_PRICE_CHANGED). */
+  expected_total?: number;
   idempotency_key?: string;
 }
+
+/** What a plan on these terms will be — the server's figures, before the press (money pass $8). */
+export interface PlanWorth {
+  cash_price: number;
+  markup_percent: number;
+  markup: number;
+  total: number;
+  advance: number;
+  financed: number;
+  months: number;
+  monthly: number;
+  last_month: number;
+}
+
+export type PlanWorthInput = Pick<StartPlanInput, "items" | "markup_percent" | "months"> & {
+  customer_phone?: string;
+  advance?: { amount: number; method: string };
+};
 
 export interface InstallmentInput {
   amount: number;
@@ -73,6 +93,8 @@ export const installmentService = {
   summary: () => apiGet<PlanSummary>("/installment-plans/summary"),
   show: (id: string) => apiGet<InstallmentPlan>(`/installment-plans/${id}`),
   start: (payload: StartPlanInput) => apiPost<InstallmentPlan>("/installment-plans", payload),
+  /** Asked before the press; writes nothing. */
+  worth: (payload: PlanWorthInput) => apiPost<PlanWorth>("/installment-plans/worth", payload),
   pay: (id: string, payload: InstallmentInput) =>
     apiPost<{ entry: unknown; plan: InstallmentPlan }>(`/installment-plans/${id}/payments`, payload),
 };

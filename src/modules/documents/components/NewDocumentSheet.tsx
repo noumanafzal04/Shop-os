@@ -135,7 +135,6 @@ export default function NewDocumentSheet({
         isOpen={isOpen && saving && installments}
         onClose={() => setSaving(false)}
         lines={lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity }))}
-        about={about}
         onDone={(plan) => { onSaved("installments", plan); closeAll(); }}
       />
 
@@ -147,7 +146,6 @@ export default function NewDocumentSheet({
         discount={0}
         customerName=""
         customerPhone=""
-        total={about}
         onDone={(kind) => { onSaved(kind); closeAll(); }}
       />
     </>

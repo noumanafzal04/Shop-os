@@ -120,6 +120,18 @@ export interface DocumentLineInput {
   line_discount_pct?: number;
 }
 
+/** What a document of these lines will be written at — the server's figures (money pass $7). */
+export interface DocumentWorth {
+  subtotal: number;
+  discount: number;
+  tax: number;
+  tax_inclusive: boolean;
+  total: number;
+  /** The shop's floor for an advance, and what it comes to on this total. 0 for a quotation. */
+  min_deposit_percent: number;
+  minimum_deposit: number;
+}
+
 export interface CreateDocumentInput {
   kind: DocumentKind;
   items: DocumentLineInput[];
@@ -198,6 +210,10 @@ export const documentService = {
   show: (id: string) => apiGet<SaleDocument>(`/sale-documents/${id}`),
 
   create: (payload: CreateDocumentInput) => apiPost<SaleDocument>("/sale-documents", payload),
+
+  /** Asked before the press; writes nothing. */
+  worth: (payload: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone">) =>
+    apiPost<DocumentWorth>("/sale-documents/worth", payload),
 
   deposit: (id: string, payload: { amount: number; method?: string; reference?: string; note?: string; idempotency_key?: string }) =>
     apiPost<{ payment: DocumentPayment; document: SaleDocument }>(`/sale-documents/${id}/deposits`, payload),

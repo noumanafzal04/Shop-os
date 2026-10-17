@@ -6,13 +6,14 @@ import Label from "../../../components/form/Label";
 import { useToast } from "../../../components/ui/toast";
 import { ApiError } from "../../../common/types/api";
 import { useShopSettings, useMoney } from "../../shop/hooks/useShop";
-import { useDocumentMutations } from "../hooks/useDocuments";
+import { useDocumentMutations, useDocumentWorth } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import type { DocumentKind, DocumentLineInput } from "../services/documentService";
 import { useOnceKey } from "../../../common/onceKey";
 import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 
 interface Props {
   isOpen: boolean;
@@ -21,8 +22,6 @@ interface Props {
   discount: number;
   customerName: string;
   customerPhone: string;
-  /** The till's own estimate — used only to size the deposit hint. */
-  total: number;
   /** Clear the ticket once the promise is on paper — told which kind was saved. */
   onDone: (saved: DocumentKind) => void;
   /** Which of the two it opens on — the Quotations screen's own buttons say. */
@@ -43,7 +42,6 @@ export default function ParkAsDocumentModal({
   discount,
   customerName,
   customerPhone,
-  total,
   onDone,
   startAs = "quotation",
 }: Props) {
@@ -65,8 +63,6 @@ export default function ParkAsDocumentModal({
 
   const layawayOn = settings.data?.layaway_enabled !== false;
   const quotesOn = settings.data?.quotations_enabled !== false;
-  const minPct = Number(settings.data?.layaway_min_deposit_percent ?? 20);
-  const minimum = Math.ceil((total * minPct) / 100);
 
   // Re-seed from the till each time it opens — the cashier may have typed the
   // customer's name into the cart after the last time this was used.
@@ -80,8 +76,23 @@ export default function ParkAsDocumentModal({
   }, [isOpen, customerName, customerPhone, quotesOn, startAs]);
 
   const layaway = kind === "layaway";
+
+  // WHAT IT WILL BE WRITTEN AT, AND THE LEAST IT TAKES DOWN — the server's.
+  // This worked 20 % out of an estimate before tax: "at least Rs 1,200",
+  // enabled there, and refused for the Rs 1,404 the server takes (money
+  // pass 2026-10-16, $7). The phone is asked about too: a customer's group
+  // can change the price.
+  const askedPhone = useDebouncedValue(phone.trim(), 300);
+  const worth = useDocumentWorth(
+    { kind, items: lines, discount: discount || undefined, customer_phone: askedPhone || undefined },
+    isOpen && lines.length > 0,
+  );
+  const priced = worth.data;
+  const refused = worth.error instanceof ApiError ? worth.error.message : worth.isError ? "Couldn't work out what it comes to." : null;
+  const minPct = priced?.min_deposit_percent ?? 0;
+  const minimum = priced?.minimum_deposit ?? 0;
   const depositValue = Number(deposit) || 0;
-  const belowMinimum = layaway && minPct > 0 && depositValue < minimum;
+  const belowMinimum = layaway && minimum > 0 && depositValue + 0.001 < minimum;
   const missingCustomer = layaway && !phone.trim();
   const shiftWhy = useCashNeedsShift(layaway ? method : "", depositValue);
 
@@ -122,8 +133,9 @@ export default function ParkAsDocumentModal({
       <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
         Save this ticket
       </h3>
-      <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
-        {money(total)} · {lines.length} line{lines.length === 1 ? "" : "s"}
+      <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400" data-testid="document-worth">
+        {priced ? money(priced.total) : "Working out the total…"} · {lines.length} line{lines.length === 1 ? "" : "s"}
+        {priced && priced.tax > 0 && <> · {priced.tax_inclusive ? "tax included" : `with ${money(priced.tax)} tax`}</>}
       </p>
 
       <div className="mb-5 grid grid-cols-2 gap-2">
@@ -178,10 +190,10 @@ export default function ParkAsDocumentModal({
                 type="number"
                 value={deposit}
                 onChange={(e) => setDeposit(e.target.value)}
-                placeholder={String(minimum)}
+                placeholder={minimum > 0 ? String(minimum) : undefined}
               />
               {minPct > 0 && (
-                <p className={`mt-1 text-theme-xs ${belowMinimum ? "text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
+                <p data-testid="deposit-floor" className={`mt-1 text-theme-xs ${belowMinimum ? "text-warning-600 dark:text-warning-400" : "text-gray-400"}`}>
                   At least {minPct}% down — {money(minimum)}.
                 </p>
               )}
@@ -210,12 +222,13 @@ export default function ParkAsDocumentModal({
       </div>
 
       {shiftWhy && <div className="mt-4"><ShiftNeeded why={shiftWhy} /></div>}
+      {refused && <p className="mt-4 text-theme-sm text-error-600 dark:text-error-400">{refused}</p>}
 
       <div className="mt-6 flex justify-end gap-2">
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
         <Button
           size="sm"
-          disabled={create.isPending || lines.length === 0 || missingCustomer || belowMinimum || shiftWhy !== null}
+          disabled={create.isPending || lines.length === 0 || missingCustomer || !priced || worth.isFetching || belowMinimum || shiftWhy !== null}
           onClick={submit}
         >
           {layaway ? "Hold the goods" : "Save quotation"}

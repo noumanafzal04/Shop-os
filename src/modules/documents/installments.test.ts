@@ -1,20 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { aMonthAfter, dueOn, split } from "./installments";
+import { aMonthAfter, dueOn } from "./installments";
 
-/** The same cases as the server's InstallmentScheduleTest — the preview may not drift from the plan. */
-describe("the installment arithmetic the form previews", () => {
-  it("rounds the month up to a rupee and lets the last month take the rest", () => {
-    expect(split(50000, 10)).toEqual({ monthly: 5000, last: 5000 });
-    expect(split(10000, 3)).toEqual({ monthly: 3334, last: 3332 });
-    expect(split(10, 7)).toEqual({ monthly: 1.42, last: 1.48 });
-    for (const [f, m] of [[50000, 10], [10000, 3], [44999.5, 12], [10, 7], [123457, 9]]) {
-      const s = split(f, m);
-      expect(s.monthly * (m - 1) + s.last).toBeCloseTo(f, 2);
-      expect(s.last).toBeGreaterThan(0);
-    }
-  });
-
+describe("the installment calendar the form previews", () => {
   it("falls due on the same day each month — the 31st is the last day of a short month", () => {
     expect(dueOn("2027-01-31", 1)).toBe("2027-01-31");
     expect(dueOn("2027-01-31", 2)).toBe("2027-02-28");

@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { installmentService, type InstallmentInput, type PlanFilter, type StartPlanInput } from "../services/installmentService";
+import { installmentService, type InstallmentInput, type PlanFilter, type PlanWorthInput, type StartPlanInput } from "../services/installmentService";
 
 const KEY = ["installments"] as const;
 
@@ -21,6 +21,24 @@ export function useInstallmentSummary(enabled = true) {
 
 export function useInstallmentPlan(id: string | null) {
   return useQuery({ queryKey: [...KEY, "plan", id], queryFn: async () => (await installmentService.show(id!)).data, enabled: id !== null });
+}
+
+/**
+ * WHAT THE PLAN WILL BE — the server's figures, asked as the terms change.
+ *
+ * The sheet once worked the plan out from shelf prices before tax and read
+ * out a bill Rs 691.75 short of the one written (money pass 2026-10-16, $8).
+ */
+export function useInstallmentWorth(ask: PlanWorthInput, enabled: boolean) {
+  return useQuery({
+    queryKey: ["installment-worth", JSON.stringify(ask)],
+    queryFn: async () => (await installmentService.worth(ask)).data,
+    enabled,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
 }
 
 /**

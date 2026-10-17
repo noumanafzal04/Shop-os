@@ -15,29 +15,30 @@ import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
 import { DEPOSIT_METHODS } from "../services/documentService";
 import type { InstallmentPlan } from "../services/installmentService";
-import { useInstallmentMutations } from "../hooks/useInstallments";
-import { aMonthAfter, split } from "../installments";
+import { useInstallmentMutations, useInstallmentWorth } from "../hooks/useInstallments";
+import { aMonthAfter } from "../installments";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 
 /**
  * GOODS GO HOME ON INSTALLMENTS — the terms (F1).
  *
  * After the items are picked: who, the advance now, how many months, and the
  * first due date. The sum is shown before the press — "16,000 now + 10 × 5,000
- * = 66,000" — worked out the server's way from the shelf prices. The server
- * prices the goods itself when the plan is saved; its figures are the plan's.
+ * = 66,000" — and it is the SERVER's: the plan it will write, asked as the
+ * terms change. It was worked out here from the shelf prices before tax, and
+ * read out a bill Rs 691.75 short of the plan written, with no word that the
+ * figure had changed (money pass 2026-10-16, $8). The press sends the bill
+ * it showed; a price that moved in between is refused, never written.
  */
 export default function StartInstallmentModal({
   isOpen,
   onClose,
   lines,
-  about,
   onDone,
 }: {
   isOpen: boolean;
   onClose: () => void;
   lines: Array<{ product_id: string; variant_id?: string | null; quantity: number }>;
-  /** The shelf prices added up — the server's price is the plan's. */
-  about: number;
   onDone: (plan: InstallmentPlan) => void;
 }) {
   const money = useMoney();
@@ -61,26 +62,37 @@ export default function StartInstallmentModal({
   }, [isOpen]);
 
   const pct = Math.max(0, Number(markup) || 0);
-  const charge = Math.round((about * pct) / 100);
-  const bill = about + charge;
   const down = Math.max(0, Number(advance) || 0);
   const n = Math.max(1, Math.floor(Number(months) || 0));
-  const financed = Math.round((bill - down) * 100) / 100;
-  const plan = financed > 0 ? split(financed, n) : null;
   const day = Number(firstDue.slice(8, 10));
+
+  // The plan, as the server will write it — asked a moment after the typing stops.
+  const terms = {
+    items: lines,
+    markup_percent: pct || undefined,
+    advance: down > 0 ? { amount: down, method } : undefined,
+    months: n,
+    customer_phone: phone.trim() || undefined,
+  };
+  const termsNow = JSON.stringify(terms);
+  const askedTerms = useDebouncedValue(termsNow, 300);
+  const worth = useInstallmentWorth(JSON.parse(askedTerms), isOpen && lines.length > 0 && n >= 1 && n <= 60);
+  const plan = worth.data;
+  // Shown only for the terms on screen: a figure for the last terms is not this plan's.
+  const current = plan !== undefined && askedTerms === termsNow && !worth.isFetching;
+  const refused = worth.error instanceof ApiError ? worth.error.message : worth.isError ? "Couldn't work out the plan." : null;
 
   // The goods leave the counter on a sale, so a shop that asks for shifts
   // asks for today's here whatever the advance is paid by — the server does.
   const { why: shiftWhy } = useCounterShift("to send goods home");
   const why =
     !phone.trim() ? "The customer's phone — the khata and every installment are found by it."
-      : down >= about ? "The advance covers the whole price — ring it as a sale instead."
-        : !(n >= 1 && n <= 60) ? "Between 1 and 60 months."
-          : !firstDue ? "The first due date."
-            : null;
+      : !(n >= 1 && n <= 60) ? "Between 1 and 60 months."
+        : !firstDue ? "The first due date."
+          : refused;
 
   const submit = () => {
-    if (why || shiftWhy || start.isPending) return;
+    if (why || shiftWhy || start.isPending || !current) return;
     start.mutate(
       {
         customer_name: name.trim() || undefined,
@@ -90,6 +102,7 @@ export default function StartInstallmentModal({
         advance: down > 0 ? { amount: down, method, reference: reference.trim() || undefined } : undefined,
         months: n,
         first_due_on: firstDue,
+        expected_total: plan.total,
         idempotency_key: once.key,
       },
       {
@@ -99,7 +112,11 @@ export default function StartInstallmentModal({
           onDone(res.data);
           onClose();
         },
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "The plan was not started — nothing was sold."),
+        onError: (e) => {
+          toast.error(e instanceof ApiError ? e.message : "The plan was not started — nothing was sold.");
+          // The price moved: ask again, so the sheet reads out the plan as it now is.
+          if (e instanceof ApiError && e.errorCode === "PLAN_PRICE_CHANGED") void worth.refetch();
+        },
       },
     );
   };
@@ -166,14 +183,18 @@ export default function StartInstallmentModal({
       </div>
 
       <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/40 p-3 text-theme-sm dark:border-brand-500/30 dark:bg-brand-500/[0.06]" data-testid="installment-preview">
-        <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Cash price (shelf)</span><span className="tabular-nums">{money(about)}</span></div>
-        {charge > 0 && <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Installment charge ({pct}%)</span><span className="tabular-nums">{money(charge)}</span></div>}
-        <div className="flex justify-between font-semibold"><span>Bill</span><span className="tabular-nums">{money(bill)}</span></div>
-        {plan && (
-          <p className="mt-2 border-t border-brand-200 pt-2 font-medium text-gray-800 dark:border-brand-500/30 dark:text-white/90">
-            {money(down)} now + {plan.monthly === plan.last ? `${n} × ${money(plan.monthly)}` : `${n - 1} × ${money(plan.monthly)} + ${money(plan.last)}`} = {money(bill)}
-            {firstDue && <span className="block text-theme-xs font-normal text-gray-500 dark:text-gray-400">First on {shopDate(firstDue)}</span>}
-          </p>
+        {!current ? (
+          <p className="text-gray-500 dark:text-gray-400">{refused ?? "Working out the plan…"}</p>
+        ) : (
+          <>
+            <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Cash price</span><span className="tabular-nums">{money(plan.cash_price)}</span></div>
+            {plan.markup > 0 && <div className="flex justify-between"><span className="text-gray-500 dark:text-gray-400">Installment charge ({plan.markup_percent}%)</span><span className="tabular-nums">{money(plan.markup)}</span></div>}
+            <div className="flex justify-between font-semibold"><span>Bill</span><span className="tabular-nums">{money(plan.total)}</span></div>
+            <p className="mt-2 border-t border-brand-200 pt-2 font-medium text-gray-800 dark:border-brand-500/30 dark:text-white/90">
+              {money(plan.advance)} now + {plan.monthly === plan.last_month ? `${plan.months} × ${money(plan.monthly)}` : `${plan.months - 1} × ${money(plan.monthly)} + ${money(plan.last_month)}`} = {money(plan.total)}
+              {firstDue && <span className="block text-theme-xs font-normal text-gray-500 dark:text-gray-400">First on {shopDate(firstDue)}</span>}
+            </p>
+          </>
         )}
       </div>
 
@@ -185,7 +206,7 @@ export default function StartInstallmentModal({
 
       <div className="mt-5 flex justify-end gap-3">
         <Button size="sm" variant="outline" onClick={onClose}>Back</Button>
-        <Button size="sm" onClick={submit} disabled={!!why || !!shiftWhy || start.isPending}>
+        <Button size="sm" onClick={submit} disabled={!!why || !!shiftWhy || !current || start.isPending}>
           {start.isPending ? "Starting…" : "Hand over & start plan"}
         </Button>
       </div>

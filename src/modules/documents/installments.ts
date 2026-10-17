@@ -1,24 +1,15 @@
 /**
- * THE INSTALLMENT ARITHMETIC, FOR THE FORM'S PREVIEW ONLY (F1).
+ * INSTALLMENT DATES (F1).
  *
- * The server works the plan out (`InstallmentSchedule`) and every figure on a
- * plan's page is the server's. The form shows the same sum before anything is
- * sent — "16,000 now + 10 × 5,000 = 66,000" — so it follows the same rules,
- * pinned by the same cases (installments.test.ts / InstallmentScheduleTest):
+ * The plan's money — the monthly amount, the last month — is the SERVER's
+ * (`InstallmentSchedule`), and the form reads it out from
+ * POST /installment-plans/worth. It once worked it out here, from shelf prices
+ * before tax, and read out a bill short of the plan written (money pass
+ * 2026-10-16, $8). What stays here is the calendar:
  *
- *   monthly  what is financed ÷ months, rounded UP to a whole rupee; the last
- *            month takes the rest (to the paisa when whole rupees cannot fit).
  *   dates    the first due date, then the same day each month; a 31st is the
  *            last day of a shorter month and comes back after it.
  */
-export function split(financed: number, months: number): { monthly: number; last: number } {
-  const f = Math.round(financed * 100) / 100;
-  let monthly = Math.ceil(f / months);
-  if (months > 1 && monthly * (months - 1) >= f) monthly = Math.floor((f * 100) / months) / 100;
-
-  return { monthly, last: Math.round((f - monthly * (months - 1)) * 100) / 100 };
-}
-
 /** Month `n` (1 = the first)'s due date, as YYYY-MM-DD — no clock, no zone. */
 export function dueOn(first: string, n: number): string {
   const [y, m, d] = first.slice(0, 10).split("-").map(Number);

@@ -67,6 +67,8 @@ export default function TabPage() {
   const canVoid = useAuthStore((st) => st.hasPermission("sales.void"));
   const settings = useShopSettings();
   const taxRate = Number(settings.data?.default_tax_rate ?? 0);
+  // A shop whose prices hold the tax: the running total IS the bill ($9).
+  const taxInclusive = settings.data?.tax_inclusive === true;
   const { voidItem, fire, settle, move, merge, cancel, assignWaiter } = useDineInMutations(id);
   const lines = useTabLines(id);
 
@@ -849,7 +851,7 @@ export default function TabPage() {
               <div className="flex items-baseline justify-between">
                 <dt className="text-sm font-medium text-gray-600 dark:text-gray-300">
                   {paidTotal > 0 ? "Still to pay" : "Running total"}
-                  {taxRate > 0 && <span className="ml-1 text-theme-xs font-normal text-gray-400">+ tax at the bill</span>}
+                  {taxRate > 0 && <span className="ml-1 text-theme-xs font-normal text-gray-400">{taxInclusive ? "tax included" : "+ tax at the bill"}</span>}
                 </dt>
                 <dd className="text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
                   {money(paidTotal > 0 ? toPay : ticket.running_total)}
@@ -1278,7 +1280,7 @@ export default function TabPage() {
               {worth.tax > 0 && (
                 <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
                   {/* No rate beside it: each dish is taxed at its own. */}
-                  <span>Tax</span>
+                  <span>{taxInclusive ? "Tax included" : "Tax"}</span>
                   <span className="tabular-nums">{money(worth.tax)}</span>
                 </div>
               )}
