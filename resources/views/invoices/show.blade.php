@@ -614,6 +614,29 @@
                 You saved {{ $amount($lineDiscounts + (float) $sale->discount + $bankOff) }}
             </div>
         @endif
+
+        {{-- ONE VISIT, TWO BILLS (Q19 A). The customer came back to the
+             counter for two more; the first bill was never changed, so this
+             one names it and says what they come to together. --}}
+        @if(!empty($visit))
+            <hr class="hair">
+            <div data-visit class="lmeta b" style="margin-bottom:4px">
+                @if($sale->id === $visit['first_id'])
+                    Items added to this bill later
+                @else
+                    Added to {{ $visit['bills'][0]['invoice_number'] }}
+                @endif
+            </div>
+            <table class="totals">
+                @foreach($visit['bills'] as $bill)
+                    <tr>
+                        <td class="soft">{{ $bill['invoice_number'] }}@if($bill['id'] === $sale->id) (this bill)@endif @if($bill['cancelled']) — cancelled @endif</td>
+                        <td class="num">{{ $bill['cancelled'] ? '—' : $amount($bill['total']) }}</td>
+                    </tr>
+                @endforeach
+                <tr class="grand"><td>{{ count($visit['bills']) === 2 ? 'Both bills' : 'All '.count($visit['bills']).' bills' }} together</td><td class="num">{{ $amount($visit['together']) }}</td></tr>
+            </table>
+        @endif
     @endunless
 
     {{-- ══ Serialized units ══════════════════════════════════════ --}}

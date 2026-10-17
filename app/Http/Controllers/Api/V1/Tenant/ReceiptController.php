@@ -12,6 +12,7 @@ use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\BillToAddTo;
 use App\Support\BranchContext;
 use App\Support\Currencies;
 use App\Support\RegisterContext;
@@ -114,6 +115,8 @@ class ReceiptController extends Controller
                 'copyNo' => $copyNo,
                 'cashier' => $this->cashierName($sale),
                 'reprintCount' => max(0, $copyNo - 1),
+                // One visit's bills and what they come to together (Q19 A).
+                'visit' => BillToAddTo::visit($sale),
             ])
             // The client needs the row id to report a failure against it.
             ->header('X-Receipt-Print-Id', $print->id)

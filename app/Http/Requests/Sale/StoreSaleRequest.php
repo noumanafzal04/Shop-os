@@ -41,6 +41,8 @@ class StoreSaleRequest extends FormRequest
         return [
             'channel' => ['required', Rule::enum(SaleChannel::class)],
             'customer_name' => ['nullable', 'string', 'max:255'],
+            // The bill this sale is added to (Q19 A) — checked by BillToAddTo.
+            'adds_to_sale_id' => ['nullable', 'uuid'],
             'customer_phone' => ['nullable', 'string', 'max:32'],
             'order_type' => ['nullable', 'in:dine_in,takeaway'],
             'table_no' => ['nullable', 'string', 'max:16'],

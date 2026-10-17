@@ -16,6 +16,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\BillToAddTo;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
@@ -181,7 +182,12 @@ class SaleController extends Controller
         // set on the model: an attribute that is not a column makes the model
         // dirty and the next save() writes it.
         return ApiResponse::created(
-            $sale->toArray() + ['kitchen_ticket' => $action->kitchenTicket, 'bank_offer' => $this->bankOfferOn($sale)],
+            $sale->toArray() + [
+                'kitchen_ticket' => $action->kitchenTicket,
+                'bank_offer' => $this->bankOfferOn($sale),
+                // The bills of this visit, when it was added to one (Q19 A).
+                'visit' => BillToAddTo::visit($sale),
+            ],
             "Sale {$sale->invoice_number} completed",
         );
     }
@@ -220,6 +226,8 @@ class SaleController extends Controller
 
         return ApiResponse::ok([
             ...$sale->toArray(),
+            // The first bill and the ones added to it (Q19 A).
+            'visit' => BillToAddTo::visit($sale),
             // Whether it may still be voided, and what that would hand back —
             // asked before the sheet offers the button (Q18, B86).
             'void' => $sale->status === SaleStatus::Completed && ! $sale->is_training

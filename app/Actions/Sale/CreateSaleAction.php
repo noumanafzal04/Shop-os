@@ -27,6 +27,7 @@ use App\Services\BankOfferService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
+use App\Support\BillToAddTo;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CashRounding;
@@ -304,6 +305,21 @@ class CreateSaleAction
 
                 if ($training) {
                     $this->assertTrainable($data);
+                }
+
+                // ── ADDED TO A BILL ALREADY PAID (Q19 A) ────────────────
+                //
+                // The paid bill is never touched. This sale names it — the
+                // first bill of the visit — and takes its customer when the
+                // counter named none, so the two are one customer's visit.
+                // Asked here, of every door, and not only of the till's
+                // request: a rule one caller checks is a rule the next skips.
+                $addsTo = empty($data['adds_to_sale_id'])
+                    ? null
+                    : BillToAddTo::firstOf((string) $data['adds_to_sale_id'], $branchId, $training);
+                if ($addsTo !== null && empty($data['customer_phone']) && ! empty($addsTo->customer_phone)) {
+                    $data['customer_phone'] = $addsTo->customer_phone;
+                    $data['customer_name'] = $data['customer_name'] ?? $addsTo->customer_name;
                 }
 
                 // ── Build lines with fresh, locked product data ──────────
@@ -1354,6 +1370,7 @@ class CreateSaleAction
                 $sale = Sale::query()->create([
                     'invoice_number' => $invoiceNumber,
                     'branch_id' => $branchId,
+                    'adds_to_sale_id' => $addsTo?->id,
                     'channel' => $data['channel'],
                     'cash_session_id' => $sessionId,
                     // Which lane rang it. Derived from the shift, never accepted

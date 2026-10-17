@@ -249,6 +249,18 @@ class Sale extends BaseModel
         return $this->hasMany(SaleReturn::class);
     }
 
+    /** The bill this one was added to — the first of the visit (Q19 A). */
+    public function addsTo(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class, 'adds_to_sale_id');
+    }
+
+    /** The bills added to this one, oldest first (Q19 A). */
+    public function additions(): HasMany
+    {
+        return $this->hasMany(Sale::class, 'adds_to_sale_id')->orderBy('created_at')->orderBy('id');
+    }
+
     /** Serialized units (IMEI/serial + warranty) captured on this sale. */
     public function serials(): HasMany
     {
