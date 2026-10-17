@@ -24,6 +24,7 @@ use App\Support\BranchContext;
 use App\Support\Import\ProductSheet;
 use App\Support\ItemTypes;
 use App\Support\LowStock;
+use App\Support\PosProjection;
 use App\Support\ProductCsv;
 use App\Support\RecipeCost;
 use App\Support\ShopTime;
@@ -79,7 +80,7 @@ class ProductController extends Controller
             ->orderByDesc('created_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
-        static::stampBranchFigures($products, $products->items(), $branch->id());
+        static::stampBranchFigures($products, $products->items(), $branch->id(), $branch->scopeId());
 
         return ApiResponse::paginated($products);
     }
@@ -92,10 +93,27 @@ class ProductController extends Controller
      * so the same product tapped from two places on the same screen could answer
      * two different questions about stock. One implementation, two callers.
      *
+     * Two stock figures, because two different questions are asked of one row:
+     *
+     *   `branch_stock`  what the shelf holds at the OPERATING place — the one a
+     *                   till here sells from. On each size, and (B16) on an
+     *                   item without sizes too, which read the shop-wide rollup
+     *                   and so offered stock held at another place. The same
+     *                   figure the offline till holds (PosProjection::stockAt).
+     *   `on_hand`       what the shelf holds where the person is LOOKING: every
+     *                   place in the owner's all-places view, else this one.
+     *                   The stock screens read it, and it asks exactly what
+     *                   their "Out of stock" filter asks (LowStock::soldOut).
+     *                   B16: on "All branches" a design row summed one place's
+     *                   sizes while an item without sizes read every place.
+     *
+     * The two differ only for an owner looking at every place: their till
+     * still sells from Main, while their stock screen shows the whole shop.
+     *
      * @param  iterable<int, Product>  $products
      * @param  array<int, Product>  $rows
      */
-    public static function stampBranchFigures(iterable $products, array $rows, ?string $branchId): void
+    public static function stampBranchFigures(iterable $products, array $rows, ?string $branchId, ?string $scopeId = null): void
     {
         if ($branchId === null) {
             return;
@@ -141,36 +159,35 @@ class ProductController extends Controller
             $p->branch_price = isset($overrides[$p->id]) ? (string) $overrides[$p->id] : null;
         }
 
-        // Per-branch stock for each VARIANT, stamped the same way and for the
-        // same reason.
+        // Per-branch stock, stamped the same way and for the same reason.
         //
-        // `product_variants.stock_quantity` is the tenant-wide rollup — the
-        // shop's total across every branch. A till standing in one branch
-        // that reads it is being told about stock it cannot sell, and the
-        // offline projection already answers this question per branch
-        // (PosProjection::stockAt keys "productId:variantId"). So the same
-        // size read online and offline gave two different numbers, and the
-        // one the size picker needs is this one.
+        // `product_variants.stock_quantity` (and an item's own column) is the
+        // tenant-wide rollup — the shop's total across every branch. A till
+        // standing in one branch that reads it is being told about stock it
+        // cannot sell, and the offline projection already answers this
+        // question per branch (PosProjection::stockAt keys "productId" and
+        // "productId:variantId"). So the same item read online and offline
+        // gave two different numbers, and the one the till needs is this one.
         //
-        // Additive: `branch_stock` alongside the untouched rollup, so the
-        // catalog and inventory screens that legitimately want the shop-wide
-        // figure keep reading what they always read. Same shape as
-        // `branch_price` directly above.
-        $variantStock = BranchStock::query()
-            ->where('branch_id', $branchId)
-            ->whereNotNull('variant_id')
-            ->whereIn('product_id', $ids)
-            ->pluck('quantity', 'variant_id');
+        // Additive: `branch_stock` alongside the untouched rollup. Same shape
+        // as `branch_price` directly above.
+        $here = PosProjection::stockAt($branchId, $ids);
 
         foreach ($products as $p) {
-            if (! $p->relationLoaded('variants')) {
-                continue;
+            $sizes = $p->relationLoaded('variants') ? $p->variants : collect();
+            foreach ($sizes as $v) {
+                $v->branch_stock = (float) ($here["{$p->id}:{$v->id}"] ?? 0);
+                $v->on_hand = $scopeId === null ? (float) $v->stock_quantity : $v->branch_stock;
             }
-            foreach ($p->variants as $v) {
-                $v->branch_stock = (float) ($variantStock[$v->id] ?? 0);
+
+            if ($sizes->isEmpty()) {
+                $p->branch_stock = (float) ($here[$p->id] ?? 0);
+                $p->on_hand = $scopeId === null ? (float) $p->stock_quantity : $p->branch_stock;
+            } else {
+                // A product sold in sizes holds no stock of its own (Product::effectiveStock).
+                $p->on_hand = (float) $sizes->sum('on_hand');
             }
         }
-
     }
 
     public function store(StoreProductRequest $request, CreateProductAction $action): JsonResponse
