@@ -125,15 +125,38 @@ class AnOfflineSaleKeepsThePriceItWasRungAtTest extends TestCase
         $this->assertEquals(1200, (float) Sale::withoutTenancy()->findOrFail($result['sale_id'])->total);
     }
 
-    public function test_a_pack_is_still_priced_by_the_server(): void
+    /**
+     * L20: the till's engine prices a carton now, so a carton rung offline at
+     * 1,150 — and raised to 1,200 while the line was down — keeps the 1,150
+     * the slip said, and twelve singles leave the shelf.
+     */
+    public function test_a_carton_rung_offline_keeps_the_cartons_price(): void
     {
-        // The till's engine has no pack prices; a carton keeps the server's.
-        $carton = $this->other->units()->create(['tenant_id' => $this->tenant->id, 'name' => 'Carton', 'factor' => 12, 'price' => 1150, 'sort_order' => 0]);
+        $carton = $this->other->units()->create(['tenant_id' => $this->tenant->id, 'name' => 'Carton', 'factor' => 12, 'price' => 1200, 'sort_order' => 0]);
 
         $result = $this->sync(['items' => [['product_id' => $this->other->id, 'product_unit_id' => $carton->id, 'quantity' => 1]], 'amount_paid' => 1150],
-            [$this->line($this->other, 100)])->assertOk()->json('data.results.0');
+            [$this->line($this->other, 1150) + ['product_unit_id' => $carton->id]])->assertOk()->json('data.results.0');
 
+        $this->assertSame('applied', $result['status'], json_encode($result));
+        $sale = Sale::withoutTenancy()->findOrFail($result['sale_id']);
+        $this->assertEquals(1150, (float) $sale->total);
+        $this->assertEquals(38, (float) $this->other->fresh()->stock_quantity, 'a carton is twelve');
+        $this->assertStringContainsString('Milkpak 1L (Carton) at 1,150.00 (the price is now 1,200.00)', $sale->offline_violations[0]);
+    }
+
+    public function test_a_singles_price_is_never_taken_for_a_carton_nor_a_cartons_for_a_single(): void
+    {
+        $carton = $this->other->units()->create(['tenant_id' => $this->tenant->id, 'name' => 'Carton', 'factor' => 12, 'price' => 1150, 'sort_order' => 0]);
+
+        // An older till sends the single's price for a carton line.
+        $result = $this->sync(['items' => [['product_id' => $this->other->id, 'product_unit_id' => $carton->id, 'quantity' => 1]], 'amount_paid' => 1150],
+            [$this->line($this->other, 100)])->assertOk()->json('data.results.0');
         $this->assertEquals(1150, (float) Sale::withoutTenancy()->findOrFail($result['sale_id'])->total);
+
+        // …and a carton's price never lands on a single.
+        $result = $this->sync(['items' => [['product_id' => $this->other->id, 'quantity' => 1]], 'amount_paid' => 100],
+            [$this->line($this->other, 1150) + ['product_unit_id' => $carton->id]])->assertOk()->json('data.results.0');
+        $this->assertEquals(100, (float) Sale::withoutTenancy()->findOrFail($result['sale_id'])->total);
     }
 
     public function test_a_till_that_sends_no_prices_is_priced_by_the_server_as_before(): void

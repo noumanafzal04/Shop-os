@@ -327,6 +327,37 @@ class DemoShopsCommandTest extends TestCase
      * checked is what makes it one — stock in it, sizes and all, a transfer on
      * its way to the shop floor, and not one sale, shift or lane to its name.
      */
+    /**
+     * L22 (2026-10-16): the demo put stock on the shelf with no "Opening
+     * stock" line, so an item's history did not add up to what it held —
+     * 477 of 540 in the mart. The app's own ways in write one (L11); the
+     * demo now does too, before anything is sold, bought or counted.
+     */
+    public function test_every_shelf_is_what_its_history_adds_up_to(): void
+    {
+        foreach (['mart', 'clothing', 'fuels'] as $shop) {
+            $this->artisan('demo:shops', ['--only' => $shop, '--sales' => 6])->assertSuccessful();
+            $tenant = Tenant::query()->where('slug', "jtdemo-{$shop}")->firstOrFail();
+
+            $history = DB::table('stock_movements')->where('tenant_id', $tenant->id)
+                ->selectRaw('product_id, variant_id, branch_id, SUM(quantity_change) as held')
+                ->groupBy('product_id', 'variant_id', 'branch_id')->get()
+                ->keyBy(fn ($row) => "{$row->product_id}|{$row->variant_id}|{$row->branch_id}");
+            $shelves = DB::table('branch_stock')->where('tenant_id', $tenant->id)->where('quantity', '!=', 0)->get();
+            $this->assertGreaterThan(20, $shelves->count(), "{$shop}: nothing on the shelves to check");
+
+            $wrong = $shelves->filter(fn ($shelf) => abs((float) ($history["{$shelf->product_id}|{$shelf->variant_id}|{$shelf->branch_id}"]->held ?? 0) - (float) $shelf->quantity) > 0.0005);
+            $this->assertSame(0, $wrong->count(), "{$shop}: {$wrong->count()} of {$shelves->count()} shelves are not what their history adds up to");
+
+            // …and the history starts where the shelf did.
+            $firsts = DB::table('stock_movements')->where('tenant_id', $tenant->id)
+                ->orderBy('created_at')->orderBy('id')->get()
+                ->unique(fn ($row) => "{$row->product_id}|{$row->variant_id}|{$row->branch_id}");
+            $notOpened = $firsts->filter(fn ($row) => $row->type === 'out');
+            $this->assertSame(0, $notOpened->count(), "{$shop}: {$notOpened->count()} histories begin by taking stock out");
+        }
+    }
+
     public function test_the_clothing_brand_has_a_warehouse_that_holds_stock_and_has_never_sold(): void
     {
         $this->artisan('demo:shops', ['--only' => 'clothing', '--sales' => 4])->assertSuccessful();

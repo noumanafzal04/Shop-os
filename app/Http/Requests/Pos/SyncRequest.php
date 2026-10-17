@@ -121,6 +121,9 @@ class SyncRequest extends FormRequest
             'operations.*.till_prices.*' => ['nullable', 'array'],
             'operations.*.till_prices.*.product_id' => ['nullable', 'uuid'],
             'operations.*.till_prices.*.variant_id' => ['nullable', 'uuid'],
+            // The pack the till charged for (L20): a carton's price is the
+            // carton's, and it is kept only on a line sold in that same pack.
+            'operations.*.till_prices.*.product_unit_id' => ['nullable', 'uuid'],
             'operations.*.till_prices.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
         ];
     }

@@ -48,7 +48,7 @@ class TillBillFixturesTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const VERSION = 2;
+    private const VERSION = 3;
 
     private Tenant $tenant;
 
@@ -248,6 +248,27 @@ class TillBillFixturesTest extends TestCase
                 sale: ['payment_method' => 'cash'],
                 group: ['price_level' => 'retail', 'discount_percent' => 5],
                 tradeIn: 3000),
+
+            // ── Packs (L20) ─────────────────────────────────────────
+            $this->bill('a carton with a price of its own, taxed', [
+                ['price' => 100, 'tax_rate' => 17, 'quantity' => 2, 'pack' => ['factor' => 12, 'price' => 1150]],
+            ]),
+
+            $this->bill('a carton with no price is twelve at the sale price', [
+                ['price' => 100, 'discount_price' => 95, 'tax_rate' => 0, 'quantity' => 1, 'pack' => ['factor' => 12, 'price' => null]],
+            ]),
+
+            $this->bill('a quantity tier counts cartons, then the carton is twelve of that rate', [
+                [
+                    'price' => 100, 'tax_rate' => 0, 'quantity' => 2,
+                    'price_tiers' => [['min_qty' => 2, 'price' => 90]],
+                    'pack' => ['factor' => 12, 'price' => null],
+                ],
+            ]),
+
+            $this->bill('a trade member\'s carton is twelve at wholesale', [
+                ['price' => 100, 'wholesale_price' => 80, 'tax_rate' => 0, 'quantity' => 1, 'pack' => ['factor' => 12, 'price' => null]],
+            ], group: ['price_level' => 'wholesale', 'discount_percent' => 0]),
         ];
     }
 
@@ -308,11 +329,22 @@ class TillBillFixturesTest extends TestCase
                 'track_inventory' => false, 'is_active' => true,
             ]);
 
+            // The pack it is sold in, when it is one (L20).
+            $pack = isset($spec['pack'])
+                ? $product->units()->create([
+                    'tenant_id' => $this->tenant->id, 'name' => 'Carton',
+                    'factor' => $spec['pack']['factor'], 'price' => $spec['pack']['price'], 'sort_order' => 0,
+                ])
+                : null;
+
             $line = ['product_id' => $product->id, 'quantity' => $spec['quantity']];
             foreach (['line_discount_pct', 'line_discount', 'price_level'] as $key) {
                 if (isset($spec[$key])) {
                     $line[$key] = $spec[$key];
                 }
+            }
+            if ($pack !== null) {
+                $line['product_unit_id'] = $pack->id;
             }
             $payloadItems[] = $line;
 
@@ -330,6 +362,10 @@ class TillBillFixturesTest extends TestCase
                 // the customer. The till has to arrive at the same level
                 // either way, and say which it used.
                 'price_level' => $spec['price_level'] ?? null,
+                'pack' => $pack === null ? null : [
+                    'price' => $pack->price === null ? null : (float) $pack->price,
+                    'factor' => (float) $pack->factor,
+                ],
             ];
         }
 

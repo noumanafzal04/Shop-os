@@ -663,18 +663,22 @@ class CreateSaleAction
 
                     $unitPrice = round($basePrice + $modifierDelta, 2);
 
+                    // The same product, size AND pack (L20): a carton rung
+                    // offline was charged the carton's price, and a single's
+                    // price is never taken for a carton, nor a carton's for one.
                     $rung = $tillPrices[$itemIndex] ?? null;
                     if (
                         is_array($rung) && isset($rung['unit_price'])
-                        && $askedAmount === null && empty($item['product_unit_id'])
+                        && $askedAmount === null
                         && ($rung['product_id'] ?? null) === $product->id
                         && (($rung['variant_id'] ?? null) ?: null) === ($variant?->id)
+                        && (($rung['product_unit_id'] ?? null) ?: null) === ($unit?->id)
                     ) {
                         $rungAt = round((float) $rung['unit_price'], 2);
                         if (abs($rungAt - $unitPrice) > 0.004) {
                             $offlinePriceNotes[] = sprintf(
                                 'Sold at the till\'s price while offline: %s at %s (the price is now %s) × %s — recorded as charged.',
-                                $product->name.($variant !== null ? " ({$variant->name})" : ''),
+                                $product->name.($variant !== null ? " ({$variant->name})" : '').($unit !== null ? " ({$unit->name})" : ''),
                                 number_format($rungAt, 2),
                                 number_format($unitPrice, 2),
                                 rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.'),

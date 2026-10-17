@@ -403,6 +403,8 @@ class SeedLoadTestShops extends Command
         $this->staff($tenant, $branches);
         $categories = $this->categories($tenant, $type);
         $productIds = $this->catalogue($tenant, $type, $categories, $spec, $branches);
+        // Before anything is sold, bought or counted: see `openingStock`.
+        $this->openingStock($tenant, $owner);
         $this->furnish($tenant, $type, $owner, $branches);
         if (! empty($spec['dining'])) {
             $this->diningRoom($tenant, $branches, $productIds);
@@ -1377,6 +1379,54 @@ class SeedLoadTestShops extends Command
         }
     }
 
+    /**
+     * WHAT THE SHELVES HELD WHEN THE SHOP OPENED — in their history (L22).
+     *
+     * The catalogue is written straight into `branch_stock`, a thousand rows
+     * at a time, and that wrote no stock history: a demo item's movements
+     * added up to its sales and nothing else, and 966 of the mart's 1,012
+     * shelves did not come to what they held. Every way into the app writes an
+     * opening line (`OpeningShelf`, L11); this writes the same one — an `in`,
+     * "Opening stock", referenced `opening` — for every shelf that has stock
+     * and no history yet. Called before the first sale, receipt or count, so
+     * the opening is what was put there, and dated before the ninety days of
+     * trading so a history reads from the top.
+     */
+    private function openingStock(Tenant $tenant, User $owner): void
+    {
+        $when = now()->subDays(91)->setTime(8, 0);
+        $begun = DB::table('stock_movements')->where('tenant_id', $tenant->id)
+            ->select('product_id', 'variant_id', 'branch_id')->distinct()->get()
+            ->mapWithKeys(fn ($row) => ["{$row->product_id}|{$row->variant_id}|{$row->branch_id}" => true]);
+
+        $rows = [];
+        foreach (DB::table('branch_stock')->where('tenant_id', $tenant->id)->where('quantity', '>', 0)->orderBy('id')->cursor() as $shelf) {
+            if (isset($begun["{$shelf->product_id}|{$shelf->variant_id}|{$shelf->branch_id}"])) {
+                continue;
+            }
+            $rows[] = [
+                'id' => (string) Str::uuid7(),
+                'tenant_id' => $tenant->id,
+                'branch_id' => $shelf->branch_id,
+                'product_id' => $shelf->product_id,
+                'variant_id' => $shelf->variant_id,
+                'type' => 'in',
+                'quantity_change' => $shelf->quantity,
+                'quantity_after' => $shelf->quantity,
+                'reason' => 'Opening stock',
+                'reference_type' => 'opening',
+                'reference_id' => $shelf->product_id,
+                'created_by' => $owner->id,
+                'created_at' => $when,
+                'updated_at' => $when,
+            ];
+        }
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('stock_movements')->insert($chunk);
+        }
+    }
+
     private function flush(array &$products, array &$variants, array &$stock, array &$batches): void
     {
         foreach ([['products', &$products], ['product_variants', &$variants], ['branch_stock', &$stock], ['product_batches', &$batches]] as [$table, $rows]) {
@@ -1693,6 +1743,8 @@ class SeedLoadTestShops extends Command
                 'UPDATE products SET stock_quantity = COALESCE((SELECT SUM(bs.quantity) FROM branch_stock bs WHERE bs.product_id = products.id), 0) WHERE tenant_id = ?',
                 [$tenant->id],
             );
+            // The tanks' first fill, in their history, before the first litre is sold.
+            $this->openingStock($tenant, $owner);
 
             for ($d = 14; $d >= 8; $d--) {
                 $date = now()->subDays($d)->setTime(6, 0);

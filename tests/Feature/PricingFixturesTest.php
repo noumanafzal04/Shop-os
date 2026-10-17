@@ -52,7 +52,7 @@ class PricingFixturesTest extends TestCase
     use RefreshDatabase;
 
     /** Bumped when the fixture SHAPE changes, so a stale copy is obvious. */
-    private const VERSION = 2;
+    private const VERSION = 3;
 
     private Tenant $tenant;
 
@@ -396,6 +396,40 @@ class PricingFixturesTest extends TestCase
             $this->cart('a switched-OFF promotion changes nothing', [
                 ['price' => 500, 'tax_rate' => 0, 'quantity' => 2],
             ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'order', 'is_active' => false]]),
+
+            // ── Packs (L20) ─────────────────────────────────────────
+            //
+            // The till's engine read no pack at all: a carton of twelve rung
+            // offline was priced and printed as one single.
+            $this->cart('a carton with a price of its own', [
+                ['price' => 100, 'tax_rate' => 17, 'quantity' => 2, 'pack' => ['factor' => 12, 'price' => 1150]],
+            ]),
+
+            $this->cart('a carton with no price is twelve at the sale price', [
+                ['price' => 100, 'discount_price' => 95, 'tax_rate' => 0, 'quantity' => 1, 'pack' => ['factor' => 12, 'price' => null]],
+            ]),
+
+            $this->cart('a part pack is rounded as the server rounds it', [
+                // 10.01 × 2.5 = 25.025: PHP rounds it up, naive JavaScript down.
+                ['price' => 10.01, 'tax_rate' => 0, 'quantity' => 3, 'pack' => ['factor' => 2.5, 'price' => null]],
+            ]),
+
+            $this->cart('a wholesale carton', [
+                ['price' => 100, 'wholesale_price' => 80, 'tax_rate' => 0, 'quantity' => 2, 'price_level' => 'wholesale', 'pack' => ['factor' => 6, 'price' => null]],
+            ]),
+
+            $this->cart('a carton beside a single of the same kind of item', [
+                ['price' => 100, 'tax_rate' => 0, 'quantity' => 1, 'pack' => ['factor' => 12, 'price' => 1150]],
+                ['price' => 100, 'tax_rate' => 0, 'quantity' => 3],
+            ], [], [], [['type' => 'percent', 'value' => 10, 'scope' => 'order']]),
+
+            $this->cart('a quantity tier counts cartons, then the carton is twelve of that rate', [
+                [
+                    'price' => 100, 'tax_rate' => 0, 'quantity' => 2,
+                    'price_tiers' => [['min_qty' => 2, 'price' => 90]],
+                    'pack' => ['factor' => 12, 'price' => null],
+                ],
+            ]),
         ];
     }
 
@@ -464,6 +498,14 @@ class PricingFixturesTest extends TestCase
             ]);
             $products[] = $product;
 
+            // The pack it is sold in, when it is one — a strip, a box, a carton.
+            $pack = isset($spec['pack'])
+                ? $product->units()->create([
+                    'tenant_id' => $this->tenant->id, 'name' => 'Carton',
+                    'factor' => $spec['pack']['factor'], 'price' => $spec['pack']['price'], 'sort_order' => 0,
+                ])
+                : null;
+
             // A line names a quantity OR the money that buys it. The second
             // is how a forecourt sells: the customer hands over two thousand
             // rupees and the litres are whatever that buys. The server derives
@@ -485,6 +527,9 @@ class PricingFixturesTest extends TestCase
             }
             if (isset($spec['price_level'])) {
                 $line['price_level'] = $spec['price_level'];
+            }
+            if ($pack !== null) {
+                $line['product_unit_id'] = $pack->id;
             }
             $payloadItems[] = $line;
 
@@ -517,6 +562,11 @@ class PricingFixturesTest extends TestCase
                 'price_level' => $spec['price_level'] ?? 'retail',
                 'line_discount_pct' => isset($spec['line_discount_pct']) ? (float) $spec['line_discount_pct'] : null,
                 'line_discount' => isset($spec['line_discount']) ? (float) $spec['line_discount'] : null,
+                // As the till's projection carries it (`PosProjection` units).
+                'pack' => $pack === null ? null : [
+                    'price' => $pack->price === null ? null : (float) $pack->price,
+                    'factor' => (float) $pack->factor,
+                ],
             ];
         }
 
