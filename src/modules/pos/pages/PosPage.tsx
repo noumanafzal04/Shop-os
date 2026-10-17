@@ -31,6 +31,7 @@ import { billKey, serverDueFrom } from "../tenderRecovery";
 import { completeOffline, linesFromCatalog, OfflineRefused, promotionLocally } from "../../offline/outbox/offlineCheckout";
 import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
 import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
+import { settledLines } from "../saleComplete";
 import { queueTally } from "../../offline/db/repo";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
@@ -4841,7 +4842,7 @@ export default function PosPage() {
           <div className="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={tenderModal.closeModal}>Cancel</Button>
             <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
-              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(payable)}`}
+              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(Math.max(0, payable - bankDiscount))}`}
             </Button>
           </div>
         </div>
@@ -5187,8 +5188,16 @@ export default function PosPage() {
             </p>
             <div className="my-4 space-y-1 border-y border-gray-100 py-3 text-sm dark:border-gray-800">
               <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-bold">{money(lastSale.total)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Paid</span><span>{money(lastSale.amount_paid)}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Change</span><span>{money(lastSale.change_due)}</span></div>
+              {/* How it was settled — khata is owed, not paid (B18); a bank
+                  offer is named beside what the customer paid (B28). */}
+              {settledLines(lastSale).map((l) => (
+                <div key={l.label} data-settled-line className="flex justify-between">
+                  <span className="text-gray-500">{l.label}</span>
+                  <span className={l.amount < 0 ? "text-success-600 dark:text-success-500" : undefined}>
+                    {l.amount < 0 ? `−${money(-l.amount)}` : money(l.amount)}
+                  </span>
+                </div>
+              ))}
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="flex-1" disabled={printing}

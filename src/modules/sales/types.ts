@@ -106,6 +106,15 @@ export interface Sale {
   serials?: SaleSerial[];
   /** On one sale's sheet: whether it may still be voided, and what that hands back. Null once it is not a completed sale. */
   void?: SaleVoid | null;
+  /** On the answer to ringing it: the bank offer that paid part of it (B28). */
+  bank_offer?: BankOfferOnSale | null;
+}
+
+/** A bank offer named on a sale it paid part of. */
+export interface BankOfferOnSale {
+  label: string;
+  bank: string | null;
+  discount: number;
 }
 
 /**

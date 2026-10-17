@@ -158,8 +158,8 @@ test("a shift from float to count: every drawer control lands where it says", as
   expect(await line("Change given"), "change given").toBe(44);
   expect(await line("Cash sales"), "cash sales").toBe(4956);
   expect(await line("Opening float"), "opening float").toBe(2000);
-  expect(await line("Cash in (paid in, float)"), "cash in").toBe(1300);
-  expect(await line("Cash out (pay-outs, drops)"), "cash out").toBe(1300);
+  expect(await line("Cash in (Paid in, Float added)"), "cash in, named by what came in").toBe(1300);
+  expect(await line("Cash out (Paid out, Safe drop)"), "cash out, named by what went out").toBe(1300);
   expect(await line("Expected cash"), "the sum's own last line").toBe(6956);
   expect(
     rupees(await sheet.getByText("Sales total", { exact: true }).locator("xpath=following-sibling::p").innerText()),

@@ -98,6 +98,8 @@ export interface SaleDocument {
   held_as?: { id: string; number: string; status?: DocumentStatus } | null;
   /** Server-derived — never recomputed here, so the rules live in one place. */
   balance?: number;
+  /** What was taken when it was billed (B25) — null until then, or when the advances paid it all. */
+  handover?: { invoice_number: string; paid_at: string | null; amount: number; methods: string[] } | null;
   has_lapsed?: boolean;
 }
 

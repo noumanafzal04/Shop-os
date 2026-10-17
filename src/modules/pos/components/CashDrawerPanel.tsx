@@ -12,6 +12,7 @@ import { useCashMovementMutation, useSessionReport } from "../hooks/usePos";
 import type { CashMovement, ManualMovementType } from "../services/posService";
 import { INLINE_DISMISS } from "../../../components/ui/modal/closeButton";
 import { shopShortDateTime } from "../../../common/format/date";
+import { chainLabel, humanize, movementName } from "../drawerWords";
 
 /**
  * The X-read, in the cashier's words: what this drawer should hold RIGHT NOW,
@@ -36,23 +37,6 @@ interface Props {
   coveringFor?: string | null;
 }
 
-/** The counter's vocabulary, not accounting's. System types included — the
- *  drawer shows them even though the till can never post them. */
-const MOVEMENT_LABEL: Record<string, string> = {
-  paid_in: "Paid in",
-  paid_out: "Paid out",
-  drop: "Safe drop",
-  float_add: "Float added",
-  no_sale: "No sale",
-  khata_in: "Khata received",
-  supplier_out: "Supplier paid",
-  expense_out: "Expense paid",
-  void_refund: "Void refund",
-  deposit_in: "Advance taken",
-  deposit_out: "Advance returned",
-  rider_in: "Rider handed in",
-};
-
 const TENDER_LABEL: Record<string, string> = {
   cash: "Cash",
   card: "Card",
@@ -65,8 +49,6 @@ const TENDER_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-/** Fallback for a type the server knows and this build doesn't. */
-const humanize = (key: string) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 interface ActionSpec {
   type: ManualMovementType;
@@ -420,8 +402,8 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
                     </div>
                     {[
                       { sign: "+", label: "Opening float", value: session.opening_float },
-                      { sign: "+", label: "Cash in (paid in, float)", value: drawer.cash_in },
-                      { sign: "−", label: "Cash out (pay-outs, drops)", value: drawer.cash_out },
+                      { sign: "+", label: chainLabel(movements, "in"), value: drawer.cash_in },
+                      { sign: "−", label: chainLabel(movements, "out"), value: drawer.cash_out },
                     ].map((r) => (
                       <div key={r.label} className="flex items-center justify-between gap-3">
                         <dt className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
@@ -571,7 +553,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">
-                            {MOVEMENT_LABEL[m.type] ?? humanize(m.type)}
+                            {movementName(m.type)}
                           </span>
                           <DirectionPill direction={m.direction} />
                         </div>
