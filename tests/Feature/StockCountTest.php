@@ -122,6 +122,24 @@ class StockCountTest extends TestCase
         $this->assertSame(1, $count['lines_total']);
     }
 
+    public function test_a_category_is_counted_with_everything_filed_under_it(): void
+    {
+        // B15: shirts live under Men → Shirts; "count Men" found nothing.
+        $men = Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Men']);
+        $shirts = Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Shirts', 'parent_id' => $men->id]);
+        $formal = Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Formal', 'parent_id' => $shirts->id]);
+        $women = Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Women']);
+        $this->product('Cotton Shirt', stock: 12, cost: 900, category: $shirts);
+        $this->product('Dress Shirt', stock: 4, cost: 1500, category: $formal);
+        $this->product('Lawn Suit', stock: 9, cost: 2000, category: $women);
+
+        $all = $this->start(['scope' => 'category', 'category_id' => $men->id]);
+        $this->assertSame(2, $all['lines_total'], 'every shirt under Men, two levels down too — and nothing of Women');
+
+        $this->actingAsUser($this->owner)->deleteJson("/api/v1/inventory/counts/{$all['id']}")->assertOk();
+        $this->assertSame(1, $this->start(['scope' => 'category', 'category_id' => $formal->id])['lines_total'], 'a leaf is only itself');
+    }
+
     public function test_a_scope_with_nothing_in_it_is_refused_rather_than_opened_empty(): void
     {
         $empty = Category::withoutTenancy()->create(['tenant_id' => $this->shop->id, 'name' => 'Frozen']);

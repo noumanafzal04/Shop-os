@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Exceptions\DomainException;
 use App\Models\Branch;
 use App\Models\BranchStock;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
@@ -66,7 +67,9 @@ class StartStockCountAction
 
             if ($lines === 0) {
                 throw DomainException::unprocessable(
-                    'Nothing to count — no stock-tracked items match that scope.',
+                    $count->scope === 'category'
+                        ? 'Nothing to count — no stock-tracked items are filed under that category or the ones inside it.'
+                        : 'Nothing to count — no stock-tracked items match that scope.',
                     'STOCK_COUNT_EMPTY',
                 );
             }
@@ -87,9 +90,10 @@ class StartStockCountAction
             ->where('type', ItemType::Product)
             ->where('track_inventory', true)
             ->where('is_active', true)
+            // A category is counted with everything filed under it (B15).
             ->when(
                 $count->scope === 'category' && $count->category_id !== null,
-                fn ($q) => $q->where('category_id', $count->category_id),
+                fn ($q) => $q->whereIn('category_id', Category::selfAndBelow($count->category_id)),
             )
             ->with('variants:id,product_id,name,sku,stock_quantity')
             ->orderBy('name')
