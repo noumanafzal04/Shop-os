@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\SaleStatus;
+use App\Models\Sale;
 use App\Models\SaleReturn;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -77,6 +78,42 @@ final class Takings
      * to it. A screen that adopts the first half and not the second overstates
      * every day a customer came back.
      */
+    /**
+     * WHAT A SALE TOOK, AND WHAT A RETURN HANDED BACK — an exchange taken off
+     * both (B21).
+     *
+     * An exchange is goods back and goods out in one step, the value of what
+     * came back paying for the replacement. Counted whole on both sides, a
+     * shirt swapped for a dearer one read as 2,000 refunded and 2,500 sold,
+     * where 500 came in and nothing went out. The credit that paid for the
+     * replacement is kept on both rows (`exchange_credit`) and taken off both
+     * here. The net is unchanged, and both halves fall on the same day at the
+     * same place — so, unlike netting a refund off its sale, no closed day is
+     * rewritten.
+     *
+     * As SQL for a sum (`$table` for a query that joins), and per row for a
+     * collection already fetched with the column.
+     */
+    public static function takenSql(string $table = 'sales'): string
+    {
+        return "{$table}.total - {$table}.exchange_credit";
+    }
+
+    public static function handedBackSql(string $table = 'sale_returns'): string
+    {
+        return "{$table}.refund_total - {$table}.exchange_credit";
+    }
+
+    public static function taken(Sale $sale): float
+    {
+        return (float) $sale->total - (float) $sale->exchange_credit;
+    }
+
+    public static function handedBack(SaleReturn $return): float
+    {
+        return (float) $return->refund_total - (float) $return->exchange_credit;
+    }
+
     public static function refunds(string $tenantId, ?string $branchId): Builder
     {
         return SaleReturn::withoutTenancy()

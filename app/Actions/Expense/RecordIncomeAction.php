@@ -50,8 +50,9 @@ class RecordIncomeAction
                     'source_id' => $income->id,
                 ]);
 
+                // At the drawer's place, as an expense is (B24).
                 if ($movement !== null) {
-                    $income->forceFill(['cash_movement_id' => $movement->id])->save();
+                    $income->forceFill(['cash_movement_id' => $movement->id, 'branch_id' => $movement->branch_id])->save();
                 }
             }
 

@@ -72,8 +72,11 @@ class RecordExpenseAction
                     'source_id' => $expense->id,
                 ]);
 
+                // Filed at the drawer's place, not the screen's (B24): the
+                // owner looking at Main while their open drawer is at the
+                // Outlet paid this out of the Outlet till.
                 if ($movement !== null) {
-                    $expense->forceFill(['cash_movement_id' => $movement->id])->save();
+                    $expense->forceFill(['cash_movement_id' => $movement->id, 'branch_id' => $movement->branch_id])->save();
                 }
             }
 

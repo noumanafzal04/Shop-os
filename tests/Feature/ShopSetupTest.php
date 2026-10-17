@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Branch;
 use App\Models\City;
 use App\Models\Tenant;
 use App\Models\User;
@@ -56,6 +57,33 @@ class ShopSetupTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('data.setup_completed', true)
             ->assertJsonPath('data.city.name', 'Karachi');
+    }
+
+    public function test_main_is_placed_where_the_shop_is(): void
+    {
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/setup', [
+            'city_id' => $this->city->id, 'address' => 'Shop 4, Tariq Road',
+        ])->assertOk();
+
+        // B23: Main was made before anyone said where the shop is, and stayed with no city.
+        $main = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)->where('is_default', true)->sole();
+        $this->assertSame($this->city->id, $main->city_id);
+        $this->assertSame('Shop 4, Tariq Road', $main->address);
+    }
+
+    public function test_a_main_the_owner_already_described_keeps_their_words(): void
+    {
+        $lahore = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+        Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)->where('is_default', true)
+            ->update(['city_id' => $lahore->id, 'address' => 'Main Boulevard']);
+
+        $this->actingAsUser($this->owner)->putJson('/api/v1/shop/setup', [
+            'city_id' => $this->city->id, 'address' => 'Shop 4, Tariq Road',
+        ])->assertOk();
+
+        $main = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)->where('is_default', true)->sole();
+        $this->assertSame($lahore->id, $main->city_id);
+        $this->assertSame('Main Boulevard', $main->address);
     }
 
     public function test_setup_requires_city(): void

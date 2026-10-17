@@ -16,6 +16,7 @@ use App\Models\PurchaseOrder;
 use App\Support\ApiResponse;
 use App\Support\Retention;
 use App\Support\ShopDay;
+use App\Support\StockPlace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -84,21 +85,41 @@ class PurchaseOrderController extends Controller
         return ApiResponse::created($result['orders'], $message);
     }
 
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
-        return ApiResponse::ok(
-            // Expose each line's product serialization/expiry flags so the
-            // Receive dialog can prompt for serials (serialized goods) and a
-            // batch/expiry (medicines) on the right lines only.
-            PurchaseOrder::query()
-                ->with([
-                    'supplier', 'items.product:id,tracks_serial,item_type', 'payments', 'deliverTo:id,name,kind',
-                    // Its payment history: when, how much of this order, and how.
-                    'allocations' => fn ($q) => $q->oldest(),
-                    'allocations.payment:id,amount,method,reference,paid_at,notes',
-                ])
-                ->findOrFail($id),
-        );
+        // Expose each line's product serialization/expiry flags so the
+        // Receive dialog can prompt for serials (serialized goods) and a
+        // batch/expiry (medicines) on the right lines only.
+        $po = PurchaseOrder::query()
+            ->with([
+                'supplier', 'items.product:id,tracks_serial,item_type', 'payments', 'deliverTo:id,name,kind,is_active',
+                // Its payment history: when, how much of this order, and how.
+                'allocations' => fn ($q) => $q->oldest(),
+                'allocations.payment:id,amount,method,reference,paid_at,notes',
+            ])
+            ->findOrFail($id);
+
+        return ApiResponse::ok($po->toArray() + ['can' => ['receive' => $this->mayReceive($po, $request->user())]]);
+    }
+
+    /**
+     * Whether THIS person may take this delivery in (B35).
+     *
+     * A keeper pinned to the shop was offered "Receive all" on an order
+     * addressed to the godown, and pressed it, and was refused. The rule is
+     * `StockPlace`'s, asked of the place the delivery would land in — the
+     * order's address while that place is open, else where the receiver
+     * stands, which is always theirs (see `receive`).
+     */
+    private function mayReceive(PurchaseOrder $po, mixed $user): bool
+    {
+        if (! in_array($po->status, [PurchaseStatus::Ordered, PurchaseStatus::PartiallyReceived], true)) {
+            return false;
+        }
+
+        $address = $po->deliverTo;
+
+        return $address === null || ! $address->is_active || StockPlace::mayActAt($user, $address->id);
     }
 
     /** Move a draft to ordered (so goods can be received). */

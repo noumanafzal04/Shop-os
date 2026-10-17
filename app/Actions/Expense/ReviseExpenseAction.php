@@ -82,7 +82,7 @@ class ReviseExpenseAction
                 ]);
 
                 if ($created !== null) {
-                    $expense->forceFill(['cash_movement_id' => $created->id])->save();
+                    $expense->forceFill(['cash_movement_id' => $created->id, 'branch_id' => $created->branch_id])->save();
                 } else {
                     $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice, 'Changed to cash');
                 }

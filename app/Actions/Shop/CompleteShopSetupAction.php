@@ -2,6 +2,7 @@
 
 namespace App\Actions\Shop;
 
+use App\Models\Branch;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
@@ -31,6 +32,20 @@ class CompleteShopSetupAction
 
             $tenant->setup_completed = true;
             $tenant->save();
+
+            // MAIN IS WHERE THE SHOP IS (B23). It was made the moment the
+            // shop row was, before anyone said where that is, and stayed with
+            // no city. Only what it lacks is filled: a Main the owner has
+            // already described keeps their words.
+            $main = Branch::withoutTenancy()->where('tenant_id', $tenant->id)->where('is_default', true)->first();
+            if ($main !== null) {
+                foreach (['city_id', 'address', 'latitude', 'longitude'] as $field) {
+                    if ($main->{$field} === null && $tenant->{$field} !== null) {
+                        $main->{$field} = $tenant->{$field};
+                    }
+                }
+                $main->save();
+            }
 
             // The currency, where the setup form asked. A business that has
             // already traded keeps the one it has — and is told why.

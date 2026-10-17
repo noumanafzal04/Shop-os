@@ -85,6 +85,17 @@ class ProcessExchangeAction
                 'exchange_credit' => $credit,
             ]);
 
+            // WHAT THE CREDIT PAID FOR, kept on both halves (B21). Taken off
+            // the refunds and off the takings alike, so the day reads as the
+            // difference that changed hands, not as a refund and a new sale.
+            // The rest of a credit bigger than the replacement went back over
+            // the counter, and stays a refund.
+            $used = round(min($credit, (float) $newSale->total), 2);
+            DB::table('sale_returns')->where('id', $return->id)->update(['exchange_credit' => $used]);
+            DB::table('sales')->where('id', $newSale->id)->update(['exchange_credit' => $used]);
+            $return->setAttribute('exchange_credit', $used);
+            $newSale->setAttribute('exchange_credit', $used);
+
             return [
                 'return' => $return->load('items'),
                 'sale' => $newSale,

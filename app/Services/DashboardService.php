@@ -542,7 +542,7 @@ class DashboardService
             ->whereBetween('sold_at', [$from, $until])
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->selectRaw(
-                "{$day} as day, COUNT(*) as sales_count, COALESCE(SUM(total), 0) as revenue,"
+                "{$day} as day, COUNT(*) as sales_count, COALESCE(SUM(".Takings::takenSql().'), 0) as revenue,'
                 // A walk-in has no customer row, so the sale's own id stands in
                 // for "one anonymous buyer" — collapsing every walk-in of the
                 // day into a single customer would be a lie.
@@ -627,7 +627,7 @@ class DashboardService
             ->where('tenant_id', $tenant->id)
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->whereBetween('returned_at', [$from, $until])
-            ->selectRaw("{$day} as day, COALESCE(SUM(refund_total), 0) as total")
+            ->selectRaw("{$day} as day, COALESCE(SUM(".Takings::handedBackSql().'), 0) as total')
             ->groupByRaw($day)
             ->toBase()
             ->get()

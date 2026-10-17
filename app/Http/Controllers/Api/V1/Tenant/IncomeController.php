@@ -130,7 +130,7 @@ class IncomeController extends Controller
             ]);
 
             if ($created !== null) {
-                $income->forceFill(['cash_movement_id' => $created->id])->save();
+                $income->forceFill(['cash_movement_id' => $created->id, 'branch_id' => $created->branch_id])->save();
             } else {
                 $warnings[] = BooksDrawer::untouchedDrawerWarning($request->user(), $practice, 'Changed to cash');
             }

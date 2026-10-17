@@ -431,6 +431,30 @@ class AWarehouseIsAPlaceTest extends TestCase
         $this->assertEqualsWithDelta(60, $this->onHand($rice, $this->godown), 0.001);
     }
 
+    public function test_a_keeper_is_offered_receive_only_on_an_order_they_may_take_in(): void
+    {
+        $rice = $this->product();
+        $keeper = User::factory()->tenantStaff($this->tenant, [Permissions::PURCHASES_MANAGE, Permissions::INVENTORY_MANAGE])->create();
+        $forShop = $this->orderFor($rice, 10);
+        $this->as($this->owner)->putJson("/api/v1/branches/{$this->godown->id}", ['takes_deliveries' => true])->assertOk();
+        $forGodown = $this->orderFor($rice, 60);
+        $this->assertSame($this->godown->id, $forGodown['deliver_to_branch_id']);
+        $mayReceive = fn (User $who, array $po): bool => $this->as($who)->getJson("/api/v1/purchase-orders/{$po['id']}")
+            ->assertOk()->json('data.can.receive');
+
+        // B35: pinned to Main, they were offered "Receive all" on the godown's order and refused.
+        $this->assertTrue($mayReceive($keeper, $forShop));
+        $this->assertFalse($mayReceive($keeper, $forGodown));
+        $this->assertTrue($mayReceive($this->owner, $forGodown));
+
+        $keeper->forceFill(['permissions' => [Permissions::PURCHASES_MANAGE, Permissions::INVENTORY_MANAGE, Permissions::INVENTORY_ANY_PLACE]])->save();
+        $this->assertTrue($mayReceive($keeper, $forGodown));
+
+        // Taken in: nothing left to receive, for anybody.
+        $this->as($this->owner)->postJson("/api/v1/purchase-orders/{$forShop['id']}/receive", [])->assertOk();
+        $this->assertFalse($mayReceive($this->owner, $forShop));
+    }
+
     /**
      * Opening stock goes where its maker is standing.
      *

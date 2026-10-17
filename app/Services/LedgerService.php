@@ -372,7 +372,8 @@ class LedgerService
                 .' sales.sold_at as sort_at, sales.invoice_number as reference,'
                 ."  COALESCE(sales.customer_name, 'Counter sale') as description, 'Sales' as category,"
                 .' NULL as category_id, sales.payment_method as method,'
-                .' sales.total as amount_in, 0 as amount_out',
+                // An exchange's credit off both rows (B21) — see Takings.
+                .' '.Takings::takenSql().' as amount_in, 0 as amount_out',
             );
 
         return $this->window($q, 'sales.sold_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));
@@ -388,7 +389,7 @@ class LedgerService
                 .' sale_returns.returned_at as sort_at, sale_returns.return_number as reference,'
                 ."  COALESCE(sale_returns.reason, 'Refund') as description, 'Refunds' as category,"
                 .' NULL as category_id, sale_returns.refund_method as method,'
-                .' 0 as amount_in, sale_returns.refund_total as amount_out',
+                .' 0 as amount_in, '.Takings::handedBackSql().' as amount_out',
             );
 
         return $this->window($q, 'sale_returns.returned_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));

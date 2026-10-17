@@ -119,7 +119,8 @@ class ReportService
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
 
         $salesCount = (clone $completedSales)->count();
-        $revenue = (float) (clone $completedSales)->sum('total');
+        // An exchange's credit off both sides (B21) — see Takings.
+        $revenue = (float) (clone $completedSales)->sum(DB::raw(Takings::takenSql()));
 
         // A line has no branch of its own; it inherits the sale's.
         $cogs = (float) SaleItem::query()
@@ -161,7 +162,7 @@ class ReportService
         // reduces, and both profits subtract it.
         $refunds = (float) Takings::refunds($tenantId, $branchId)
             ->whereBetween('returned_at', [$fromStart, $toEnd])
-            ->sum('refund_total');
+            ->sum(DB::raw(Takings::handedBackSql()));
 
         // The goods came back on the shelf, so their cost is no longer a cost
         // of anything sold. Taken off the SALE line's own snapshot cost, which
@@ -239,9 +240,9 @@ class ReportService
             ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['sold_at', 'total', 'tax'])
+            ->get(['sold_at', 'total', 'exchange_credit', 'tax'])
             ->groupBy(fn (Sale $s) => $bucket($s->sold_at));
-        $revenueByBucket = $salesByBucket->map(fn (Collection $sales) => round((float) $sales->sum('total'), 2));
+        $revenueByBucket = $salesByBucket->map(fn (Collection $sales) => round((float) $sales->sum(fn (Sale $s) => Takings::taken($s)), 2));
         $taxByBucket = $salesByBucket->map(fn (Collection $sales) => (float) $sales->sum('tax'));
 
         // The rest of what the headline profit takes off, a bucket at a time —
@@ -260,7 +261,7 @@ class ReportService
 
         $returnsByBucket = Takings::refunds($tenantId, $branchId)
             ->whereBetween('returned_at', [$fromStart, $toEnd])
-            ->get(['returned_at', 'refund_total', 'refund_tax'])
+            ->get(['returned_at', 'refund_total', 'exchange_credit', 'refund_tax'])
             ->groupBy(fn (SaleReturn $r) => $bucket($r->returned_at));
 
         $returnedCostByBucket = SaleReturnItem::query()
@@ -305,7 +306,7 @@ class ReportService
             $expenses = $expensesByBucket[$key] ?? 0.0;
             $otherIncome = $incomeByBucket[$key] ?? 0.0;
             $returns = $returnsByBucket[$key] ?? collect();
-            $refunds = round((float) $returns->sum('refund_total'), 2);
+            $refunds = round((float) $returns->sum(fn (SaleReturn $r) => Takings::handedBack($r)), 2);
             $tax = round(($taxByBucket[$key] ?? 0.0) - (float) $returns->sum('refund_tax'), 2);
             $cogs = round(($cogsByBucket[$key] ?? 0.0) - ($returnedCostByBucket[$key] ?? 0.0), 2);
             $buckets[] = [
@@ -737,9 +738,9 @@ class ReportService
             ->whereIn('status', $liveSales)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['sold_at', 'total'])
+            ->get(['sold_at', 'total', 'exchange_credit'])
             ->groupBy(fn (Sale $s) => $bucket($s->sold_at))
-            ->map(fn (Collection $r) => round((float) $r->sum('total'), 2));
+            ->map(fn (Collection $r) => round((float) $r->sum(fn (Sale $s) => Takings::taken($s)), 2));
 
         $incomeByBucket = Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
@@ -761,9 +762,9 @@ class ReportService
             ->where('tenant_id', $tenantId)
             ->whereBetween('returned_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['returned_at', 'refund_total'])
+            ->get(['returned_at', 'refund_total', 'exchange_credit'])
             ->groupBy(fn (SaleReturn $r) => $bucket($r->returned_at))
-            ->map(fn (Collection $r) => round((float) $r->sum('refund_total'), 2));
+            ->map(fn (Collection $r) => round((float) $r->sum(fn (SaleReturn $x) => Takings::handedBack($x)), 2));
 
         // Paying the wholesaler. Counted as its own source rather than as an
         // Expense: fabricating one would double-count the day a shop also files
