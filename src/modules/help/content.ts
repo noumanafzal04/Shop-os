@@ -1316,6 +1316,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     body: [
       { type: "p", text: "A shift close counts one drawer. This counts the day, across every drawer in the shop, and records what was deposited." },
       { type: "note", text: "Anyone at the till can read the day. Closing it off is a manager's job." },
+      { type: "p", text: "Rung up is every sale of the day at this counter — including the ones no drawer took, such as an order paid on the doorstep or a sale made with no shift open. Those are counted under the figure (\"2 not at a counter\") and never in what the drawers should hold." },
       { type: "p", text: "Collected on khata lists what customers paid today against earlier credit sales, at this counter: who paid, how (cash, transfer, card, wallet), when, and who took it. It is not a sale and is not added to Rung up — the credit sale was counted on its own day. Cash ones are already in \"In the drawers\". Only people who keep the customer book see this list." },
       { type: "p", text: "A deposit you record goes against the day the counter is trading — the one shown at the top of this screen. If last night was never closed off, you will see more than one day still open; the money still lands on today, and last night stays open until someone signs it off." },
       { type: "h", text: "With more than one shop" },

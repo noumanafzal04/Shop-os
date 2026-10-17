@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { rungUpHint } from "../rungUpHint";
 import { useOnceKey } from "../../../common/onceKey";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -405,7 +406,7 @@ export default function DayPage() {
                   <Stat
                     label="Rung up"
                     value={money(running!.sales_total)}
-                    hint={`${running!.sales_count} sale${running!.sales_count === 1 ? "" : "s"}`}
+                    hint={rungUpHint(running!)}
                     tone="accent"
                   />
                   <Stat label="Cash takings" value={money(running!.cash_sales)} hint="Excludes card and account" />

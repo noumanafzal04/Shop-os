@@ -130,6 +130,8 @@ export interface DayView {
     /** Closed shifts only — an open drawer has not been counted yet. */
     counted_cash: number;
     variance: number;
+    /** Of the sales above, those no drawer took — an order paid on the doorstep, a sale with no shift (B14). */
+    away_from_drawers?: { sales_count: number; sales_total: number };
   };
   banked: number;
   /**
