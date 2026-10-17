@@ -22,6 +22,13 @@ use Illuminate\Support\Facades\DB;
  */
 class ProcessExchangeAction
 {
+    /**
+     * How the credit is written on the replacement's tender. Read back by the
+     * drawer (`DrawerMath`), which names it "Exchange credit" rather than
+     * "Other" — the goods paid, no money crossed the counter (B21).
+     */
+    public const CREDIT_REFERENCE = 'Exchange credit — return ';
+
     public function __construct(
         private readonly ProcessSaleReturnAction $returns,
         private readonly CreateSaleAction $sales,
@@ -60,7 +67,7 @@ class ProcessExchangeAction
             $tenders = [[
                 'method' => 'other',
                 'amount' => $credit,
-                'reference' => "Exchange credit — return {$return->return_number}",
+                'reference' => self::CREDIT_REFERENCE.$return->return_number,
             ]];
             foreach ($data['payments'] ?? [] as $payment) {
                 $tenders[] = $payment;

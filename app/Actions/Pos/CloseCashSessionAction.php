@@ -72,6 +72,11 @@ class CloseCashSessionAction
                 // POS never rang is the more interesting of the two: it means a
                 // sale went through a terminal and not through here.
                 foreach (array_unique([...array_keys($declared), ...array_keys($expectedMix)]) as $method) {
+                    // Goods that came back paid for goods that went out: no
+                    // terminal took it and nobody can count it (B21).
+                    if ($method === 'exchange_credit') {
+                        continue;
+                    }
                     $tenderVariances[$method] = round(
                         ($declared[$method] ?? 0) - ($expectedMix[$method] ?? 0),
                         2,

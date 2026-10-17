@@ -60,6 +60,57 @@ class AnExchangeIsNotARefundTest extends TestCase
         $this->assertSame([5900.0, 1100.0], $this->everyScreen());
     }
 
+    /**
+     * The drawer's own words for the same day (B21's last half): the 1,100
+     * handed back on the second swap is not "Change given", the credit is
+     * not an "Other" tender, and neither swap is a refund. The money it
+     * expects is the money it always expected.
+     */
+    public function test_the_drawer_says_an_exchange_is_an_exchange(): void
+    {
+        $drawer = $this->as()->getJson('/api/v1/pos/session/report')->assertOk()->json('data.drawer');
+
+        $this->assertEquals(1100, $drawer['change_given'], 'all of it left the drawer');
+        $this->assertEquals(1100, $drawer['exchange_cash_back'], '…on the swap, not as change');
+        $this->assertEquals(4950, $drawer['tender_mix']['exchange_credit']);
+        $this->assertArrayNotHasKey('other', $drawer['tender_mix'], 'the credit read as a tender nobody took');
+        $this->assertSame(0, $drawer['refunds']);
+        $this->assertSame(2, $drawer['exchanges']);
+        // 5,000 float + 2,000 + 2,950 + 950 in − 1,100 back.
+        $this->assertEquals(9800, $drawer['expected_cash']);
+    }
+
+    public function test_a_close_asks_nobody_to_declare_the_goods_that_came_back(): void
+    {
+        $closed = $this->as()->postJson('/api/v1/pos/session/close', [
+            'counted_cash' => 9800, 'declared_tenders' => ['card' => 0],
+        ])->assertSuccessful()->json('data');
+
+        $this->assertEquals(0, $closed['variance']);
+        $this->assertArrayNotHasKey('exchange_credit', $closed['tender_variances'], 'a shortfall of 4,950 in goods nobody could count');
+        $this->assertEquals(0, $closed['tender_variances']['card']);
+    }
+
+    public function test_a_refund_beside_the_swaps_is_still_a_refund_and_a_cheque_still_other(): void
+    {
+        $sale = $this->sell('Shirt', 2000);
+        $this->as()->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]], 'refund_method' => 'cash', 'reason' => 'Wrong size',
+        ])->assertSuccessful();
+        $this->as()->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'items' => [['product_id' => $this->item['Kids Suit'], 'quantity' => 1]],
+            'payments' => [['method' => 'other', 'amount' => 1850, 'reference' => 'Cheque 0042']],
+        ])->assertCreated();
+
+        $drawer = $this->as()->getJson('/api/v1/pos/session/report')->assertOk()->json('data.drawer');
+
+        $this->assertSame(1, $drawer['refunds']);
+        $this->assertSame(2, $drawer['exchanges']);
+        $this->assertEquals(1850, $drawer['tender_mix']['other']);
+        $this->assertEquals(4950, $drawer['tender_mix']['exchange_credit']);
+        $this->assertEquals(1100, $drawer['exchange_cash_back']);
+    }
+
     public function test_exchanges_made_before_are_found_by_their_credit(): void
     {
         DB::table('sales')->update(['exchange_credit' => 0]);

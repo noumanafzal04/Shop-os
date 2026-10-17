@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Actions\Sale\ProcessExchangeAction;
 use App\Enums\SaleStatus;
 use App\Models\CashMovement;
 use App\Models\CashSession;
@@ -53,7 +54,8 @@ class DrawerMath
      *   cash_tendered: float, change_given: float, cash_refunds: float,
      *   cash_in: float, cash_out: float, cash_sales: float, expected_cash: float,
      *   sales_count: int, sales_total: float, discounts: float, tax: float,
-     *   voids: int, refunds: int, tender_mix: array<string, float>
+     *   voids: int, refunds: int, exchanges: int, exchange_cash_back: float,
+     *   tender_mix: array<string, float>
      * }
      */
     public static function for(CashSession $session): array
@@ -70,6 +72,22 @@ class DrawerMath
             ->sum('amount');
 
         $changeGiven = (float) (clone $rung)->sum('change_due');
+
+        // ── AN EXCHANGE, IN THE DRAWER'S OWN WORDS (B21) ────────────────
+        //
+        // The returned goods pay for the replacement as a tender of their
+        // own, and a credit bigger than the replacement comes back over the
+        // counter as `change_due`. The money was always right; the words were
+        // not — the cash a customer was handed back on a swap read as "Change
+        // given", and the credit as an "Other" tender nobody had taken. The
+        // part of the change that is an exchange's is the credit the
+        // replacement did not use (`exchange_credit` is the part it did).
+        $exchangeTendered = (float) SalePayment::withoutTenancy()
+            ->whereIn('sale_id', $rungIds)
+            ->where('method', 'other')
+            ->where('reference', 'like', ProcessExchangeAction::CREDIT_REFERENCE.'%')
+            ->sum('amount');
+        $exchangeCashBack = round(max(0.0, $exchangeTendered - (float) (clone $rung)->sum('exchange_credit')), 2);
 
         // Only the cash slice of a refund leaves the till. A khata-settled
         // return reduced the customer's debt and moved no cash; a trade-in slice
@@ -95,11 +113,15 @@ class DrawerMath
             ->where('cash_session_id', $session->id)
             ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded]);
 
+        // An exchange's credit is its own line, not "Other" (B21).
         $tenderMix = SalePayment::withoutTenancy()
             ->whereIn('sale_id', (clone $sold)->pluck('id'))
-            ->selectRaw('method, SUM(amount) as total')
-            ->groupBy('method')
-            ->pluck('total', 'method')
+            ->selectRaw(
+                "CASE WHEN method = 'other' AND reference LIKE ? THEN 'exchange_credit' ELSE method END as tender, SUM(amount) as total",
+                [ProcessExchangeAction::CREDIT_REFERENCE.'%'],
+            )
+            ->groupBy('tender')
+            ->pluck('total', 'tender')
             ->map(fn ($v) => round((float) $v, 2))
             ->all();
 
@@ -115,7 +137,10 @@ class DrawerMath
 
         return [
             'cash_tendered' => round($cashTendered, 2),
+            // All of it, an exchange's included: it all left the drawer.
             'change_given' => round($changeGiven, 2),
+            // …of which this much was handed back on exchanges.
+            'exchange_cash_back' => $exchangeCashBack,
             'cash_refunds' => round($cashRefunds, 2),
             'cash_in' => $cashIn,
             'cash_out' => $cashOut,
@@ -129,8 +154,11 @@ class DrawerMath
             'voids' => (int) self::sales()
                 ->where('cash_session_id', $session->id)
                 ->where('status', SaleStatus::Cancelled)->count(),
+            // Goods taken back for money. A swap is counted as what it was.
             'refunds' => (int) SaleReturn::withoutTenancy()
-                ->where('cash_session_id', $session->id)->count(),
+                ->where('cash_session_id', $session->id)->where('exchange_credit', '<=', 0)->count(),
+            'exchanges' => (int) SaleReturn::withoutTenancy()
+                ->where('cash_session_id', $session->id)->where('exchange_credit', '>', 0)->count(),
             'tender_mix' => $tenderMix,
         ];
     }
