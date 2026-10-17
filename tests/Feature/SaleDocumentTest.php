@@ -261,6 +261,79 @@ class SaleDocumentTest extends TestCase
         $this->assertEquals(18720, $hold(3744)->assertCreated()->json('data.total'));
     }
 
+    // ── Held from a quotation (B65) ──────────────────────────────────
+
+    public function test_a_quote_is_held_on_advance_at_its_own_price_and_closes_itself(): void
+    {
+        // Codex BUG-65; the owner, 2026-10-16: the quote closes by itself when
+        // its goods are held on advance, and the two stay linked both ways.
+        $quote = $this->quote([['product_id' => $this->fan->id, 'quantity' => 2]], [
+            'customer_name' => 'Ahmed', 'customer_phone' => '03001234567',
+        ]);
+        $this->assertEquals(16000, $quote['total']);
+
+        // The shelf price moves after the quote was written. The paper in the
+        // customer's hand still says 8,000 a fan.
+        $this->fan->forceFill(['price' => 9000])->save();
+
+        $asked = $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents/worth', [
+            'kind' => 'layaway', 'from_document_id' => $quote['id'],
+        ])->assertOk()->json('data');
+        $this->assertEquals(16000, $asked['total'], 'the advance sheet priced the quote at today\'s shelf');
+        $this->assertEquals(3200, $asked['minimum_deposit']);
+
+        $hold = fn () => $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents', [
+            'kind' => 'layaway', 'from_document_id' => $quote['id'], 'deposit' => ['amount' => 3200],
+        ]);
+        $held = $hold()->assertCreated()->json('data');
+
+        $this->assertStringStartsWith('LAY-', $held['number']);
+        $this->assertEquals(16000, $held['total']);
+        $this->assertEquals(8000, $held['items'][0]['unit_price']);
+        $this->assertSame('Ahmed', $held['customer_name']);
+        $this->assertSame($quote['number'], $held['source']['number'] ?? null, 'the advance does not say which quote it came from');
+        $this->assertEquals(8, $this->fan->fresh()->stock_quantity, 'the goods were not set aside');
+
+        $closed = $this->actingAsUser($this->cashier)->getJson("/api/v1/sale-documents/{$quote['id']}")->assertOk()->json('data');
+        $this->assertSame('converted', $closed['status'], 'the quote stayed open beside its advance');
+        $this->assertSame($held['number'], $closed['held_as']['number'] ?? null, 'the quote does not say what it became');
+
+        $listed = collect($this->actingAsUser($this->cashier)->getJson('/api/v1/sale-documents?kind=quotation')->assertOk()->json('data'))
+            ->firstWhere('id', $quote['id']);
+        $this->assertSame($held['number'], $listed['held_as']['number'] ?? null);
+
+        // A second press holds nothing twice: no second advance, no second pair of fans.
+        $hold()->assertStatus(409)->assertJsonPath('meta.error_code', 'DOCUMENT_NOT_OPEN');
+        $this->assertSame(1, SaleDocument::withoutTenancy()->where('kind', 'layaway')->count());
+        $this->assertEquals(8, $this->fan->fresh()->stock_quantity);
+    }
+
+    public function test_a_quote_whose_price_has_run_out_or_names_nobody_is_not_held(): void
+    {
+        $anonymous = $this->quote([['product_id' => $this->fan->id, 'quantity' => 1]]);
+        $hold = fn (string $id, array $extra = []) => $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents', [
+            'kind' => 'layaway', 'from_document_id' => $id, 'deposit' => ['amount' => 2000], ...$extra,
+        ]);
+
+        // Goods held for nobody cannot be collected — the counter names them now.
+        $hold($anonymous['id'])->assertStatus(422)->assertJsonPath('meta.error_code', 'LAYAWAY_REQUIRES_CUSTOMER');
+        $this->assertSame('open', SaleDocument::withoutTenancy()->findOrFail($anonymous['id'])->status, 'a refused hold closed the quote');
+        $this->assertSame('Sana', $hold($anonymous['id'], ['customer_name' => 'Sana', 'customer_phone' => '03111111111'])
+            ->assertCreated()->json('data.customer_name'));
+
+        // A lapsed quote's price has run out — the same refusal as billing it.
+        $lapsing = $this->quote([['product_id' => $this->fan->id, 'quantity' => 1]], [
+            'customer_phone' => '03001234567', 'expires_at' => now()->toDateString(),
+        ]);
+        $this->travel(3)->days();
+        $hold($lapsing['id'])->assertStatus(422)->assertJsonPath('meta.error_code', 'QUOTATION_EXPIRED');
+
+        // The quote's lines are the lines: a list sent beside them is refused, not ignored.
+        $fresh = $this->quote([['product_id' => $this->fan->id, 'quantity' => 1]], ['customer_phone' => '03001234567']);
+        $hold($fresh['id'], ['items' => [['product_id' => $this->fridge->id, 'quantity' => 1]]])
+            ->assertStatus(422)->assertJsonValidationErrors('from_document_id');
+    }
+
     public function test_an_advance_is_cash_in_the_drawer_the_day_it_is_taken(): void
     {
         $session = $this->openShift(2000);

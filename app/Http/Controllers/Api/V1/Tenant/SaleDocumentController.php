@@ -55,6 +55,8 @@ class SaleDocumentController extends Controller
                 'items:id,sale_document_id,product_name,quantity,line_total',
                 // The bay board prints a registration, not a uuid.
                 'vehicle:id,registration,make,model',
+                // A quote taken up as an advance says so in the list (B65).
+                'heldAs:id,number,source_document_id',
             ])
             // When the customer last paid in — an advance nobody has paid
             // into for six weeks is the one to phone.
@@ -191,7 +193,7 @@ class SaleDocumentController extends Controller
         // that got back only a vehicle id would fetch the registration
         // separately just to print the row it already has.
         return ApiResponse::created(
-            $this->present($document->load(['items', 'vehicle'])),
+            $this->present($document->load(['items', 'vehicle', 'source:id,number,kind'])),
             match (true) {
                 $document->isLayaway() => "Goods held · {$document->number}",
                 $document->isJobCard() => "Job {$document->number} opened",
@@ -213,7 +215,11 @@ class SaleDocumentController extends Controller
     public function show(string $id): JsonResponse
     {
         $document = SaleDocument::query()
-            ->with(['items', 'payments' => fn ($q) => $q->orderBy('paid_at'), 'customer:id,name,phone', 'sale:id,invoice_number,sold_at'])
+            ->with([
+                'items', 'payments' => fn ($q) => $q->orderBy('paid_at'), 'customer:id,name,phone', 'sale:id,invoice_number,sold_at',
+                // Linked both ways (B65): the advance names its quote, the quote its advance.
+                'source:id,number,kind', 'heldAs:id,number,status,source_document_id',
+            ])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->present($document));

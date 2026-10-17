@@ -37,7 +37,14 @@ class StoreSaleDocumentRequest extends FormRequest
             'customer_id' => ['nullable', 'uuid', Rule::exists('customers', 'id')->where('tenant_id', $tenantId)],
             'customer_name' => ['nullable', 'string', 'max:255'],
             'customer_phone' => ['nullable', 'string', 'max:32'],
-            'items' => ['required', 'array', 'min:1', 'max:200'],
+            // GOODS HELD FROM A QUOTATION (B65): the quote's own lines, at the
+            // price on the paper — so a list sent beside it would be a second,
+            // competing answer, and is refused rather than quietly ignored.
+            'from_document_id' => [
+                'nullable', 'uuid', 'prohibited_unless:kind,'.SaleDocument::KIND_LAYAWAY, 'prohibits:items,discount',
+                Rule::exists('sale_documents', 'id')->where('tenant_id', $tenantId),
+            ],
+            'items' => ['required_without:from_document_id', 'array', 'min:1', 'max:200'],
             'items.*.product_id' => [
                 'required', 'uuid',
                 Rule::exists('products', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at'),

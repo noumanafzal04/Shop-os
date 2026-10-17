@@ -10,6 +10,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A quotation or a layaway — the promise a retailer makes before the sale
@@ -118,6 +119,18 @@ class SaleDocument extends BaseModel
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** The quotation these goods were held from (B65) — null for one written fresh. */
+    public function source(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'source_document_id');
+    }
+
+    /** The advance this quotation became (B65), once it became one. */
+    public function heldAs(): HasOne
+    {
+        return $this->hasOne(self::class, 'source_document_id');
     }
 
     public function isQuotation(): bool

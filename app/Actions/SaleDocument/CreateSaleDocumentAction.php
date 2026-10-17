@@ -7,6 +7,8 @@ use App\Exceptions\DomainException;
 use App\Models\Customer;
 use App\Models\CustomerVehicle;
 use App\Models\Product;
+use App\Models\ProductUnit;
+use App\Models\ProductVariant;
 use App\Models\SaleDocument;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
@@ -90,6 +92,17 @@ class CreateSaleDocumentAction
         $isJobCard = $kind === SaleDocument::KIND_JOB_CARD;
         $isLayaway = $kind === SaleDocument::KIND_LAYAWAY;
 
+        // ── Held from a quotation (B65) ─────────────────────────────
+        // Locked, because it closes below: two presses cannot hold one quote
+        // twice. The customer it was written for comes with it, unless the
+        // counter names somebody now — a quote may have been anonymous.
+        $quote = ! empty($data['from_document_id']) ? $this->quoteToHold($data['from_document_id'], lock: true) : null;
+        if ($quote !== null) {
+            $data['customer_phone'] = filled($data['customer_phone'] ?? null) ? $data['customer_phone'] : $quote->customer_phone;
+            $data['customer_name'] = filled($data['customer_name'] ?? null) ? $data['customer_name'] : $quote->customer_name;
+            $data['customer_id'] ??= $quote->customer_id;
+        }
+
         // ── The customer ────────────────────────────────────────────
         // A quotation may be anonymous — someone asking a price owes the shop
         // no phone number. A layaway may not: goods held for nobody can never
@@ -111,7 +124,7 @@ class CreateSaleDocumentAction
         [
             'lines' => $lines, 'subtotal' => $subtotal, 'discount' => $discount,
             'tax' => $tax, 'tax_inclusive' => $taxInclusive, 'total' => $total,
-        ] = $this->priced($data, $customer);
+        ] = $quote !== null ? $this->frozen($quote) : $this->priced($data, $customer);
 
         // ── The deposit rules ───────────────────────────────────────
         // A token advance isn't a commitment: the shop takes Rs 100, pulls a
@@ -230,6 +243,7 @@ class CreateSaleDocumentAction
             'terms' => $data['terms'] ?? ($isJobCard ? null : $tenant?->setting('quotation_terms')),
             'notes' => $data['notes'] ?? null,
             'idempotency_key' => $data['idempotency_key'] ?? null,
+            'source_document_id' => $quote?->id,
         ]);
 
         // The car booked in for this customer is theirs, if nobody had said whose it was.
@@ -304,7 +318,100 @@ class CreateSaleDocumentAction
             }
         }
 
+        // The quote has been taken up: it closes by itself, and says as what
+        // (its `held_as`). Left open, it sat in the open quotes for ever and
+        // could be held, or billed, a second time.
+        if ($quote !== null) {
+            $quote->forceFill(['status' => SaleDocument::STATUS_CONVERTED, 'converted_at' => now()])->save();
+        }
+
         return $document->load(['items', 'payments']);
+    }
+
+    /**
+     * THE QUOTATION GOODS ARE ABOUT TO BE HELD FROM — open, a quotation, and
+     * still holding its price. Refused in the words the bill path uses
+     * (ConvertSaleDocumentAction): a lapsed quote's price has run out.
+     */
+    private function quoteToHold(string $id, bool $lock): SaleDocument
+    {
+        /** @var SaleDocument $quote */
+        $quote = SaleDocument::query()
+            ->whereKey($id)
+            ->when($lock, fn ($q) => $q->lockForUpdate())
+            ->firstOrFail()
+            ->load('items');
+
+        if (! $quote->isQuotation()) {
+            throw DomainException::unprocessable("{$quote->number} is not a quotation.", 'NOT_A_QUOTATION');
+        }
+
+        if (! $quote->isOpen()) {
+            throw DomainException::conflict(
+                $quote->status === SaleDocument::STATUS_CONVERTED
+                    ? "{$quote->number} has already been taken up."
+                    : "{$quote->number} was cancelled.",
+                'DOCUMENT_NOT_OPEN',
+            );
+        }
+
+        if ($quote->hasLapsed()) {
+            throw DomainException::unprocessable(
+                "This quotation expired on {$quote->expires_at->toFormattedDateString()}. Re-quote it at today's prices.",
+                'QUOTATION_EXPIRED',
+            );
+        }
+
+        if ($quote->items->isEmpty()) {
+            throw DomainException::unprocessable('This document has no items.', 'DOCUMENT_EMPTY');
+        }
+
+        return $quote;
+    }
+
+    /**
+     * THE QUOTE'S OWN FIGURES — the price the customer was promised, not
+     * today's. A quotation re-priced at the moment it is taken up is not a
+     * quotation (see the model). The shape priced() returns, so build() writes
+     * either the same way.
+     *
+     * @return array{lines: list<array<string, mixed>>, subtotal: float, discount: float, tax: float, tax_inclusive: bool, total: float}
+     */
+    private function frozen(SaleDocument $quote): array
+    {
+        $lines = $quote->items->map(function ($item) use ($quote): array {
+            $product = Product::query()->find($item->product_id);
+            $variant = $item->variant_id !== null ? ProductVariant::query()->find($item->variant_id) : null;
+
+            // Goods that have left the catalogue cannot be pulled off a shelf.
+            if ($product === null || ($item->variant_id !== null && $variant === null)) {
+                throw DomainException::unprocessable(
+                    "\"{$item->product_name}\" on {$quote->number} is no longer in the shop — write a fresh quote.",
+                    'ITEM_GONE',
+                );
+            }
+
+            return [
+                'product' => $product,
+                'variant' => $variant,
+                'unit' => $item->unit_id !== null ? ProductUnit::query()->find($item->unit_id) : null,
+                'factor' => (float) ($item->unit_factor ?: 1),
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'line_discount' => (float) $item->line_discount,
+                'line_total' => (float) $item->line_total,
+                'tax_rate' => $item->tax_rate === null ? null : (float) $item->tax_rate,
+            ];
+        })->values()->all();
+
+        return [
+            'lines' => $lines,
+            'subtotal' => (float) $quote->subtotal,
+            'discount' => (float) $quote->discount,
+            'tax' => (float) $quote->tax,
+            'tax_inclusive' => (bool) $quote->tax_inclusive,
+            'total' => (float) $quote->total,
+        ];
     }
 
     /**
@@ -326,7 +433,10 @@ class CreateSaleDocumentAction
             ? Customer::byPhone($tenantId, $data['customer_phone'])
             : (! empty($data['customer_id']) ? Customer::query()->whereKey($data['customer_id'])->first() : null);
 
-        $priced = $this->priced($data, $customer);
+        // Held from a quote: the quote's figures, and its refusals before the press.
+        $priced = ! empty($data['from_document_id'])
+            ? $this->frozen($this->quoteToHold($data['from_document_id'], lock: false))
+            : $this->priced($data, $customer);
         [$minPct, $minimum] = $data['kind'] === SaleDocument::KIND_LAYAWAY ? $this->depositFloor($priced['total']) : [0.0, 0.0];
 
         return [
