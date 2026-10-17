@@ -32,7 +32,8 @@ import { refillLink } from "../../transfers/stockWords";
 import { useBranches } from "../../branches/hooks/useBranches";
 import { useNarrow } from "../../../common/hooks/useNarrow";
 import { shopShortDateTime } from "../../../common/format/date";
-import { StockTiles, type StockView } from "../components/StockTiles";
+import { StockViewTabs, type StockView } from "../components/StockViewTabs";
+import { stockQueries } from "../stockQueries";
 import { StockHistoryModal } from "../components/StockHistoryModal";
 import { movementChange, movementWhat } from "../movementWords";
 
@@ -84,11 +85,12 @@ export default function InventoryPage() {
     setPage(1);
   };
 
-  const products = useProducts({ search: debounced, type: "product", page, out_of_stock: view === "out" || undefined });
-  // The tiles' own counts: the whole shelf and what is gone, whatever the
-  // list below is showing or searching for. One row each — only the total is read.
-  const everything = useProducts({ type: "product", per_page: 1 });
-  const goneCount = useProducts({ type: "product", out_of_stock: true, per_page: 1 });
+  // What is COUNTED — see stockQueries for why the list and its counts ask
+  // one question. The counts ignore what the list is showing or searching for.
+  const products = useProducts(stockQueries.list(view, debounced, page));
+  const everything = useProducts(stockQueries.all);
+  const goneCount = useProducts(stockQueries.out);
+  const uncounted = useProducts(stockQueries.uncounted);
   const narrow = useNarrow();
   const [historyOf, setHistoryOf] = useState<Product | null>(null);
   // Server-computed, and branch-correct: a product with no row on THIS
@@ -189,6 +191,7 @@ export default function InventoryPage() {
   const rows = reorderOnly ? lowRows : products.data?.data ?? [];
   /** The one query the list below is drawn from — what it waits on, and what its empty state is about. */
   const listQuery = reorderOnly ? lowStock : products;
+  const notCounted = uncounted.data?.meta.pagination?.total ?? 0;
   const counts: Record<StockView, number | null> = {
     all: everything.data?.meta.pagination?.total ?? null,
     low: lowStock.data ? (lowTotal ?? lowRows.length) : null,
@@ -326,8 +329,6 @@ export default function InventoryPage() {
         </p>
       </div>
 
-      <StockTiles view={view} counts={counts} onPick={setView} />
-
       {/* Expiry alerts. The window is the SHOP's — 90 days for a pharmacy,
           30 for everyone else, or whatever it set. A distributor takes medicine
           back inside a window that closes months before the printed date, so a
@@ -427,8 +428,11 @@ export default function InventoryPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <StockViewTabs view={view} counts={counts} onPick={setView} />
+
         {!reorderOnly && (
-          <div className="min-w-0 flex-1 sm:max-w-sm">
+          // Its own line on a phone, where the filter already fills the width.
+          <div className="w-full sm:ml-auto sm:w-auto sm:min-w-48 sm:max-w-xs sm:flex-1">
             <Input placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
         )}
@@ -437,11 +441,23 @@ export default function InventoryPage() {
         {/* …and only in a shop that HAS purchase orders: the button posts
             to the Purchasing module, which Inventory no longer implies. */}
         {reorderOnly && orderable.length > 0 && hasPermission("purchases.manage") && buysThroughSystem && (
-          <Button size="sm" onClick={orderTheseItems}>
+          <Button size="sm" className="sm:ml-auto" onClick={orderTheseItems}>
             Order these {orderable.length} item{orderable.length > 1 ? "s" : ""}
           </Button>
         )}
       </div>
+
+      {/* WHAT IS NOT HERE, AND WHY. A restaurant's dishes are made to order:
+          the till sells them whatever the books say, so they have no shelf to
+          show. Left out silently, a shopkeeper looking for the samosas would
+          think they had been lost. */}
+      {!reorderOnly && notCounted > 0 && (
+        <p data-testid="not-counted" className="mb-3 text-theme-sm text-gray-500 dark:text-gray-400">
+          {notCounted.toLocaleString()} item{notCounted === 1 ? " does" : "s do"} not track stock — made to order, always
+          available — so {notCounted === 1 ? "it is" : "they are"} not listed here. To count one, open it in Products
+          and turn on “Track stock for this item”.
+        </p>
+      )}
 
       {reorderOnly && (
         <p className="mb-3 text-theme-sm text-gray-500 dark:text-gray-400">

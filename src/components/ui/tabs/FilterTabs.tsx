@@ -3,6 +3,11 @@ import type { ReactNode } from "react";
 export interface FilterTab<K extends string> {
   key: K;
   label: string;
+  /** What a phone shows when the whole name does not fit beside the others. */
+  short?: string;
+  /** Said on hover — what the topic holds. */
+  hint?: string;
+  testId?: string;
   /** Optional leading glyph. Sized by the caller; 18px reads best. */
   icon?: ReactNode;
   /** Optional trailing count — something time-sensitive that follows you between tabs. */
@@ -32,12 +37,15 @@ export function FilterTabs<K extends string>({
   onChange,
   sticky = false,
   className = "",
+  label,
 }: {
   tabs: readonly FilterTab<K>[];
   value: K;
   onChange: (key: K) => void;
   sticky?: boolean;
   className?: string;
+  /** The group's name for a screen reader — "Show stock". */
+  label?: string;
 }) {
   const shell = sticky
     ? "z-20 -mx-4 overflow-x-auto bg-white/90 px-4 py-2 backdrop-blur-md dark:bg-gray-900/90 md:-mx-6 md:px-6 lg:sticky lg:top-[76px]"
@@ -45,7 +53,7 @@ export function FilterTabs<K extends string>({
 
   return (
     <div className={`${shell} ${className}`}>
-      <div className="flex w-max gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800/60">
+      <div className="flex w-max gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800/60" role="group" aria-label={label}>
         {tabs.map((t) => {
           const active = value === t.key;
           return (
@@ -53,6 +61,8 @@ export function FilterTabs<K extends string>({
               key={t.key}
               type="button"
               aria-pressed={active}
+              data-testid={t.testId}
+              title={t.hint}
               onClick={() => onChange(t.key)}
               className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-theme-sm font-medium transition ${
                 active
@@ -61,7 +71,14 @@ export function FilterTabs<K extends string>({
               }`}
             >
               {t.icon && <span className={active ? "" : "opacity-70"}>{t.icon}</span>}
-              {t.label}
+              {t.short ? (
+                <>
+                  <span className="sm:hidden">{t.short}</span>
+                  <span className="hidden sm:inline">{t.label}</span>
+                </>
+              ) : (
+                t.label
+              )}
               {t.badge}
             </button>
           );

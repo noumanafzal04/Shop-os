@@ -370,6 +370,14 @@ export interface ProductFilters {
    */
   out_of_stock?: boolean;
   /**
+   * Only what is stock-COUNTED (true), or only what is not (false).
+   *
+   * The stock screen lists the counted. A dish made to order has no shelf;
+   * listed beside the counted things its nought read "Out of stock" — eleven
+   * of them, under a tile that said 1 (the user, 2026-10-17).
+   */
+  track_inventory?: boolean;
+  /**
    * Only what is ON SALE — a product switched off is left out.
    *
    * Every screen that sells asks for this. A retired product was listed on

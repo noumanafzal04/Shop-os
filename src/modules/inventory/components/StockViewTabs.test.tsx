@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { StockTiles } from "./StockTiles";
+import { StockViewTabs } from "./StockViewTabs";
 import { movementChange, movementWhat } from "../movementWords";
 
 /**
@@ -9,33 +9,33 @@ import { movementChange, movementWhat } from "../movementWords";
  * ka UI acha ni hai"). How much, what is low, what is gone — each a count and
  * a way into its rows.
  */
-describe("the tiles", () => {
+describe("the stock filter", () => {
   it("say — for a count that has not arrived, never 0", () => {
     // "0 out of stock" is a claim about the shelf; a failed request knows
     // nothing about the shelf.
-    render(<StockTiles view="all" counts={{ all: 540, low: null, out: 0 }} onPick={() => {}} />);
+    render(<StockViewTabs view="all" counts={{ all: 540, low: null, out: 0 }} onPick={() => {}} />);
 
-    expect(screen.getByTestId("stock-tile-all").textContent).toContain("540");
-    expect(screen.getByTestId("stock-tile-low").textContent, "an unknown count was shown as nought").toContain("—");
-    expect(screen.getByTestId("stock-tile-low").textContent).not.toMatch(/\b0\b/);
-    expect(screen.getByTestId("stock-tile-out").textContent).toContain("0");
+    expect(screen.getByTestId("stock-view-all").textContent).toContain("540");
+    expect(screen.getByTestId("stock-view-low").textContent, "an unknown count was shown as nought").toContain("—");
+    expect(screen.getByTestId("stock-view-low").textContent).not.toMatch(/\b0\b/);
+    expect(screen.getByTestId("stock-view-out").textContent).toContain("0");
   });
 
   it("mark the open one, and open the one pressed", () => {
     const onPick = vi.fn();
-    render(<StockTiles view="low" counts={{ all: 1, low: 2, out: 3 }} onPick={onPick} />);
+    render(<StockViewTabs view="low" counts={{ all: 1, low: 2, out: 3 }} onPick={onPick} />);
 
-    expect(screen.getByTestId("stock-tile-low").getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByTestId("stock-tile-all").getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByTestId("stock-view-low").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("stock-view-all").getAttribute("aria-pressed")).toBe("false");
 
-    fireEvent.click(screen.getByTestId("stock-tile-out"));
+    fireEvent.click(screen.getByTestId("stock-view-out"));
     expect(onPick).toHaveBeenCalledWith("out");
   });
 
   it("keep the help pages' name for the reorder list", () => {
-    // Help → "Inventory → Needs reordering". A tile renamed is a help page wrong.
-    render(<StockTiles view="all" counts={{ all: 1, low: 2, out: 3 }} onPick={() => {}} />);
-    expect(screen.getByTestId("stock-tile-low").textContent).toContain("Needs reordering");
+    // Help → "Inventory → Needs reordering". A topic renamed is a help page wrong.
+    render(<StockViewTabs view="all" counts={{ all: 1, low: 2, out: 3 }} onPick={() => {}} />);
+    expect(screen.getByTestId("stock-view-low").textContent).toContain("Needs reordering");
   });
 });
 

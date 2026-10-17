@@ -32,3 +32,24 @@ describe("asking for what is on sale", () => {
     expect(params.is_active).toBeUndefined();
   });
 });
+
+describe("asking the stock screen's question", () => {
+  beforeEach(() => vi.mocked(apiGet).mockResolvedValue({ data: [] } as never));
+
+  const lastParams = () => {
+    const calls = vi.mocked(apiGet).mock.calls;
+    return calls[calls.length - 1][1]?.params as Record<string, unknown>;
+  };
+
+  it("asks for the counted, or for the not counted — and a list that does not say asks for both", async () => {
+    await catalogService.products({ track_inventory: true });
+    expect(lastParams().track_inventory).toBe(1);
+
+    // false is a question too — "how many are not counted" — not an absence.
+    await catalogService.products({ track_inventory: false });
+    expect(lastParams().track_inventory).toBe(0);
+
+    await catalogService.products({});
+    expect(lastParams().track_inventory).toBeUndefined();
+  });
+});
