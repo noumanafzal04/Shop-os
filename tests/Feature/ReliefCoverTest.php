@@ -317,9 +317,15 @@ class ReliefCoverTest extends TestCase
         $this->assertEquals(1000, $cover->sales_total);
         $this->assertEquals(1000, $cover->cash_taken);
 
-        // Void it afterwards — the frozen record must not move.
+        // Void it afterwards — the frozen record must not move. The owner has
+        // no drawer of their own, so the notes go back out of Ayesha's, named,
+        // with the owner's PIN (B86: never out of no drawer at all).
+        $this->owner->setPin('2468');
         $this->actingAsUser($this->owner)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", [
+                'reason_code' => 'wrong_item', 'cash_session_id' => $shift,
+                'approval' => ['user_id' => $this->owner->id, 'pin' => '2468'],
+            ])
             ->assertOk();
 
         $cover->refresh();

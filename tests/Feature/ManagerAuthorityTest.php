@@ -101,13 +101,15 @@ class ManagerAuthorityTest extends TestCase
     // ── Voiding ─────────────────────────────────────────────────────
 
     /** A void restores stock and reverses money. That is not a cashier's call. */
-    public function test_a_cashier_cannot_void_a_completed_sale(): void
+    public function test_a_cashier_cannot_void_a_completed_sale_alone(): void
     {
         $sale = $this->ring($this->cashier)->assertCreated()->json('data');
 
+        // Since Q18 (2026-10-17) a cashier may START a void; it finishes only
+        // with the PIN of somebody who may void (AVoidStaysInItsDayTest).
         $this->actingAsUser($this->cashier)
             ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item'])
-            ->assertStatus(403)->assertJsonPath('meta.error_code', 'PERMISSION_DENIED');
+            ->assertStatus(403)->assertJsonPath('meta.error_code', 'APPROVAL_REQUIRED');
 
         $this->assertSame('completed', Sale::withoutTenancy()->find($sale['id'])->status->value);
     }

@@ -36,16 +36,36 @@ final class SupervisorApproval
      */
     public static function forRefund(User $actor, ?string $sessionId, ?array $approval): ?User
     {
+        return self::forMoneyBack($actor, $sessionId, $approval, Permissions::SALES_REFUND);
+    }
+
+    /**
+     * Who approved this void, or null when the person needed nobody.
+     *
+     * The owner (Q18, 2026-10-17): a cashier may START a void, and a
+     * manager's or supervisor's PIN approves it — the refund's rule, with the
+     * void's own permission: only somebody who may void a sale says yes.
+     *
+     * @param  array{user_id?: string, pin?: string}|null  $approval
+     */
+    public static function forVoid(User $actor, ?string $sessionId, ?array $approval): ?User
+    {
+        return self::forMoneyBack($actor, $sessionId, $approval, Permissions::SALES_VOID);
+    }
+
+    /** @param  array{user_id?: string, pin?: string}|null  $approval */
+    private static function forMoneyBack(User $actor, ?string $sessionId, ?array $approval, string $permission): ?User
+    {
         $session = $sessionId === null ? null : CashSession::query()->find($sessionId);
         $foreign = $session !== null
             && $session->user_id !== $actor->id
             && $session->activeCover()?->user_id !== $actor->id;
 
-        if (! $foreign && $actor->hasPermission(Permissions::SALES_REFUND)) {
+        if (! $foreign && $actor->hasPermission($permission)) {
             return null;
         }
 
-        return self::verify($approval, Permissions::SALES_REFUND);
+        return self::verify($approval, $permission);
     }
 
     /**
@@ -82,7 +102,12 @@ final class SupervisorApproval
             throw DomainException::unauthorized('That PIN is not right.');
         }
         if (! $approver->hasPermission($permission)) {
-            throw DomainException::forbidden("{$approver->name} cannot approve this — ask somebody who can hand money back.", 'APPROVER_CANNOT');
+            throw DomainException::forbidden(
+                $permission === Permissions::SALES_VOID
+                    ? "{$approver->name} cannot approve this — ask somebody who may void a sale."
+                    : "{$approver->name} cannot approve this — ask somebody who can hand money back.",
+                'APPROVER_CANNOT',
+            );
         }
 
         return $approver;

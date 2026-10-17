@@ -680,9 +680,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // Voiding and refunding are separated from ringing sales: they
                     // restore stock and reverse money, so a cashier holding only
                     // sales.manage can no longer erase a completed sale or hand
-                    // cash back. Owners hold every tenant permission implicitly.
+                    // cash back ALONE. Since Q18 (2026-10-17) a cashier may START
+                    // a void and somebody holding sales.void finishes it with a
+                    // PIN — the controller refuses a cashier without one.
+                    // Owners hold every tenant permission implicitly.
                     Route::post('/{sale}/cancel', [SaleController::class, 'cancel'])
-                        ->middleware('permission:sales.void');
+                        ->middleware(['permission:sales.void,sales.manage', 'throttle:20,1']);
                     // A cashier may START a refund or an exchange; a supervisor's
                     // PIN finishes it (SupervisorApproval — the owner, B01). The
                     // controller refuses a cashier without one.

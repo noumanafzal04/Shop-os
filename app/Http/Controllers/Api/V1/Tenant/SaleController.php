@@ -6,12 +6,14 @@ use App\Actions\Sale\CancelSaleAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessExchangeAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
+use App\Enums\SaleStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
 use App\Models\Customer;
 use App\Models\Sale;
+use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
@@ -20,6 +22,7 @@ use App\Support\DrawerMath;
 use App\Support\Retention;
 use App\Support\ShopDay;
 use App\Support\ShopTime;
+use App\Support\StillItsDay;
 use App\Support\SupervisorApproval;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
@@ -188,11 +191,38 @@ class SaleController extends Controller
      * the row says `is_training` and the receipt says TRAINING across it, so
      * nothing can be mistaken for real. Only LISTS and TOTALS stay fenced.
      */
-    public function show(string $id): JsonResponse
+    public function show(Request $request, string $id): JsonResponse
     {
-        return ApiResponse::ok(
-            Sale::withTraining()->with(['items', 'returns.items', 'serials', 'tradeIns', 'payments'])->findOrFail($id),
-        );
+        $sale = Sale::withTraining()->with(['items', 'returns.items', 'serials', 'tradeIns', 'payments'])->findOrFail($id);
+
+        return ApiResponse::ok([
+            ...$sale->toArray(),
+            // Whether it may still be voided, and what that would hand back —
+            // asked before the sheet offers the button (Q18, B86).
+            'void' => $sale->status === SaleStatus::Completed && ! $sale->is_training
+                ? self::voiding($sale, $request->user())
+                : null,
+        ]);
+    }
+
+    /** @return array{open: bool, why_not: ?string, cash_back: float, from_drawer: bool, drawer: ?string, drawer_holds: ?float} */
+    private static function voiding(Sale $sale, User $user): array
+    {
+        $over = StillItsDay::overFor($sale);
+        $cash = CancelSaleAction::cashBack($sale);
+        $till = BooksDrawer::tillFor($user);
+
+        return [
+            'open' => $over === null,
+            'why_not' => $over,
+            'cash_back' => $cash,
+            // Whether the notes must go back out of a counted drawer: only
+            // when a drawer took them in (CancelSaleAction::drawerFor).
+            'from_drawer' => $cash > 0 && $sale->cash_session_id !== null && BooksDrawer::hasTill($user),
+            // Whose drawer that would be — see BooksDrawer::stateFor.
+            'drawer' => BooksDrawer::stateFor($user),
+            'drawer_holds' => $till !== null ? (float) DrawerMath::for($till)['expected_cash'] : null,
+        ];
     }
 
     /** Full or partial return/refund — restocks through the inventory path. */
@@ -326,21 +356,41 @@ class SaleController extends Controller
      * a ring-and-void — someone reading the void report — had nothing to read.
      * A fixed code makes voids countable per cashier; the note stays for detail.
      */
+    /**
+     * Void a sale rung in error — the same day, or not at all (Q18).
+     *
+     * A cashier may start it; somebody who may void approves it with their
+     * PIN, as with a refund (SupervisorApproval). Cash goes back out of the
+     * voider's own drawer, or the open drawer they name (CancelSaleAction).
+     */
     public function cancel(Request $request, string $id, CancelSaleAction $action): JsonResponse
     {
         $data = $request->validate([
             'reason_code' => ['required', Rule::in(Sale::VOID_REASONS)],
             'reason' => ['nullable', 'string', 'max:255'],
+            'cash_session_id' => ['nullable', 'uuid'],
+            'approval' => ['nullable', 'array'],
+            'approval.user_id' => ['required_with:approval', 'uuid'],
+            'approval.pin' => ['required_with:approval', 'string', 'max:12'],
         ]);
+
+        $sale = Sale::query()->with('items')->findOrFail($id);
+        StillItsDay::refuseIfOver($sale);
+        $actor = $request->user();
+        $approver = SupervisorApproval::forVoid($actor, $data['cash_session_id'] ?? null, $data['approval'] ?? null);
 
         $label = Sale::VOID_REASON_LABELS[$data['reason_code']] ?? $data['reason_code'];
         $note = $data['reason'] ?? null;
 
         $sale = $action->execute(
-            Sale::query()->with('items')->findOrFail($id),
+            $sale,
             $note === null ? $label : "{$label} — {$note}",
             $data['reason_code'],
+            $data['cash_session_id'] ?? null,
         );
+        if ($approver !== null) {
+            SupervisorApproval::record($approver, $actor, $data['cash_session_id'] ?? BooksDrawer::tillFor($actor)?->id, $sale, (float) $sale->total, "Void {$sale->invoice_number}");
+        }
 
         return ApiResponse::ok($sale, 'Sale cancelled — stock restored');
     }

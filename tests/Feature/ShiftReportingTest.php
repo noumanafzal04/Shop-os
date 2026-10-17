@@ -269,6 +269,9 @@ class ShiftReportingTest extends TestCase
 
         $session = CashSession::withoutTenancy()->where('user_id', $this->cashier->id)->firstOrFail();
 
+        // The notes go back out of a drawer that is open and holds them (B86):
+        // the owner's own, opened for it.
+        $this->actingAsUser($this->owner)->postJson('/api/v1/pos/session/open', ['opening_float' => 3000])->assertCreated();
         $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$saleId}/cancel", [
             'reason_code' => 'wrong_item',
         ])->assertOk();

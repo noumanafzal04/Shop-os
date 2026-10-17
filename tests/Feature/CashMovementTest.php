@@ -310,21 +310,24 @@ class CashMovementTest extends TestCase
      */
     public function test_voiding_a_sale_from_a_closed_shift_debits_todays_drawer(): void
     {
-        $yesterday = $this->openShift($this->cashier, 1000);
-        $sale = $this->ringCashSale($this->cashier, $yesterday['id']);
+        // An earlier shift the same day (a void is refused once the day is
+        // over — StillItsDay, Q18), counted and closed.
+        $morning = $this->openShift($this->cashier, 1000);
+        $sale = $this->ringCashSale($this->cashier, $morning['id']);
         $this->close($this->cashier, 2000);
 
-        // A fresh shift today.
-        $this->openShift($this->cashier, 500);
+        // A fresh shift, holding enough to hand the notes back (B86: a
+        // drawer that holds less refuses the void).
+        $this->openShift($this->cashier, 1500);
         $this->actingAsUser($this->cashier)
-            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Customer returned next day'])
+            ->postJson("/api/v1/sales/{$sale['id']}/cancel", ['reason_code' => 'wrong_item', 'reason' => 'Customer came back'])
             ->assertOk();
 
-        $closed = $this->close($this->cashier, 0);
+        $closed = $this->close($this->cashier, 500);
         $this->assertEquals(1000, $closed['cash_out']);
-        // 500 float − 1000 handed back = −500 expected; counting 0 is a 500 over.
-        $this->assertEquals(-500, $closed['expected_cash']);
-        $this->assertEquals(500, $closed['variance']);
+        // 1500 float − 1000 handed back = 500 expected, and 500 counted.
+        $this->assertEquals(500, $closed['expected_cash']);
+        $this->assertEquals(0, $closed['variance']);
     }
 
     /** A card sale voided moves no cash, so nothing hits the drawer. */

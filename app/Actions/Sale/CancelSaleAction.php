@@ -5,12 +5,18 @@ namespace App\Actions\Sale;
 use App\Actions\Pos\RecordCashMovementAction;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Models\Sale;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Services\InventoryService;
+use App\Support\BooksDrawer;
+use App\Support\Currencies;
+use App\Support\DrawerMath;
+use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,12 +28,18 @@ use Illuminate\Support\Facades\DB;
  *                               restore replay-safe even across retries
  *  - product deleted since    → restore skipped for missing products
  *                               (nothing to put stock back onto)
+ *  - cash to hand back         → from an open drawer that holds it, or the
+ *                               void is refused before anything moves (B86)
  */
 class CancelSaleAction
 {
-    public function __construct(private readonly InventoryService $inventory) {}
+    public function __construct(
+        private readonly InventoryService $inventory,
+        private readonly TenantContext $context,
+    ) {}
 
-    public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null): Sale
+    /** @param  ?string  $drawerId  the open drawer the notes come out of; the voider's own when null */
+    public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null, ?string $drawerId = null): Sale
     {
         if ($sale->isCancelled()) {
             throw DomainException::conflict('This sale is already cancelled.', 'SALE_ALREADY_CANCELLED');
@@ -44,7 +56,12 @@ class CancelSaleAction
             );
         }
 
-        return DB::transaction(function () use ($sale, $reason, $reasonCode): Sale {
+        return DB::transaction(function () use ($sale, $reason, $reasonCode, $drawerId): Sale {
+            // The notes first, before anything moves: whether they can go back,
+            // and out of which drawer.
+            $cashBack = self::cashBack($sale);
+            $drawer = $this->drawerFor($sale, $cashBack, $drawerId);
+
             // Restore stock by REVERSING the exact movements this sale recorded
             // — not by re-reading product recipes. A combo's components can be
             // edited after the sale (SyncComboItemsAction full-replaces them),
@@ -156,25 +173,88 @@ class CancelSaleAction
             // written, so a legitimate void and a pocketed one both balanced
             // perfectly. Now the tender stays counted (DrawerMath) and the
             // hand-back is a movement with a name on it, so the two are
-            // distinguishable — and a sale voided the day AFTER its shift
-            // closed correctly debits today's drawer instead of nobody's.
-            $cashTendered = round(
-                (float) $sale->payments()->where('method', 'cash')->sum('amount') - (float) $sale->change_due,
-                2,
-            );
-            $actor = auth()->user();
-            if ($actor !== null && $cashTendered > 0) {
-                app(RecordCashMovementAction::class)->record($actor, [
+            // distinguishable.
+            if ($drawer !== null) {
+                app(RecordCashMovementAction::class)->execute(auth()->user(), [
                     'type' => 'void_refund',
-                    'amount' => $cashTendered,
+                    'amount' => $cashBack,
                     'reason' => "Cash returned · voided {$sale->invoice_number}",
                     'note' => $reason,
                     'source_type' => 'sale',
                     'source_id' => $sale->id,
-                ]);
+                ], $drawer, enforceDrawerLimit: false);
             }
 
             return $sale->load('items');
         });
+    }
+
+    /** The notes this sale took and kept — what a void hands back across the counter. */
+    public static function cashBack(Sale $sale): float
+    {
+        return max(0.0, round(
+            (float) $sale->payments()->where('method', 'cash')->sum('amount') - (float) $sale->change_due,
+            2,
+        ));
+    }
+
+    /**
+     * THE DRAWER THE NOTES GO BACK OUT OF — or the void is refused (B86).
+     *
+     * A void by somebody with no shift open recorded the hand-back nowhere:
+     * the notes left a drawer that never heard of it, and it closed short with
+     * nothing to explain it. And a void never asked whether the drawer held
+     * the money, though a refund has since the money pass (B78). The owner
+     * (Q18): cash goes back from an open drawer that holds it; no drawer, or a
+     * drawer short, and the void does not happen — it is never left unrecorded.
+     *
+     * Null when there is no cash to hand back, when the business keeps no till
+     * at all, or for a void with nobody signed in (the demo seeder) — and
+     * when the sale's cash never reached a drawer (rung with no shift open, in
+     * a shop that does not ask for one: AwayFromDrawers). Notes no drawer
+     * counted in go back out of none: written out of a drawer that never
+     * expected them, they would leave it over by exactly the sale.
+     */
+    private function drawerFor(Sale $sale, float $cash, ?string $drawerId): ?CashSession
+    {
+        $actor = auth()->user();
+        if ($cash <= 0 || ! $actor instanceof User || $sale->cash_session_id === null) {
+            return null;
+        }
+
+        $chosen = $drawerId ?? BooksDrawer::tillFor($actor)?->id;
+        $drawer = $chosen === null ? null : CashSession::query()->whereKey($chosen)->lockForUpdate()->first();
+        $currency = $this->context->get()?->currency();
+        $amount = Currencies::format($cash, $currency, 2);
+
+        if ($drawerId !== null && ($drawer === null || ! $drawer->isOpen() || $drawer->isTraining())) {
+            throw DomainException::conflict('That drawer is not open — choose another, or open your own shift.', 'DRAWER_NOT_OPEN');
+        }
+        if ($drawer === null) {
+            if (! BooksDrawer::hasTill($actor)) {
+                return null;
+            }
+
+            throw DomainException::conflict(
+                BooksDrawer::isPractice($actor)
+                    ? "{$sale->invoice_number} took {$amount} in cash, and your open shift is a practice one. Hand it back from a real drawer."
+                    : "{$sale->invoice_number} took {$amount} in cash. Open your shift to hand it back from your drawer, or choose the drawer it comes out of.",
+                'VOID_NEEDS_A_DRAWER',
+            );
+        }
+
+        // A shop that asks for shifts hands money back only on today's.
+        BooksDrawer::mustBeOpenToday($drawer->id, $this->context->get(), 'handing cash back');
+
+        $holds = (float) DrawerMath::for($drawer)['expected_cash'];
+        if ($holds + 0.004 < $cash) {
+            throw DomainException::unprocessable(
+                'The drawer holds '.Currencies::format($holds, $currency, 2)
+                    ." — this void hands back {$amount} in cash. Put cash in the drawer first, or hand it back from a drawer that holds it.",
+                'INSUFFICIENT_DRAWER_CASH',
+            );
+        }
+
+        return $drawer;
     }
 }

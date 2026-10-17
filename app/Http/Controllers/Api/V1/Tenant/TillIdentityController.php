@@ -64,6 +64,8 @@ class TillIdentityController extends Controller
                 // Who may say yes to money going back (SupervisorApproval) —
                 // so the approval sheet offers only them.
                 'approves_refunds' => $u->hasPermission(Permissions::SALES_REFUND),
+                // …and to a sale being voided (Q18).
+                'approves_voids' => $u->hasPermission(Permissions::SALES_VOID),
             ])
             ->values();
 
