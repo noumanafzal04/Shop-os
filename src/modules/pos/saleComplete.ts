@@ -63,3 +63,36 @@ export function settledLines(sale: SettledSale): SheetLine[] {
 
   return lines;
 }
+
+/**
+ * "ADD TO THIS BILL" (Q19 A, the client 2026-10-17): the customer is still at
+ * the counter and wants two more. The paid bill is never changed; the next
+ * sale names the FIRST bill of the visit, so a third addition hangs off the
+ * same bill as the second and one receipt can name them all.
+ */
+export interface AddingTo {
+  id: string;
+  invoice_number: string;
+  /** What the visit has come to so far. */
+  together: number;
+}
+
+export function billToAddTo(sale: Pick<Sale, "id" | "invoice_number" | "total" | "visit">): AddingTo {
+  const visit = sale.visit;
+
+  return visit && visit.bills.length > 0
+    ? { id: visit.first_id, invoice_number: visit.bills[0].invoice_number, together: visit.together }
+    : { id: sale.id, invoice_number: sale.invoice_number, together: Number(sale.total) };
+}
+
+/** The sheet's line after an addition — null for a bill on its own. */
+export function visitLine(sale: Pick<Sale, "id" | "visit">, money: (n: number) => string): string | null {
+  const visit = sale.visit;
+  if (!visit || visit.bills.length < 2) return null;
+
+  const together = visit.bills.length === 2 ? "both bills" : `all ${visit.bills.length} bills`;
+
+  return sale.id === visit.first_id
+    ? `Bills added to this one — ${together} come to ${money(visit.together)}`
+    : `Added to ${visit.bills[0].invoice_number} — ${together} come to ${money(visit.together)}`;
+}

@@ -31,7 +31,7 @@ import { billKey, serverDueFrom } from "../tenderRecovery";
 import { completeOffline, linesFromCatalog, OfflineRefused, promotionLocally } from "../../offline/outbox/offlineCheckout";
 import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
 import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
-import { settledLines } from "../saleComplete";
+import { billToAddTo, settledLines, visitLine, type AddingTo } from "../saleComplete";
 import { queueTally } from "../../offline/db/repo";
 import { markTillHere } from "../../offline/device/tillHere";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
@@ -954,6 +954,9 @@ export default function PosPage() {
    */
   const [padMode, setPadMode] = useState<"qty" | "amount">("qty");
   const [lastSale, setLastSale] = useState<Sale | null>(null);
+  // The paid bill this sale is being added to (Q19 A) — the customer came back
+  // to the counter for two more. Null on every ordinary sale.
+  const [addingTo, setAddingTo] = useState<AddingTo | null>(null);
 
   // Modifier configurator (food items with choices / add-ons)
   const [cfg, setCfg] = useState<CatalogProduct | null>(null);
@@ -1300,6 +1303,7 @@ export default function PosPage() {
   }, [promoKey, hasOffers]);
 
   const clearSale = () => {
+    setAddingTo(null);
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone(""); setTip("");
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
@@ -1436,6 +1440,9 @@ export default function PosPage() {
         cash_session_id: activeSessionId,
         customer_name: customer || undefined,
         customer_phone: customerPhone || undefined,
+        // The bill it is added to (Q19 A). The server takes that bill's
+        // customer when none is named here, and keeps the bill as it is.
+        ...(addingTo !== null ? { adds_to_sale_id: addingTo.id } : {}),
         // WHO SOLD IT, which is not who is typing. Sent only where the shop
         // asks — and left out rather than defaulted to the cashier, because a
         // sale credited to the till operator by default is exactly what made
@@ -2276,6 +2283,30 @@ export default function PosPage() {
     clearSale();
   };
 
+  /**
+   * WHICH PAID BILL THIS SALE IS ADDED TO (Q19 A) — in sight the whole time,
+   * like the slip being rung again, because the sale it becomes is printed as
+   * part of that customer's visit. "Ring separately" is always one press away.
+   */
+  const addingStrip = addingTo !== null && (
+    <div
+      data-pos-adding-to
+      className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-theme-xs text-gray-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-gray-200"
+    >
+      <span>
+        Adding to <span className="font-mono font-medium">{addingTo.invoice_number}</span> ({money(addingTo.together)} so far).
+        That bill stays as it is; this one prints with it and both are added up.
+      </span>
+      <button
+        type="button"
+        onClick={() => setAddingTo(null)}
+        className="rounded-lg border border-brand-300 px-2.5 py-1 font-medium hover:bg-brand-100 dark:border-brand-500/40 dark:hover:bg-brand-500/20"
+      >
+        Ring separately
+      </button>
+    </div>
+  );
+
   const ringAgainPaid = ringingAgain === null ? null : refusedTotal(ringingAgain.row);
   const ringAgainStrip = ringingAgain !== null && (
     <div
@@ -3072,6 +3103,7 @@ export default function PosPage() {
         {posNotice && <div className="bg-pos-ground px-3">{noticeStrip}</div>}
         {offlineRefused > 0 && <div className="bg-pos-ground px-3">{refusedStrip}</div>}
         {ringingAgain !== null && <div className="bg-pos-ground px-3">{ringAgainStrip}</div>}
+        {addingTo !== null && <div className="bg-pos-ground px-3">{addingStrip}</div>}
         </div>
 
         <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
@@ -3216,6 +3248,7 @@ export default function PosPage() {
             {posNotice && <div className="hidden sm:block">{noticeStrip}</div>}
             {offlineRefused > 0 && <div className="hidden sm:block">{refusedStrip}</div>}
             {ringingAgain !== null && <div className="hidden sm:block">{ringAgainStrip}</div>}
+            {addingTo !== null && <div className="hidden sm:block">{addingStrip}</div>}
             {/* The reprint tray, at the till rather than in a report: a receipt
                 that never came out is a customer still standing there. */}
             {(failedReceipts.data?.length ?? 0) > 0 && (
@@ -5207,6 +5240,10 @@ export default function PosPage() {
                   </span>
                 </div>
               ))}
+              {/* One visit, more than one bill (Q19 A). */}
+              {visitLine(lastSale, money) !== null && (
+                <p data-visit className="pt-1 text-theme-xs font-medium text-brand-600 dark:text-brand-400">{visitLine(lastSale, money)}</p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="flex-1" disabled={printing}
@@ -5270,6 +5307,15 @@ export default function PosPage() {
                 onClick={() => void openDrawer()}>
                 Open drawer
               </button>
+              {/* Two more for the customer still at the counter (Q19 A): a new
+                  sale that names this bill. Not for a sale rung with no
+                  server — there is no bill on the server to name yet. */}
+              {!("offline" in lastSale && lastSale.offline === true) && (
+                <button type="button" data-testid="add-to-bill" className={ROW_ACTION}
+                  onClick={() => { setAddingTo(billToAddTo(lastSale)); receiptModal.closeModal(); scanRef.current?.focus(); }}>
+                  Add to this bill
+                </button>
+              )}
             </div>
           </div>
         )}

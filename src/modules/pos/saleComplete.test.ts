@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { settledLines, type SettledSale } from "./saleComplete";
+import { billToAddTo, settledLines, visitLine, type SettledSale } from "./saleComplete";
 
 const sale = (over: Partial<SettledSale> = {}): SettledSale => ({
   total: "4990.00", amount_paid: "4990.00", change_due: "0.00", payment_method: "cash", payments: [], trade_in_total: "0.00", ...over,
@@ -59,5 +59,37 @@ describe("how the bill was settled, under the total", () => {
       { label: "Paid in cash", amount: 3990 },
       { label: "Change", amount: 0 },
     ]);
+  });
+});
+
+/** Q19 A: two more for a customer whose bill is already paid and printed. */
+describe("adding to a bill already paid", () => {
+  const money = (n: number) => `Rs ${n.toLocaleString("en-US")}`;
+  const visit = {
+    first_id: "s1",
+    bills: [
+      { id: "s1", invoice_number: "INV-000034", total: 800, cancelled: false },
+      { id: "s2", invoice_number: "INV-000035", total: 300, cancelled: false },
+    ],
+    together: 1100,
+  };
+
+  it("adds to the bill itself when it stands alone", () => {
+    expect(billToAddTo({ id: "s1", invoice_number: "INV-000034", total: "800.00", visit: null }))
+      .toEqual({ id: "s1", invoice_number: "INV-000034", together: 800 });
+  });
+
+  it("adds to the FIRST bill of the visit, never to an addition", () => {
+    expect(billToAddTo({ id: "s2", invoice_number: "INV-000035", total: "300.00", visit }))
+      .toEqual({ id: "s1", invoice_number: "INV-000034", together: 1100 });
+  });
+
+  it("says what the bills come to together, from whichever bill it is read", () => {
+    expect(visitLine({ id: "s2", visit }, money)).toBe("Added to INV-000034 — both bills come to Rs 1,100");
+    expect(visitLine({ id: "s1", visit }, money)).toBe("Bills added to this one — both bills come to Rs 1,100");
+    expect(visitLine({ id: "s3", visit: { ...visit, bills: [...visit.bills, { id: "s3", invoice_number: "INV-000036", total: 100, cancelled: false }], together: 1200 } }, money))
+      .toBe("Added to INV-000034 — all 3 bills come to Rs 1,200");
+    expect(visitLine({ id: "s1", visit: null }, money)).toBeNull();
+    expect(visitLine({ id: "s1", visit: { ...visit, bills: [visit.bills[0]], together: 800 } }, money), "one bill is not a visit of two").toBeNull();
   });
 });

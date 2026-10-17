@@ -50,9 +50,21 @@ export interface SaleItem {
   line_total: string;
 }
 
+/** One customer's visit: the first bill and the ones added to it (Q19 A). */
+export interface SaleVisit {
+  first_id: string;
+  bills: Array<{ id: string; invoice_number: string; total: number; cancelled: boolean }>;
+  /** What the standing bills come to together. */
+  together: number;
+}
+
 export interface Sale {
   id: string;
   invoice_number: string;
+  /** The bill this one was added to — the first of the visit (Q19 A). */
+  adds_to_sale_id?: string | null;
+  /** The visit's bills; null for a bill on its own (Q19 A). */
+  visit?: SaleVisit | null;
   /**
    * The `OFF-…` number printed at the till when there was no server.
    *
