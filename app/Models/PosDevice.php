@@ -46,6 +46,21 @@ class PosDevice extends Model
         ];
     }
 
+    /**
+     * What a report calls this till: the name the shop gave it, or else the
+     * code printed on its offline slips (OFF-TILL-MJ83-000001). A till
+     * registers itself with no name, so a report that read the name alone had
+     * a blank "which till" for every web till (money pass 2026-10-16, $12).
+     */
+    public function label(): ?string
+    {
+        if (filled($this->name)) {
+            return (string) $this->name;
+        }
+
+        return filled($this->code) ? "Till {$this->code}" : null;
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

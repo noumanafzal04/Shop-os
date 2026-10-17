@@ -121,7 +121,7 @@ class OfflineReportController extends Controller
                 'newest' => (clone $late)->max('sold_at'),
             ],
             'sales' => (clone $late)
-                ->with(['device:id,name', 'register:id,name'])
+                ->with(['device:id,name,code', 'register:id,name'])
                 // Flagged first: the whole reason for opening this screen is
                 // the handful that need a decision, and they must not be on
                 // page three behind ninety that were fine.
@@ -143,7 +143,7 @@ class OfflineReportController extends Controller
                         ? (int) floor($s->sold_at->diffInHours($s->synced_at))
                         : null,
                     'total' => (float) $s->total,
-                    'till' => $s->device?->name,
+                    'till' => $s->device?->label(),
                     'register' => $s->register?->name,
                     'violations' => $s->offline_violations ?? [],
                     'beyond_window' => (bool) $s->beyond_offline_window,
@@ -178,7 +178,7 @@ class OfflineReportController extends Controller
     private function shifts(Builder $lateShifts): array
     {
         return $lateShifts
-            ->with(['device:id,name', 'register:id,name', 'user:id,name'])
+            ->with(['device:id,name,code', 'register:id,name', 'user:id,name'])
             // Flagged first, for the same reason the sales are.
             ->orderByRaw('offline_violations is null')
             ->orderByDesc('opened_at')
@@ -198,7 +198,7 @@ class OfflineReportController extends Controller
                 'variance' => $s->variance === null ? null : (float) $s->variance,
                 // The tablet is what the queue lived on; the person is who the
                 // owner walks over to ask.
-                'till' => $s->device?->name,
+                'till' => $s->device?->label(),
                 'register' => $s->register?->name,
                 'cashier' => $s->user?->name,
                 'violations' => $s->offline_violations ?? [],
@@ -229,11 +229,11 @@ class OfflineReportController extends Controller
             ->whereNotNull('pos_device_id')
             ->whereNotNull('clock_skew_seconds')
             ->whereRaw('abs(clock_skew_seconds) > ?', [self::DRIFT_SECONDS])
-            ->with('device:id,name')
+            ->with('device:id,name,code')
             ->get(['id', 'pos_device_id', 'clock_skew_seconds'])
             ->groupBy('pos_device_id')
             ->map(fn ($sales): array => [
-                'till' => $sales->first()->device?->name,
+                'till' => $sales->first()->device?->label(),
                 'sales' => $sales->count(),
                 // Whole seconds, signed. Positive means the till was BEHIND.
                 'skew_seconds' => (int) $sales

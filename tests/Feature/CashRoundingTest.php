@@ -279,6 +279,40 @@ class CashRoundingTest extends TestCase
     }
 
     /**
+     * The paper must not bill the customer for the coin the shop gave up.
+     *
+     * Money pass 2026-10-16 ($3): a bill of 544.05 rounded down to 540.00 and
+     * paid with 540.00 printed "Rounding − 4.05 · To pay 540.00 · Cash 540.00"
+     * and then "Balance due 4.05" — on the one document the customer keeps.
+     * Every screen said Completed.
+     */
+    public function test_a_bill_rounded_either_way_and_paid_owes_nothing_on_its_paper(): void
+    {
+        // [increment, quantity, the figure handed over] — 247.63 a unit.
+        $cases = [
+            [1, 2, 495.0],   // 495.26 → 495, down 0.26
+            [5, 2, 495.0],   // 495.26 → 495, down 0.26
+            [10, 3, 740.0],  // 742.89 → 740, down 2.89
+            [10, 2, 500.0],  // 495.26 → 500, up 4.74
+        ];
+
+        foreach ($cases as [$increment, $quantity, $paid]) {
+            $this->roundsTo($increment);
+            $sale = $this->ring([
+                'amount_paid' => $paid,
+                'items' => [['product_id' => $this->product->id, 'quantity' => $quantity]],
+            ])->assertCreated()->json('data');
+            $this->assertEquals($paid, round((float) $sale['total'] + (float) $sale['rounding_adjustment'], 2));
+
+            $paper = $this->actingAsUser($this->owner)->get("/api/v1/sales/{$sale['id']}/invoice")->assertOk()->getContent();
+            $text = preg_replace('/\s+/', ' ', strip_tags((string) $paper));
+
+            $this->assertStringContainsString('To pay', $text);
+            $this->assertStringNotContainsString('Balance due', $text, "rounding {$increment}, {$quantity} units: the customer was told they owe the rounding");
+        }
+    }
+
+    /**
      * The adjustment is stored so a month of them can be added back up. A shop
      * rounding down on every bill is giving away real money, and it is entitled
      * to know how much.

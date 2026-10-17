@@ -598,7 +598,12 @@
                 <tr class="tender change"><td>Change</td><td class="num">{{ $amount($sale->change_due) }}</td></tr>
             @endif
 
-            @php($due = round((float) $sale->total - (float) $sale->amount_paid - $bankOff, 2))
+            {{-- What is still owed is what the counter asked for — the total
+                 AFTER its rounding — less what was paid and the bank's share.
+                 Without the rounding a bill rounded down and paid in full
+                 printed "Balance due" for the coin the shop gave up (money
+                 pass 2026-10-16, $3). --}}
+            @php($due = round((float) $sale->total + (float) ($sale->rounding_adjustment ?? 0) - (float) $sale->amount_paid - $bankOff, 2))
             @if($due > 0)
                 <tr class="tender change"><td>Balance due</td><td class="num">{{ $amount($due) }}</td></tr>
             @endif

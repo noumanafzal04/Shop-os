@@ -437,6 +437,31 @@ class OfflineReportTest extends TestCase
         $this->assertSame(3 * 86400 + 12, $clocks[0]['skew_seconds']);
     }
 
+    /**
+     * A web till registers itself with no name. The report then had a blank
+     * "which till" on every row, though the till's code is printed in the
+     * middle of the slip the customer holds (money pass 2026-10-16, $12).
+     */
+    public function test_a_till_nobody_named_is_called_by_the_code_on_its_slips(): void
+    {
+        $device = PosDevice::query()->create([
+            'id' => (string) Str::uuid(),
+            'tenant_id' => $this->tenant->id,
+            'name' => null,
+            'code' => 'MJ83',
+            'last_seen_at' => now(),
+        ]);
+
+        $this->sale(['pos_device_id' => $device->id, 'clock_skew_seconds' => 3 * 86400]);
+        $this->shift(['pos_device_id' => $device->id]);
+
+        $report = $this->report();
+
+        $this->assertSame('Till MJ83', $report['sales'][0]['till']);
+        $this->assertSame('Till MJ83', $report['shifts'][0]['till']);
+        $this->assertSame('Till MJ83', $report['clocks'][0]['till']);
+    }
+
     public function test_a_till_running_ahea_d_reads_negative_rather_than_being_hidden(): void
     {
         // Both directions are the same defect and the shop needs to see which
