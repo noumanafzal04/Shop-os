@@ -12,7 +12,7 @@ import { useCashMovementMutation, useSessionReport } from "../hooks/usePos";
 import type { CashMovement, ManualMovementType } from "../services/posService";
 import { INLINE_DISMISS } from "../../../components/ui/modal/closeButton";
 import { shopShortDateTime } from "../../../common/format/date";
-import { chainLabel, humanize, movementName } from "../drawerWords";
+import { chainLabel, humanize, movementName, refundsWord, salesSteps } from "../drawerWords";
 
 /**
  * The X-read, in the cashier's words: what this drawer should hold RIGHT NOW,
@@ -46,6 +46,8 @@ const TENDER_LABEL: Record<string, string> = {
   // An advance settled at collection. Named for what the cashier needs to
   // know — this money is NOT in today's drawer; it arrived weeks ago.
   deposit: "Advance (paid earlier)",
+  // Goods that came back paying for goods that went out — no money took it (B21).
+  exchange_credit: "Exchange credit (goods back)",
   other: "Other",
 };
 
@@ -378,11 +380,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
                   <p className="mb-2 text-theme-xs font-medium uppercase tracking-wide text-gray-400">How it adds up</p>
                   <dl className="space-y-1.5 text-theme-sm">
-                    {[
-                      { sign: "+", label: "Cash tendered", value: drawer.cash_tendered },
-                      { sign: "−", label: "Change given", value: drawer.change_given },
-                      { sign: "−", label: "Cash refunds", value: drawer.cash_refunds },
-                    ].map((r) => (
+                    {salesSteps(drawer).map((r) => (
                       <div key={r.label} className="flex items-center justify-between gap-3">
                         <dt className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
                           <span className="w-3 text-center font-medium tabular-nums">{r.sign}</span>
@@ -437,7 +435,7 @@ export default function CashDrawerPanel({ isOpen, onClose, hasOpenShift, coverin
                       { label: "Discounts", value: money(drawer.discounts) },
                       { label: "Tax", value: money(drawer.tax) },
                       { label: "Voids", value: String(drawer.voids) },
-                      { label: "Refunds", value: String(drawer.refunds) },
+                      { label: "Refunds", value: refundsWord(drawer.refunds, drawer.exchanges) },
                     ].map((s) => (
                       <div key={s.label}>
                         <p className="text-theme-xs text-gray-400">{s.label}</p>

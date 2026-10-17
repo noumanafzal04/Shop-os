@@ -1,3 +1,5 @@
+import { round2 } from "../offline/pricing/money";
+
 /**
  * A drawer's movements in the words a cashier uses.
  *
@@ -41,4 +43,32 @@ export function chainLabel(movements: ReadonlyArray<{ type: string; direction: s
   const head = way === "in" ? "Cash in" : "Cash out";
 
   return kinds.length === 0 ? head : `${head} (${kinds.join(", ")})`;
+}
+
+/**
+ * THE SALES HALF OF "HOW IT ADDS UP", with a swap said as one (B21).
+ *
+ * The cash a customer was handed back on an exchange read as "Change given",
+ * on a shift where nobody had overpaid. Its own line now; the two together
+ * are still the server's `change_given`, so the sum is the sum it was.
+ */
+export function salesSteps(d: {
+  cash_tendered: number;
+  change_given: number;
+  cash_refunds: number;
+  exchange_cash_back?: number;
+}): Array<{ sign: "+" | "−"; label: string; value: number }> {
+  const swapped = d.exchange_cash_back ?? 0;
+
+  return [
+    { sign: "+", label: "Cash tendered", value: d.cash_tendered },
+    { sign: "−", label: "Change given", value: round2(d.change_given - swapped) },
+    ...(swapped > 0 ? [{ sign: "−" as const, label: "Handed back on exchanges", value: swapped }] : []),
+    { sign: "−", label: "Cash refunds", value: d.cash_refunds },
+  ];
+}
+
+/** The Refunds tile: how many — and the swaps beside them, not inside them (B21). */
+export function refundsWord(refunds: number, exchanges = 0): string {
+  return exchanges > 0 ? `${refunds} · ${exchanges} ${exchanges === 1 ? "exchange" : "exchanges"}` : String(refunds);
 }

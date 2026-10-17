@@ -263,8 +263,13 @@ export interface DrawerTotals {
   discounts: number;
   tax: number;
   voids: number;
+  /** Goods taken back for money — a swap is not one of these (B21). */
   refunds: number;
-  /** Keyed by tender method: cash, card, bank_transfer, wallet, credit… */
+  /** Swaps: goods back paying for goods out. Absent from an older server. */
+  exchanges?: number;
+  /** The part of `change_given` handed back on exchanges (B21). */
+  exchange_cash_back?: number;
+  /** Keyed by tender method: cash, card, bank_transfer, wallet, credit, exchange_credit… */
   tender_mix: Record<string, number>;
 }
 
