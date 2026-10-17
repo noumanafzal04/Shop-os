@@ -334,7 +334,10 @@ function Row({
           {doc.number}
         </Link>
         <div className="mt-0.5 flex items-center gap-1.5">
-          {doc.status === "converted" && <Badge size="sm" color="success">Collected</Badge>}
+          {/* A quote taken up as an advance was not collected — it is waiting (B65). */}
+          {doc.status === "converted" && (doc.held_as
+            ? <Badge size="sm" color="primary">Held as {doc.held_as.number}</Badge>
+            : <Badge size="sm" color="success">Collected</Badge>)}
           {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
           {overdue && <Badge size="sm" color="warning">Overdue</Badge>}
         </div>

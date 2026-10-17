@@ -40,7 +40,7 @@ export function useDocumentSummary() {
  * offered a floor the server then refused (money pass 2026-10-16, $7).
  * Keyed apart from the documents, and never served from an old answer.
  */
-export function useDocumentWorth(ask: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone">, enabled: boolean) {
+export function useDocumentWorth(ask: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone" | "from_document_id">, enabled: boolean) {
   return useQuery({
     queryKey: ["sale-document-worth", JSON.stringify(ask)],
     queryFn: async () => (await documentService.worth(ask)).data,

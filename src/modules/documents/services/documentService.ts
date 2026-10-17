@@ -92,6 +92,10 @@ export interface SaleDocument {
   items?: DocumentItem[];
   payments?: DocumentPayment[];
   sale?: { id: string; invoice_number: string; sold_at: string } | null;
+  /** The quotation these goods were held from (B65) — on the advance. */
+  source?: { id: string; number: string; kind: DocumentKind } | null;
+  /** The advance this quotation became (B65) — on the quote. */
+  held_as?: { id: string; number: string; status?: DocumentStatus } | null;
   /** Server-derived — never recomputed here, so the rules live in one place. */
   balance?: number;
   has_lapsed?: boolean;
@@ -134,7 +138,10 @@ export interface DocumentWorth {
 
 export interface CreateDocumentInput {
   kind: DocumentKind;
-  items: DocumentLineInput[];
+  /** Absent when goods are held from a quote — the quote's lines are the lines. */
+  items?: DocumentLineInput[];
+  /** An open quotation whose goods are being held on advance, at its own price (B65). */
+  from_document_id?: string;
   customer_name?: string;
   customer_phone?: string;
   // ── Job card only. Ignored on a quotation or a layaway. ──────────
@@ -212,7 +219,7 @@ export const documentService = {
   create: (payload: CreateDocumentInput) => apiPost<SaleDocument>("/sale-documents", payload),
 
   /** Asked before the press; writes nothing. */
-  worth: (payload: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone">) =>
+  worth: (payload: Pick<CreateDocumentInput, "kind" | "items" | "discount" | "customer_phone" | "from_document_id">) =>
     apiPost<DocumentWorth>("/sale-documents/worth", payload),
 
   deposit: (id: string, payload: { amount: number; method?: string; reference?: string; note?: string; idempotency_key?: string }) =>

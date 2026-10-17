@@ -23,6 +23,7 @@ import { shopDate, shopShortDateTime } from "../../../common/format/date";
 import { useCashNeedsShift, useCounterShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { PrintPaperModal } from "../components/PrintPaperModal";
+import { HoldQuoteModal } from "../components/HoldQuoteModal";
 
 
 /**
@@ -47,6 +48,7 @@ export default function DocumentDetailPage() {
   const collectModal = useModal();
   const cancelModal = useModal();
   const paperModal = useModal();
+  const holdModal = useModal();
 
   if (query.isLoading) {
     return <div className="h-64 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
@@ -80,6 +82,13 @@ export default function DocumentDetailPage() {
    * and an advance taken any other way was invisible on the job it was for.
    */
   const takesAdvance = layaway || job;
+  /**
+   * The customer came back with the quote and puts money down (B65): its
+   * goods are held at the price on the paper, and it closes by itself. Not a
+   * lapsed one — its price has run out, the same as billing it.
+   */
+  const holdable = open && !layaway && !job && !doc.has_lapsed && settings.data?.layaway_enabled !== false;
+  const heldAs = doc.status === "converted" ? doc.held_as ?? null : null;
   const holdsMoney = layaway || (job && Number(doc.deposit_paid) > 0);
   const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
   const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "That could not be changed.");
@@ -104,7 +113,9 @@ export default function DocumentDetailPage() {
             <Badge size="sm" color={layaway || job ? "primary" : "light"}>
               {job ? "Job card" : layaway ? "On advance" : "Quotation"}
             </Badge>
-            {doc.status === "converted" && <Badge size="sm" color="success">Collected</Badge>}
+            {doc.status === "converted" && (heldAs
+              ? <Badge size="sm" color="primary">Held on advance</Badge>
+              : <Badge size="sm" color="success">Collected</Badge>)}
             {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
             {doc.has_lapsed && <Badge size="sm" color="warning">{layaway || job ? "Overdue" : "Expired"}</Badge>}
           </h1>
@@ -121,6 +132,15 @@ export default function DocumentDetailPage() {
             {doc.expires_at && (
               <> · {layaway || job ? "Collect by" : "Valid until"} {shopDate(doc.expires_at)}</>
             )}
+            {/* Linked both ways (B65): the advance names the quote it was held from. */}
+            {doc.source && (
+              <>
+                {" · from "}
+                <Link data-testid="held-from" to={`/tenant/documents/${doc.source.id}`} className="text-brand-500 hover:text-brand-600">
+                  {doc.source.number}
+                </Link>
+              </>
+            )}
           </p>
         </div>
 
@@ -128,6 +148,9 @@ export default function DocumentDetailPage() {
           <Button size="sm" variant="outline" onClick={paperModal.openModal}>Print</Button>
           {open && takesAdvance && (
             <Button size="sm" variant="outline" onClick={depositModal.openModal}>{job ? "Take an advance" : "Take instalment"}</Button>
+          )}
+          {holdable && (
+            <Button size="sm" variant="outline" onClick={holdModal.openModal}>Hold on advance</Button>
           )}
           {open && <Button size="sm" onClick={collectModal.openModal}>Bill &amp; hand over</Button>}
           {open && (
@@ -178,6 +201,19 @@ export default function DocumentDetailPage() {
             variant="warning"
             title="This quotation has expired"
             message="The price is no longer held. Write a fresh quote at today's prices, or ring the sale directly."
+          />
+        </div>
+      )}
+
+      {heldAs && (
+        <div className="mb-5" data-testid="held-as">
+          <Alert
+            variant="success"
+            title={`Held on advance as ${heldAs.number}`}
+            message="The customer put money down on this quotation. The goods are set aside at the price quoted here."
+            showLink
+            linkHref={`/tenant/documents/${heldAs.id}`}
+            linkText={`Open ${heldAs.number}`}
           />
         </div>
       )}
@@ -371,6 +407,15 @@ export default function DocumentDetailPage() {
           })
         }
       />
+
+      {holdable && (
+        <HoldQuoteModal
+          isOpen={holdModal.isOpen}
+          onClose={holdModal.closeModal}
+          quote={doc}
+          onHeld={(held) => navigate(`/tenant/documents/${held.id}`)}
+        />
+      )}
 
       <PrintPaperModal
         isOpen={paperModal.isOpen}
