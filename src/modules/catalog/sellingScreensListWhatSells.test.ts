@@ -40,7 +40,7 @@ const NOT_SELLING: Record<string, string> = {
   "./pages/ProductFormPage.tsx": "names it only in a comment — its pickers read the whole catalogue through another hook",
   "../inventory/pages/InventoryPage.tsx": "stock is counted and corrected whether or not it is on sale",
   "../inventory/components/WriteOffModal.tsx": "a retired product is exactly what gets written off",
-  "../purchases/pages/PurchaseOrdersPage.tsx": "goods are bought and received before they are put on sale",
+  "../purchases/components/NewPurchaseOrder.tsx": "goods are bought and received before they are put on sale",
 };
 
 const calls = (source: string) => [...source.matchAll(/useProducts\(\{([^}]*)\}\)/g)].map((m) => m[1]);

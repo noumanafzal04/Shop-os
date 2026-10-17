@@ -128,3 +128,32 @@ export interface PaymentInput {
   notes?: string | null;
   purchase_order_id?: string | null;
 }
+
+/**
+ * One item a supplier has sold the shop before — a row of the next order's
+ * starting list (GET /suppliers/{id}/products). A design in sizes is one row
+ * per size; `key` is `itemKey(product_id, variant_id)`.
+ */
+export interface SupplierItem {
+  key: string;
+  product_id: string;
+  variant_id: string | null;
+  /** "Kurta / M" for a size. */
+  name: string;
+  sku: string | null;
+  /** Packs it can be bought in — none for a size. */
+  units: Array<{ id: string; name: string; factor: number }>;
+  track_inventory: boolean;
+  /** At the place being looked at; the whole shop when it is all of them. */
+  in_stock: number;
+  low_stock_threshold: number | null;
+  times_ordered: number;
+  last: {
+    po_number: string;
+    ordered_on: string | null;
+    quantity: number;
+    product_unit_id: string | null;
+    unit_name: string | null;
+    unit_cost: number;
+  };
+}

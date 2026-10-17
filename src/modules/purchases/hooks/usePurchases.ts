@@ -26,6 +26,19 @@ export function useSuppliers(
   });
 }
 
+/**
+ * What one supplier has sold the shop before, a page at a time — the list a
+ * new order to them starts from. Nothing is asked until a supplier is chosen.
+ */
+export function useSupplierItems(supplierId: string, params: { search?: string; page?: number; per_page?: number }) {
+  return useQuery({
+    queryKey: ["suppliers", "items", supplierId, params],
+    queryFn: () => purchasesService.supplierItems(supplierId, params),
+    placeholderData: keepPreviousData,
+    enabled: supplierId !== "",
+  });
+}
+
 export function useSupplier(id: string | undefined) {
   return useQuery({
     queryKey: ["suppliers", "detail", id],

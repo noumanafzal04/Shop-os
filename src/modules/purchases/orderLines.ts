@@ -32,14 +32,22 @@ interface Source {
   variants?: Array<{ id: string; name: string; cost?: string | number | null; is_active?: boolean }>;
 }
 
+/**
+ * One name for one orderable thing, wherever it was found — the supplier's
+ * list, the product search, the reorder hand-off. The server's supplier list
+ * keys its rows the same way, so an item ticked there and searched for here is
+ * one line, not two.
+ */
+export const itemKey = (productId: string, variantId: string | null | undefined): string => `${productId}:${variantId ?? ""}`;
+
 export function orderables(p: Source): Orderable[] {
   const sizes = (p.variants ?? []).filter((v) => v.is_active !== false);
   if (sizes.length === 0) {
-    return [{ key: p.id, product_id: p.id, variant_id: null, label: p.name, cost: Number(p.cost ?? 0), units: p.units }];
+    return [{ key: itemKey(p.id, null), product_id: p.id, variant_id: null, label: p.name, cost: Number(p.cost ?? 0), units: p.units }];
   }
 
   return sizes.map((v) => ({
-    key: `${p.id}:${v.id}`,
+    key: itemKey(p.id, v.id),
     product_id: p.id,
     variant_id: v.id,
     label: `${p.name} / ${v.name}`,

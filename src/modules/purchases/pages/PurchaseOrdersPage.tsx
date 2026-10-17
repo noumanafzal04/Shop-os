@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useOnceKey } from "../../../common/onceKey";
+import { useEffect, useRef, useState } from "react";
 import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
 import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "../receive";
@@ -18,28 +17,23 @@ import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
-import { useProducts } from "../../catalog/hooks/useCatalog";
 import type { ProductUnit } from "../../catalog/types";
-import { useSuppliers } from "../hooks/usePurchases";
 import { purchaseRights } from "../stockroom";
-import { lineOut, orderables, type Orderable } from "../orderLines";
+import { fromReorderItem, type DraftLine } from "../orderDraft";
+import { NewPurchaseOrder } from "../components/NewPurchaseOrder";
 import { usePurchaseOrder, usePurchaseOrders, usePurchaseOrderMutations } from "../hooks/usePurchases";
 import { OrderPayments } from "../components/OrderPayments";
 import type { PurchaseStatus } from "../types";
 import { useConfirm } from "../../../components/ui/confirm";
-import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { shopDate } from "../../../common/format/date";
-import { shopWallToday } from "../../../common/shopDay";
-import { AddressedTo, DeliverTo, ReceiveInto } from "../../branches/components/ReceiveInto";
+import { AddressedTo, ReceiveInto } from "../../branches/components/ReceiveInto";
 
 
 const STATUS_COLOR: Record<PurchaseStatus, "warning" | "info" | "success" | "error" | "light"> = {
   draft: "light", ordered: "warning", partially_received: "info", received: "success", cancelled: "error",
 };
 
-interface Line { key: string; product_id: string; variant_id?: string | null; product_name: string; quantity: number; unit_cost: number; product_unit_id?: string | null; units?: ProductUnit[] }
-let lk = 0;
 
 /** What the Inventory reorder view hands over when it sends the shop here. */
 interface ReorderItem { id: string; name: string; cost: string | number | null; units?: ProductUnit[] }
@@ -64,10 +58,7 @@ export default function PurchaseOrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const orders = usePurchaseOrders({ status: statusFilter || undefined, page });
-  const suppliers = useSuppliers({ is_active: true });
-  const { create, place, receive, cancel } = usePurchaseOrderMutations();
-  // One press, one order: a double "Place order" made two Rs 7,200 orders.
-  const once = useOnceKey();
+  const { place, receive, cancel } = usePurchaseOrderMutations();
 
   const createModal = useModal();
   const detailModal = useModal();
@@ -134,20 +125,12 @@ export default function PurchaseOrdersPage() {
     );
   };
 
-  // Create form
-  const [supplierId, setSupplierId] = useState("");
-  // Where the supplier is to bring THIS order. Empty is "the usual place".
-  const [deliverTo, setDeliverTo] = useState("");
-  const [orderDate, setOrderDate] = useState(shopWallToday());
-  const [lines, setLines] = useState<Line[]>([]);
-  const [prodSearch, setProdSearch] = useState("");
-  const products = useProducts({ search: prodSearch || undefined });
-  const createErr = create.error instanceof ApiError ? create.error.firstFieldError() ?? create.error.message : null;
-
-  const total = useMemo(() => lines.reduce((s, l) => s + l.quantity * l.unit_cost, 0), [lines]);
-
+  // ── A new order ─────────────────────────────────────────────────
+  // The form is its own component (NewPurchaseOrder); this page only opens it,
+  // empty or with the reorder view's short items already on it.
+  const [startWith, setStartWith] = useState<DraftLine[]>([]);
   const openCreate = () => {
-    setSupplierId(""); setOrderDate(shopWallToday()); setLines([]); setProdSearch("");
+    setStartWith([]);
     createModal.openModal();
   };
 
@@ -169,45 +152,11 @@ export default function PurchaseOrdersPage() {
   useEffect(() => {
     if (!handoff?.length) return;
 
-    setSupplierId("");
-    setOrderDate(shopWallToday());
-    setProdSearch("");
-    setLines(handoff.map((p) => ({
-      key: `l${++lk}`,
-      product_id: p.id,
-      product_name: p.name,
-      quantity: 1,
-      unit_cost: Number(p.cost ?? 0),
-      product_unit_id: null,
-      units: p.units,
-    })));
+    setStartWith(handoff.map(fromReorderItem));
     createModal.openModal();
     navigate(location.pathname, { replace: true, state: null });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handoff]);
-  // A design in sizes is ordered size by size (orderLines.ts); the line is
-  // named for the size, and two lines of one size are one line.
-  const addLine = (o: Orderable) => {
-    if (lines.some((l) => l.product_id === o.product_id && (l.variant_id ?? null) === o.variant_id)) return;
-    setLines((ls) => [...ls, { key: `l${++lk}`, product_id: o.product_id, variant_id: o.variant_id, product_name: o.label, quantity: 1, unit_cost: o.cost, product_unit_id: null, units: o.units }]);
-    setProdSearch("");
-  };
-  const setLine = (key: string, patch: Partial<Line>) =>
-    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
-
-  const submitPO = (status: "draft" | "ordered") => {
-    if (!supplierId || lines.length === 0 || create.isPending) return;
-    create.mutate(
-      {
-        supplier_id: supplierId, order_date: orderDate, status,
-        // Left unchosen, the server addresses it by the same rule the form shows.
-        deliver_to_branch_id: deliverTo || undefined,
-        items: lines.map(lineOut),
-        idempotency_key: once.key,
-      },
-      { onSuccess: () => { once.renew(); createModal.closeModal(); } },
-    );
-  };
 
   const openDetail = (id: string) => { setDetailId(id); detailModal.openModal(); };
 
@@ -218,7 +167,6 @@ export default function PurchaseOrdersPage() {
   const rows = orders.data?.data ?? [];
   const seesMoney = sentMoney(rows, "total");
   const d = detail.data;
-  const prodRows = products.data?.data ?? [];
 
   return (
     <>
@@ -277,79 +225,7 @@ export default function PurchaseOrdersPage() {
         <Pager pagination={orders.data?.meta?.pagination} onPage={setPage} noun="purchase orders" />
       </div>
 
-      {/* Create PO */}
-      <Modal isOpen={createModal.isOpen} onClose={createModal.closeModal} className="max-w-2xl p-6">
-        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">New purchase order</h3>
-        {createErr && <div className="mb-3"><Alert variant="error" title="Couldn't create" message={createErr} /></div>}
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <select aria-label="Supplier" className="h-11 rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:bg-gray-900" value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-            <option value="">Select supplier…</option>
-            {(suppliers.data?.data ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <Input aria-label="Order date" type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value)} />
-        </div>
-
-        <div className="mt-3 empty:hidden">
-          <DeliverTo value={deliverTo} onChange={setDeliverTo} />
-        </div>
-
-        {/* Product picker */}
-        <div className="mt-4">
-          <Input placeholder="Search products to add…" value={prodSearch} onChange={(e) => setProdSearch(e.target.value)} />
-          {prodSearch && (
-            <div className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
-              {prodRows.length === 0 ? <p className="p-3 text-theme-xs text-gray-400">No products.</p> :
-                prodRows.flatMap((p) => orderables(p)).map((o) => (
-                  <button key={o.key} type="button" onClick={() => addLine(o)} className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-white/5">
-                    {o.label} <span className="text-theme-xs text-gray-400">· cost {money(o.cost)}</span>
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-
-        {/* Lines */}
-        <div className="mt-4 space-y-2">
-          {lines.length === 0 && <p className="text-theme-xs text-gray-400">Add at least one product.</p>}
-          {lines.map((l) => (
-            <div key={l.key} className="grid grid-cols-12 items-center gap-2">
-              <span className="col-span-4 truncate text-sm text-gray-700 dark:text-gray-300">{l.product_name}</span>
-              {/* Buy in a pack (Box) or the base unit — stock lands in base units */}
-              <div className="col-span-2">
-                {l.units && l.units.length > 0 ? (
-                  <select
-                    aria-label={`Unit for ${l.product_name}`}
-                    value={l.product_unit_id ?? ""}
-                    onChange={(e) => setLine(l.key, { product_unit_id: e.target.value || null })}
-                    className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 focus:outline-hidden dark:border-gray-700 dark:text-gray-200"
-                  >
-                    <option value="">Each</option>
-                    {l.units.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name} (×{Number(u.factor)})</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-theme-xs text-gray-400">each</span>
-                )}
-              </div>
-              <div className="col-span-2"><Input aria-label={`Quantity of ${l.product_name}`} type="number" min="1" value={String(l.quantity)} onChange={(e) => setLine(l.key, { quantity: Number(e.target.value) })} /></div>
-              <div className="col-span-3"><Input aria-label={`Cost each for ${l.product_name}`} type="number" min="0" value={String(l.unit_cost)} onChange={(e) => setLine(l.key, { unit_cost: Number(e.target.value) })} /></div>
-              <button type="button" aria-label={`Remove ${l.product_name}`} className={`col-span-1 ${ROW_ACTION_DANGER}`} onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}>✕</button>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-800">
-          <span className="text-sm text-gray-500 dark:text-gray-400">Total</span>
-          <span className="text-lg font-bold text-gray-800 dark:text-white/90">{money(total)}</span>
-        </div>
-
-        <div className="mt-5 flex justify-end gap-3">
-          <Button size="sm" variant="outline" onClick={() => submitPO("draft")} disabled={create.isPending || !supplierId || !lines.length}>Save draft</Button>
-          <Button size="sm" onClick={() => submitPO("ordered")} disabled={create.isPending || !supplierId || !lines.length}>{create.isPending ? "Saving…" : "Place order"}</Button>
-        </div>
-      </Modal>
+      <NewPurchaseOrder isOpen={createModal.isOpen} onClose={createModal.closeModal} startWith={startWith} />
 
       {/* PO detail */}
       <Modal isOpen={detailModal.isOpen} onClose={detailModal.closeModal} className="max-w-2xl p-6">

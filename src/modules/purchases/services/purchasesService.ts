@@ -4,6 +4,7 @@ import type {
   PurchaseOrder,
   PurchaseOrderInput,
   Supplier,
+  SupplierItem,
   SupplierInput,
   SupplierPayment,
 } from "../types";
@@ -19,6 +20,9 @@ export const purchasesService = {
   deleteSupplier: (id: string) => apiDelete<null>(`/suppliers/${id}`),
   paySupplier: (supplierId: string, payload: PaymentInput) =>
     apiPost<SupplierPayment>(`/suppliers/${supplierId}/payments`, payload),
+  /** Everything this supplier has sold the shop before — the next order's list. */
+  supplierItems: (supplierId: string, params: { search?: string; page?: number; per_page?: number }) =>
+    apiGet<SupplierItem[]>(`/suppliers/${supplierId}/products`, { params }),
 
   // ── Purchase orders ─────────────────────────────────────────────
   purchaseOrders: (params?: { search?: string; status?: string; supplier_id?: string; page?: number }) =>

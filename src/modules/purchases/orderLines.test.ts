@@ -22,7 +22,7 @@ describe("what an order can ask a supplier for", () => {
   it("a plain item is offered as itself, with its packs", () => {
     const units = [{ id: "u", name: "Box", factor: 12 }] as never;
     expect(orderables({ id: "p-d", name: "Chiffon Dupatta", cost: 450, units })).toEqual([
-      { key: "p-d", product_id: "p-d", variant_id: null, label: "Chiffon Dupatta", cost: 450, units },
+      { key: "p-d:", product_id: "p-d", variant_id: null, label: "Chiffon Dupatta", cost: 450, units },
     ]);
   });
 
