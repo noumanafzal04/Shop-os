@@ -148,4 +148,27 @@ class AStockHistoryReadsLikeOneShelfTest extends TestCase
         $this->assertSame(['Gone everywhere'], $names(null), 'the whole shop counted the godown stock as gone');
         $this->assertCount(4, $this->as($this->main)->getJson('/api/v1/products?type=product')->json('data'), 'the plain list was filtered');
     }
+
+    public function test_the_stock_list_holds_what_is_counted_and_says_how_many_are_not(): void
+    {
+        // The user, 2026-10-17: "out of stock kafi hain lkn 1 count q show kr
+        // raha". The tile counted the counted items; the list below drew every
+        // item and called each made-to-order dish's nought "Out of stock".
+        $this->item('Mutton', 0);
+        $this->item('Rice', 9);
+        foreach (['Chicken Samosa', 'Spring Rolls'] as $dish) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $this->shop->id, 'type' => 'product', 'item_type' => 'physical_product',
+                'name' => $dish, 'price' => 100, 'track_inventory' => false, 'stock_quantity' => 0,
+            ]);
+        }
+
+        $names = fn (string $q) => collect($this->as()->getJson('/api/v1/products?type=product'.$q)->assertOk()->json('data'))
+            ->pluck('name')->sort()->values()->all();
+
+        $this->assertSame(['Mutton', 'Rice'], $names('&track_inventory=1'), 'a dish made to order was on the stock list');
+        $this->assertSame(['Chicken Samosa', 'Spring Rolls'], $names('&track_inventory=0'));
+        $this->assertSame(['Mutton'], $names('&track_inventory=1&out_of_stock=1'));
+        $this->assertCount(4, $names(''), 'a list that did not ask was filtered');
+    }
 }

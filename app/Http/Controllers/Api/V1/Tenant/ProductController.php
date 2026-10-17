@@ -72,6 +72,10 @@ class ProductController extends Controller
             // The stock screen's "Out of stock" (not the kitchen's 86, `sold_out`):
             // the dashboard's count and the rows it opens, at the place looked at.
             ->when($request->boolean('out_of_stock'), fn ($q) => LowStock::soldOut($q, $branch->scopeId()))
+            // The stock screen lists what is COUNTED. A dish made to order has
+            // no shelf, and listed beside the counted things its nought read
+            // "Out of stock" — eleven of them, under a tile that said 1.
+            ->when($request->has('track_inventory'), fn ($q) => $q->where('track_inventory', $request->boolean('track_inventory')))
             ->orderByDesc('created_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100));
 
