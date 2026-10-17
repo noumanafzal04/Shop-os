@@ -422,6 +422,42 @@ class SaleDocumentTest extends TestCase
         $this->assertEquals(91000, $math['expected_cash']);
     }
 
+    public function test_once_collected_nothing_is_owed_and_the_handover_payment_is_listed(): void
+    {
+        $doc = $this->layaway(30000);
+
+        $sale = $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/convert", [
+                'payment_method' => 'cash', 'amount_paid' => 60000,
+            ])->assertCreated()->json('data.sale');
+
+        // B25: the page went on saying "Balance due 60,000" after it was paid,
+        // and "Payments received" listed the advance but never the 60,000.
+        $page = $this->actingAsUser($this->cashier)
+            ->getJson("/api/v1/sale-documents/{$doc['id']}")->assertOk()->json('data');
+        $this->assertEquals(0, $page['balance']);
+        $this->assertSame($sale['invoice_number'], $page['handover']['invoice_number']);
+        $this->assertEquals(60000, $page['handover']['amount']);
+        $this->assertSame(['cash'], $page['handover']['methods'], 'the advance is not paid again at the handover');
+    }
+
+    public function test_nothing_is_taken_at_the_handover_of_one_paid_off_in_instalments(): void
+    {
+        $doc = $this->layaway(30000);
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/deposits", ['amount' => 60000])->assertCreated();
+        $this->assertNull($this->actingAsUser($this->cashier)
+            ->getJson("/api/v1/sale-documents/{$doc['id']}")->json('data.handover'), 'not billed yet');
+
+        $this->actingAsUser($this->cashier)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/convert", [])->assertCreated();
+
+        $page = $this->actingAsUser($this->cashier)
+            ->getJson("/api/v1/sale-documents/{$doc['id']}")->assertOk()->json('data');
+        $this->assertEquals(0, $page['balance']);
+        $this->assertNull($page['handover']);
+    }
+
     public function test_the_receipt_names_the_advance_so_it_doesnt_read_as_paying_twice(): void
     {
         $doc = $this->layaway(30000);

@@ -7,13 +7,16 @@ use App\Actions\SaleDocument\ChangeJobCardAction;
 use App\Actions\SaleDocument\ConvertSaleDocumentAction;
 use App\Actions\SaleDocument\CreateSaleDocumentAction;
 use App\Actions\SaleDocument\RecordDepositAction;
+use App\Enums\PaymentMethod;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaleDocument\CancelSaleDocumentRequest;
 use App\Http\Requests\SaleDocument\ConvertSaleDocumentRequest;
 use App\Http\Requests\SaleDocument\StoreDepositRequest;
 use App\Http\Requests\SaleDocument\StoreSaleDocumentRequest;
+use App\Models\Sale;
 use App\Models\SaleDocument;
+use App\Models\SalePayment;
 use App\Support\ApiResponse;
 use App\Support\Permissions;
 use App\Support\ShopDay;
@@ -393,6 +396,39 @@ class SaleDocumentController extends Controller
     }
 
     /**
+     * WHAT WAS TAKEN AT THE HANDOVER (B25).
+     *
+     * The balance is paid on the sale the document is billed as, not as one of
+     * its instalments — so "Payments received" listed the advances and never
+     * the money that settled it. Null until billed, and when the advances had
+     * already paid it all.
+     *
+     * @return array{invoice_number: string, paid_at: string|null, amount: float, methods: list<string>}|null
+     */
+    private function handover(SaleDocument $document): ?array
+    {
+        if ($document->status !== SaleDocument::STATUS_CONVERTED || $document->sale_id === null) {
+            return null;
+        }
+
+        $sale = Sale::query()->with('payments')->find($document->sale_id);
+        $taken = $sale === null ? 0.0 : round((float) $sale->total - (float) $document->deposit_paid, 2);
+        if ($sale === null || $taken <= 0) {
+            return null;
+        }
+
+        return [
+            'invoice_number' => $sale->invoice_number,
+            'paid_at' => $sale->sold_at?->toIso8601String(),
+            'amount' => $taken,
+            'methods' => $sale->payments
+                ->map(fn (SalePayment $p): string => (string) $p->method)
+                ->reject(fn (string $method): bool => $method === PaymentMethod::Deposit->value)
+                ->unique()->values()->all(),
+        ];
+    }
+
+    /**
      * The derived numbers a client would otherwise have to recompute — and get
      * subtly wrong on the day the rules change.
      */
@@ -400,6 +436,7 @@ class SaleDocumentController extends Controller
     {
         return array_merge($document->toArray(), [
             'balance' => $document->balance(),
+            'handover' => $this->handover($document),
             'has_lapsed' => $document->hasLapsed(),
             // The car, when there is one. A job card that named a vehicle id
             // and nothing else would make the screen fetch every car one at a

@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
+use App\Models\BankCardOffer;
 use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\User;
@@ -180,9 +181,31 @@ class SaleController extends Controller
         // set on the model: an attribute that is not a column makes the model
         // dirty and the next save() writes it.
         return ApiResponse::created(
-            $sale->toArray() + ['kitchen_ticket' => $action->kitchenTicket],
+            $sale->toArray() + ['kitchen_ticket' => $action->kitchenTicket, 'bank_offer' => $this->bankOfferOn($sale)],
             "Sale {$sale->invoice_number} completed",
         );
+    }
+
+    /**
+     * WHICH BANK OFFER PAID PART OF IT (B28) — named on the till's "Sale
+     * complete" sheet, which showed a total the customer did not pay and no
+     * word of why. Null on every sale no bank paid towards.
+     *
+     * @return array{label: string, bank: string|null, discount: float}|null
+     */
+    private function bankOfferOn(Sale $sale): ?array
+    {
+        if ($sale->bank_card_offer_id === null || (float) $sale->bank_discount <= 0) {
+            return null;
+        }
+
+        $offer = BankCardOffer::withTrashed()->with('bank:id,name,short_code')->find($sale->bank_card_offer_id);
+
+        return $offer === null ? null : [
+            'label' => $offer->label,
+            'bank' => $offer->bank?->short_code ?: $offer->bank?->name,
+            'discount' => (float) $sale->bank_discount,
+        ];
     }
 
     /**

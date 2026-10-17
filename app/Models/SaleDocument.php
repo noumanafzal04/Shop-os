@@ -199,9 +199,18 @@ class SaleDocument extends BaseModel
         return ShopDay::startOf(CarbonImmutable::parse(ShopDay::calendarToday())->subDays(self::QUIET_DAYS)->toDateString());
     }
 
-    /** What the customer still owes before they can take the goods. */
+    /**
+     * What the customer still owes before they can take the goods.
+     *
+     * Nothing, once billed: the rest was taken at the handover, on the sale
+     * (B25 — the page went on saying "Balance due 2,490" after it was paid).
+     */
     public function balance(): float
     {
+        if ($this->status === self::STATUS_CONVERTED) {
+            return 0.0;
+        }
+
         return round((float) $this->total - (float) $this->deposit_paid, 2);
     }
 

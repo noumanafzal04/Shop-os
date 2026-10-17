@@ -155,6 +155,17 @@ class BankOfferSaleTest extends TestCase
         $this->assertSame($offer->id, Sale::withoutTenancy()->find($sale['id'])->bank_card_offer_id);
     }
 
+    public function test_the_till_is_told_which_offer_paid_its_share(): void
+    {
+        // B28: "Sale complete" showed a total the customer did not pay and no
+        // word of why. The answer names the offer, so the sheet can.
+        $this->offer();
+
+        $this->ring(['bank_id' => $this->bank->id])->assertCreated()
+            ->assertJsonPath('data.bank_offer', ['label' => 'Ramadan 10%', 'bank' => 'HBL', 'discount' => 1000]);
+        $this->ring()->assertCreated()->assertJsonPath('data.bank_offer', null);
+    }
+
     // ── The card slice, not the bill ────────────────────────────────
 
     public function test_a_split_pays_the_bank_share_out_of_the_car_d_slice_only(): void
