@@ -103,6 +103,9 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R50 | B43 | Expenses recorded this month; switch the Expenses module off for the shop; Dashboard and Reports for the same days. | The same expenses and the same profit on both. |
 | R51 | B14 | A shop that does not ask for shifts: ring one sale on a shift and one with no shift open (or complete a delivery order); Day & banking; close the day. | "Rung up" counts both, says "1 not at a counter"; the drawers' expected cash only the first; the closed day keeps both. |
 | R52 | B42 | A stock keeper kept to one place opens an item's stock history (and asks the API for another place). | Only their place's lines and balances. |
+| R53 | B51 | Two tills offline sell the last piece of one item; both come online. Reports → Offline. | The item is under "Count these again" and names both slips ("Sold on …"). |
+| R54 | B50 | A till offline rings a sale; sign out before it is sent. Then once with nothing waiting. | With a sale waiting it asks first and says how many; "Sign out anyway" keeps the sale on the device. With nothing waiting it signs out at once. |
+| R55 | F2 | Purchases → New purchase order: pick a supplier ordered from before; tick one item, a page, then Add all; give every line 10, change one; a pack on one line; Place order. Also on a phone. | Their past items listed with last time's quantity/cost/date and stock; every box named; each line's amount and the total right; the saved order holds exactly those lines, packs and costs. A supplier never ordered from says so; a cancelled order's items are not listed. |
 
 ### 5b. What no pass has reached yet
 
