@@ -116,6 +116,41 @@ class ARefundLeavesTheDrawerItCameOutOfTest extends TestCase
         $this->assertSame('Saad', $trail->new_values['approved_by']);
     }
 
+    /**
+     * A drawer cannot hand back more than it holds — the rule a pay-out keeps.
+     *
+     * Money pass 2026-10-16 ($6): 3,509.99 went back out of a drawer opened
+     * with 2,000, with no word on the sheet; the till then expected
+     * −1,509.99, and refused a pay-out of 500 for being more than it held.
+     */
+    public function test_a_refund_is_not_handed_out_of_a_drawer_that_does_not_hold_it(): void
+    {
+        $this->as($this->saad)->postJson('/api/v1/pos/session/open', ['opening_float' => 0])->assertSuccessful();
+        $sale = $this->as($this->saad)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'items' => [['product_id' => $this->kurta, 'quantity' => 2]], 'payment_method' => 'cash', 'amount_paid' => 5000,
+        ])->assertCreated()->json('data');
+
+        // Out of Bilal's 2,000: refused in words, and nothing is written.
+        $refused = $this->back($this->saad, $sale, [
+            'cash_session_id' => $this->bilalsDrawer()->id,
+            'approval' => ['user_id' => $this->saad->id, 'pin' => '2580'],
+        ])->assertStatus(422)->assertJsonPath('meta.error_code', 'INSUFFICIENT_DRAWER_CASH');
+        $this->assertStringContainsString('2,000.00', (string) $refused->json('message'));
+        $this->assertStringContainsString('2,500.00', (string) $refused->json('message'));
+        $this->assertSame(0, SaleReturn::withoutTenancy()->count());
+        $this->assertEquals(2000, $this->expected(), 'a refused refund moved the drawer');
+
+        // The sheet is told first what the person's own drawer holds…
+        $worth = $this->as($this->saad)->postJson("/api/v1/sales/{$sale['id']}/returns/worth", [
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+        ])->assertOk()->json('data');
+        $this->assertEquals(5000, $worth['drawer_holds']);
+        $this->assertEquals(2500, $worth['handed_back']);
+
+        // …and out of a drawer that holds it, the refund goes.
+        $this->back($this->saad, $sale)->assertCreated();
+    }
+
     public function test_another_drawer_is_never_named_without_a_pin_and_a_wrong_pin_hands_nothing_back(): void
     {
         $sale = $this->sold();

@@ -412,7 +412,11 @@ class LedgerService
             ->selectRaw(
                 "supplier_payments.id as id, 'supplier_payment' as type,"
                 .' DATE('.ShopDay::movedSql('supplier_payments.paid_at', ShopDay::shop($tenantId)).') as entry_date,'
-                .' supplier_payments.paid_at as sort_at, supplier_payments.reference as reference,'
+                // A payment written before $4 holds the DATE picked, at
+                // midnight: it sorts by when it was written, not ahead of the
+                // whole day's sales.
+                .' CASE WHEN TIME(supplier_payments.paid_at) = \'00:00:00\' THEN supplier_payments.created_at ELSE supplier_payments.paid_at END as sort_at,'
+                .' supplier_payments.reference as reference,'
                 ." COALESCE(CONCAT('Paid ', suppliers.name), 'Supplier payment') as description,"
                 ." 'Suppliers' as category, NULL as category_id, supplier_payments.method as method,"
                 .' 0 as amount_in, supplier_payments.amount as amount_out',

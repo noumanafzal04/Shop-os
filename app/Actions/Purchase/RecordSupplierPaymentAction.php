@@ -11,7 +11,10 @@ use App\Models\SupplierPayment;
 use App\Support\BranchContext;
 use App\Support\Currencies;
 use App\Support\Payable;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -77,7 +80,7 @@ class RecordSupplierPaymentAction
                 'amount' => $amount,
                 'method' => $data['method'] ?? 'cash',
                 'reference' => $data['reference'] ?? null,
-                'paid_at' => $data['paid_at'] ?? now(),
+                'paid_at' => $this->paidAt($data['paid_at'] ?? null, $supplier),
                 'notes' => $data['notes'] ?? null,
                 'created_by' => auth()->id(),
             ]);
@@ -201,5 +204,33 @@ class RecordSupplierPaymentAction
         }
 
         return $applied;
+    }
+
+    /**
+     * WHEN THE MONEY LEFT.
+     *
+     * The pay sheet sends the DATE a person picked ("Paid on"), and a bare
+     * date was stored as midnight — so every supplier payment sorted to the
+     * start of its day, ahead of the sales rung before it, and the Ledger's
+     * running balance read −39,823.61 before the day's first sale (money pass
+     * 2026-10-16, $4). Today is now; another day is that day at the shop's
+     * noon, inside its own business day whatever hour the day turns at. A
+     * full moment is kept as it was sent.
+     */
+    private function paidAt(?string $given, Supplier $supplier): CarbonInterface
+    {
+        $given = trim((string) $given);
+        if ($given === '') {
+            return now();
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $given) !== 1) {
+            return CarbonImmutable::parse($given);
+        }
+
+        $shop = ShopDay::shop($supplier->tenant_id);
+
+        return $given === ShopDay::calendarToday($shop)
+            ? now()
+            : CarbonImmutable::parse("{$given} 12:00:00", ShopDay::zone($shop))->utc();
     }
 }

@@ -16,6 +16,7 @@ use App\Support\ApiResponse;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
 use App\Support\CsvExport;
+use App\Support\DrawerMath;
 use App\Support\Retention;
 use App\Support\ShopDay;
 use App\Support\ShopTime;
@@ -263,6 +264,11 @@ class SaleController extends Controller
             'back_by' => ProcessSaleReturnAction::backBy($sale),
             // Whose count cash handed back here would land in — see BooksDrawer::stateFor.
             'drawer' => BooksDrawer::stateFor($request->user()),
+            // What that drawer holds now, so the sheet can say before the
+            // press that a cash refund is more than it (money pass $6).
+            'drawer_holds' => ($till = BooksDrawer::tillFor($request->user())) !== null
+                ? DrawerMath::for($till)['expected_cash']
+                : null,
             'lines' => array_map(static fn (array $line): array => [
                 'sale_item_id' => $line['sale_item']->id,
                 'quantity' => $line['quantity'],

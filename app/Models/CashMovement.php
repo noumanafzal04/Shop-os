@@ -33,6 +33,10 @@ class CashMovement extends Model
         // over, even though no sale has happened — without this line every
         // advance would be reported as an overage at close.
         'deposit_in', 'deposit_out',
+        // Cash a rider brings back for orders paid at the door. The sale was
+        // rung with no drawer — the rider still had the notes — so the drawer
+        // that takes them in must hear of it (money pass 2026-10-16, $11).
+        'rider_in',
     ];
 
     /** Which way each type moves the drawer. The single source of that truth. */
@@ -42,6 +46,7 @@ class CashMovement extends Model
         'khata_in' => 'in',
         'deposit_in' => 'in',
         'income_in' => 'in',
+        'rider_in' => 'in',
         'paid_out' => 'out',
         'drop' => 'out',
         'supplier_out' => 'out',

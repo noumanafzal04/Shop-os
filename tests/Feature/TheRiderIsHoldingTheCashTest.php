@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\CashMovement;
 use App\Models\City;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\RiderProfile;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -188,6 +190,35 @@ class TheRiderIsHoldingTheCashTest extends TestCase
 
         $this->as($this->owner)->deleteJson("/api/v1/riders/{$cardId}")->assertOk();
         $this->assertNull($this->cashOnTheScreen($cardId));
+    }
+
+    /**
+     * The rider's cash comes into the drawer of whoever takes it — once.
+     *
+     * Money pass 2026-10-16 ($11): "Cash received" wrote a settlement and
+     * nothing else. The delivered order's sale is rung with no drawer (the
+     * rider still has the notes), so 2,048.98 crossed the counter and no
+     * drawer heard of it; the till would close that much over.
+     */
+    public function test_the_cash_a_rider_hands_in_reaches_the_drawer_that_took_it(): void
+    {
+        $cardId = $this->card();
+        $this->as($this->owner)->postJson('/api/v1/pos/session/open', ['opening_float' => 1000])->assertSuccessful();
+        $expected = fn (): float => (float) $this->as($this->owner)->getJson('/api/v1/pos/session/report')->assertOk()->json('data.drawer.expected_cash');
+
+        $this->deliveredForCash($cardId);
+        // Delivered and rung: still in the rider's pocket, not in this drawer.
+        $this->assertEquals(1000, $expected());
+        $revenue = (float) Sale::withoutTenancy()->sum('total');
+
+        $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle", ['amount_paid' => 2100])->assertCreated();
+
+        $this->assertEquals(3100, $expected(), 'the cash the rider handed in reached no drawer');
+        $movement = CashMovement::withoutTenancy()->where('type', 'rider_in')->sole();
+        $this->assertEquals(2100, (float) $movement->amount);
+        $this->assertSame('rider_settlement', $movement->source_type);
+        // Handing it in is not a second sale.
+        $this->assertEquals($revenue, (float) Sale::withoutTenancy()->sum('total'));
     }
 
     public function test_once_the_cash_is_settled_the_rider_can_go(): void

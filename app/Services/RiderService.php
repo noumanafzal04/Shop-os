@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Actions\Pos\RecordCashMovementAction;
 use App\Enums\FulfillmentType;
 use App\Enums\OrderStatus;
 use App\Enums\RiderDocumentType;
@@ -1154,6 +1155,28 @@ class RiderService
 
             Order::withoutTenancy()->whereIn('id', $orders->pluck('id'))
                 ->update(['rider_settlement_id' => $settlement->id]);
+
+            // ── THE NOTES COME INTO A DRAWER ───────────────────────────
+            //
+            // A delivered COD order is rung with no drawer — the rider still
+            // has the money (OrderService::complete). Handing it in is when it
+            // reaches the till of whoever takes it, and this wrote the
+            // settlement and nothing else: 2,048.98 crossed the counter and
+            // no drawer, so the till would close that much over with nothing
+            // to point at (money pass 2026-10-16, $11). Not revenue — the sale
+            // already is — so it is a drawer movement, which no book of sales
+            // reads. No drawer open: nothing to move, as everywhere else.
+            $handedIn = round((float) $settlement->amount_paid, 2);
+            if ($handedIn > 0) {
+                app(RecordCashMovementAction::class)->record($staff, [
+                    'type' => 'rider_in',
+                    'amount' => $handedIn,
+                    'reason' => 'Cash from a rider',
+                    'note' => "{$card->name} · {$orders->count()} ".($orders->count() === 1 ? 'order' : 'orders'),
+                    'source_type' => 'rider_settlement',
+                    'source_id' => $settlement->id,
+                ]);
+            }
 
             return $settlement;
         });

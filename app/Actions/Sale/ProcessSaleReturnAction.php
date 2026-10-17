@@ -6,6 +6,7 @@ use App\Enums\ItemType;
 use App\Enums\PaymentMethod;
 use App\Enums\SaleStatus;
 use App\Exceptions\DomainException;
+use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductSerial;
@@ -17,7 +18,9 @@ use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Services\InventoryService;
 use App\Support\BooksDrawer;
+use App\Support\Currencies;
 use App\Support\DocumentCounter;
+use App\Support\DrawerMath;
 use App\Support\RecipeFor;
 use App\Support\TenantContext;
 use Illuminate\Database\QueryException;
@@ -526,6 +529,8 @@ class ProcessSaleReturnAction
                     ])->save();
                 }
 
+                $this->refuseOverdrawing($return);
+
                 $sale->forceFill([
                     'status' => $fullyReturned ? SaleStatus::Refunded : SaleStatus::PartiallyRefunded,
                 ])->save();
@@ -661,5 +666,42 @@ class ProcessSaleReturnAction
         $held->forceFill(['status' => 'in_stock', 'sale_id' => null, 'deleted_at' => null])->save();
 
         $unit->forceFill(['product_serial_id' => $held->id])->save();
+    }
+
+    /**
+     * A DRAWER CANNOT HAND BACK MORE THAN IT HOLDS.
+     *
+     * A refund of 3,509.99 went out of a drawer opened with 2,000 and nothing
+     * else in it: no word on the sheet, and the till then said "Expected in
+     * drawer −1,509.99" — a figure no drawer can hold — while a pay-out of 500
+     * from the same drawer was refused for being more than it held (money pass
+     * 2026-10-16, $6). The same rule now holds both: after the cash leaves,
+     * the drawer must not hold less than nothing. Asked of DrawerMath, after
+     * the return is written, so the cash slice is exactly what it subtracts —
+     * a khata-settled part or a trade-in reversed moved no notes.
+     */
+    private function refuseOverdrawing(SaleReturn $return): void
+    {
+        $method = $return->refund_method instanceof \BackedEnum ? $return->refund_method->value : (string) $return->refund_method;
+        if ($method !== PaymentMethod::Cash->value || $return->cash_session_id === null) {
+            return;
+        }
+
+        $cashOut = round((float) $return->refund_total - (float) $return->refund_credit - (float) $return->refund_trade_in, 2);
+        $session = CashSession::query()->whereKey($return->cash_session_id)->lockForUpdate()->first();
+        if ($cashOut <= 0 || $session === null) {
+            return;
+        }
+
+        $left = DrawerMath::for($session)['expected_cash'];
+        if ($left < -0.004) {
+            $currency = $this->context->get()?->currency();
+            throw DomainException::unprocessable(
+                'The drawer holds '.Currencies::format(round($left + $cashOut, 2), $currency, 2)
+                    .' — this refund hands back '.Currencies::format($cashOut, $currency, 2)
+                    .' in cash. Put cash in the drawer first, or hand it back from a drawer that holds it.',
+                'INSUFFICIENT_DRAWER_CASH',
+            );
+        }
     }
 }

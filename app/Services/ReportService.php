@@ -411,7 +411,17 @@ class ReportService
         // Each line carries the rate it was sold at, so its own tax is taken
         // back out of it. Both kinds of shop then read the same thing here:
         // what was charged for the goods, before tax.
-        $line = 'sale_items.line_total - COALESCE(returned.total, 0)';
+        //
+        // ── AND SO DOES ITS SHARE OF A DISCOUNT ON THE WHOLE BILL ───
+        //
+        // A manual discount, a coupon or a promotion is taken off the BILL,
+        // not a line, and this never took it off any line: Summary said
+        // 16,834.82 and this said 17,259.82, out by exactly the Rs 425 of
+        // bill discounts (money pass 2026-10-16, $5). It is shared out by
+        // value, as the refund engine shares it — and what came back was
+        // refunded at that discounted share already, so it comes off as is.
+        $billShare = 'CASE WHEN sales.subtotal > 0 THEN 1 - COALESCE(sales.discount, 0) / sales.subtotal ELSE 1 END';
+        $line = "sale_items.line_total * ({$billShare}) - COALESCE(returned.total, 0)";
         $earned = "CASE WHEN sales.tax_inclusive = 1 THEN ({$line}) / (1 + COALESCE(sale_items.tax_rate, 0) / 100.0) ELSE ({$line}) END";
 
         $rows = SaleItem::query()
