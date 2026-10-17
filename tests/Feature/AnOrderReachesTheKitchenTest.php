@@ -6,6 +6,7 @@ use App\Models\City;
 use App\Models\KitchenTicket;
 use App\Models\Product;
 use App\Models\RestaurantTicket;
+use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\ItemTypes;
@@ -251,7 +252,10 @@ class AnOrderReachesTheKitchenTest extends TestCase
         $this->move($order, 'completed');
 
         $this->assertSame(0, RestaurantTicket::withoutTenancy()->count());
-        $this->assertSame('completed', $this->asOwner()->getJson("/api/v1/orders/{$order['id']}")->json('data.status'));
+        $done = $this->asOwner()->getJson("/api/v1/orders/{$order['id']}")->json('data');
+        $this->assertSame('completed', $done['status']);
+        // B17: it came in by phone, and its sale says so — not "online".
+        $this->assertSame('phone', Sale::withoutTenancy()->findOrFail($done['sale_id'])->channel->value ?? null);
     }
 
     public function test_the_order_never_shows_as_a_table_on_the_floor(): void

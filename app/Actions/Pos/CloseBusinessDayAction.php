@@ -7,6 +7,7 @@ use App\Models\BankDeposit;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\User;
+use App\Support\AwayFromDrawers;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -105,6 +106,9 @@ class CloseBusinessDayAction
                 }
             }
 
+            // The day's sales that no drawer took (B14) — frozen with it.
+            $away = AwayFromDrawers::of($locked);
+
             $locked->update([
                 'status' => BusinessDay::STATUS_CLOSED,
                 'closed_by' => $user->id,
@@ -120,8 +124,8 @@ class CloseBusinessDayAction
                 // is 500 over and another 500 short nets to zero, and that is
                 // two problems, not none. The per-shift rows keep both.
                 'variance' => round((float) $sessions->sum(fn ($s) => (float) $s->variance), 2),
-                'sales_count' => (int) $sessions->sum(fn ($s) => (int) $s->sales_count),
-                'sales_total' => round((float) $sessions->sum(fn ($s) => (float) $s->sales_total), 2),
+                'sales_count' => (int) $sessions->sum(fn ($s) => (int) $s->sales_count) + $away['sales_count'],
+                'sales_total' => round((float) $sessions->sum(fn ($s) => (float) $s->sales_total) + $away['sales_total'], 2),
                 'banked_amount' => $banked,
                 'tender_mix' => $tenderMix ?: null,
                 'notes' => $notes ?? $locked->notes,

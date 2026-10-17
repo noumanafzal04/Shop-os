@@ -7,6 +7,7 @@ use App\Actions\Sale\CreateSaleAction;
 use App\Enums\FulfillmentType;
 use App\Enums\ItemType;
 use App\Enums\OrderStatus;
+use App\Enums\SaleChannel;
 use App\Exceptions\DomainException;
 use App\Exceptions\OrderQuoted;
 use App\Models\Branch;
@@ -824,7 +825,12 @@ class OrderService
 
             /** @var Sale $sale */
             $sale = $this->createSale->execute([
-                'channel' => 'online',
+                // HOW IT CAME IN (B17): a phone or WhatsApp order's sale said
+                // "online". Only those two are carried — a counter channel here
+                // would hold a doorstep delivery to the till's shift rule.
+                'channel' => in_array((string) $order->channel, [SaleChannel::Phone->value, SaleChannel::WhatsApp->value], true)
+                    ? (string) $order->channel
+                    : SaleChannel::Online->value,
                 'customer_name' => $order->customer_name,
                 'customer_phone' => $order->customer_phone,
                 'items' => $order->items->map(fn ($i) => [

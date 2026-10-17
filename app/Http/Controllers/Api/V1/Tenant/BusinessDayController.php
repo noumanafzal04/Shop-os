@@ -10,6 +10,7 @@ use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\CustomerLedgerEntry;
 use App\Support\ApiResponse;
+use App\Support\AwayFromDrawers;
 use App\Support\BranchContext;
 use App\Support\DrawerMath;
 use App\Support\KhataCollected;
@@ -120,6 +121,8 @@ class BusinessDayController extends Controller
 
         $banked = round((float) BankDeposit::query()->where('business_day_id', $day->id)->sum('amount'), 2);
         $cashSales = $sum('cash_sales');
+        // Sold today with no drawer — in "Rung up", never in the drawers (B14).
+        $away = AwayFromDrawers::of($day);
 
         return ApiResponse::ok([
             'day' => $day,
@@ -133,8 +136,11 @@ class BusinessDayController extends Controller
             'running' => [
                 'shifts' => $sessions->count(),
                 'open_shifts' => $sessions->where('status', 'open')->count(),
-                'sales_count' => (int) $rows->sum(fn (array $r) => (int) ($r['live']['sales_count'] ?? $r['sales_count'] ?? 0)),
-                'sales_total' => $sum('sales_total'),
+                'sales_count' => (int) $rows->sum(fn (array $r) => (int) ($r['live']['sales_count'] ?? $r['sales_count'] ?? 0)) + $away['sales_count'],
+                'sales_total' => round($sum('sales_total') + $away['sales_total'], 2),
+                // …of which no drawer took: orders paid on the doorstep, sales
+                // with no shift open. Said, so "Rung up" is not read as drawers.
+                'away_from_drawers' => $away,
                 'cash_sales' => $cashSales,
                 // What every drawer in the shop should be holding right now.
                 'expected_cash' => $sum('expected_cash'),
