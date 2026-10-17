@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { priceCart, effectiveTaxRate, taxOnLines, type CartLine as EngineLine } from "../offline/pricing/priceCart";
 import { round2 } from "../offline/pricing/money";
-import { cartSubtotal, lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine, type LineForMath } from "./lineMath";
+import { cartSubtotal, lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, packPrice, recalcLine, withLineDiscount, type LineForMath } from "./lineMath";
 
 /**
  * THE COUNTER'S ARITHMETIC AGREES WITH THE ENGINE — and so with the server.
@@ -246,6 +246,35 @@ describe("a discount can never take a line below nothing", () => {
   it("clamps a percentage to a hundred", () => {
     const line = pageLine({ price: 100, quantity: 1, discountValue: 250, discountMode: "pct" });
     expect(lineNet(line)).toBe(0);
+  });
+});
+
+describe("the line sheet keeps the discount the cashier chose", () => {
+  // $1 (money pass 2026-10-16): "Percent %" chosen before the amount was
+  // typed snapped back to "Fixed amount", and 7.5 was charged as Rs 7.50.
+  const rice: LineForMath = { unit_price: 2999.99, quantity: 1 };
+
+  it("keeps Percent when it is chosen before the amount", () => {
+    const chosen = withLineDiscount(rice, 0, "pct");
+    const typed = withLineDiscount(chosen, 7.5, chosen.discountMode as "pct");
+
+    expect(chosen.discountMode).toBe("pct");
+    expect(lineDiscountAmt(typed), "7.5 % of 2,999.99 is 225.00, not Rs 7.50").toBe(225);
+  });
+
+  it("keeps Percent when the box is emptied and typed again", () => {
+    const emptied = withLineDiscount(withLineDiscount(rice, 7.5, "pct"), 0, "pct");
+    const retyped = withLineDiscount(emptied, 10, emptied.discountMode as "pct");
+
+    expect(emptied.discountValue).toBeUndefined();
+    expect(lineDiscountAmt(retyped)).toBe(300);
+  });
+
+  it("says the percent that was typed — 7.5 %, not 8 %", () => {
+    expect(lineDiscountPctLabel(withLineDiscount(rice, 7.5, "pct"))).toBe("7.5%");
+    // A flat amount says its share to one decimal: 225 of 2,999.99.
+    expect(lineDiscountPctLabel(withLineDiscount(rice, 225, "amt"))).toBe("7.5%");
+    expect(lineDiscountPctLabel(withLineDiscount(rice, 0, "pct"))).toBeNull();
   });
 });
 

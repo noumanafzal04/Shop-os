@@ -280,12 +280,24 @@ api.interceptors.response.use(
 // once — the corrected form must be able to go — and any OTHER write to the
 // same address lets go of the ones before it: a switch pressed off, on and
 // off again sends all three.
+//
+// EXCEPT WHERE PRESSING IT AGAIN MEANS AGAIN. A waiter tapping naan four
+// times sends four identical "one more" — the guard handed taps two to four
+// the first one's answer, and three naan were served and never charged (money
+// pass 2026-10-16, $10). A control like that says so with `everyPressCounts`.
 export const TWIN_SETTLES_MS = 1_000;
+
+declare module "axios" {
+  interface AxiosRequestConfig {
+    /** Each press is its own write — a stepper's "one more" — and is never handed a twin's answer. */
+    everyPressCounts?: boolean;
+  }
+}
 
 const writesOnTheirWay = new Map<string, { address: string; answer: Promise<unknown> }>();
 
 function twinOf(method: string, url: string, body: unknown, config?: AxiosRequestConfig): string | null {
-  if (config?.signal) return null;
+  if (config?.signal || config?.everyPressCounts) return null;
   if (typeof FormData !== "undefined" && body instanceof FormData) return null;
   if (typeof Blob !== "undefined" && body instanceof Blob) return null;
   if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) return null;

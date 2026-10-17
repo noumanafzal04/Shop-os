@@ -23,7 +23,7 @@ import { round2 } from "../../offline/pricing/money";
 import { formatIn } from "../../../common/format/currency";
 import { useTillCurrency } from "../../offline/tillSettings";
 import { taxFieldsOf } from "../taxFields";
-import { lineDiscountAmt, lineGross, lineNet, lineUnit, packPrice, recalcLine } from "../lineMath";
+import { lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, packPrice, recalcLine, withLineDiscount } from "../lineMath";
 import { followLevel, shortBy, tillBill, type BillGroup } from "../tillBill";
 import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
@@ -2044,9 +2044,7 @@ export default function PosPage() {
   };
 
   const setLineDiscount = (key: string, value: number, mode: "amt" | "pct") =>
-    setCart((c) => c.map((l) => (l.key === key
-      ? { ...l, discountValue: value > 0 ? value : undefined, discountMode: value > 0 ? mode : undefined }
-      : l)));
+    setCart((c) => c.map((l) => (l.key === key ? withLineDiscount(l, value, mode) : l)));
 
   // Serialized retail: set the serial for the i-th unit on a line.
   const setLineSerial = (key: string, i: number, value: string) =>
@@ -3546,8 +3544,7 @@ export default function PosPage() {
                         const isWeight = l.sold_by === "weight";
                         const step = isWeight ? 0.25 : 1;
                         const disc = lineDiscountAmt(l);
-                        const gross = lineGross(l);
-                        const discPct = disc > 0 && gross > 0 ? Math.round((disc / gross) * 100) : 0;
+                        const discPct = lineDiscountPctLabel(l);
                         // The SAME rule the total uses. A line showing one
                         // rate under a total computed at another is a receipt
                         // that does not add up in front of the customer.
@@ -3590,7 +3587,7 @@ export default function PosPage() {
                                     plain line stays one short line. */}
                                 {disc > 0 && (
                                   <span className="font-medium text-warning-600 sm:hidden dark:text-warning-400">
-                                    −{money(disc)}{discPct > 0 ? ` (${discPct}%)` : ""}
+                                    −{money(disc)}{discPct ? ` (${discPct})` : ""}
                                   </span>
                                 )}
                                 {lineTax > 0 && <span className="sm:hidden">tax {money(lineTax)}</span>}
@@ -3685,7 +3682,7 @@ export default function PosPage() {
                               {disc > 0 ? (
                                 <>
                                   −{money(disc)}
-                                  {discPct > 0 && <div className="text-[11px] font-normal text-gray-400">{discPct}%</div>}
+                                  {discPct && <div className="text-[11px] font-normal text-gray-400">{discPct}</div>}
                                 </>
                               ) : "—"}
                             </td>

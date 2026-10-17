@@ -188,8 +188,9 @@ export const dineInService = {
 
   ticket: (id: string) => apiGet<Ticket>(`/restaurant/tickets/${id}`),
 
+  /** Every tap is a dish ordered: two taps with a note are two lines, never one press seen twice. */
   addItems: (id: string, items: AddItemLine[]) =>
-    apiPost<Ticket>(`/restaurant/tickets/${id}/items`, { items }),
+    apiPost<Ticket>(`/restaurant/tickets/${id}/items`, { items }, { everyPressCounts: true }),
 
   /**
    * More, fewer, or a note — on a line the kitchen has not been sent yet.
@@ -197,10 +198,12 @@ export const dineInService = {
    * `adjust` is a STEP (+1, −1), never a target. Four quick taps are four
    * requests that each say "one more" and all arrive at four; four that each
    * said "make it N" from what the screen last saw would arrive at two.
-   * Stepping a line to nothing takes it off the tab.
+   * Stepping a line to nothing takes it off the tab. So a step is never
+   * twinned with the step before it (`everyPressCounts`); a note is a target,
+   * and the same note sent twice is one.
    */
   updateItem: (id: string, itemId: string, change: { adjust?: number; note?: string | null }) =>
-    apiPatch<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, change),
+    apiPatch<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, change, { everyPressCounts: change.adjust !== undefined }),
 
   voidItem: (id: string, itemId: string, reason?: string) =>
     apiDelete<Ticket>(`/restaurant/tickets/${id}/items/${itemId}`, { data: { reason } }),

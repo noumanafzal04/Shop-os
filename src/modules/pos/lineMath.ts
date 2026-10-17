@@ -159,6 +159,34 @@ export const lineDiscountAmt = (l: LineForMath): number => {
   return l.discountMode === "pct" ? round2((gross * Math.min(v, 100)) / 100) : Math.min(round2(v), gross);
 };
 
+/**
+ * A line's discount as the cashier set it. The TYPE is kept whatever the
+ * amount: choosing "Percent %" before typing 7.5 threw the choice away with
+ * the empty amount, and the 7.5 was charged as Rs 7.50 — Rs 254.47 too much
+ * on a rice bag (money pass 2026-10-16, $1).
+ */
+export const withLineDiscount = <L extends LineForMath>(l: L, value: number, mode: "amt" | "pct"): L => ({
+  ...l,
+  discountValue: value > 0 ? value : undefined,
+  discountMode: mode,
+});
+
+/**
+ * The percent printed under a line's discount: the one typed, or else worked
+ * out to one decimal. Rounded to a whole number, 7.5 % read "8 %" ($2).
+ */
+export const lineDiscountPctLabel = (l: LineForMath): string | null => {
+  const disc = lineDiscountAmt(l);
+  const gross = lineGross(l);
+  if (disc <= 0 || gross <= 0) return null;
+
+  const pct = l.discountMode === "pct"
+    ? Number(Math.min(l.discountValue ?? 0, 100).toFixed(2))
+    : Number(((disc / gross) * 100).toFixed(1));
+
+  return pct > 0 ? `${pct}%` : null;
+};
+
 /** Line value the customer pays after its per-line discount. */
 export const lineNet = (l: LineForMath): number => Math.max(0, round2(lineGross(l) - lineDiscountAmt(l)));
 

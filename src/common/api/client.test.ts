@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios, { AxiosError } from "axios";
 
-import { api, apiDelete, apiGet, apiPost, apiPut, IN_FLIGHT_TRIES, sessionHasExpired, TWIN_SETTLES_MS } from "./client";
+import { api, apiDelete, apiGet, apiPatch, apiPost, apiPut, IN_FLIGHT_TRIES, sessionHasExpired, TWIN_SETTLES_MS } from "./client";
 import { useAuthStore } from "../../stores/authStore";
 
 /**
@@ -269,6 +269,20 @@ describe("one press, one request", () => {
 
     await expect(apiPost("/suppliers", {})).rejects.toMatchObject({ message: "Name is required." });
     expect(calls, "a refusal stayed on its way and swallowed the next press").toBe(2);
+  });
+
+  it("sends every press of a stepper — four taps on one dish are four naan", async () => {
+    // $10 (money pass 2026-10-16): the line went up by one for four taps,
+    // and three naan were served and never charged.
+    const sent: Sent[] = [];
+    slowServer(sent, 1);
+    const oneMore = () => apiPatch("/restaurant/tickets/t1/items/i1", { adjust: 1 }, { everyPressCounts: true });
+
+    await Promise.all([oneMore(), oneMore()]);
+    await oneMore();
+    await oneMore();
+
+    expect(sent, "a tap on the same dish was handed the tap before it").toHaveLength(4);
   });
 
   it("never twins a file upload", async () => {
