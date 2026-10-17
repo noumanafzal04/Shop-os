@@ -28,7 +28,9 @@ import { followLevel, shortBy, tillBill, type BillGroup } from "../tillBill";
 import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
 import { billKey, serverDueFrom } from "../tenderRecovery";
-import { completeOffline, linesFromCatalog, promotionLocally } from "../../offline/outbox/offlineCheckout";
+import { completeOffline, linesFromCatalog, OfflineRefused, promotionLocally } from "../../offline/outbox/offlineCheckout";
+import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
+import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
 import { queueTally } from "../../offline/db/repo";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
@@ -88,6 +90,9 @@ import { onSale, sellingPrice, sizePrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { shopDate, shopDateTime } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
+
+/** What a cart line can be made from: a catalogue item, or the bare shape a shortcut tile carries. */
+type LineSource = CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] };
 
 interface CartLine {
   /**
@@ -417,6 +422,18 @@ export default function PosPage() {
   const setOfflineTally = useOfflineStore((s) => s.setTally);
   const offlineRefused = useOfflineStore((s) => s.refused);
   const [refusedList, setRefusedList] = useState<OutboxRow[]>([]);
+  /**
+   * THE REFUSED SLIP THIS BILL IS RINGING AGAIN (B49), while it is.
+   *
+   * The next sale paid here stands for it — named to the shop as that slip's
+   * sale — and `left` is what could not go back on the bill (usually why it
+   * was refused). Online only: the naming needs the server.
+   */
+  const [ringingAgain, setRingingAgain] = useState<{ row: OutboxRow; left: string[] } | null>(null);
+  /** A "Dealt with" being written on the refused sheet, and what the sheet has to say. */
+  const [dealing, setDealing] = useState<{ op: string; note: string } | null>(null);
+  const [refusedSay, setRefusedSay] = useState<string | null>(null);
+  const [refusedBusy, setRefusedBusy] = useState<string | null>(null);
   const offlineOwed = useOfflineStore((s) => s.pending);
   const syncing = useOfflineStore((s) => s.syncing);
 
@@ -1496,6 +1513,14 @@ export default function PosPage() {
       // straight there; when it cannot, it is priced here, queued, and sent
       // whenever the line comes back. Nothing is trimmed for the offline path
       // — see `ringOffline`.
+      // A refused slip rung again is NAMED to the shop as its sale, and that
+      // needs the server. Queued, it would be one more sale standing for
+      // nothing while the slip stayed refused (B49).
+      if (ringingAgain !== null && !connected) {
+        throw new OfflineRefused([
+          `${ringingAgain.row.offlineNumber} is being rung again, and that needs the line — the sale it becomes is named to the shop as that slip's. Wait for the line, or press Stop.`,
+        ]);
+      }
       if (!connected) return { data: await ringOffline(payload as unknown as Record<string, unknown>) };
 
       // What the cashier was SHOWN, so the sale is made at that figure or not
@@ -1535,9 +1560,26 @@ export default function PosPage() {
       // would go and ask the server about it is skipped. It is still a real
       // sale: the drawer opens, the slip prints, the customer leaves.
       const isOffline = "offline" in data && data.offline === true;
+      const rang = ringingAgain;
 
       setLastSale(data);
       clearSale();
+      // THE SLIP THIS SALE STANDS FOR (B49) — settled here at once, so it can
+      // never be rung a second time, and told to the shop.
+      if (rang !== null && !isOffline) {
+        setRingingAgain(null);
+        const sale = data as Sale;
+        void settleRefused(rang.row, { how: "rung_again", saleId: sale.id, invoiceNumber: sale.invoice_number, by: user?.id ?? null })
+          .then((settled) => setPosNotice(
+            settled.error !== null
+              ? `${sale.invoice_number} was saved, but the shop did not take it as ${rang.row.offlineNumber}'s sale: ${settled.error}`
+              : settled.sent
+                ? `${rang.row.offlineNumber} is settled — ${sale.invoice_number} stands for it.`
+                : `${sale.invoice_number} stands for ${rang.row.offlineNumber}. The shop hears of it with the next sync.`,
+          ))
+          .catch(() => setPosNotice(`${sale.invoice_number} was saved, but ${rang.row.offlineNumber} could not be marked settled on this till — settle it from the refused list.`))
+          .finally(() => { void queueTally().then(setOfflineTally).catch(() => {}); });
+      }
       tenderModal.closeModal();
       if (!isOffline) {
         // Re-reading these offline would replace what the till knows with
@@ -1651,12 +1693,45 @@ export default function PosPage() {
     },
   });
 
-  const addLine = (p: CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] }, variantId: string | null = null, variantName?: string, variantPrice?: string | number, qtyOverride?: number, unitId?: string | null, serial?: string | null) => {
+  /**
+   * A new line for the cart — the one shape every door builds, so a line rung
+   * again from a refused slip (B49) is the same line a tap on the tile makes.
+   */
+  const lineFor = (p: LineSource, variantId: string | null, variantName: string | undefined, variantPrice: string | number | undefined, quantity: number, unitId: string | null | undefined, serial: string | null | undefined): CartLine => {
+    const basePrice = sellingPrice(p);
+    const packs = variantId == null && "units" in p ? p.units : undefined;
+    const selUnit = unitId && packs ? packs.find((u) => u.id === unitId) : undefined;
+
+    return {
+      ...(serial ? { serials: [serial] } : {}),
+      key: nextLineKey(), product_id: p.id, variant_id: variantId,
+      sku: "sku" in p ? (p.sku ?? null) : null,
+      name: variantName ? `${p.name} / ${variantName}` : p.name,
+      unit_price: selUnit ? packPrice(basePrice, selUnit) : (variantId != null && variantPrice != null ? Number(variantPrice) : basePrice),
+      quantity,
+      sold_by: "sold_by" in p ? p.sold_by ?? "unit" : "unit",
+      unit_label: "unit" in p ? p.unit : null,
+      price_tiers: variantId == null && "price_tiers" in p ? p.price_tiers : null,
+      product_unit_id: selUnit?.id ?? null,
+      unit_name: selUnit?.name ?? null,
+      unit_factor: selUnit ? Number(selUnit.factor) : 1,
+      units: packs && packs.length ? packs : undefined,
+      base_price: basePrice,
+      // Unset: the line follows the customer until the cashier picks one.
+      price_level: undefined,
+      wholesale_price: "wholesale_price" in p && p.wholesale_price != null ? Number(p.wholesale_price) : null,
+      ...taxFieldsOf(p),
+      requires_prescription: "requires_prescription" in p ? !!p.requires_prescription : false,
+      tracks_serial: "tracks_serial" in p ? !!p.tracks_serial : false,
+      warranty_months: "warranty_months" in p && p.warranty_months != null ? Number(p.warranty_months) : null,
+    };
+  };
+
+  const addLine = (p: LineSource, variantId: string | null = null, variantName?: string, variantPrice?: string | number, qtyOverride?: number, unitId?: string | null, serial?: string | null) => {
     // Rx warning when an item is tapped from the grid/list (scan handles its own).
     if ("requires_prescription" in p && p.requires_prescription) {
       sayOfALine(`℞ ${p.name} requires a prescription`);
     }
-    const basePrice = sellingPrice(p);
     const packs = variantId == null && "units" in p ? p.units : undefined;
     const selUnit = unitId && packs ? packs.find((u) => u.id === unitId) : undefined;
     setCart((c) => {
@@ -1669,29 +1744,7 @@ export default function PosPage() {
       // line that has no number yet before it adds another phone to the bill.
       if (existing && serial) return c.map((l) => (l === existing ? withNumber(l, serial) : l));
       if (existing) return c.map((l) => (l === existing ? { ...l, quantity: l.quantity + 1 } : l));
-      return [...c, {
-        ...(serial ? { serials: [serial] } : {}),
-        key: nextLineKey(), product_id: p.id, variant_id: variantId,
-        sku: "sku" in p ? (p.sku ?? null) : null,
-        name: variantName ? `${p.name} / ${variantName}` : p.name,
-        unit_price: selUnit ? packPrice(basePrice, selUnit) : (variantId != null && variantPrice != null ? Number(variantPrice) : basePrice),
-        quantity: qtyOverride ?? 1,
-        sold_by: "sold_by" in p ? p.sold_by ?? "unit" : "unit",
-        unit_label: "unit" in p ? p.unit : null,
-        price_tiers: variantId == null && "price_tiers" in p ? p.price_tiers : null,
-        product_unit_id: selUnit?.id ?? null,
-        unit_name: selUnit?.name ?? null,
-        unit_factor: selUnit ? Number(selUnit.factor) : 1,
-        units: packs && packs.length ? packs : undefined,
-        base_price: basePrice,
-        // Unset: the line follows the customer until the cashier picks one.
-        price_level: undefined,
-        wholesale_price: "wholesale_price" in p && p.wholesale_price != null ? Number(p.wholesale_price) : null,
-        ...taxFieldsOf(p),
-        requires_prescription: "requires_prescription" in p ? !!p.requires_prescription : false,
-        tracks_serial: "tracks_serial" in p ? !!p.tracks_serial : false,
-        warranty_months: "warranty_months" in p && p.warranty_months != null ? Number(p.warranty_months) : null,
-      }];
+      return [...c, lineFor(p, variantId, variantName, variantPrice, qtyOverride ?? 1, unitId, serial)];
     });
   };
 
@@ -2189,13 +2242,66 @@ export default function PosPage() {
       <button
         type="button"
         onClick={() => {
-          void refusedRows().then(setRefusedList).catch(() => setRefusedList([]));
+          setRefusedSay(null);
+          setDealing(null);
+          reloadRefused();
           refusedModal.openModal();
         }}
         className="rounded-lg border border-error-300 px-2.5 py-1 font-medium hover:bg-error-100 dark:border-error-500/40 dark:hover:bg-error-500/20"
       >
         See which
       </button>
+    </div>
+  );
+
+  /**
+   * WHICH REFUSED SLIP THIS BILL IS (B49) — in sight the whole time it is
+   * being rung, because the sale it becomes is named to the shop as that
+   * slip's. A bill that drifted into a different customer's would settle the
+   * wrong slip; Stop is always one press away.
+   */
+  /** Not ringing it after all: the bill goes, the slip stays on the refused list. */
+  const stopRingingAgain = () => {
+    setRingingAgain(null);
+    clearSale();
+  };
+
+  const ringAgainPaid = ringingAgain === null ? null : refusedTotal(ringingAgain.row);
+  const ringAgainStrip = ringingAgain !== null && (
+    <div
+      data-pos-ring-again
+      className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-gray-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-gray-200"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          Ringing <span className="font-mono font-medium">{ringingAgain.row.offlineNumber}</span> again
+          {ringAgainPaid !== null && <> — the customer paid {money(ringAgainPaid)}</>}. That money is already in the
+          drawer: take it as paid, and this sale stands for that slip.
+          {/* What the drawer will be out by if this bill goes as it stands —
+              a line that could not go back on is money with no sale still. */}
+          {ringAgainPaid !== null && cart.length > 0 && Math.abs(payable - ringAgainPaid) >= 0.01 && (
+            <span data-ring-again-gap className="mt-0.5 block font-medium text-warning-700 dark:text-warning-400">
+              This bill comes to {money(payable)} — {money(Math.abs(payable - ringAgainPaid))}{" "}
+              {payable < ringAgainPaid ? "less than was paid. Put what replaced it on the bill, or hand that back." : "more than was paid."}
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={stopRingingAgain}
+          className="rounded-lg border border-warning-300 px-2.5 py-1 font-medium hover:bg-warning-100 dark:border-warning-500/40 dark:hover:bg-warning-500/20"
+        >
+          Stop
+        </button>
+      </div>
+      {ringingAgain.left.length > 0 && (
+        <div className="mt-1.5">
+          <span className="font-medium">Not put back on the bill:</span>
+          <ul className="mt-0.5 list-disc pl-4">
+            {ringingAgain.left.map((why) => <li key={why}>{why}</li>)}
+          </ul>
+        </div>
+      )}
     </div>
   );
 
@@ -2354,6 +2460,100 @@ export default function PosPage() {
       revalidateCoupon(h.cart.coupon_code, h.cart.items.reduce((s, l) => s + l.unit_price * l.quantity, 0));
     } else {
       clearCoupon();
+    }
+  };
+
+  const reloadRefused = () => {
+    void refusedRows().then(setRefusedList).catch(() => setRefusedList([]));
+    void queueTally().then(setOfflineTally).catch(() => {});
+  };
+
+  /** A line from a refused slip: built by the same door as a tap, then set as it was rung. */
+  const ringLine = (l: LineToRing): CartLine => {
+    let line = lineFor(l.product, l.size?.id ?? null, l.size?.name, l.size?.price, l.quantity, l.unitId, null);
+    if (l.serials.length > 0) line = { ...line, serials: l.serials };
+    if (l.directions) line = { ...line, directions: l.directions };
+    if (l.options) {
+      line = {
+        ...line,
+        unit_price: (l.size ? Number(l.size.price) : sellingPrice(l.product)) + l.options.delta,
+        price_tiers: null,
+        modifier_option_ids: l.options.ids,
+        modifiers_label: l.options.label,
+      };
+    } else if (l.priceLevel === "wholesale" && l.size === null) {
+      line = recalcLine(line, { price_level: "wholesale" });
+    } else if (l.priceLevel) {
+      line = { ...line, price_level: l.priceLevel };
+    }
+
+    return l.discount ? withLineDiscount(line, l.discount.value, l.discount.mode) : line;
+  };
+
+  /**
+   * RING A REFUSED SLIP AGAIN (B49): its lines back on an empty bill, matched
+   * to the shop's catalogue as it is NOW — the slip was refused because that
+   * changed — and the next sale paid stands for it.
+   */
+  const startRingAgain = async (row: OutboxRow) => {
+    setRefusedSay(null);
+    if (!connected) {
+      setRefusedSay("Ringing it again needs the line: the sale it becomes is named to the shop as this slip's. Wait for the line, or say how it was dealt with.");
+      return;
+    }
+    if (cart.length > 0) {
+      setRefusedSay("There is a bill on the till. Finish it or hold it first — a refused sale is rung again on an empty bill.");
+      return;
+    }
+
+    setRefusedBusy(row.op);
+    const items = Array.isArray(row.sale.items) ? (row.sale.items as Array<{ product_id?: unknown }>) : [];
+    const ids = [...new Set(items.map((i) => i?.product_id).filter((id): id is string => typeof id === "string"))];
+    const found = new Map<string, CatalogProduct>();
+    try {
+      await Promise.all(ids.map(async (id) => {
+        try {
+          found.set(id, (await catalogService.product(id)).data);
+        } catch (e) {
+          // Gone is an answer. Anything else is not, and nothing is changed.
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }));
+    } catch {
+      setRefusedSay("The shop's items could not be read just now. Nothing was changed — try again.");
+      setRefusedBusy(null);
+      return;
+    }
+    setRefusedBusy(null);
+
+    const plan = planRingAgain(row.sale, (id) => found.get(id), (p, v) => whyNotSellable(p, v));
+    const bill = slipBill(row.sale);
+    setCart(plan.lines.map(ringLine));
+    setCustomer(bill.customerName);
+    setCustomerPhone(bill.customerPhone);
+    setDiscount(bill.discount > 0 ? String(bill.discount) : "");
+    setMethod(bill.method ?? defaultTender);
+    setRingingAgain({ row, left: plan.left });
+    refusedModal.closeModal();
+  };
+
+  const saveDealtWith = async (row: OutboxRow, note: string) => {
+    setRefusedBusy(row.op);
+    try {
+      const settled = await settleRefused(row, { how: "dealt_with", note, by: user?.id ?? null });
+      setRefusedSay(
+        settled.error !== null
+          ? `${row.offlineNumber} is settled on this till. The shop answered: ${settled.error}`
+          : settled.sent
+            ? `${row.offlineNumber} is settled.`
+            : `${row.offlineNumber} is settled on this till. The shop hears of it with the next sync.`,
+      );
+      setDealing(null);
+    } catch {
+      setRefusedSay("That could not be saved on this till. Try again.");
+    } finally {
+      setRefusedBusy(null);
+      reloadRefused();
     }
   };
 
@@ -2861,6 +3061,7 @@ export default function PosPage() {
         {/* Under the pane switch, so a phone sees it whichever pane is open. */}
         {posNotice && <div className="bg-pos-ground px-3">{noticeStrip}</div>}
         {offlineRefused > 0 && <div className="bg-pos-ground px-3">{refusedStrip}</div>}
+        {ringingAgain !== null && <div className="bg-pos-ground px-3">{ringAgainStrip}</div>}
         </div>
 
         <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
@@ -3004,6 +3205,7 @@ export default function PosPage() {
                 instead — see the note there. */}
             {posNotice && <div className="hidden sm:block">{noticeStrip}</div>}
             {offlineRefused > 0 && <div className="hidden sm:block">{refusedStrip}</div>}
+            {ringingAgain !== null && <div className="hidden sm:block">{ringAgainStrip}</div>}
             {/* The reprint tray, at the till rather than in a report: a receipt
                 that never came out is a customer still standing there. */}
             {(failedReceipts.data?.length ?? 0) > 0 && (
@@ -4824,9 +5026,18 @@ export default function PosPage() {
         <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
           These were rung on this till while it was offline and the server would not
           accept them. Nothing was recorded, so the cash in the drawer has no sale
-          against it — ring each one again, or correct what the server objected to.
+          against it. Ring each one again, or say how it was dealt with — the owner
+          sees both in Reports → Offline.
         </p>
-        <div className="max-h-80 space-y-2 overflow-y-auto">
+        {refusedSay !== null && (
+          <p role="status" className="mb-3 rounded-lg bg-gray-50 p-2 text-theme-xs text-gray-700 dark:bg-white/5 dark:text-gray-300">
+            {refusedSay}
+          </p>
+        )}
+        {refusedList.length === 0 && (
+          <p className="py-4 text-center text-theme-sm text-gray-500 dark:text-gray-400">Nothing left to settle.</p>
+        )}
+        <div className="max-h-[60dvh] space-y-2 overflow-y-auto">
           {refusedList.map((row) => {
             const amount = refusedTotal(row);
 
@@ -4848,6 +5059,50 @@ export default function PosPage() {
                 <p className="mt-1 text-theme-xs text-error-600 dark:text-error-400">
                   {row.error ?? "The server gave no reason."}
                 </p>
+                {dealing?.op === row.op ? (
+                  <div className="mt-2 space-y-2 rounded-lg bg-gray-50 p-2 dark:bg-white/5">
+                    <p className="text-theme-xs text-gray-600 dark:text-gray-300">
+                      How was it dealt with? The owner reads this, with your name.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DEALT_WITH.map((said) => (
+                        <button
+                          key={said}
+                          type="button"
+                          onClick={() => setDealing({ op: row.op, note: said })}
+                          className={`rounded-full border px-2.5 py-1 text-theme-xs ${dealing.note === said ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400" : "border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"}`}
+                        >
+                          {said}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      aria-label="How it was dealt with"
+                      placeholder="Or in your own words"
+                      value={dealing.note}
+                      onChange={(e) => setDealing({ op: row.op, note: e.target.value })}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setDealing(null)}>Back</Button>
+                      <Button
+                        size="sm"
+                        disabled={dealing.note.trim().length < 3 || refusedBusy !== null}
+                        onClick={() => void saveDealtWith(row, dealing.note)}
+                      >
+                        {refusedBusy === row.op ? "Saving…" : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => void startRingAgain(row)} disabled={refusedBusy !== null}>
+                      {refusedBusy === row.op ? "Reading the items…" : "Ring it again"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setRefusedSay(null); setDealing({ op: row.op, note: "" }); }} disabled={refusedBusy !== null}>
+                      Dealt with…
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -801,6 +801,8 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "Ring three sales and read the slip numbers.", expect: "All OFF-, all different, and the customer can be found by one of them later." },
           { do: "Count the drawer out, still offline.", expect: "Accepted, and the till says the figures are provisional until the queue drains." },
           { do: "Turn the network back on.", expect: "The badge counts down and empties. Every sale lands on the day it was rung." },
+          { do: "Ring two sales offline with an item you then delete on another device, and turn the network on.", expect: "Both are refused and a red strip says so. See which lists each with its slip number, what was paid and the reason. Reports → Offline already lists both as not settled, with the money in drawers against no sale." },
+          { do: "Settle one with Dealt with (a reason, or your own words), and the other with Ring it again.", expect: "Dealt with leaves the list at once. Ring it again puts the items that still exist on the bill and names the deleted one; the strip above the bill says what was paid and what the bill comes to. After paying, the till says the slip is settled and which receipt stands for it, and the red strip is gone. Ringing it again with the network off is refused in words." },
           { do: "Open Reports → Offline the next morning.", expect: "What came in late, from which till, what broke a rule, what landed after a day was closed (in rupees), which shifts ran with no server, and which tablets have the wrong clock." },
         ],
         wrong: [

@@ -1,4 +1,4 @@
-import { allRows, OUTBOX_STATUS, type OutboxRow } from "./outbox";
+import { allRows, FINISHED, type OutboxRow } from "./outbox";
 
 /**
  * What is actually left on the shelf, while sales are still queued.
@@ -43,7 +43,7 @@ export function stockKey(productId: string, variantId?: string | null): string {
 
 /** A row is still holding stock off the shelf until the server has the sale. */
 function stillOwed(row: OutboxRow): boolean {
-  return row.status !== OUTBOX_STATUS.ACKED && row.status !== OUTBOX_STATUS.FAILED;
+  return !FINISHED.includes(row.status);
 }
 
 /**

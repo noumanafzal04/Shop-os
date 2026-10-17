@@ -1,8 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Badge from "../../../components/ui/badge/Badge";
+import Button from "../../../components/ui/button/Button";
+import Input from "../../../components/form/input/InputField";
+import { useCan } from "../../../stores/useCan";
+import { DEALT_WITH, refusedSalesApi } from "../outbox/settleRefused";
 import { ApiError } from "../../../common/types/api";
-import { offlineReportService } from "./offlineReportService";
+import { offlineReportService, type OfflineRefusedRow } from "./offlineReportService";
 import { useMoney } from "../../shop/hooks/useShop";
 import { shopShortDateTime } from "../../../common/format/date";
 
@@ -62,8 +67,81 @@ function held(hours: number | null): string {
   return `${days} day${days === 1 ? "" : "s"}`;
 }
 
+/** What became of a refused sale, in one line (B49). */
+function settledAs(row: OfflineRefusedRow): string {
+  const by = row.settled_by ? ` — ${row.settled_by}` : "";
+  switch (row.settled_as) {
+    case "rung_again":
+      return `Rung again as ${row.invoice_number ?? "a sale"}${by}`;
+    case "dealt_with":
+      return `Dealt with: ${row.settled_note ?? "no note"}${by}`;
+    case "recorded":
+      return `Went through after all as ${row.invoice_number ?? "a sale"}`;
+    default:
+      return "Not settled";
+  }
+}
+
+/**
+ * SETTLED FROM HERE WHEN THE TILL CANNOT BE (B49).
+ *
+ * A refused sale is normally settled at the till that rang it, which holds its
+ * cart. When that till is gone — broken, wiped, sold — the record here is all
+ * there is, so the owner can say how it was dealt with. Only "dealt with":
+ * ringing it again needs the cart, and that was on the till.
+ */
+function DealtWith({ row }: { row: OfflineRefusedRow }) {
+  const qc = useQueryClient();
+  const [note, setNote] = useState<string | null>(null);
+  const settle = useMutation({
+    mutationFn: (said: string) => refusedSalesApi.settle(row.op, { how: "dealt_with", note: said }),
+    onSuccess: () => {
+      setNote(null);
+      void qc.invalidateQueries({ queryKey: ["reports", "offline"] });
+    },
+  });
+
+  if (note === null) {
+    return (
+      <div className="mt-1.5">
+        <Button size="sm" variant="outline" onClick={() => setNote("")}>Dealt with…</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 max-w-sm space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {DEALT_WITH.map((said) => (
+          <button
+            key={said}
+            type="button"
+            onClick={() => setNote(said)}
+            className={`rounded-full border px-2.5 py-1 text-theme-xs ${note === said ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400" : "border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"}`}
+          >
+            {said}
+          </button>
+        ))}
+      </div>
+      <Input aria-label="How it was dealt with" placeholder="Or in your own words" value={note} onChange={(e) => setNote(e.target.value)} />
+      {settle.isError && (
+        <p className="text-theme-xs text-error-600 dark:text-error-400">
+          {settle.error instanceof ApiError ? settle.error.message : "It was not saved — try again."}
+        </p>
+      )}
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => setNote(null)}>Back</Button>
+        <Button size="sm" disabled={note.trim().length < 3 || settle.isPending} onClick={() => settle.mutate(note.trim())}>
+          {settle.isPending ? "Saving…" : "Save"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function OfflineReportTab() {
   const money = useMoney();
+  const can = useCan();
   const report = useQuery({
     queryKey: ["reports", "offline"],
     queryFn: () => offlineReportService.load().then((r) => r.data),
@@ -85,6 +163,8 @@ export function OfflineReportTab() {
   const shifts = data?.shifts ?? [];
   const clocks = data?.clocks ?? [];
   const oversold = data?.oversold ?? [];
+  const refused = data?.refused ?? [];
+  const refusedOwed = summary?.refused_owed ?? 0;
 
   // A shift counts as "something happened" on its own. A drawer opened with no
   // server, on a lane somebody else already held, is exactly the morning this
@@ -92,7 +172,7 @@ export function OfflineReportTab() {
   // the report telling an owner the opposite of what it knows.
   if (
     !summary ||
-    (summary.sales === 0 && shifts.length === 0 && clocks.length === 0 && oversold.length === 0)
+    (summary.sales === 0 && shifts.length === 0 && clocks.length === 0 && oversold.length === 0 && refused.length === 0)
   ) {
     return (
       <div className="rounded-xl border border-success-200 bg-success-50 p-4 dark:border-success-500/30 dark:bg-success-500/10">
@@ -118,7 +198,8 @@ export function OfflineReportTab() {
     oversold.length > 0 ||
     summary.after_close > 0 ||
     summary.shifts_flagged > 0 ||
-    uncounted > 0;
+    uncounted > 0 ||
+    refusedOwed > 0;
 
   return (
     <div className="space-y-5">
@@ -136,7 +217,10 @@ export function OfflineReportTab() {
             : "Everything that came in late went through cleanly"}
         </p>
         <p className="mt-1 text-theme-xs text-gray-600 dark:text-gray-300">
-          {summary.sales === 0 ? (
+          {summary.sales === 0 && refused.length > 0 ? (
+            // Rung with no line, and refused: none of it reached the books.
+            <>Nothing rung out of contact went into your books — the sales the shop refused are below.</>
+          ) : summary.sales === 0 ? (
             // A shift can arrive with no sales behind it — the line came back
             // before anything was rung. "0 sales worth Rs 0" is a sentence no
             // owner should have to read.
@@ -153,6 +237,71 @@ export function OfflineReportTab() {
           )}
         </p>
       </div>
+
+      {refused.length > 0 && (
+        <section className="space-y-2" data-testid="offline-refused">
+          <h3 className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+            Sales the shop refused
+          </h3>
+          <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            Rung on a till with no connection, then refused when it came back — usually an item
+            deleted or switched off in between. The customer paid, so until somebody at that till
+            rings it again or says how it was dealt with, the money sits in a drawer with no sale
+            against it.
+          </p>
+          {refusedOwed > 0 && (
+            <p className="text-theme-sm font-medium text-error-600 dark:text-error-400">
+              {refusedOwed === 1 ? "1 still to settle" : `${refusedOwed} still to settle`} ·{" "}
+              {money(summary.refused_owed_total ?? 0)} in drawers with no sale
+            </p>
+          )}
+          <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full min-w-[560px] text-theme-sm">
+              <thead className="text-left text-theme-xs text-gray-400">
+                <tr>
+                  <th className="p-3 font-normal">Slip</th>
+                  <th className="p-3 font-normal">Rung</th>
+                  <th className="p-3 font-normal">What became of it</th>
+                  <th className="p-3 text-right font-normal">Paid</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {refused.map((row) => (
+                  <tr key={row.id}>
+                    <td className="p-3">
+                      <div className="font-mono text-gray-800 dark:text-white/90">
+                        {row.offline_number ?? "No slip number"}
+                      </div>
+                      <div className="text-theme-xs text-gray-400">
+                        {[row.till, row.rung_by].filter(Boolean).join(" · ") || "Unknown till"}
+                      </div>
+                      {row.reason && (
+                        <div className="mt-0.5 text-theme-xs text-error-600 dark:text-error-400">{row.reason}</div>
+                      )}
+                    </td>
+                    <td className="p-3 text-gray-500 dark:text-gray-400">{when(row.sold_at)}</td>
+                    <td className="p-3">
+                      {row.settled_as === null ? (
+                        <>
+                          <Badge size="sm" color="error">Not settled</Badge>
+                          {/* The till's own permission: settling says what became of cash. */}
+                          {can("sales.manage") && <DealtWith row={row} />}
+                        </>
+                      ) : (
+                        <span className="text-theme-xs text-gray-600 dark:text-gray-300">{settledAs(row)}</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right font-medium tabular-nums text-gray-800 dark:text-white/90">
+                      {/* Unknown is said, never "0" — a sale worth nothing is a different story. */}
+                      {row.till_total === null ? <span className="text-gray-400">not known</span> : money(row.till_total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {summary.after_close > 0 && (
         <div className="rounded-xl border border-warning-200 bg-warning-50 p-4 dark:border-warning-500/30 dark:bg-warning-500/10">

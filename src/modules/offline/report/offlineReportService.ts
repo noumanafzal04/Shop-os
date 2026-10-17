@@ -48,6 +48,31 @@ interface OfflineShiftRow {
   violations: string[];
 }
 
+/**
+ * A sale a till rang with no line and the shop then refused (B49) — the
+ * customer paid, the money is in a drawer, and there is no sale for it until
+ * somebody at the till settles it.
+ */
+export interface OfflineRefusedRow {
+  id: string;
+  /** What it is settled by — from the report too, when its till is gone. */
+  op: string;
+  offline_number: string | null;
+  sold_at: string | null;
+  refused_at: string | null;
+  till: string | null;
+  rung_by: string | null;
+  till_total: number | null;
+  reason: string | null;
+  /** Null while still owed; `recorded` = it went through after all. */
+  settled_as: "rung_again" | "dealt_with" | "recorded" | null;
+  settled_note: string | null;
+  settled_by: string | null;
+  settled_at: string | null;
+  invoice_number: string | null;
+  sale_id: string | null;
+}
+
 interface OfflineReport {
   from: string;
   summary: {
@@ -74,8 +99,13 @@ interface OfflineReport {
     shifts_flagged: number;
     oldest: string | null;
     newest: string | null;
+    /** Refused and not yet settled, however long ago (B49). Older servers send none. */
+    refused_owed?: number;
+    refused_owed_total?: number;
   };
   sales: OfflineSaleRow[];
+  /** Every refused sale still owed, then those settled in the period. */
+  refused?: OfflineRefusedRow[];
   shifts: OfflineShiftRow[];
   /**
    * Tills whose clock is wrong — one row each, not one per sale.

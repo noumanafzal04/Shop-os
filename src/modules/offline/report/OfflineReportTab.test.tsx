@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { OfflineReportTab } from "./OfflineReportTab";
 import { offlineReportService } from "./offlineReportService";
+import { refusedSalesApi } from "../outbox/settleRefused";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * What happened while the shop was offline.
@@ -325,5 +327,98 @@ describe("tills with the wrong time", () => {
     show(report({ clocks: [{ till: "Lane 2", sales: 3, skew_seconds: -7200 }] }));
 
     expect(await screen.findByText(/Nothing in your books is wrong/)).toBeInTheDocument();
+  });
+});
+
+/** B49: a refused sale is money in a drawer with no sale — until somebody at the till settles it. */
+const refusal = (over: Record<string, unknown> = {}) => ({
+  id: "r1",
+  op: "0d1f1a2b-0000-4000-8000-000000000007",
+  offline_number: "OFF-L1-AB-000007",
+  sold_at: "2026-10-17T07:00:00.000Z",
+  refused_at: "2026-10-17T08:00:00.000Z",
+  till: "Counter tablet",
+  rung_by: "Bilal",
+  till_total: 1200,
+  reason: "Old Shampoo was deleted since it was rung.",
+  settled_as: null,
+  settled_note: null,
+  settled_by: null,
+  settled_at: null,
+  invoice_number: null,
+  sale_id: null,
+  ...over,
+});
+
+describe("a sale the shop refused", () => {
+  it("is a thing that needs a look, with how much sits in a drawer against no sale", async () => {
+    show(report({ summary: { ...report().summary, refused_owed: 1, refused_owed_total: 1200 }, refused: [refusal()] }));
+
+    expect(await screen.findByText("Some of this needs a look")).toBeInTheDocument();
+    const section = screen.getByTestId("offline-refused");
+    expect(section).toHaveTextContent("OFF-L1-AB-000007");
+    expect(section).toHaveTextContent("Counter tablet · Bilal");
+    expect(section).toHaveTextContent("Old Shampoo was deleted since it was rung.");
+    expect(section).toHaveTextContent("Not settled");
+    expect(section).toHaveTextContent("1 still to settle · Rs 1,200 in drawers with no sale");
+  });
+
+  it("is never 'nothing came in late' when nothing else did", async () => {
+    const quiet = { ...report().summary, sales: 0, total: 0, refused_owed: 1, refused_owed_total: 1200 };
+    show(report({ summary: quiet, sales: [], refused: [refusal()] }));
+
+    expect(await screen.findByText(/Nothing rung out of contact went into your books/)).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing came in late/)).not.toBeInTheDocument();
+  });
+
+  it("says what became of each one that was settled, and by whom", async () => {
+    show(report({
+      refused: [
+        refusal({ id: "a", settled_as: "rung_again", invoice_number: "INV-0050", settled_by: "Bilal" }),
+        refusal({ id: "b", settled_as: "dealt_with", settled_note: "Money handed back to the customer", settled_by: "Sana" }),
+        refusal({ id: "c", settled_as: "recorded", invoice_number: "INV-0051", till_total: null }),
+      ],
+    }));
+
+    const section = await screen.findByTestId("offline-refused");
+    expect(section).toHaveTextContent("Rung again as INV-0050 — Bilal");
+    expect(section).toHaveTextContent("Dealt with: Money handed back to the customer — Sana");
+    expect(section).toHaveTextContent("Went through after all as INV-0051");
+    expect(section).toHaveTextContent("not known");
+    expect(section).not.toHaveTextContent("Not settled");
+    expect(section).not.toHaveTextContent("still to settle");
+    // All settled: nothing about them needs a look.
+    expect(screen.getByText(/went through cleanly/)).toBeInTheDocument();
+  });
+});
+
+describe("settled from the report when the till that rang it is gone", () => {
+  const owed = () => report({ summary: { ...report().summary, refused_owed: 1, refused_owed_total: 1200 }, refused: [refusal()] });
+
+  it("takes the owner's word for how it was dealt with, and asks the report again", async () => {
+    useAuthStore.setState({ user: { id: "o", role: "shop_owner", permissions: [] } } as never);
+    const settle = vi.spyOn(refusedSalesApi, "settle").mockResolvedValue(envelope({ id: "r1", settled_as: "dealt_with" }) as never);
+    const load = vi.spyOn(offlineReportService, "load").mockResolvedValue(envelope(owed()) as never);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><OfflineReportTab /></QueryClientProvider>);
+
+    const section = await screen.findByTestId("offline-refused");
+    fireEvent.click(within(section).getByRole("button", { name: "Dealt with…" }));
+    const save = within(section).getByRole("button", { name: "Save" });
+    expect(save, "no word of how is no settlement").toBeDisabled();
+    fireEvent.click(within(section).getByRole("button", { name: "Written in the sales book by hand" }));
+    fireEvent.click(save);
+
+    await waitFor(() => expect(settle).toHaveBeenCalledWith("0d1f1a2b-0000-4000-8000-000000000007", { how: "dealt_with", note: "Written in the sales book by hand" }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+  });
+
+  it("is not offered to somebody who may read reports but not work the till", async () => {
+    useAuthStore.setState({ user: { id: "a", role: "staff", permissions: ["reports.view"] } } as never);
+    show(owed());
+
+    const section = await screen.findByTestId("offline-refused");
+    expect(within(section).getByText("Not settled")).toBeInTheDocument();
+    expect(within(section).queryByRole("button", { name: "Dealt with…" })).not.toBeInTheDocument();
   });
 });

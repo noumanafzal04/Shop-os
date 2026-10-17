@@ -14,6 +14,9 @@ import { STORE } from "../db/schema";
  *   SENDING  → in flight right now
  *   ACKED    → the server has it; kept a while, then pruned
  *   FAILED   → the server refused it for a reason retrying cannot change
+ *   RESOLVED → refused, and a person at the till has said what became of it
+ *              (rung again as a named sale, or dealt with — B49). Its
+ *              `settlement` is sent to the server on its own, like a sale.
  *
  * `SENDING` is not a state a row may be left in. The tab was closed, or the
  * tablet's battery died, mid-request — and nobody knows whether the server got
@@ -30,9 +33,42 @@ export const OUTBOX_STATUS = {
   SENDING: "sending",
   ACKED: "acked",
   FAILED: "failed",
+  RESOLVED: "resolved",
 } as const;
 
 export type OutboxStatus = (typeof OUTBOX_STATUS)[keyof typeof OUTBOX_STATUS];
+
+/**
+ * The statuses with nothing left to SEND as a sale. One list, because three
+ * functions asked the question and a fourth status would otherwise reach two
+ * of them — a settled refusal counted as "still to send" for ever.
+ */
+export const FINISHED: readonly string[] = [OUTBOX_STATUS.ACKED, OUTBOX_STATUS.FAILED, OUTBOX_STATUS.RESOLVED];
+
+/**
+ * WHAT BECAME OF A REFUSED SALE (B49), as a person at the till said it.
+ *
+ *   rung_again  rung at the till as a real sale, which is named — the drawer's
+ *               cash now has a sale against it;
+ *   dealt_with  anything else, in their words: the money handed back, written
+ *               in the book by hand.
+ *
+ * Kept on the row and sent to the server, which lists it for the owner in
+ * Reports → Offline. `sent` false is work still owed to the server, and is
+ * counted with the queue until it lands.
+ */
+export interface Settlement {
+  how: "rung_again" | "dealt_with";
+  note: string | null;
+  saleId: string | null;
+  invoiceNumber: string | null;
+  /** Who said so — not whoever's login later sends it. */
+  by: string | null;
+  at: string;
+  sent: boolean;
+  /** The server's word when it would not take it, kept for the record. */
+  error: string | null;
+}
 
 /** One sale, exactly as the till will send it. */
 export interface OutboxRow {
@@ -131,6 +167,8 @@ export interface OutboxRow {
   invoiceNumber: string | null;
   /** What offline was not allowed to do, as the server reported it back. */
   violations: string[];
+  /** Once refused and settled at the till. Absent on every other row. */
+  settlement?: Settlement;
 }
 
 /**
@@ -331,9 +369,8 @@ export function belongsHere(row: OutboxRow, tenantId: string | null): boolean {
  */
 export async function strandedRows(tenantId: string | null): Promise<OutboxRow[]> {
   const rows = await allRows();
-  const finished: string[] = [OUTBOX_STATUS.ACKED, OUTBOX_STATUS.FAILED];
 
-  return rows.filter((r) => !finished.includes(r.status) && !belongsHere(r, tenantId));
+  return rows.filter((r) => !FINISHED.includes(r.status) && !belongsHere(r, tenantId));
 }
 
 /**
@@ -397,9 +434,15 @@ export function strandedReason(row: { tenantId: string | null }): string {
  */
 export async function owedCount(): Promise<number> {
   const rows = await allRows();
-  const finished: string[] = [OUTBOX_STATUS.ACKED, OUTBOX_STATUS.FAILED];
 
-  return rows.filter((r) => !finished.includes(r.status)).length;
+  // A settlement the server has not heard is owed to it too: until it lands,
+  // the owner's report still lists that slip as cash with no sale.
+  return rows.filter((r) => !FINISHED.includes(r.status) || settlementOwed(r)).length;
+}
+
+/** A refused sale settled here whose settlement has not reached the server. */
+export function settlementOwed(row: OutboxRow): boolean {
+  return row.status === OUTBOX_STATUS.RESOLVED && row.settlement?.sent === false;
 }
 
 /**
@@ -557,8 +600,11 @@ export const KEEP_ACKED_MS = 7 * 24 * 60 * 60 * 1000;
 
 export async function pruneAcked(now: number = Date.now()): Promise<number> {
   const rows = await allRows();
+  // A settled refusal too, once the server has its settlement: the slip
+  // number and what became of it stay, the cart goes.
+  const done = (r: OutboxRow) => r.status === OUTBOX_STATUS.ACKED || (r.status === OUTBOX_STATUS.RESOLVED && !settlementOwed(r));
   const stale = rows.filter(
-    (r) => r.status === OUTBOX_STATUS.ACKED && now - Date.parse(r.createdAt) > KEEP_ACKED_MS,
+    (r) => done(r) && now - Date.parse(r.createdAt) > KEEP_ACKED_MS,
   );
 
   for (const row of stale) {

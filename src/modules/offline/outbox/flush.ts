@@ -9,6 +9,7 @@ import {
   markSending,
   type OutboxRow,
 } from "./outbox";
+import { sendOwedSettlements } from "./settleRefused";
 
 /**
  * Sending the sales this till is holding.
@@ -113,6 +114,9 @@ function wire(row: OutboxRow): Record<string, unknown> {
     // notes any that differ from the shop's price now. A row from an older
     // build has none, and is priced by the server as before.
     ...(row.tillPrices ? { till_prices: row.tillPrices } : {}),
+    // What the till said it came to. Only for a refusal: the server keeps a
+    // refused sale with how much cash it left in a drawer (B49).
+    till_total: row.tillTotal ?? null,
   };
 }
 
@@ -135,7 +139,7 @@ export async function flushOutbox(
   force = false,
 ): Promise<FlushResult> {
   const locks = navigator.locks;
-  if (locks === undefined) return runFlush(tenantId, onProgress, force);
+  if (locks === undefined) return runFlushThenSettlements(tenantId, onProgress, force);
 
   let result: FlushResult = { sent: 0, acked: 0, failed: 0, skipped: true };
 
@@ -143,8 +147,23 @@ export async function flushOutbox(
   // wake against rows the first tab had just retired.
   await locks.request(LOCK, { ifAvailable: true }, async (lock) => {
     if (lock === null) return;
-    result = await runFlush(tenantId, onProgress, force);
+    result = await runFlushThenSettlements(tenantId, onProgress, force);
   });
+
+  return result;
+}
+
+/**
+ * The sales, then what the till said of the ones refused (B49). A settlement
+ * is never what holds a sale back, and one that cannot go waits for the next.
+ */
+async function runFlushThenSettlements(
+  tenantId: string | null,
+  onProgress?: FlushProgress,
+  force = false,
+): Promise<FlushResult> {
+  const result = await runFlush(tenantId, onProgress, force);
+  await sendOwedSettlements(tenantId).catch(() => 0);
 
   return result;
 }

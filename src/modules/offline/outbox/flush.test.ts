@@ -5,6 +5,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { resetDbCache } from "../db/open";
 import { ApiError } from "../../../common/types/api";
 import { flushOutbox, outboxApi } from "./flush";
+import { refusedSalesApi } from "./settleRefused";
 import { enqueue, newRow, OUTBOX_STATUS, readRow, type OutboxRow } from "./outbox";
 
 /**
@@ -128,6 +129,15 @@ describe("what goes on the wire", () => {
     const prices = [{ product_id: "p1", variant_id: null, unit_price: 1000 }];
 
     expect(await sent(row("1", { tillPrices: prices }))).toMatchObject({ till_prices: prices });
+  });
+
+  it("sends what the till said the sale came to, so a refusal says how much is in the drawer (B49)", async () => {
+    expect(await sent(row("1", { tillTotal: 1200 }))).toMatchObject({ till_total: 1200 });
+    resetDbCache();
+    globalThis.indexedDB = new IDBFactory();
+    vi.restoreAllMocks();
+    // A row from an older build: not known, never 0.
+    expect(await sent(row("2"))).toMatchObject({ till_total: null });
   });
 
   it("sends no prices for a row written before they were kept — the server prices it as before", async () => {
@@ -504,5 +514,29 @@ describe("telling the till how far it has got", () => {
     );
 
     expect((await flushOutbox(SHOP)).acked).toBe(1);
+  });
+});
+
+describe("what the till said of a refused sale (B49)", () => {
+  it("goes with the next sync, after the sales", async () => {
+    const order: string[] = [];
+    await enqueue(row("1"));
+    await enqueue(row("9", {
+      status: OUTBOX_STATUS.RESOLVED,
+      settlement: { how: "dealt_with", note: "Handed back", saleId: null, invoiceNumber: null, by: "bilal", at: "2026-08-16T11:00:00.000Z", sent: false, error: null },
+    }));
+    vi.spyOn(outboxApi, "sync").mockImplementation(async () => {
+      order.push("sales");
+      return envelope({ results: [answer("1")], accepted: 1 }) as never;
+    });
+    vi.spyOn(refusedSalesApi, "settle").mockImplementation(async (op) => {
+      order.push(`settle ${op}`);
+      return envelope({ id: "r", settled_as: "dealt_with" }) as never;
+    });
+
+    await flushOutbox(SHOP);
+
+    expect(order).toEqual(["sales", "settle 9"]);
+    expect((await readRow("9"))?.settlement?.sent).toBe(true);
   });
 });

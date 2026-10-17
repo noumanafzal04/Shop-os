@@ -2512,11 +2512,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "keys", items: [
         ["Up to date", "The queue is empty. Everything this device was holding has reached the server."],
         ["4 still to send", "It tried, and four are still here. The connection is the usual reason — nothing is lost, and it keeps trying on its own."],
-        ["3 refused", "The shop would not accept these, and pressing again will not change that. Open the offline report to see why."],
+        ["3 refused", "The shop would not accept these, and pressing again will not change that. The red strip on the till says so too — see \u201cWhen a sale is refused\u201d below."],
         ["7 stuck — needs attention", "These name a different shop, or no shop at all, so the till will not send them and pressing again cannot help. Go to Settings → Shop → Offline, where they are listed with what to do."],
       ]},
       { type: "note", text: "Hold your finger on the badge (or hover it) after a press and it will tell you what the server or the connection actually said. A queue held up by a bad line and a queue the server is refusing both count the same on the badge, and only one of them is worth waiting out." },
       { type: "note", text: "A sale that is still queued has not been lost. It lives on the device until the server has it, survives a reload and a browser restart, and the customer's slip carries an OFF- number you can look up once it lands." },
+
+      { type: "h", text: "When a sale is refused" },
+      { type: "p", text: "Sometimes a sale rung with the line down cannot be recorded when it gets through — usually because an item on it was deleted or switched off in the meantime. The customer paid and left, so the money is in the drawer with no sale against it. The till shows a red strip; press \u201cSee which\u201d and settle each one:" },
+      { type: "keys", items: [
+        ["Ring it again", "Puts the sale back on an empty bill as the shop's items are NOW, and lists anything that could not go back on. The strip above the bill says what the customer paid and what this bill comes to, so a deleted item can be replaced or its money handed back. Take the payment as it was taken — the money is already in the drawer — and the sale you complete stands for that slip. It needs the line."],
+        ["Dealt with", "For anything else: the money handed back, the sale written in the book by hand. Pick a reason or write your own; your name goes with it. It works with no line and is sent with the next sync."],
+      ]},
+      { type: "note", text: "Every refused sale is kept by the shop the moment it is refused, not only on the tablet. Reports \u2192 Offline lists every one still to settle, however old, with what is in drawers against no sale, and what became of each one settled. If the till that rang it is gone \u2014 broken, or its data cleared \u2014 the owner can mark it dealt with from there." },
 
       { type: "h", text: "Selling when the internet is down" },
       { type: "p", text: "Once the checks above are clean and support has turned offline selling on for your shop, a till keeps trading through a power cut or a dead connection. Nothing for you to switch on at the counter — the POS notices and carries on. Your whole product list and its categories are already on the tablet, so you can browse and search them exactly as you do online; the only thing missing is product photos, which are not stored on the device." },
