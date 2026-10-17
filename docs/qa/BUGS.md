@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B73 · next question: Q16**). `L…` = found by the fixer while fixing.
+(**next bug: B85 · next question: Q17**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -50,7 +50,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B31 | P1 | Exchange | Exchange sheet prices the replacement without automatic promotions — said "hand back 1,000", the server gave 1,300 change | FIXED `3835cbb` — the sheet asks the server (/sales/worth) · re-tested PASS (pass 4) |
 | B32 | P2 | Reorder → PO | Reorder draft prices a pack as a piece (Box of 5 at 3,600 → 37 × 3,600) | FIXED `8d60f93` — reorder drafts are priced per piece (box price ÷ box size) |
 | B33 | P2 | Suppliers / Pay | Pay sheet offers a cancelled part-received PO; server refuses 422 PO_NOT_PAYABLE | FIXED `8d60f93` — a cancelled order that took a delivery can be paid by name; one that took nothing still cannot |
-| B34 | P2 | Online orders | Delivery fee lost on completion: order 7,640 (fee 150, COD paid) → sale 7,490; the 150 is nowhere | OPEN |
+| B34 | P2 | Online orders | Delivery fee lost on completion: order 7,640 (fee 150, COD paid) → sale 7,490; the 150 is nowhere | OWNER — Q16 (money pass 2026-10-16 found it again as B83) |
 | B35 | P3 | Purchases / places | Stock keeper offered "Receive all" on another place's PO → 403 NOT_YOUR_PLACE | OPEN |
 | B36 | P3 | Storefront | "My orders" shows raw quantity "1.000 ×" | OPEN |
 | B37 | P3 | Storefront | Shop page "Items held for you" lists holds at OTHER shops | OPEN |
@@ -102,7 +102,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L20 | P3 | Offline / packs | Found reading the code for Q10 (2026-10-16), NOT yet walked: the till's offline engine (`linesFromCatalog`) ignores `product_unit_id`, so a carton rung offline may print its slip and offline total at a single's price; the server prices the carton right on sync (books right, slip wrong). Q10 deliberately leaves pack lines server-priced. | OPEN — to verify with an offline walk, then price packs in the till's engine (the catalogue would need pack prices) |
 | B63 | P2 | Shift / Day / transfers / stocktake / orders / documents | A second click after a successful state change posts again and puts a 409 over the success (6 of 6: close shift, close day, receive, apply count, confirm order, bill it) — Codex BUG-63 | FIXED `d714e4f` — the API client hands a write that matches one on its way, or one that succeeded under a second ago, the same answer (`onceOnItsWay`, `TWIN_SETTLES_MS`); a refusal is let go at once; a keyed write refused 409 REQUEST_IN_FLIGHT is asked again and given the first answer |
 | B64 | P2 | Till / held | Double Hold parks the cart twice — Codex BUG-64 | FIXED `c12de2a` `d714e4f` — client twin; POST /pos/held answers once per key |
-| B65 | P2 | Quotes & advances | A saved quotation has no way to hold its goods on advance; the advance has to be typed again — Codex BUG-65 | OPEN — a missing step (Convert to held goods) |
+| B65 | P2 | Quotes & advances | A saved quotation has no way to hold its goods on advance; the advance has to be typed again — Codex BUG-65 | TO BUILD — owner's answer 2026-10-16: the quote closes by itself (Converted / On advance) when goods are held on advance from it, and the two stay linked both ways |
 | B66 | P2 | Suppliers | Double Save makes two identical suppliers — Codex BUG-66 | FIXED `d714e4f` — client twin |
 | B67 | P1 | Purchase orders | Double Place order makes two Rs 7,200 POs — Codex BUG-67 | FIXED `c12de2a` `d714e4f` — the form sends a once-key; the route answers once (`once`); client twin |
 | B68 | P0 | Stock transfers | Double Send makes two transfers; Main M fell 5 → 1 for 2 sent — Codex BUG-68 | FIXED `c12de2a` `d714e4f` — same three; `StockAndOrdersPressedTwiceAreOneTest` |
@@ -112,6 +112,18 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B72 | P3 | Customers (phone) | At 390 px the khata amount box shows 1040.50 as "104" — Codex BUG-72 | FIXED `f059d4a` — the amount takes its own row under 640 px (282 px at 390, value whole) |
 | L21 | P2 | Inventory | The user (2026-10-16): "inventory page ka UI acha ni … entries theek hain jb products sy stock add krty?" Entries from the item form are right (L11). But the history mixed places (balances 429, 275, 428, 273), put same-second lines oldest first, named nobody, showed "+24.000" and only 8 lines inside Adjust; on a phone Adjust was past the edge | FIXED `c12de2a` `d714e4f` — history of the place looked at, newest first, `creator`; tiles All / Needs reordering / Out of stock (`products?out_of_stock=1`); History per item; phone cards; Adjust says where it lands, "After this", one-tap reasons |
 | L22 | P3 | Demo data | `demo:shops` puts stock on the shelf with no "Opening stock" line, so a demo item's history does not add up (477 of 540 in the mart) | OPEN — demo only; the app's own ways in write it (L11) |
+| B73 | P1 | Till / line discount | "Percent %" chosen before the amount snapped back to "Fixed amount", so 7.5 % was charged as Rs 7.50 (INV-000007 overcharged Rs 254.47) — money pass $1 | FIXED `a8f5182` — `withLineDiscount` keeps the type whatever the amount; `lineMath.test.ts` |
+| B74 | P3 | Till / cart row | A 7.5 % line discount printed as "8 %" — money pass $2 | FIXED `a8f5182` — `lineDiscountPctLabel`: the percent typed, or the share to one decimal |
+| B75 | P1 | Receipt | A bill rounded DOWN and paid in full printed "Balance due Rs 4.05" (cash rounding 10; 0.05 at 1) — money pass $3 | FIXED `9d92b5f` — the paper's balance is the total after rounding; `CashRoundingTest` (1, 5, 10, down and up) |
+| B76 | P2 | Ledger | Supplier payments stored at midnight (the date picked) sorted ahead of the day's sales, so the running balance read −39,823.61 before the first sale — money pass $4 | FIXED `57fdcb6` — today's payment is stored at its moment, another day at the shop's noon; rows already written sort by when they were written; `ASupplierPaymentSitsWhereItHappenedTest` |
+| B77 | P2 | Reports / Margins | Margins never took a bill discount off any line: gross profit 17,259.82 vs Summary 16,834.82, out by the Rs 425 of discounts — money pass $5 | FIXED `57fdcb6` — the bill discount is shared out by value (as refunds share it); `MarginsAndSummaryAgreeTest` (both tax modes) |
+| B78 | P2 | Drawer / refunds | A cash refund could overdraw a drawer with no warning (expected −1,509.99) while a pay-out of 500 from it was refused — money pass $6 | FIXED `57fdcb6` `c799a2b` — a cash refund that would leave its drawer below nothing is refused INSUFFICIENT_DRAWER_CASH in words; `returns/worth` sends `drawer_holds` and the sheet says so before the press |
+| B79 | P2 | Quotes & advances | The advance sheet stated 20 % of the goods BEFORE tax (Rs 1,200) and enabled Hold there; the server takes 20 % of the total with tax (Rs 1,404) — money pass $7 | FIXED `18c69b9` `a01acfe` — POST /sale-documents/worth (writes nothing); the sheet states that total and floor and waits for it |
+| B80 | P1 | Installments | The sheet read out a pre-tax bill (4,068.50, 2 × 1,190) and the plan was written at 4,760.25 and 1,421 a month, with no word — money pass $8 | FIXED `18c69b9` `a01acfe` — POST /installment-plans/worth; the sheet reads out the server's plan and sends `expected_total`; a moved price is refused PLAN_PRICE_CHANGED |
+| B81 | P1 | Dine-in / tax | At a tax-INCLUSIVE shop a tab added 17 % on top: the same dish 1,799.00 at the counter and 2,104.83 at the table; the sale stored tax_inclusive false — money pass $9 | FIXED `18c69b9` `a01acfe` — the tab is rung in the shop's mode; the printed bill follows ("Tax included"); `TheBillIsWhatTheTillWillAskForTest` both modes + counter = table |
+| B82 | P1 | Dine-in / ordering | Four taps on one dish within a second sent one request — three naan served and never charged (B63's twin guard on a stepper) — money pass $10 | FIXED `a8f5182` — `everyPressCounts` on the tab's add and step; `dineInService.test.ts` |
+| B83 | P2 | Delivery / riders | The delivery fee (149.99 of 2,048.98) is in no book, and "Cash received" from the rider moved no drawer — money pass $11 | PART — the rider's cash now comes into the drawer of whoever takes it (`rider_in`, `57fdcb6` `c799a2b`, `TheRiderIsHoldingTheCashTest`); the fee is B34 — waits on Q16 |
+| B84 | P3 | Reports → Offline | "Which till" blank for every web till (no name; its code is on the slip) — money pass $12 | FIXED `9d92b5f` — `PosDevice::label()`: the name, or "Till <code>" |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -145,6 +157,7 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 | Q13 | **ANSWERED — as recommended.** Is the installment price the cash price, or higher (markup)? | An optional markup % per plan, its own "Installment charge" line on the bill; default 0. |
 | Q14 | **ANSWERED — as recommended.** Does an installment plan count against the customer's khata credit limit? | No — a plan is approved on its own; only staff who may sell on credit can start one. |
 | Q15 | **ANSWERED — as recommended.** A late fee, or an SMS reminder before the due date? | Not now — late shows in red; a reminder later (the "CartZe" SMS sender exists). |
+| Q16 | (2026-10-17, B34 / B83) A delivery order's fee (e.g. 149.99) is on the order, but the sale it makes counts the goods only, so the fee is in no book. Today the rider's settlement already calls the fees "rider earned". Is the delivery fee the SHOP's income, or the RIDER's pay? | If the shop's own rider: the shop's income — put it on the sale as a delivery charge (so revenue, the receipt and the Tax report see it). If a platform rider keeps it: show it as owed to the rider at settlement, not as the shop's money. |
 
 ## Pass 1 — Phase 1, clothing shop (cloud tester, 2026-10-14) — details
 
@@ -335,3 +348,14 @@ eslint 0 errors · tsc-e2e). Part 3 pushed: backend `aa660f4`, panel `f059d4a` �
 searched the kitchen board for the price "1450" as four characters — ids minted near 14:00 UTC on 16 Oct begin "01a1450…"; it
 looks for the value now. Left: B65 (the owner's choice: what becomes of the quotation), L22.
 
+## Pass 13 — money pass, every paisa (Claude tester, 2026-10-16/17)
+
+Brief: `docs/qa/MONEY-TEST-BRIEF.md`. Report: `docs/qa/TESTER-REPORT-2026-10-16-money.md` (M1–M18 on two new shops,
+Paisa QA Mart — tax 17 % exclusive — and Paisa QA Kitchen — inclusive, tips, delivery). All ten money laws passed to the
+paisa; twelve new, $1–$12 → B73–B84 above.
+Part 1 pushed: backend `9d92b5f`, panel `a8f5182` — B73, B74, B75, B82, B84 (gates: phpunit 3,968 / 3,946 passed / 22
+skipped · vitest 292 / 3,405 · build · eslint 0 errors · tsc-e2e).
+Part 2 pushed: backend `18c69b9`, panel `a01acfe` — B79, B80, B81 (phpunit 3,971 / 3,949 · vitest 293 / 3,408 · build ·
+eslint 0 errors · tsc-e2e).
+Part 3 pushed: backend `57fdcb6`, panel `c799a2b` — B76, B77, B78, B83 (the drawer half).
+Left: Q16 (the delivery fee — B34 / B83), B65 (to build, owner answered).
