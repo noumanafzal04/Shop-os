@@ -8,7 +8,7 @@ import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { useNarrow } from "../../../common/hooks/useNarrow";
 import { formatQuantity, formatQuantityWithUnit } from "../../../common/format/quantity";
 import { shopShortDateTime } from "../../../common/format/date";
-import { catalogSizeStock, catalogStock } from "../../pos/availability";
+import { onHand, sizeOnHand } from "../../pos/availability";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import type { Product } from "../../catalog/types";
 import { useMovements } from "../hooks/useInventory";
@@ -69,11 +69,11 @@ export function StockHistoryModal({
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               In stock now:{" "}
               <span className="font-semibold text-gray-800 tabular-nums dark:text-white/90">
-                {formatQuantityWithUnit(catalogStock(product), product.sold_by, product.unit)}
+                {formatQuantityWithUnit(onHand(product), product.sold_by, product.unit)}
               </span>
               {sized && (
                 <span className="ml-1">
-                  ({(product.variants ?? []).map((v) => `${v.name} ${formatQuantity(catalogSizeStock(v))}`).join(" · ")})
+                  ({(product.variants ?? []).map((v) => `${v.name} ${formatQuantity(sizeOnHand(v))}`).join(" · ")})
                 </span>
               )}
             </p>

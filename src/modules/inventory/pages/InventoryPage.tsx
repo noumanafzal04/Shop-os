@@ -5,7 +5,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import { uuid } from "../../../common/uuid";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
-import { catalogSizeStock, catalogStock } from "../../pos/availability";
+import { catalogSizeStock, catalogStock, onHand, sizeOnHand } from "../../pos/availability";
 import Select from "../../../components/form/Select";
 import Alert from "../../../components/ui/alert/Alert";
 import Input from "../../../components/form/input/InputField";
@@ -250,9 +250,10 @@ export default function InventoryPage() {
 
   // catalogStock, not stock_quantity: for a product sold in sizes the parent's
   // column is an orphaned nought, and showing it as "currently 0" beside an
-  // amount box is the same lie the parent Adjust button used to tell.
+  // amount box is the same lie the parent Adjust button used to tell. And the
+  // place the adjustment is WRITTEN to — a size read the whole shop's (B16).
   const currentStock = variant
-    ? variant.stock_quantity
+    ? catalogSizeStock(variant)
     : target
       ? catalogStock(target)
       : 0;
@@ -509,7 +510,7 @@ export default function InventoryPage() {
             </div>
           ) : (
             rows.map((p) => {
-              const held = catalogStock(p);
+              const held = onHand(p);
               const low = p.low_stock_threshold !== null && held <= Number(p.low_stock_threshold);
               const sizes = p.variants ?? [];
 
@@ -541,7 +542,7 @@ export default function InventoryPage() {
                           aria-label={`Adjust ${p.name} — ${v.name}`}
                           className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-theme-xs text-gray-600 hover:border-brand-300 dark:border-gray-700 dark:text-gray-300"
                         >
-                          {v.name} · <span className="font-semibold tabular-nums">{formatQuantity(catalogSizeStock(v))}</span>
+                          {v.name} · <span className="font-semibold tabular-nums">{formatQuantity(sizeOnHand(v))}</span>
                         </button>
                       ))}
                     </div>
@@ -602,18 +603,19 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-5 py-3">
                       {/* The PARENT row of a sized product holds no stock of
-                          its own — `catalogStock` sums the sizes, the same way
-                          the till and the server's LowStock rule do. Reading
+                          its own — `onHand` sums the sizes, the same way the
+                          till and the server's LowStock rule do, where the
+                          person is looking (B16). Reading
                           `stock_quantity` badged a full rail of shirts "0 low". */}
                       {/* None left is its own news, not "0 low" — and a shelf
                           sold below nought (offline) still shows its number. */}
-                      {catalogStock(p) <= 0 ? (
-                        <Badge size="sm" color="error">{catalogStock(p) === 0 ? "Out of stock" : `${formatQuantity(catalogStock(p))} · out`}</Badge>
-                      ) : p.low_stock_threshold !== null && catalogStock(p) <= Number(p.low_stock_threshold) ? (
-                        <Badge size="sm" color="warning">{formatQuantity(catalogStock(p))} low</Badge>
+                      {onHand(p) <= 0 ? (
+                        <Badge size="sm" color="error">{onHand(p) === 0 ? "Out of stock" : `${formatQuantity(onHand(p))} · out`}</Badge>
+                      ) : p.low_stock_threshold !== null && onHand(p) <= Number(p.low_stock_threshold) ? (
+                        <Badge size="sm" color="warning">{formatQuantity(onHand(p))} low</Badge>
                       ) : (
-                        <span className={`font-semibold tabular-nums ${catalogStock(p) <= 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"}`}>
-                          {formatQuantityWithUnit(catalogStock(p), p.sold_by, p.unit)}
+                        <span className={`font-semibold tabular-nums ${onHand(p) <= 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"}`}>
+                          {formatQuantityWithUnit(onHand(p), p.sold_by, p.unit)}
                         </span>
                       )}
                     </td>
@@ -657,13 +659,13 @@ export default function InventoryPage() {
                         ↳ {v.name}
                         {v.sku && <span className="ml-2 text-theme-xs text-gray-400">SKU {v.sku}</span>}
                       </td>
-                      {/* The size's stock HERE (`branch_stock`), like its
-                          parent above — the bare column is the whole shop's. */}
-                      <td className={`px-5 py-2.5 tabular-nums ${catalogSizeStock(v) <= 0 ? "font-semibold text-error-600 dark:text-error-400" : ""}`}>
-                        {v.low_stock_threshold !== null && catalogSizeStock(v) <= Number(v.low_stock_threshold) ? (
-                          <Badge size="sm" color="warning">{formatQuantity(catalogSizeStock(v))} low</Badge>
+                      {/* The size's stock where the person is looking
+                          (`on_hand`), like its parent above (B16). */}
+                      <td className={`px-5 py-2.5 tabular-nums ${sizeOnHand(v) <= 0 ? "font-semibold text-error-600 dark:text-error-400" : ""}`}>
+                        {v.low_stock_threshold !== null && sizeOnHand(v) <= Number(v.low_stock_threshold) ? (
+                          <Badge size="sm" color="warning">{formatQuantity(sizeOnHand(v))} low</Badge>
                         ) : (
-                          formatQuantity(catalogSizeStock(v))
+                          formatQuantity(sizeOnHand(v))
                         )}
                       </td>
                       <td className="px-5 py-2.5">{v.low_stock_threshold != null ? formatQuantity(v.low_stock_threshold) : "—"}</td>

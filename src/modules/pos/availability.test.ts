@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { catalogSizeStock, catalogStock, offersEquivalent, sizesOf, whyNotSellable } from "./availability";
+import { catalogSizeStock, catalogStock, offersEquivalent, onHand, sizeOnHand, sizesOf, whyNotSellable } from "./availability";
 import type { Product, ProductVariant } from "../catalog/types";
 
 /**
@@ -97,6 +97,12 @@ describe("a varianted product holds no stock of its own", () => {
 
   it("still reads its own figure when it has no sizes", () => {
     expect(catalogStock(dish({ stock_quantity: 9 }))).toBe(9);
+  });
+
+  it("reads an item without sizes at this branch too, as a size is (B16)", () => {
+    // The rollup is every place's; a till here sells from here.
+    expect(catalogStock({ ...dish({ stock_quantity: 10 }), branch_stock: 7 })).toBe(7);
+    expect(catalogStock({ ...dish({ stock_quantity: 10 }), branch_stock: 0 })).toBe(0);
   });
 
   it("does not count a retired size towards the total", () => {
@@ -242,3 +248,21 @@ describe("out of stock, and still worth pressing", () => {
   });
 });
 
+describe("what the stock screens show — where the person is looking (B16)", () => {
+  it("is the server's `on_hand`, which for an owner on every place is the whole shop", () => {
+    // The till sells from Main (7); the owner's all-places stock screen shows 10.
+    const rice = { ...dish({ stock_quantity: 10 }), branch_stock: 7, on_hand: 10 };
+    expect(onHand(rice)).toBe(10);
+    expect(catalogStock(rice)).toBe(7);
+
+    const m = { ...size({ name: "M", stock_quantity: 7 }), branch_stock: 2, on_hand: 7 } as ProductVariant;
+    expect(sizeOnHand(m)).toBe(7);
+    expect(catalogSizeStock(m)).toBe(2);
+  });
+
+  it("counts nought as nought, and stands in with the till's figure where none was sent", () => {
+    expect(onHand({ ...dish({ stock_quantity: 10 }), branch_stock: 7, on_hand: 0 })).toBe(0);
+    expect(onHand({ ...dish({ stock_quantity: 10 }), branch_stock: 7 })).toBe(7);
+    expect(sizeOnHand({ ...size({ name: "S", stock_quantity: 4 }), branch_stock: 3 } as ProductVariant)).toBe(3);
+  });
+});

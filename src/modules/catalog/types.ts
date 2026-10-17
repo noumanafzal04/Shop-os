@@ -64,6 +64,10 @@ export interface ProductVariant {
   price: string | number;
   cost: string | number | null;
   stock_quantity: number;
+  /** On the shelf at the place a till here sells from (the list stamps it). */
+  branch_stock?: number | null;
+  /** On the shelf where the person is looking: every place in the owner's all-places view (B16). */
+  on_hand?: number | null;
   low_stock_threshold: number | null;
   is_active: boolean;
 }
@@ -144,6 +148,10 @@ export interface Product {
    */
   tax_group_rate?: string | number | null;
   stock_quantity: number;
+  /** An item without sizes: on the shelf at the place a till here sells from (B16). */
+  branch_stock?: number | null;
+  /** On the shelf where the person is looking — see ProductVariant.on_hand. */
+  on_hand?: number | null;
   low_stock_threshold: number | null;
   track_inventory: boolean;
   /**

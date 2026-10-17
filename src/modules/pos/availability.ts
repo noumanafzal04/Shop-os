@@ -45,9 +45,7 @@ export function sizesOf(p: { variants?: ProductVariant[] | null }): ProductVaria
  * the rail here.
  */
 export function catalogSizeStock(v: ProductVariant): number {
-  const branch = (v as { branch_stock?: number | string | null }).branch_stock;
-
-  return Number(branch ?? v.stock_quantity ?? 0);
+  return Number(v.branch_stock ?? v.stock_quantity ?? 0);
 }
 
 /**
@@ -62,6 +60,7 @@ export function catalogSizeStock(v: ProductVariant): number {
  */
 export function catalogStock(p: {
   stock_quantity?: number | string | null;
+  branch_stock?: number | string | null;
   variants?: ProductVariant[] | null;
 }): number {
   const sizes = sizesOf(p);
@@ -69,7 +68,27 @@ export function catalogStock(p: {
     return sizes.reduce((n, v) => n + catalogSizeStock(v), 0);
   }
 
-  return Number(p.stock_quantity ?? 0);
+  // At this place, like a size (B16): the bare column is the whole shop's.
+  return Number(p.branch_stock ?? p.stock_quantity ?? 0);
+}
+
+/**
+ * WHAT THE SHELF HOLDS WHERE THE PERSON IS LOOKING — for the stock screens.
+ *
+ * Not the till's question. An owner looking at every place sees the whole
+ * shop, while their till still sells from Main; anyone else sees their own
+ * place. The server answers it as `on_hand`, the same way its "Out of stock"
+ * asks (B16: a design's row read one place while every item without sizes
+ * read the whole shop). Where it was not sent — a product read one at a time,
+ * or cached before it existed — the till's figure stands in.
+ */
+export function onHand(p: Parameters<typeof catalogStock>[0] & { on_hand?: number | null }): number {
+  return p.on_hand ?? catalogStock(p);
+}
+
+/** One size's figure where the person is looking — see `onHand`. */
+export function sizeOnHand(v: ProductVariant): number {
+  return v.on_hand ?? catalogSizeStock(v);
 }
 
 /** How a caller adjusts the catalogue's figure — the till subtracts its unsent queue. */
