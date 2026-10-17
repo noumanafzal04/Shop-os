@@ -196,13 +196,15 @@ describe("when something needs a person", () => {
     // somebody to blame instead of for a clipboard.
     show(
       report({
-        oversold: [{ product: "Milkpak 1L", sku: "MLK", branch: "Main", quantity: -2 }],
+        oversold: [{ product: "Milkpak 1L", sku: "MLK", branch: "Main", quantity: -2, sold_on: ["OFF-TILL-YUJU-000003", "OFF-TILL-VBLY-000001"] }],
       }),
     );
 
     expect(await screen.findByText("Count these again")).toBeInTheDocument();
     expect(screen.getByText(/both are telling the/)).toBeInTheDocument();
     expect(screen.getByText("-2")).toBeInTheDocument();
+    // B51: the slips that took it below nought, so somebody can be asked.
+    expect(screen.getByText("Sold on OFF-TILL-YUJU-000003, OFF-TILL-VBLY-000001")).toBeInTheDocument();
   });
 
   it("counts the recounts beside the sales, so neither hides the other", async () => {

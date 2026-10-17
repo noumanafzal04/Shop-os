@@ -97,6 +97,8 @@ interface OfflineReport {
     sku: string | null;
     branch: string | null;
     quantity: number;
+    /** The slips that took it below nought (B51) — older servers send none. */
+    sold_on?: string[];
   }>;
 }
 

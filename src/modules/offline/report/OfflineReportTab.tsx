@@ -206,6 +206,13 @@ export function OfflineReportTab() {
                     <td className="p-3 text-gray-800 dark:text-white/90">
                       {row.product ?? "Unnamed item"}
                       {row.sku && <span className="text-gray-400"> · {row.sku}</span>}
+                      {/* Which sales took it below nought (B51) — so the
+                          cashier can be asked who has the last piece. */}
+                      {(row.sold_on?.length ?? 0) > 0 && (
+                        <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
+                          Sold on {row.sold_on!.join(", ")}
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-gray-400">{row.branch}</td>
                     <td className="p-3 text-right font-medium tabular-nums text-error-500">

@@ -8,6 +8,8 @@ import { UpdateButton } from "../../modules/offline/pwa/UpdateButton";
 import { useAuthStore } from "../../stores/authStore";
 import { useLogout } from "../../modules/auth/hooks/useAuth";
 import type { UserRole } from "../../modules/auth/types";
+import { useConfirm } from "../ui/confirm";
+import { signOutWarning } from "./signOutWarning";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "Super Admin",
@@ -80,6 +82,7 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const user = useAuthStore((s) => s.user);
   const logout = useLogout();
+  const confirm = useConfirm();
   const { theme, toggleTheme } = useTheme();
 
   const closeDropdown = () => setIsOpen(false);
@@ -90,8 +93,15 @@ export default function UserDropdown() {
   const securityPath = isTenantSide ? "/tenant/security" : "/admin/security";
   const helpPath = isTenantSide ? "/tenant/help" : "/admin/help";
 
-  const signOut = () => {
+  const signOut = async () => {
     closeDropdown();
+    // Work still on this till is said before the press (B50) — a shop's till
+    // only; a console has no outbox. A count that cannot be read stops nothing.
+    if (isTenantSide) {
+      const { pendingCount } = await import("../../modules/offline/db/repo");
+      const owed = await pendingCount().catch(() => 0);
+      if (owed > 0 && !(await confirm(signOutWarning(owed)))) return;
+    }
     // A sign-out that failed and said nothing is the one worth catching: on
           // a shared till the next person is still in the last person's session.
           logout.mutate(undefined, failed(toast, "You are still signed in — try again."));
