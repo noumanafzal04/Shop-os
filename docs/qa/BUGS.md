@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B85 · next question: Q17**). `L…` = found by the fixer while fixing.
+(**next bug: B86 · next question: Q18**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -25,15 +25,15 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B06 | P1 | Purchases / permissions | Stock keeper sees "Receive" and gets 403 | FIXED `e14bf9e` · re-tested PASS (pass 2) |
 | B07 | P1 | Money forms | Double-click records money twice: khata payment, supplier payment, expense (no idempotency key) | FIXED `5e2bcf6` `3835cbb` — 7 money forms answer once per key (AnswerOnce) · re-tested PASS (pass 4) |
 | B08 | P1 | Receipt | Receipt counts the promotion twice ("You saved" wrong, lines do not add up) and prints "Balance due" for a bank-card offer | FIXED `5e2bcf6` — promotion once, bank offer named, no balance due · re-tested PASS (pass 4) |
-| B09 | P2 | Exchange | Exchange ignores "this shop requires a shift" | OPEN |
-| B10 | P2 | Exchange / customers | Exchange drops the customer; loyalty taken back and never re-earned | OPEN |
+| B09 | P2 | Exchange | Exchange ignores "this shop requires a shift" | FIXED (earlier) — an exchange is a counter sale and is held to "today's own shift" like any other (BooksDrawer::mustBeOpenToday); `AShopThatAsksForShiftsSellsOnTodaysShiftTest` refuses one with no shift. Verified 2026-10-17 |
+| B10 | P2 | Exchange / customers | Exchange drops the customer; loyalty taken back and never re-earned | FIXED `01b0613` — the replacement sale carries the original sale's customer: linked, the points follow the goods (10 back for the shirt returned, 15 for the one taken home), their price group and khata apply |
 | B11 | P2 | Dashboard | Dashboard profit ≠ Reports profit after a return (returned goods' cost not taken back) | FIXED `8d60f93` — the dashboard takes a returned item's cost back on the day it came back; dashboard = Reports |
 | B12 | P2 | Purchases / cost | First purchase of a size sets cost to the new price, not the average with stock on the shelf | FIXED `8d60f93` — a size's first purchase blends with the design's cost on the shelf |
 | B13 | P2 | Suppliers | Pay sheet "due" from the ordered total on a part-received PO | FIXED `db44390` · re-tested PASS (pass 2) |
-| B14 | P2 | Day & banking | Sales without a shift never reach the day's figures; a closed day still takes sales | OPEN · pass 4: café tabs settled on a closed day (INV-000572/573, no drawer) |
+| B14 | P2 | Day & banking | Sales without a shift never reach the day's figures; a closed day still takes sales | FIXED `efa8c84` `93699cb` — the closed-day half was fixed earlier (BUSINESS_DAY_CLOSED). Now a day's "Rung up" counts the sales no drawer took (an order paid on the doorstep, a sale with no shift) — said under the figure ("2 not at a counter"), frozen at close, never in a drawer's expected cash (`AwayFromDrawers`) |
 | B15 | P2 | Stocktake | Count by category: sub-categories not offered; parent finds nothing; error not shown | OPEN |
 | B16 | P2 | Inventory | Design row = this place, size rows = all places; items without sizes never place-scoped | OPEN |
-| B17 | P2 | Orders | Phone order → sale has tax 0 and channel "online" | OPEN |
+| B17 | P2 | Orders | Phone order → sale has tax 0 and channel "online" | PART `efa8c84` `93699cb` — the sale of a phone or WhatsApp order now says how it came in (not "online"). The tax half waits on **Q17** (orders are priced without tax) |
 | B18 | P3 | Till | "Paid Rs 4,990 · Change Rs 0" for a khata sale | OPEN |
 | B19 | P3 | Khata statement | Raw code "Payment (bank_transfer)" | OPEN |
 | B20 | P3 | Drawer panel | Khata cash shown as "Cash in (paid in, float)" | OPEN |
@@ -58,8 +58,8 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B39 | P1 | Permissions / dashboard | Dashboard gives every staff member takings, supplier payables, every place's revenue and the audit feed (kitchen sees 515,554) | FIXED `5e2bcf6` `3835cbb` — dashboard stripped per permission · re-tested: API PASS (pass 4); screen bugs B53, B58 |
 | B40 | P1 | Permissions / dine-in | Waiter without sales.void voids served food and cancels a whole tab (200, no approval) | FIXED `5e2bcf6` `3835cbb` — sent food needs sales.void; voided_by kept · re-tested PASS (pass 4) |
 | B41 | P1 | Permissions / purchases | inventory.manage alone receives any PO — forecourt attendant took 1,000 L petrol into stock past the tanker gate; pharmacist reads POs and supplier balances | FIXED `5e2bcf6` — tank fuel refused on a PO (made and received) · re-tested PASS (pass 4) |
-| B42 | P2 | Place wall | /inventory/movements not scoped to the person's place; branch_id filter ignored | OPEN |
-| B43 | P2 | Module off / dashboard | Expenses module off → dashboard expenses 0 and profit without them; Reports still count them | OPEN |
+| B42 | P2 | Place wall | /inventory/movements not scoped to the person's place; branch_id filter ignored | FIXED (L21, `c12de2a`) — movements read the place being looked at; a test now holds a person kept to Main to Main's lines, with or without another place's header (`01b0613`) |
+| B43 | P2 | Module off / dashboard | Expenses module off → dashboard expenses 0 and profit without them; Reports still count them | FIXED `01b0613` — the dashboard reads recorded expenses and income whether or not the module is on; it agrees with Reports for the same days. The module decides what can be recorded and which panels show, never whether money spent counts |
 | B44 | P3 | Screens | A screen you may not use, typed in, lands silently on the dashboard | OPEN |
 | B45 | P3 | Screens | /tenant/pharmacy opens for a cashier and fills with a 403 + console error | OPEN |
 | B46 | P3 | API figure | supplier.outstanding reads 0 inside a PO answer (sums not loaded) | FIXED `5e2bcf6` — null, not 0, when not worked out · re-tested PASS (pass 4) |
@@ -102,7 +102,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | L20 | P3 | Offline / packs | Found reading the code for Q10 (2026-10-16), NOT yet walked: the till's offline engine (`linesFromCatalog`) ignores `product_unit_id`, so a carton rung offline may print its slip and offline total at a single's price; the server prices the carton right on sync (books right, slip wrong). Q10 deliberately leaves pack lines server-priced. | OPEN — to verify with an offline walk, then price packs in the till's engine (the catalogue would need pack prices) |
 | B63 | P2 | Shift / Day / transfers / stocktake / orders / documents | A second click after a successful state change posts again and puts a 409 over the success (6 of 6: close shift, close day, receive, apply count, confirm order, bill it) — Codex BUG-63 | FIXED `d714e4f` — the API client hands a write that matches one on its way, or one that succeeded under a second ago, the same answer (`onceOnItsWay`, `TWIN_SETTLES_MS`); a refusal is let go at once; a keyed write refused 409 REQUEST_IN_FLIGHT is asked again and given the first answer |
 | B64 | P2 | Till / held | Double Hold parks the cart twice — Codex BUG-64 | FIXED `c12de2a` `d714e4f` — client twin; POST /pos/held answers once per key |
-| B65 | P2 | Quotes & advances | A saved quotation has no way to hold its goods on advance; the advance has to be typed again — Codex BUG-65 | TO BUILD — owner's answer 2026-10-16: the quote closes by itself (Converted / On advance) when goods are held on advance from it, and the two stay linked both ways |
+| B65 | P2 | Quotes & advances | A saved quotation has no way to hold its goods on advance; the advance has to be typed again — Codex BUG-65 | FIXED `01ffcb6` `8384b10` — "Hold on advance" on an open quotation: its own lines at the price on the paper (not today's), the server's floor, the goods set aside; the quote closes itself and the two link both ways (`source` / `held_as`). A lapsed, closed or non-quote document is refused; a second press is refused (409). Migration `2026_10_17_000001` |
 | B66 | P2 | Suppliers | Double Save makes two identical suppliers — Codex BUG-66 | FIXED `d714e4f` — client twin |
 | B67 | P1 | Purchase orders | Double Place order makes two Rs 7,200 POs — Codex BUG-67 | FIXED `c12de2a` `d714e4f` — the form sends a once-key; the route answers once (`once`); client twin |
 | B68 | P0 | Stock transfers | Double Send makes two transfers; Main M fell 5 → 1 for 2 sent — Codex BUG-68 | FIXED `c12de2a` `d714e4f` — same three; `StockAndOrdersPressedTwiceAreOneTest` |
@@ -124,6 +124,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B82 | P1 | Dine-in / ordering | Four taps on one dish within a second sent one request — three naan served and never charged (B63's twin guard on a stepper) — money pass $10 | FIXED `a8f5182` — `everyPressCounts` on the tab's add and step; `dineInService.test.ts` |
 | B83 | P2 | Delivery / riders | The delivery fee (149.99 of 2,048.98) is in no book, and "Cash received" from the rider moved no drawer — money pass $11 | PART — the rider's cash now comes into the drawer of whoever takes it (`rider_in`, `57fdcb6` `c799a2b`, `TheRiderIsHoldingTheCashTest`); the fee is B34 — waits on Q16 |
 | B84 | P3 | Reports → Offline | "Which till" blank for every web till (no name; its code is on the slip) — money pass $12 | FIXED `9d92b5f` — `PosDevice::label()`: the name, or "Till <code>" |
+| B85 | P2 | Inventory | The stock list drew every item and badged each made-to-order dish's nought "Out of stock" (eleven on screen) under an "Out of stock" count of 1 — the count asked only for counted items (the user, 2026-10-17) | FIXED `77b7f17` `4a87cf9` — the list and its counts ask one question (`stockQueries`): only counted items; a line says how many do not track stock. The three page-wide tiles became the app's one filter bar beside the search (the user: "itne bary box k filters achy ni lgy") |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
@@ -158,6 +159,7 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 | Q14 | **ANSWERED — as recommended.** Does an installment plan count against the customer's khata credit limit? | No — a plan is approved on its own; only staff who may sell on credit can start one. |
 | Q15 | **ANSWERED — as recommended.** A late fee, or an SMS reminder before the due date? | Not now — late shows in red; a reminder later (the "CartZe" SMS sender exists). |
 | Q16 | (2026-10-17, B34 / B83) A delivery order's fee (e.g. 149.99) is on the order, but the sale it makes counts the goods only, so the fee is in no book. Today the rider's settlement already calls the fees "rider earned". Is the delivery fee the SHOP's income, or the RIDER's pay? | If the shop's own rider: the shop's income — put it on the sale as a delivery charge (so revenue, the receipt and the Tax report see it). If a platform rider keeps it: show it as owed to the rider at settlement, not as the shop's money. |
+| Q17 | (2026-10-17, B17) A phone or online order's sale is rung with tax 0 — the till charges 17 % on the same goods (asked first on 2026-10-12, never answered). Tax orders by the till's rule? | Yes — price the order with tax at placement (an `orders.tax` figure, shown at checkout on the storefront and the app), carried onto its sale, so the receipt and the Tax report see it. |
 
 ## Pass 1 — Phase 1, clothing shop (cloud tester, 2026-10-14) — details
 
@@ -359,3 +361,7 @@ Part 2 pushed: backend `18c69b9`, panel `a01acfe` — B79, B80, B81 (phpunit 3,9
 eslint 0 errors · tsc-e2e).
 Part 3 pushed: backend `57fdcb6`, panel `c799a2b` — B76, B77, B78, B83 (the drawer half).
 Left: Q16 (the delivery fee — B34 / B83), B65 (to build, owner answered).
+Part 4 pushed (2026-10-17, while the user was out): inventory (B85, the filter bar) backend `77b7f17`, panel `4a87cf9`;
+B65 backend `01ffcb6`, panel `8384b10` (migration `2026_10_17_000001`); B10, B43, B42 backend `01b0613`; B14 and B17's channel `efa8c84` `93699cb`.
+B09 found already fixed. Walked on the real stack: Paisa QA Mart QUO-000002 → LAY-000002 (stock 32 → 30, a second
+hold refused 409). Q17 asked (B17, orders untaxed).

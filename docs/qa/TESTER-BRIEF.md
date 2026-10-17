@@ -97,6 +97,12 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R44 | B82 | A tab: tap one dish four times fast (and the line's "+"). | Four on the line, four charged. |
 | R45 | B83 | A delivery paid at the door through the shop's rider: complete it, then Riders → Settle cash with a drawer open. | The drawer's expected cash rises by what was handed in ("Rider handed in"); revenue does not. The fee: Q16. |
 | R46 | B84 | Ring a sale offline on a nameless web till, reconnect, Reports → Offline. | "Which till" reads "Till <code>", the code on the slip. |
+| R47 | B85 | A restaurant with made-to-order dishes and a few counted items: Inventory. Press each filter; then a phone. | "Out of stock" lists exactly as many as its count; dishes that do not track stock are not listed and a line says how many; the filter is one bar beside the search (on a phone, search below it). |
+| R48 | B65 | Write a quotation; raise one item's shelf price; open the quote → Hold on advance; take the floor shown; then try to hold it again. A lapsed quote too. | The advance is at the QUOTE's price, the goods leave the shelf, the quote says "Held on advance as LAY-…" and the advance "from QUO-…"; a second hold is refused; a lapsed quote offers no hold. |
+| R49 | B10 | Loyalty on: sell to a customer by phone, then exchange the item for a dearer one. | The new sale is the same customer's; their points are the new goods' points (the returned item's taken back). |
+| R50 | B43 | Expenses recorded this month; switch the Expenses module off for the shop; Dashboard and Reports for the same days. | The same expenses and the same profit on both. |
+| R51 | B14 | A shop that does not ask for shifts: ring one sale on a shift and one with no shift open (or complete a delivery order); Day & banking; close the day. | "Rung up" counts both, says "1 not at a counter"; the drawers' expected cash only the first; the closed day keeps both. |
+| R52 | B42 | A stock keeper kept to one place opens an item's stock history (and asks the API for another place). | Only their place's lines and balances. |
 
 ### 5b. What no pass has reached yet
 
