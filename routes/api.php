@@ -727,6 +727,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Before /{document} so it isn't captured as an id.
                 Route::get('/summary', [SaleDocumentController::class, 'summary']);
                 Route::post('/', [SaleDocumentController::class, 'store']);
+                // What it will be written at — the advance sheet's floor (money pass $7).
+                Route::post('/worth', [SaleDocumentController::class, 'worth']);
                 Route::get('/{document}', [SaleDocumentController::class, 'show']);
                 Route::get('/{document}/print', [SaleDocumentController::class, 'print']);
                 Route::post('/{document}/deposits', [SaleDocumentController::class, 'deposit'])->middleware('once');
@@ -755,6 +757,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // Before /{plan} so it isn't captured as an id.
                 Route::get('/summary', [InstallmentPlanController::class, 'summary']);
                 Route::post('/', [InstallmentPlanController::class, 'store'])->middleware('once');
+                // What the plan will be, before it is started (money pass $8).
+                Route::post('/worth', [InstallmentPlanController::class, 'worth']);
                 Route::get('/{plan}', [InstallmentPlanController::class, 'show']);
                 Route::post('/{plan}/payments', [InstallmentPlanController::class, 'pay'])->middleware('once');
             });

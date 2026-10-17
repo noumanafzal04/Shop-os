@@ -123,6 +123,13 @@ class SettleTicketAction
                 'tip_amount' => $data['tip_amount'] ?? 0,
                 'notes' => $data['notes'] ?? "Dine-in tab {$ticket->ticket_number}",
                 'trusted_prices' => true,
+                // A tab is this shop's own menu, rung today — not an order or
+                // a layaway replaying a total settled elsewhere — so it is
+                // taxed the way the counter taxes it. Left out, the trusted
+                // path took it as exclusive and an INCLUSIVE shop's karahi
+                // was 1,799.00 at the counter and 2,104.83 at the table
+                // (money pass 2026-10-16, $9).
+                'tax_inclusive' => (bool) ($this->context->get()?->setting('tax_inclusive', false) ?? false),
                 // This bill is a TAB's: the kitchen has had every line of it
                 // already. See CreateSaleAction — a sale is otherwise sent to
                 // the pass whether it was rung to take away or for here.

@@ -145,24 +145,66 @@ class TheBillIsWhatTheTillWillAskForTest extends TestCase
             'only exempt food' => [['product_id' => $this->menu['naan']->id, 'quantity' => 12]],
         ];
 
-        foreach ([0.0, 16.0, 7.5] as $default) {
-            $this->defaultRate($default);
+        foreach ([false, true] as $inclusive) {
+            $this->asOwner()->putJson('/api/v1/shop/settings', ['tax_inclusive' => $inclusive])->assertOk();
 
-            foreach ($tables as $what => $items) {
-                $id = $this->tab($items);
-                $bill = TabBill::of(RestaurantTicket::withoutTenancy()->findOrFail($id), $default);
-                $printed = $this->toPay($this->billHtml($id));
+            foreach ([0.0, 16.0, 7.5] as $default) {
+                $this->defaultRate($default);
 
-                $sale = $this->settle($id);
+                foreach ($tables as $what => $items) {
+                    $id = $this->tab($items);
+                    $bill = TabBill::of(RestaurantTicket::withoutTenancy()->findOrFail($id), $default, $inclusive);
+                    $printed = $this->toPay($this->billHtml($id));
 
-                $where = "{$what}, default rate {$default}%";
-                $this->assertEquals((float) $sale['total'], $bill['total'], "the bill and the sale disagree on the total — {$where}");
-                $this->assertEquals((float) $sale['tax'], $bill['tax'], "…and on the tax — {$where}");
-                $this->assertEquals((float) $sale['subtotal'], $bill['subtotal'], "…and on the subtotal — {$where}");
-                // And the paper carries that figure, not another.
-                $this->assertEquals((float) $sale['total'], $printed, "the printed TO PAY is not what the till asked for — {$where}");
+                    $sale = $this->settle($id);
+
+                    $where = "{$what}, default rate {$default}%, tax ".($inclusive ? 'inclusive' : 'exclusive');
+                    $this->assertEquals((float) $sale['total'], $bill['total'], "the bill and the sale disagree on the total — {$where}");
+                    $this->assertEquals((float) $sale['tax'], $bill['tax'], "…and on the tax — {$where}");
+                    $this->assertEquals((float) $sale['subtotal'], $bill['subtotal'], "…and on the subtotal — {$where}");
+                    // And the paper carries that figure, not another.
+                    $this->assertEquals((float) $sale['total'], $printed, "the printed TO PAY is not what the till asked for — {$where}");
+                }
             }
         }
+    }
+
+    /**
+     * THE SAME DISH COSTS THE SAME AT THE COUNTER AND AT THE TABLE.
+     *
+     * Money pass 2026-10-16 ($9): at a shop whose prices hold the tax, a
+     * karahi of 1,799.00 was 1,799.00 at the counter and 2,104.83 at the table
+     * — the tab was rung with the tax added on top, and its printed bill was
+     * written to the same rule, so the test above passed with both wrong.
+     */
+    public function test_a_shop_whose_prices_hold_the_tax_charges_its_table_the_menu_price(): void
+    {
+        $this->asOwner()->putJson('/api/v1/shop/settings', ['tax_inclusive' => true, 'default_tax_rate' => 17])->assertOk();
+        $karahi = Product::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'type' => 'product', 'item_type' => 'food_item',
+            'name' => 'QA Chicken Karahi', 'price' => 1799, 'cost' => 1,
+            'track_inventory' => false, 'is_active' => true,
+        ]);
+
+        $counter = $this->asOwner()->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 2000,
+            'items' => [['product_id' => $karahi->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $id = $this->tab([['product_id' => $karahi->id, 'quantity' => 1]]);
+        $html = $this->billHtml($id);
+        $asked = $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$id}/settle/worth", ['methods' => ['cash']])->assertOk()->json('data');
+        $table = $this->settle($id);
+
+        // 1,799 holds 1,799 × 17 / 117 = 261.39 of tax.
+        $this->assertEquals(1799.0, (float) $counter['total']);
+        $this->assertEquals(1799.0, (float) $asked['total'], 'the settle sheet asked for more than the menu price');
+        $this->assertEquals(1799.0, (float) $table['total'], 'the table paid more than the counter for the same dish');
+        $this->assertEquals(261.39, (float) $table['tax']);
+        $this->assertEquals((float) $counter['tax'], (float) $table['tax']);
+        $this->assertTrue((bool) $table['tax_inclusive'], 'the sale says its tax was added on top — every report downstream believes it');
+        $this->assertEquals(1799.0, $this->toPay($html));
+        $this->assertStringContainsString('Tax included', $html);
     }
 
     public function test_it_is_not_the_screens_estimate(): void

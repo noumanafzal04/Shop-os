@@ -200,6 +200,16 @@ class SaleDocumentController extends Controller
         );
     }
 
+    /**
+     * What a document of these lines will be written at, and the least it
+     * takes down — priced as store() prices it, and nothing written. The
+     * advance sheet states its floor from this (money pass 2026-10-16, $7).
+     */
+    public function worth(StoreSaleDocumentRequest $request, CreateSaleDocumentAction $action): JsonResponse
+    {
+        return ApiResponse::ok($action->worth($request->validated()));
+    }
+
     public function show(string $id): JsonResponse
     {
         $document = SaleDocument::query()

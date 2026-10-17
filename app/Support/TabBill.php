@@ -30,7 +30,14 @@ use App\Models\RestaurantTicketItem;
  *   the price is the tab's own snapshot — food already eaten is not repriced
  *   each line is taxed at its product's effective rate today (its tax group,
  *     else its own rate, else the shop's default; nought is exempt)
- *   tax is added on top, and rounded as it accumulates, line by line
+ *   at a shop whose prices hold the tax, the tax is the portion within each
+ *     line and the total is the menu's; otherwise it is added on top —
+ *     rounded as it accumulates, line by line, either way
+ *
+ * The mode is the shop's, as the counter reads it. Both this and the sale
+ * once added tax on top whatever the shop said, so they agreed with each
+ * other and an inclusive shop's table paid 17 % more than its counter
+ * (money pass 2026-10-16, $9).
  *
  * Only what is still to pay. A line settled earlier — the couple who left
  * and paid for their own — is on its own invoice and is not billed again.
@@ -45,9 +52,10 @@ final class TabBill
      *     tax: float,
      *     total: float,
      *     paid_earlier: int,
+     *     tax_inclusive: bool,
      * }
      */
-    public static function of(RestaurantTicket $ticket, float $defaultTaxRate): array
+    public static function of(RestaurantTicket $ticket, float $defaultTaxRate, bool $taxInclusive = false): array
     {
         $live = $ticket->items()->whereNull('voided_at')->with('product')->orderBy('created_at')->orderBy('id')->get();
         $owed = $live->filter(fn (RestaurantTicketItem $item) => $item->sale_id === null)->values();
@@ -67,13 +75,16 @@ final class TabBill
 
         $subtotal = round(array_sum(array_column($lines, 'line_total')), 2);
 
-        // Exactly the sale's loop: added on top, rounded as it accumulates.
+        // Exactly the sale's loop, rounded as it accumulates.
         $tax = 0.0;
         foreach ($lines as $line) {
             if ($line['tax_rate'] <= 0 || $subtotal <= 0) {
                 continue;
             }
-            $tax = round($tax + $line['line_total'] * $line['tax_rate'] / 100, 2);
+            $share = $line['line_total'];
+            $tax = $taxInclusive
+                ? round($tax + ($share - $share / (1 + $line['tax_rate'] / 100)), 2)
+                : round($tax + $share * $line['tax_rate'] / 100, 2);
         }
 
         return [
@@ -81,8 +92,9 @@ final class TabBill
             'subtotal' => $subtotal,
             'discount' => round(array_sum(array_column($lines, 'line_discount')), 2),
             'tax' => $tax,
-            'total' => round($subtotal + $tax, 2),
+            'total' => $taxInclusive ? $subtotal : round($subtotal + $tax, 2),
             'paid_earlier' => $live->count() - $owed->count(),
+            'tax_inclusive' => $taxInclusive,
         ];
     }
 }

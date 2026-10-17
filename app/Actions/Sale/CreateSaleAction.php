@@ -328,8 +328,9 @@ class CreateSaleAction
                 // priced months ago must be collected in the mode it was quoted in
                 // — otherwise an inclusive quote would have its tax added a second
                 // time at collection and the customer would be charged more than
-                // the paper in their hand says. Defaults to exclusive, which is
-                // exactly what every existing trusted caller means.
+                // the paper in their hand says. Defaults to exclusive; a
+                // dine-in tab states the shop's mode today, because its prices
+                // are this shop's own menu, rung now (SettleTicketAction).
                 $taxInclusive = $trusted
                     ? (bool) ($data['tax_inclusive'] ?? false)
                     : (bool) ($this->context->get()?->setting('tax_inclusive', false));

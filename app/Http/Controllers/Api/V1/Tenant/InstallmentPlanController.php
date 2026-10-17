@@ -11,6 +11,7 @@ use App\Http\Requests\Installment\TakeInstallmentRequest;
 use App\Models\Customer;
 use App\Models\CustomerLedgerEntry;
 use App\Models\InstallmentPlan;
+use App\Models\SaleDocument;
 use App\Support\ApiResponse;
 use App\Support\ShopDay;
 use App\Support\TenantContext;
@@ -147,6 +148,30 @@ class InstallmentPlanController extends Controller
                 'taken_by' => $e->takenBy?->name,
             ])->all(),
         ]);
+    }
+
+    /**
+     * What a plan on these terms will be — the server's figures, before the
+     * press, so the sheet reads out the plan that is written ($8).
+     */
+    public function worth(Request $request, StartInstallmentPlanAction $action): JsonResponse
+    {
+        $tenantId = $request->user()->tenant_id;
+        $data = $request->validate([
+            'customer_phone' => ['nullable', 'string', 'max:32'],
+            'items' => ['required', 'array', 'min:1', 'max:100'],
+            'items.*.product_id' => ['required', 'uuid', Rule::exists('products', 'id')->where('tenant_id', $tenantId)->whereNull('deleted_at')],
+            'items.*.variant_id' => ['nullable', 'uuid'],
+            'items.*.product_unit_id' => ['nullable', 'uuid'],
+            'items.*.quantity' => ['required', 'numeric', 'min:0.001', 'max:100000'],
+            'markup_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'advance' => ['nullable', 'array'],
+            'advance.amount' => ['nullable', 'numeric', 'min:0'],
+            'advance.method' => ['nullable', Rule::in(SaleDocument::DEPOSIT_METHODS)],
+            'months' => ['required', 'integer', 'min:1', 'max:60'],
+        ]);
+
+        return ApiResponse::ok($action->worth($data));
     }
 
     public function store(StartInstallmentPlanRequest $request, StartInstallmentPlanAction $action, TenantContext $context): JsonResponse

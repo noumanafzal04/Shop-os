@@ -70,30 +70,23 @@ class StartInstallmentPlanAction
 
         return DB::transaction(function () use ($data, $sale, $advance, $method, $months, $markupPercent): InstallmentPlan {
             // ── what the goods cost, asked of the sale path itself ──────
-            try {
-                $this->createSale->execute($sale + [
-                    'quote_only' => true,
-                    'payments' => array_values(array_filter([
-                        $advance > 0 ? ['method' => $method, 'amount' => $advance] : null,
-                        ['method' => PaymentMethod::Credit->value, 'amount' => 0.01],
-                    ])),
-                ]);
-                throw new \LogicException('An installment sale was rung while it was only being priced.');
-            } catch (SaleQuoted $asked) {
-                $cashPrice = round((float) $asked->figures['amount_due'], 2);
-            }
+            $cashPrice = $this->cashPrice($sale, $advance, $method, onKhata: true);
+            ['markup' => $markup, 'total' => $total, 'financed' => $financed, 'split' => $split]
+                = $this->terms($cashPrice, $markupPercent, $advance, $months);
 
-            if ($advance >= $cashPrice) {
-                throw DomainException::unprocessable(
-                    'The advance covers the whole price — there is nothing left to pay in installments. Ring it as a sale.',
-                    'NOTHING_TO_FINANCE',
+            // The figure read out to the customer is the figure written. The
+            // sheet shows the server's plan (worth()) and sends its bill; a
+            // price that moved in between is refused in words, not written
+            // at a figure nobody was told (money pass 2026-10-16, $8).
+            if (isset($data['expected_total']) && abs((float) $data['expected_total'] - $total) > 0.004) {
+                throw DomainException::conflict(
+                    'The price has changed — on installments this now comes to '
+                        .number_format($total, 2).', not '.number_format((float) $data['expected_total'], 2)
+                        .'. Check the figures with the customer and start again.',
+                    'PLAN_PRICE_CHANGED',
                 );
             }
 
-            $markup = round($cashPrice * $markupPercent / 100, 0);
-            $total = round($cashPrice + $markup, 2);
-            $financed = round($total - $advance, 2);
-            $split = InstallmentSchedule::split($financed, $months);
             $tenantId = (string) $this->context->id();
             $number = DocumentCounter::formatted($tenantId, 'installment_plan', 'INS');
 
@@ -159,5 +152,102 @@ class StartInstallmentPlanAction
 
             return $plan;
         });
+    }
+
+    /**
+     * WHAT THE PLAN WILL BE — asked before it is started.
+     *
+     * The sheet worked the plan out itself, from shelf prices before tax: it
+     * read out "Rs 500 now + 2 × 1,190 + 1,188.50 = 4,068.50" and the plan
+     * was written at 4,760.25 and 1,421 a month (money pass 2026-10-16, $8).
+     * Now it asks here — the same cash price, the same charge, the same
+     * schedule as execute() — and nothing is written: the sale path stops
+     * before it writes when it is only asked (quote_only), and the test holds
+     * it to that — no sale, no plan, no customer.
+     *
+     * @param  array{customer_phone?: ?string, items: array<int, array<string, mixed>>, markup_percent?: float|int|string|null,
+     *   advance?: ?array{amount?: float|int|string, method?: ?string}, months: int}  $data
+     * @return array{cash_price: float, markup_percent: float, markup: float, total: float, advance: float, financed: float, months: int, monthly: float, last_month: float}
+     */
+    public function worth(array $data): array
+    {
+        $advance = round((float) ($data['advance']['amount'] ?? 0), 2);
+        $months = (int) $data['months'];
+        $markupPercent = round((float) ($data['markup_percent'] ?? 0), 2);
+        $sale = [
+            'channel' => SaleChannel::WalkIn->value,
+            'items' => array_map(fn (array $i) => array_intersect_key($i, array_flip(['product_id', 'variant_id', 'product_unit_id', 'quantity'])), $data['items']),
+            'customer_phone' => $data['customer_phone'] ?? null,
+        ];
+
+        $onKhata = filled($data['customer_phone'] ?? null);
+        $cashPrice = $this->cashPrice($sale, $advance, $data['advance']['method'] ?? 'cash', $onKhata);
+
+        ['markup' => $markup, 'total' => $total, 'financed' => $financed, 'split' => $split]
+            = $this->terms($cashPrice, $markupPercent, $advance, $months);
+
+        return [
+            'cash_price' => $cashPrice,
+            'markup_percent' => $markupPercent,
+            'markup' => $markup,
+            'total' => $total,
+            'advance' => $advance,
+            'financed' => $financed,
+            'months' => $months,
+            'monthly' => (float) $split['monthly'],
+            'last_month' => (float) $split['last'],
+        ];
+    }
+
+    /**
+     * The goods at their cash price, asked of the sale path itself. The rest
+     * goes on the khata; before a phone is typed there is no khata to put it
+     * on, so the question is asked with a card — no rounding either way.
+     *
+     * @param  array<string, mixed>  $sale
+     */
+    private function cashPrice(array $sale, float $advance, string $method, bool $onKhata): float
+    {
+        try {
+            $this->createSale->execute($sale + [
+                'quote_only' => true,
+                'payments' => array_values(array_filter([
+                    $advance > 0 ? ['method' => $method, 'amount' => $advance] : null,
+                    ['method' => $onKhata ? PaymentMethod::Credit->value : PaymentMethod::Card->value, 'amount' => 0.01],
+                ])),
+            ]);
+            throw new \LogicException('An installment sale was rung while it was only being priced.');
+        } catch (SaleQuoted $asked) {
+            $cashPrice = round((float) $asked->figures['amount_due'], 2);
+        }
+
+        if ($advance >= $cashPrice) {
+            throw DomainException::unprocessable(
+                'The advance covers the whole price — there is nothing left to pay in installments. Ring it as a sale.',
+                'NOTHING_TO_FINANCE',
+            );
+        }
+
+        return $cashPrice;
+    }
+
+    /**
+     * The charge, the bill, what is financed and the schedule — one rule for
+     * starting a plan and for saying what it will be.
+     *
+     * @return array{markup: float, total: float, financed: float, split: array{monthly: float|int, last: float|int}}
+     */
+    private function terms(float $cashPrice, float $markupPercent, float $advance, int $months): array
+    {
+        $markup = round($cashPrice * $markupPercent / 100, 0);
+        $total = round($cashPrice + $markup, 2);
+        $financed = round($total - $advance, 2);
+
+        return [
+            'markup' => $markup,
+            'total' => $total,
+            'financed' => $financed,
+            'split' => InstallmentSchedule::split($financed, $months),
+        ];
     }
 }

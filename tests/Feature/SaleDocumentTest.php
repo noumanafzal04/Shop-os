@@ -220,6 +220,47 @@ class SaleDocumentTest extends TestCase
         $this->assertEquals(4, $this->fridge->fresh()->stock_quantity);
     }
 
+    /**
+     * The sheet is told the floor the server takes.
+     *
+     * Money pass 2026-10-16 ($7): the advance sheet worked out 20 % of the
+     * goods at shelf prices, before tax — "at least Rs 1,200" — and enabled
+     * the button there; the server's floor is 20 % of the total WITH tax,
+     * Rs 1,404, so the only amount the screen allowed was one it refused.
+     */
+    public function test_the_advance_sheet_is_told_the_floor_the_server_takes(): void
+    {
+        $this->shop->forceFill(['settings' => array_merge($this->shop->settings ?? [], [
+            'default_tax_rate' => 17, 'layaway_min_deposit_percent' => 20,
+        ])])->save();
+        $people = $this->customerCount();
+        $twoFans = [['product_id' => $this->fan->id, 'quantity' => 2]];
+
+        $asked = $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents/worth', [
+            'kind' => 'layaway', 'customer_name' => 'Ahmed', 'customer_phone' => '03001234567',
+            'items' => $twoFans,
+        ])->assertOk()->json('data');
+
+        // 2 × 8,000 = 16,000, + 17 % = 18,720; a fifth of that is 3,744 — not
+        // a fifth of the shelf price, 3,200.
+        $this->assertEquals(18720, $asked['total']);
+        $this->assertEquals(2720, $asked['tax']);
+        $this->assertEquals(3744, $asked['minimum_deposit']);
+
+        // Asking wrote nothing — no document, no goods held, nobody filed.
+        $this->assertSame(0, SaleDocument::withoutTenancy()->count());
+        $this->assertEquals(10, $this->fan->fresh()->stock_quantity);
+        $this->assertSame($people, $this->customerCount());
+
+        // The floor it named is the floor: a paisa under is refused, the floor is taken.
+        $hold = fn (float $down) => $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents', [
+            'kind' => 'layaway', 'customer_name' => 'Ahmed', 'customer_phone' => '03001234567',
+            'items' => $twoFans, 'deposit' => ['amount' => $down],
+        ]);
+        $hold(3743.99)->assertStatus(422)->assertJsonPath('meta.error_code', 'DEPOSIT_BELOW_MINIMUM');
+        $this->assertEquals(18720, $hold(3744)->assertCreated()->json('data.total'));
+    }
+
     public function test_an_advance_is_cash_in_the_drawer_the_day_it_is_taken(): void
     {
         $session = $this->openShift(2000);

@@ -115,7 +115,12 @@
 
     <div class="row"><span>Subtotal</span><span>{{ $amount($bill['subtotal']) }}</span></div>
     @if ($bill['tax'] > 0)
-        <div class="row"><span>Tax</span><span>+ {{ $amount($bill['tax']) }}</span></div>
+        {{-- At a shop whose prices hold the tax it is IN the subtotal, not on top of it. --}}
+        @if ($bill['tax_inclusive'])
+            <div class="row"><span>Tax included</span><span>{{ $amount($bill['tax']) }}</span></div>
+        @else
+            <div class="row"><span>Tax</span><span>+ {{ $amount($bill['tax']) }}</span></div>
+        @endif
     @endif
     <div class="row total"><span>TO PAY</span><span>{{ $amount($bill['total']) }}</span></div>
 

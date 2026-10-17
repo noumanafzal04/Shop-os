@@ -191,7 +191,11 @@ class RestaurantTicketController extends Controller
         }
 
         $tenant = $this->context->get();
-        $bill = TabBill::of($ticket, (float) ($tenant?->setting('default_tax_rate', 0) ?? 0));
+        $bill = TabBill::of(
+            $ticket,
+            (float) ($tenant?->setting('default_tax_rate', 0) ?? 0),
+            (bool) ($tenant?->setting('tax_inclusive', false) ?? false),
+        );
 
         if ($bill['lines'] === []) {
             throw DomainException::unprocessable('Nothing on this tab is waiting to be paid.', 'NOTHING_TO_BILL');

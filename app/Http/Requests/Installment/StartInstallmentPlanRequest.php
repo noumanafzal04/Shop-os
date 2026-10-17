@@ -39,6 +39,9 @@ class StartInstallmentPlanRequest extends FormRequest
             'first_due_on' => ['required', 'date', 'after_or_equal:'.ShopDay::calendarToday()],
             'cash_session_id' => ['nullable', 'uuid', new OwnOpenShift($this->user())],
             'notes' => ['nullable', 'string', 'max:1000'],
+            // The bill the sheet read out — refused if the plan would be
+            // written at another (PLAN_PRICE_CHANGED, money pass $8).
+            'expected_total' => ['nullable', 'numeric', 'min:0'],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
         ];
     }

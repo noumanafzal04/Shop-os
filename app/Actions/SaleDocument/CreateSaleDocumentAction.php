@@ -108,54 +108,10 @@ class CreateSaleDocumentAction
             );
         }
 
-        $customerGroup = $customer?->group;
-        $groupPriceLevel = ($customerGroup?->price_level === 'wholesale') ? 'wholesale' : 'retail';
-
-        $defaultTaxRate = (float) ($tenant?->setting('default_tax_rate', 0) ?? 0);
-        $taxInclusive = (bool) ($tenant?->setting('tax_inclusive', false));
-
-        // ── Price the lines ─────────────────────────────────────────
-        $lines = [];
-        $subtotal = 0.0;
-        $discretionaryLineDiscount = 0.0;
-
-        foreach ($data['items'] as $item) {
-            $line = DocumentPricing::line($item, $branchId, $groupPriceLevel, $defaultTaxRate);
-            $discretionaryLineDiscount = round($discretionaryLineDiscount + $line['line_discount'], 2);
-            $subtotal = round($subtotal + $line['line_total'], 2);
-            $lines[] = $line;
-        }
-
-        // ── Totals ──────────────────────────────────────────────────
-        $discount = round((float) ($data['discount'] ?? 0), 2);
-
-        if ($discount > $subtotal) {
-            throw DomainException::unprocessable('Discount cannot exceed the subtotal.', 'DISCOUNT_EXCEEDS_SUBTOTAL');
-        }
-
-        $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, $subtotal);
-
-        // Members' discount from the customer's group — a standing price, not a
-        // campaign, so it belongs on a quote the same way it belongs on a sale.
-        if ($customerGroup !== null) {
-            $groupPct = $customerGroup->discount_percent !== null ? (float) $customerGroup->discount_percent : 0.0;
-            if ($groupPct > 0) {
-                $groupDiscount = round(max(0.0, round($subtotal - $discount, 2)) * min($groupPct, 100) / 100, 2);
-                $discount = round($discount + $groupDiscount, 2);
-            }
-        }
-
-        $tax = DocumentPricing::tax($lines, $subtotal, $discount, $taxInclusive);
-        $total = $taxInclusive
-            ? round($subtotal - $discount, 2)
-            : round($subtotal - $discount + $tax, 2);
-
-        if ($total <= 0) {
-            throw DomainException::unprocessable(
-                'A document has to be worth something — add at least one item.',
-                'DOCUMENT_EMPTY',
-            );
-        }
+        [
+            'lines' => $lines, 'subtotal' => $subtotal, 'discount' => $discount,
+            'tax' => $tax, 'tax_inclusive' => $taxInclusive, 'total' => $total,
+        ] = $this->priced($data, $customer);
 
         // ── The deposit rules ───────────────────────────────────────
         // A token advance isn't a commitment: the shop takes Rs 100, pulls a
@@ -165,8 +121,7 @@ class CreateSaleDocumentAction
         $deposit = 0.0;
         if ($isLayaway) {
             $deposit = round((float) ($data['deposit']['amount'] ?? 0), 2);
-            $minPct = (float) ($tenant?->setting('layaway_min_deposit_percent', 20) ?? 20);
-            $minimum = round($total * $minPct / 100, 2);
+            [$minPct, $minimum] = $this->depositFloor($total);
 
             if ($minPct > 0 && $deposit + 0.001 < $minimum) {
                 throw DomainException::unprocessable(
@@ -350,6 +305,117 @@ class CreateSaleDocumentAction
         }
 
         return $document->load(['items', 'payments']);
+    }
+
+    /**
+     * WHAT A DOCUMENT WILL BE WRITTEN AT — asked before it is written.
+     *
+     * The sheet that holds goods on advance worked its figure out itself, at
+     * shelf prices and before tax, so it said "at least 20 % down — Rs 1,200"
+     * and this refused 1,200 because the floor is on the TAX-INCLUSIVE total,
+     * Rs 1,404 (money pass 2026-10-16, $7). It now asks here: the same pricing
+     * as build(), the same floor, and nothing written — not even the customer,
+     * who is looked up by the number and never created by a question.
+     *
+     * @return array{subtotal: float, discount: float, tax: float, tax_inclusive: bool, total: float, min_deposit_percent: float, minimum_deposit: float}
+     */
+    public function worth(array $data): array
+    {
+        $tenantId = (string) $this->context->id();
+        $customer = ! empty($data['customer_phone'])
+            ? Customer::byPhone($tenantId, $data['customer_phone'])
+            : (! empty($data['customer_id']) ? Customer::query()->whereKey($data['customer_id'])->first() : null);
+
+        $priced = $this->priced($data, $customer);
+        [$minPct, $minimum] = $data['kind'] === SaleDocument::KIND_LAYAWAY ? $this->depositFloor($priced['total']) : [0.0, 0.0];
+
+        return [
+            'subtotal' => $priced['subtotal'],
+            'discount' => $priced['discount'],
+            'tax' => $priced['tax'],
+            'tax_inclusive' => $priced['tax_inclusive'],
+            'total' => $priced['total'],
+            'min_deposit_percent' => $minPct,
+            'minimum_deposit' => $minPct > 0 ? $minimum : 0.0,
+        ];
+    }
+
+    /**
+     * The lines priced off the shop's own list, the members' discount, the
+     * tax and the total — one rule for writing a document and for asking
+     * what it will come to.
+     *
+     * @return array{lines: list<array<string, mixed>>, subtotal: float, discount: float, tax: float, tax_inclusive: bool, total: float}
+     */
+    private function priced(array $data, ?Customer $customer): array
+    {
+        $customerGroup = $customer?->group;
+        $groupPriceLevel = ($customerGroup?->price_level === 'wholesale') ? 'wholesale' : 'retail';
+
+        $tenant = $this->context->get();
+        $branchId = $this->branchContext->id();
+        $defaultTaxRate = (float) ($tenant?->setting('default_tax_rate', 0) ?? 0);
+        $taxInclusive = (bool) ($tenant?->setting('tax_inclusive', false));
+
+        // ── Price the lines ─────────────────────────────────────────
+        $lines = [];
+        $subtotal = 0.0;
+        $discretionaryLineDiscount = 0.0;
+
+        foreach ($data['items'] as $item) {
+            $line = DocumentPricing::line($item, $branchId, $groupPriceLevel, $defaultTaxRate);
+            $discretionaryLineDiscount = round($discretionaryLineDiscount + $line['line_discount'], 2);
+            $subtotal = round($subtotal + $line['line_total'], 2);
+            $lines[] = $line;
+        }
+
+        // ── Totals ──────────────────────────────────────────────────
+        $discount = round((float) ($data['discount'] ?? 0), 2);
+
+        if ($discount > $subtotal) {
+            throw DomainException::unprocessable('Discount cannot exceed the subtotal.', 'DISCOUNT_EXCEEDS_SUBTOTAL');
+        }
+
+        $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, $subtotal);
+
+        // Members' discount from the customer's group — a standing price, not a
+        // campaign, so it belongs on a quote the same way it belongs on a sale.
+        if ($customerGroup !== null) {
+            $groupPct = $customerGroup->discount_percent !== null ? (float) $customerGroup->discount_percent : 0.0;
+            if ($groupPct > 0) {
+                $groupDiscount = round(max(0.0, round($subtotal - $discount, 2)) * min($groupPct, 100) / 100, 2);
+                $discount = round($discount + $groupDiscount, 2);
+            }
+        }
+
+        $tax = DocumentPricing::tax($lines, $subtotal, $discount, $taxInclusive);
+        $total = $taxInclusive
+            ? round($subtotal - $discount, 2)
+            : round($subtotal - $discount + $tax, 2);
+
+        if ($total <= 0) {
+            throw DomainException::unprocessable(
+                'A document has to be worth something — add at least one item.',
+                'DOCUMENT_EMPTY',
+            );
+        }
+
+        return [
+            'lines' => $lines, 'subtotal' => $subtotal, 'discount' => $discount,
+            'tax' => $tax, 'tax_inclusive' => $taxInclusive, 'total' => $total,
+        ];
+    }
+
+    /**
+     * The least a layaway takes down: the shop's percent of the total.
+     *
+     * @return array{0: float, 1: float} the percent, and the amount
+     */
+    private function depositFloor(float $total): array
+    {
+        $minPct = (float) ($this->context->get()?->setting('layaway_min_deposit_percent', 20) ?? 20);
+
+        return [$minPct, round($total * $minPct / 100, 2)];
     }
 
     private function assertWithinDiscountCeiling(float $discount, float $subtotal): void

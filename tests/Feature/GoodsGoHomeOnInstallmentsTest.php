@@ -118,6 +118,56 @@ class GoodsGoHomeOnInstallmentsTest extends TestCase
         $this->assertEqualsCanonicalizing([44000, 6000], array_map('floatval', array_column($ledger, 'amount')));
     }
 
+    /**
+     * The sheet reads out the plan that is written.
+     *
+     * Money pass 2026-10-16 ($8): the sheet worked the plan out from shelf
+     * prices BEFORE tax and said "500 now + 2 × 1,190 + 1,188.50 = 4,068.50";
+     * the plan was written tax-inclusive at 4,760.25 and 1,421 a month, and
+     * nothing on screen said so. It now asks the server what the plan will
+     * be, and the server refuses to write it at a bill nobody was told.
+     */
+    public function test_the_sheet_is_told_the_plan_that_will_be_written(): void
+    {
+        $this->shop->forceFill(['settings' => array_merge($this->shop->settings ?? [], ['default_tax_rate' => 17])])->save();
+        $terms = [
+            'items' => [['product_id' => $this->fridge->id, 'quantity' => 1]],
+            'markup_percent' => 10, 'advance' => ['amount' => 16000, 'method' => 'card'], 'months' => 3,
+        ];
+
+        // Before the phone is typed, and after.
+        foreach ([[], ['customer_phone' => '03000124123']] as $who) {
+            $asked = $this->asOwner()->postJson('/api/v1/installment-plans/worth', $terms + $who)->assertOk()->json('data');
+
+            // 60,000 + 17 % = 70,200 cash; 10 % = 7,020; bill 77,220; 61,220
+            // on the khata over 3 months: 20,407 + 20,407 + 20,406.
+            $this->assertEquals(70200, $asked['cash_price'], 'the cash price is the bill with its tax, not the shelf price');
+            $this->assertEquals(7020, $asked['markup']);
+            $this->assertEquals(77220, $asked['total']);
+            $this->assertEquals(61220, $asked['financed']);
+            $this->assertEquals(20407, $asked['monthly']);
+            $this->assertEquals(20406, $asked['last_month']);
+        }
+
+        // Asking wrote nothing: no sale, no plan, nobody filed, the fridge on the shelf.
+        $this->assertSame(0, Sale::withoutTenancy()->count());
+        $this->assertSame(0, InstallmentPlan::withoutTenancy()->count());
+        $this->assertSame(0, Customer::withoutTenancy()->count());
+        $this->assertEquals(5, $this->fridge->fresh()->stock_quantity);
+
+        // A bill the plan would not be written at is refused, and writes nothing.
+        $this->asOwner()->postJson('/api/v1/installment-plans', $terms + [
+            'customer_phone' => '03000124123', 'first_due_on' => now()->addMonth()->toDateString(),
+            'expected_total' => 66000,
+        ])->assertStatus(409)->assertJsonPath('meta.error_code', 'PLAN_PRICE_CHANGED');
+        $this->assertSame(0, Sale::withoutTenancy()->count());
+
+        // The bill it was told is the bill it writes.
+        $plan = $this->start(['months' => 3, 'expected_total' => $asked['total']]);
+        $this->assertEquals($asked['total'], $plan['total']);
+        $this->assertEquals($asked['monthly'], $plan['monthly']);
+    }
+
     public function test_a_plan_is_not_held_to_the_everyday_khata_limit(): void
     {
         Customer::withoutTenancy()->create([
