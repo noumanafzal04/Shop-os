@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
@@ -8,6 +8,7 @@ import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
 import TextArea from "../../../components/form/input/TextArea";
 import Checkbox from "../../../components/form/input/Checkbox";
+import Alert from "../../../components/ui/alert/Alert";
 import { Modal } from "../../../components/ui/modal";
 import { useModal } from "../../../hooks/useModal";
 import { useToast } from "../../../components/ui/toast";
@@ -15,6 +16,7 @@ import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useCategories } from "../../catalog/hooks/useCatalog";
+import { categoryPaths } from "../../catalog/importFile";
 import Pager from "../../../components/ui/pager";
 import { useStockCounts, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCount } from "../services/stocktakeService";
@@ -55,6 +57,9 @@ export default function StocktakePage() {
   const [page, setPage] = useState(1);
   const counts = useStockCounts({ page });
   const categories = useCategories();
+  // Every category, sub-categories too, by its path: "Men > Shirts" (B15 — only
+  // the top level was offered, and counting a parent counts what is under it).
+  const shelves = useMemo(() => categoryPaths(categories.data ?? []), [categories.data]);
   const { start } = useStocktakeMutations();
 
   const startModal = useModal();
@@ -80,7 +85,6 @@ export default function StocktakePage() {
           toast.success(`${res.data.reference} started — ${res.data.lines_total} lines to count`);
           navigate(`/tenant/stocktake/${res.data.id}`);
         },
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't start the count."),
       },
     );
   };
@@ -220,7 +224,7 @@ export default function StocktakePage() {
                 value={form.category_id}
                 onChange={(v) => setForm((f) => ({ ...f, category_id: v }))}
                 placeholder="Pick a category"
-                options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                options={shelves.map((c) => ({ value: c.id, label: c.path }))}
               />
             </div>
           )}
@@ -242,6 +246,13 @@ export default function StocktakePage() {
             <TextArea rows={2} value={form.notes} onChange={(v) => setForm((f) => ({ ...f, notes: v }))} />
           </div>
         </div>
+
+        {/* A refusal is said inside the dialog — a toast behind it went unseen (B15). */}
+        {start.isError && (
+          <div className="mt-4">
+            <Alert variant="error" title="The count did not start" message={start.error instanceof ApiError ? start.error.message : "It could not be started — try again."} />
+          </div>
+        )}
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={startModal.closeModal}>Cancel</Button>
