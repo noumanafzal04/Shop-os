@@ -49,6 +49,8 @@ interface FixtureItem {
   price_level: string;
   line_discount_pct: number | null;
   line_discount: number | null;
+  /** The pack the line is sold in (L20), as the till's projection carries it. */
+  pack: { price: number | null; factor: number } | null;
 }
 
 interface CartFixture {
@@ -76,7 +78,7 @@ const FIXTURES = fixtures as unknown as {
 };
 
 /** The shape this file understands. A bump means the copy here is stale. */
-const EXPECTED_VERSION = 2;
+const EXPECTED_VERSION = 3;
 
 describe("the fixtures themselves", () => {
   it("are the version this engine was written against", () => {
@@ -150,6 +152,7 @@ describe("every cart the server was asked to price", () => {
         tax_group_rate: item.tax_group_rate,
       },
       quantity: item.quantity,
+      pack: item.pack,
       amountAsked: item.amountAsked,
       priceLevel: (item.price_level as PriceLevel) ?? "retail",
       lineDiscountPct: item.line_discount_pct,
@@ -199,6 +202,7 @@ describe("the whole set, not just the ones that pass", () => {
               tax_group_rate: item.tax_group_rate,
             },
             quantity: item.quantity,
+            pack: item.pack,
             priceLevel: (item.price_level as PriceLevel) ?? "retail",
             lineDiscountPct: item.line_discount_pct,
             lineDiscount: item.line_discount,

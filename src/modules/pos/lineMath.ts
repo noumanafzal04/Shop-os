@@ -95,11 +95,23 @@ export const recalcLine = <T extends LineForMath>(l: T, patch: Partial<T>): T =>
  * never showed up as a failed sale and would not have, however long anybody
  * waited.
  *
- * A PACK is priced explicitly — its own price, or base × factor — and tiers
- * do not apply to it. That half is unchanged.
+ * A PACK with a price of its own is that price. One without is `factor` of
+ * the item at the rate THIS MANY PACKS earn — the server's tiers count packs
+ * (`rateFor`, `ProductUnit::priceUsing`). This said tiers never applied to a
+ * pack, and two cartons on a "2 or more at 90" item asked Rs 2,400 for a
+ * bill the server made Rs 2,160 (L20, a till-bill fixture).
  */
 export const lineUnit = (l: LineForMath): number => {
-  if (l.product_unit_id) return l.unit_price;
+  if (l.product_unit_id) {
+    const pack = l.units?.find((u) => u.id === l.product_unit_id);
+    if (pack === undefined || (pack.price != null && pack.price !== "")) return l.unit_price;
+
+    // One of the item, at its own selling price — the rate below works out
+    // the level and the tiers — then the pack's count of them.
+    const one = lineUnit({ ...l, product_unit_id: null, unit_price: l.base_price ?? l.unit_price });
+
+    return round2(one * Number(pack.factor));
+  }
 
   const w = l.wholesale_price;
   const wholesale = l.price_level === "wholesale" && w != null && Number(w) > 0;

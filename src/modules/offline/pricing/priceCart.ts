@@ -87,6 +87,13 @@ export interface CartLine {
    * cannot sync. Mirrored, not approximated.
    */
   amountAsked?: number | null;
+  /**
+   * The pack this line is sold in — a strip, a box, a carton (L20). Absent or
+   * null: one of the item. `quantity` then counts packs, and each costs the
+   * pack's own price, else the level's rate × `factor` rounded —
+   * `ProductUnit::priceUsing`, step for step. See `packOf`.
+   */
+  pack?: { price: number | null; factor: number } | null;
 }
 
 export interface ShopPricing {
@@ -271,7 +278,10 @@ export function priceCart(lines: CartLine[], shop: ShopPricing, discount = 0): P
 
   for (const line of lines) {
     const level = line.priceLevel ?? "retail";
-    const base = priceForLevel(line.item, level, line.quantity);
+    const rate = priceForLevel(line.item, level, line.quantity);
+    // A pack multiplies whatever rate survived the level and the tiers, as
+    // the server's `rateFor` does — unless it carries a price of its own.
+    const base = line.pack ? (line.pack.price ?? round2(rate * line.pack.factor)) : rate;
 
     // Same order as the server: round the unit price, THEN multiply — except
     // where the line named money, in which case the money IS the gross.

@@ -179,10 +179,12 @@ export interface OutboxRow {
  * older one. Widening is safe; renaming is how a queue of paid sales becomes
  * unreadable during an upgrade.
  */
-/** One line's price as the till charged it — matched on the server to the same product. */
+/** One line's price as the till charged it — matched on the server to the same product, size and pack. */
 export interface TillPrice {
   product_id: string;
   variant_id: string | null;
+  /** The pack it was charged for (L20). Absent on a row queued before packs were priced here. */
+  product_unit_id?: string | null;
   unit_price: number;
 }
 

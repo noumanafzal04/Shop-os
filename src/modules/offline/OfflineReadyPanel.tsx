@@ -12,6 +12,7 @@ import {
   type ShiftOpRow,
 } from "./shift/shiftQueue";
 import { readinessLabel, readOfflineReadiness, type OfflineReadiness } from "./readiness";
+import { markTillHere } from "./device/tillHere";
 import { pullNow } from "./sync/pullNow";
 
 /**
@@ -55,6 +56,9 @@ export default function OfflineReadyPanel() {
     if (saving) return;
     setSaving(true);
     setFailed(false);
+    // Asked to be ready, so it is a till from now on (L3): every screen keeps
+    // what this saves current, as they do on a device the till was opened on.
+    markTillHere(tenantId);
     // Forced: a person pressed this, so anything queued goes now rather than
     // waiting out a backoff. See dueRows.
     void pullNow({ force: true })

@@ -33,6 +33,7 @@ import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
 import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
 import { settledLines } from "../saleComplete";
 import { queueTally } from "../../offline/db/repo";
+import { markTillHere } from "../../offline/device/tillHere";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
 import { onHand, unsyncedDeltas } from "../../offline/outbox/localStock";
 import { lastServerContact } from "../../offline/contact";
@@ -265,6 +266,10 @@ const fmtQty = (n: number) => String(parseFloat(n.toFixed(3)));
 export default function PosPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const user = useAuthStore((s) => s.user);
+  // THIS DEVICE IS A TILL NOW (L3): from here on every screen keeps its copy
+  // of the shelf current, and none did before. See `tillHere`.
+  const tillShop = user?.tenant?.id ?? null;
+  useEffect(() => markTillHere(tillShop), [tillShop]);
   // Resolved on the server, so an older code (`restaurant`, `clinic`,
   // `workshop`) answers as the type it became and the till behaves the same
   // for that shop as for a new one.
@@ -1277,6 +1282,7 @@ export default function PosPage() {
         const local = await linesFromCatalog(billLines.map((l) => ({
           product_id: l.product_id,
           variant_id: l.variant_id,
+          product_unit_id: l.product_unit_id,
           quantity: l.quantity,
           amountAsked: l.amountAsked,
           price_level: l.price_level === "wholesale" ? ("wholesale" as const) : ("retail" as const),
@@ -1330,6 +1336,8 @@ export default function PosPage() {
       billLines.map((l) => ({
         product_id: l.product_id,
         variant_id: l.variant_id,
+        // The carton, not one of what it holds (L20).
+        product_unit_id: l.product_unit_id,
         quantity: l.quantity,
         // The money, where the line named money. Without it the till's own
         // engine would price the derived litres and land six paisa above the
@@ -1677,6 +1685,7 @@ export default function PosPage() {
         soldLines.map((l) => ({
           product_id: l.product_id,
           variant_id: l.variant_id,
+          product_unit_id: l.product_unit_id,
           quantity: l.quantity,
           amountAsked: l.amountAsked,
           price_level: l.price_level === "wholesale" ? "wholesale" : "retail",

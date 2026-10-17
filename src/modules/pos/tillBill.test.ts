@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { effectiveTaxRate } from "../offline/pricing/priceCart";
 import { round2 } from "../offline/pricing/money";
 import fixtures from "./fixtures/till-bill.json";
-import { lineNet, lineUnit } from "./lineMath";
+import { lineNet, lineUnit, packPrice } from "./lineMath";
 import { followLevel, settleInCoins, tillBill, type BillGroup, type BillLine, type PriceLevel, shortBy } from "./tillBill";
 
 /**
@@ -27,6 +27,8 @@ interface FixtureItem {
   line_discount_pct: number | null;
   line_discount: number | null;
   price_level: PriceLevel | null;
+  /** The pack it is sold in (L20). */
+  pack: { price: number | null; factor: number } | null;
 }
 
 interface FixtureBill {
@@ -54,15 +56,17 @@ interface FixtureBill {
 
 const BILLS = (fixtures as { version: number; bills: FixtureBill[] }).bills;
 
-/** A cart line exactly as `addLine` makes one: selling price on both fields. */
+/** A cart line exactly as `addLine` makes one: selling price on both fields — a pack's on the line. */
 function lineFrom(item: FixtureItem): BillLine {
   const sale = item.discount_price != null && item.discount_price > 0 && item.discount_price < item.price
     ? item.discount_price
     : item.price;
+  const pack = item.pack === null ? null : { id: "carton", name: "Carton", factor: item.pack.factor, price: item.pack.price };
 
   return {
-    unit_price: sale,
+    unit_price: pack === null ? sale : packPrice(sale, pack),
     base_price: sale,
+    ...(pack === null ? {} : { product_unit_id: pack.id, units: [pack] }),
     quantity: item.quantity,
     wholesale_price: item.wholesale_price,
     price_tiers: item.price_tiers,
@@ -96,7 +100,7 @@ function billFor(c: FixtureBill) {
 
 describe("the fixtures themselves", () => {
   it("are the shape this file was written against", () => {
-    expect((fixtures as { version: number }).version).toBe(2);
+    expect((fixtures as { version: number }).version).toBe(3);
   });
 
   it("contain the cases that were wrong — a test of nothing passes too", () => {

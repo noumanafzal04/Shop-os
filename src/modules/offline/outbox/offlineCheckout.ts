@@ -5,6 +5,7 @@ import { hoursSinceContact } from "../contact";
 import { deviceId } from "../device/deviceId";
 import { sizePrice } from "../../catalog/pricing";
 import { priceCart, type CartLine } from "../pricing/priceCart";
+import { packOf } from "../pricing/packOf";
 import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { unsupportedPromotions } from "../pricing/bestPromotion";
 import { heldPromotions } from "../pricing/heldPromotions";
@@ -235,21 +236,27 @@ export async function priceLocally(
 
 /**
  * The price each line was rung at, for the server to keep (Q10) — in the
- * sale's own order, naming each line's product so a price can never land on
- * the wrong line. A pack and a line that named money are left to the server
- * (null): this engine prices neither. A cart and a payload that are not the
- * same length send nothing at all, and the server prices it as before.
+ * sale's own order, naming each line's product, size and pack so a price can
+ * never land on the wrong line: a carton's price is the carton's (L20). A
+ * line that named money is left to the server (null) — the money is its
+ * price. A cart and a payload that are not the same length send nothing at
+ * all, and the server prices it as before.
  */
 export function tillPricesFor(sale: Record<string, unknown>, unitPrices: number[]): Array<TillPrice | null> | null {
   const items = Array.isArray(sale.items) ? (sale.items as Array<Record<string, unknown>>) : [];
   if (items.length === 0 || items.length !== unitPrices.length) return null;
 
+  const named = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
+
   return items.map((item, i) => {
-    if (typeof item.product_id !== "string" || item.product_unit_id || item.amount != null) return null;
+    if (typeof item.product_id !== "string" || item.amount != null) return null;
+    const variant = named(item.variant_id);
 
     return {
       product_id: item.product_id,
-      variant_id: typeof item.variant_id === "string" && item.variant_id !== "" ? item.variant_id : null,
+      variant_id: variant,
+      // A size is never sold in a pack — the server drops the pack, so does this.
+      product_unit_id: variant === null ? named(item.product_unit_id) : null,
       unit_price: unitPrices[i],
     };
   });
@@ -331,6 +338,8 @@ export async function linesFromCatalog(
   items: Array<{
     product_id: string;
     variant_id?: string | null;
+    /** The pack it is sold in — see CartLine.pack. */
+    product_unit_id?: string | null;
     quantity: number;
     /** Money named instead of a quantity — see CartLine.amountAsked. */
     amountAsked?: number;
@@ -363,6 +372,13 @@ export async function linesFromCatalog(
       ]);
     }
 
+    const pack = packOf(item, line.variant_id, line.product_unit_id);
+    if (pack === undefined) {
+      throw new OfflineRefused([
+        "One of these items' packs hasn't reached this till yet, so it can't be priced offline.",
+      ]);
+    }
+
     lines.push({
       item: {
         // Which product and category — the promotion rules scope by one or the
@@ -379,6 +395,7 @@ export async function linesFromCatalog(
         tax_group_rate: item.tax_group_id ? (taxGroups.get(item.tax_group_id) ?? null) : null,
       },
       quantity: line.quantity,
+      pack,
       amountAsked: line.amountAsked ?? null,
       priceLevel: line.price_level ?? "retail",
       modifierDelta: line.modifierDelta ?? 0,

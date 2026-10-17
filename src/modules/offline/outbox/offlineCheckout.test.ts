@@ -173,18 +173,73 @@ describe("the price it was rung at (Q10)", () => {
     const shown = await completeOffline(input({ sale, lines }));
 
     expect((await allRows())[0].tillPrices).toEqual([
-      { product_id: "p1", variant_id: null, unit_price: 1000 },
-      { product_id: "p2", variant_id: null, unit_price: 100 },
+      { product_id: "p1", variant_id: null, product_unit_id: null, unit_price: 1000 },
+      { product_id: "p2", variant_id: null, product_unit_id: null, unit_price: 100 },
     ]);
     expect(shown).not.toHaveProperty("unitPrices");
   });
 
-  it("leaves a pack and a line that named money to the server, and sends nothing for a cart out of step", () => {
-    const sale = { items: [{ product_id: "p1", quantity: 1, product_unit_id: "carton" }, { product_id: "p2", amount: 2000 }, { product_id: "p3", variant_id: "v3", quantity: 1 }] };
+  it("names the pack a price was charged for, leaves a line that named money to the server, and sends nothing for a cart out of step", () => {
+    const sale = { items: [
+      { product_id: "p1", quantity: 1, product_unit_id: "carton" },
+      { product_id: "p2", amount: 2000 },
+      { product_id: "p3", variant_id: "v3", quantity: 1 },
+      // A size is never sold in a pack: the server drops the pack, so does this.
+      { product_id: "p4", variant_id: "v4", quantity: 1, product_unit_id: "box" },
+    ] };
 
-    expect(tillPricesFor(sale, [100, 268.5, 990])).toEqual([null, null, { product_id: "p3", variant_id: "v3", unit_price: 990 }]);
+    expect(tillPricesFor(sale, [1150, 268.5, 990, 50])).toEqual([
+      { product_id: "p1", variant_id: null, product_unit_id: "carton", unit_price: 1150 },
+      null,
+      { product_id: "p3", variant_id: "v3", product_unit_id: null, unit_price: 990 },
+      { product_id: "p4", variant_id: "v4", product_unit_id: null, unit_price: 50 },
+    ]);
     expect(tillPricesFor(sale, [100, 268.5]), "a price may land on the wrong line").toBeNull();
     expect(tillPricesFor({}, [])).toBeNull();
+  });
+});
+
+/**
+ * L20 (2026-10-17): a carton rung with the line down was priced, printed and
+ * totalled as ONE single — the engine read no pack — while the server charged
+ * the carton when the sale arrived.
+ */
+describe("a pack rung offline", () => {
+  const carton = { id: "carton", name: "Carton", factor: 12, price: 1150, barcode: null };
+  const box = { id: "box", name: "Box", factor: 6, price: null, barcode: null };
+
+  it("is priced, totalled and kept at the pack's own price", async () => {
+    await seed([item({ id: "p1", units: [carton] })]);
+    const { lines } = await linesFromCatalog([{ product_id: "p1", product_unit_id: "carton", quantity: 2 }]);
+    const sale = { channel: "pos", payment_method: "cash", amount_paid: 2300, items: [{ product_id: "p1", product_unit_id: "carton", quantity: 2 }] };
+
+    const shown = await completeOffline(input({ sale, lines }));
+
+    expect(shown.total, "the slip said one single, Rs 200").toBe(2300);
+    expect((await allRows())[0].tillPrices).toEqual([{ product_id: "p1", variant_id: null, product_unit_id: "carton", unit_price: 1150 }]);
+  });
+
+  it("with no price of its own is that many of the item, at the item's sale price", async () => {
+    await seed([item({ id: "p1", discount_price: 95, units: [box] })]);
+
+    const { lines } = await linesFromCatalog([{ product_id: "p1", product_unit_id: "box", quantity: 1 }]);
+
+    expect((await priceLocally(lines, 0)).total).toBe(570);
+  });
+
+  it("is never a size's: a size named with a pack is the size, as the server sells it", async () => {
+    await seed([item({ id: "p1", units: [carton], variants: [{ id: "v1", name: "Large", sku: null, price: 250, stock: 3, is_active: true }] })]);
+
+    const { lines } = await linesFromCatalog([{ product_id: "p1", variant_id: "v1", product_unit_id: "carton", quantity: 1 }]);
+
+    expect((await priceLocally(lines, 0)).total).toBe(250);
+  });
+
+  it("is refused, not guessed, when the pack has not reached this till", async () => {
+    await seed([item({ id: "p1", units: [] })]);
+
+    await expect(linesFromCatalog([{ product_id: "p1", product_unit_id: "carton", quantity: 1 }]))
+      .rejects.toThrow(/packs hasn't reached this till/);
   });
 });
 

@@ -7,6 +7,7 @@ import UpdatePrompt from "../../modules/offline/pwa/UpdatePrompt";
 import InstallPrompt from "../../modules/offline/pwa/InstallPrompt";
 import { useKeepInSync } from "../../modules/offline/sync/useKeepInSync";
 import { useOfflineBoot } from "../../modules/offline/useOfflineBoot";
+import { useTillIsHere } from "../../modules/offline/device/tillHere";
 import { useTenantTheme } from "../../modules/shop/hooks/useShop";
 import { useAuthStore } from "../../stores/authStore";
 import { useCan } from "../../stores/useCan";
@@ -231,7 +232,14 @@ export function TenantThemed() {
   // for its catalogue on every screen, and was refused each time: five 403s
   // to open the kitchen board, in the log of a shop where nothing is wrong.
   const can = useCan();
-  const hasTill = shopHasTill && can("sales.manage");
+  //
+  // …AND ONLY ON A DEVICE THAT IS A TILL (L3). The till's copy of the shelf is
+  // the whole catalogue — 4.5 MB on a 6,000-item grocery — and the owner's
+  // laptop or phone was handed it, and announced as a till, for opening
+  // Products. A device becomes a till when the till is opened on it.
+  const shopId = useAuthStore((st) => st.user?.tenant?.id ?? null);
+  const tillHere = useTillIsHere(shopId);
+  const hasTill = shopHasTill && can("sales.manage") && tillHere;
   useOfflineBoot(hasTill);
   // …and keeps it current afterwards: on reconnect, on a slow heartbeat, and
   // when the tab comes back to the front.

@@ -112,6 +112,20 @@ describe("agreement", () => {
     expect(outcome.status).toBe("matched");
   });
 
+  it("prices a carton as the carton — not as one single reported as a disagreement (L20)", async () => {
+    await seed([item({ id: "p1", price: 100, units: [{ id: "carton", name: "Carton", factor: 12, price: 1150, barcode: null }] })]);
+
+    const outcome = await runShadowCheck("s1", [line({ product_unit_id: "carton", quantity: 2 })], {
+      subtotal: 2300,
+      discount: 0,
+      tax: 0,
+      total: 2300,
+    }, 0);
+
+    expect(outcome.status).toBe("matched");
+    expect(await count(STORE.PRICING_VARIANCES)).toBe(0);
+  });
+
   it("reads a tax group's rate from the till's own copy", async () => {
     await putMany(STORE.TAX_CONFIG, [{ id: "t1", name: "Standard", rate: 17 }]);
     await seed([item({ id: "p1", price: 100, tax_rate: 5, tax_group_id: "t1" })]);
@@ -198,6 +212,19 @@ describe("skipping is not agreeing", () => {
     }, 0);
 
     expect(outcome.status).toBe("skipped");
+  });
+
+  it("skips when a pack is not known locally", async () => {
+    await seed([item({ id: "p1", units: [] })]);
+
+    const outcome = await runShadowCheck("s1", [line({ product_unit_id: "carton" })], {
+      subtotal: 1150,
+      discount: 0,
+      tax: 0,
+      total: 1150,
+    }, 0);
+
+    expect(outcome).toMatchObject({ status: "skipped", reason: expect.stringContaining("pack") });
   });
 
   it("skips before the till has its settings, rather than guessing at the tax", async () => {

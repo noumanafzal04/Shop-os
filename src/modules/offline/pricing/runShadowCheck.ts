@@ -5,6 +5,7 @@ import type { CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { shopNow } from "../clock";
 import { heldPromotions } from "./heldPromotions";
 import type { CartLine, PriceLevel } from "./priceCart";
+import { packOf } from "./packOf";
 import { comparePricing, type PricingVariance, type ServerTotals } from "./shadow";
 import { bumpTally } from "./shadowTally";
 
@@ -38,6 +39,8 @@ import { bumpTally } from "./shadowTally";
 export interface ShadowLine {
   product_id: string;
   variant_id?: string | null;
+  /** The pack it was sold in. Without it every carton read as one single (L20). */
+  product_unit_id?: string | null;
   quantity: number;
   /**
    * Money named instead of a quantity. It must travel, or the shadow check
@@ -123,6 +126,11 @@ async function evaluate(
         return { status: "skipped", reason: "a variant is not in the local catalog yet" };
       }
 
+      const pack = packOf(item, line.variant_id, line.product_unit_id);
+      if (pack === undefined) {
+        return { status: "skipped", reason: "a pack is not in the local catalog yet" };
+      }
+
       priced.push({
         item: {
           // Which product and category — the promotion rules scope by one or
@@ -139,6 +147,7 @@ async function evaluate(
           tax_group_rate: item.tax_group_id ? (taxGroups.get(item.tax_group_id) ?? null) : null,
         },
         quantity: line.quantity,
+        pack,
         amountAsked: line.amountAsked ?? null,
         priceLevel: line.price_level ?? "retail",
         modifierDelta: line.modifierDelta ?? 0,
