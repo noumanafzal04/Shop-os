@@ -97,6 +97,7 @@ use App\Http\Controllers\Api\V1\Tenant\StockCountController;
 use App\Http\Controllers\Api\V1\Tenant\StockDisposalController;
 use App\Http\Controllers\Api\V1\Tenant\SubscriptionController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierController;
+use App\Http\Controllers\Api\V1\Tenant\SupplierItemsController;
 use App\Http\Controllers\Api\V1\Tenant\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\Tenant\TaxGroupController;
 use App\Http\Controllers\Api\V1\Tenant\TenantReviewController;
@@ -502,6 +503,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('purchase-orders/{purchaseOrder}/place', [PurchaseOrderController::class, 'place']);
                     Route::post('purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
                     Route::post('suppliers/{supplier}/payments', [SupplierPaymentController::class, 'store'])->middleware('once');
+                    // What this supplier has sold us before — the next order's list.
+                    Route::get('suppliers/{supplier}/products', SupplierItemsController::class);
                 });
             });
 
