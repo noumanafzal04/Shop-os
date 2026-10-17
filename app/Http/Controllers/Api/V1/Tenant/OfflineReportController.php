@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BranchStock;
 use App\Models\CashSession;
 use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Support\ApiResponse;
 use App\Support\ShopDay;
 use Carbon\CarbonInterface;
@@ -254,17 +255,47 @@ class OfflineReportController extends Controller
      */
     private function oversold(): array
     {
-        return BranchStock::query()
+        $rows = BranchStock::query()
             ->where('quantity', '<', 0)
-            ->with(['product:id,name,sku', 'branch:id,name'])
+            ->with(['product:id,name,sku', 'branch:id,name', 'variant:id,name'])
             ->orderBy('quantity')
             ->limit(self::RECENT)
-            ->get()
+            ->get();
+
+        // WHICH SALES TOOK IT BELOW NOUGHT (B51). The list said "−1, count it"
+        // and stopped: two tills had each sold the last piece offline, and
+        // nothing led from the shelf to the two slips — so the owner, told
+        // "flagged 0", never heard of it. The sales are still not wrong; they
+        // are named so somebody can ask the cashier which customer has it.
+        $took = StockMovement::query()
+            ->whereIn('product_id', $rows->pluck('product_id')->unique()->all())
+            ->where('reference_type', 'sale')
+            ->where('quantity_after', '<', 0)
+            ->orderByDesc('created_at')
+            ->get(['product_id', 'variant_id', 'branch_id', 'reference_id']);
+        $sales = Sale::query()
+            ->whereIn('id', $took->pluck('reference_id')->unique()->all())
+            ->get(['id', 'invoice_number', 'offline_number'])
+            ->keyBy('id');
+
+        return $rows
             ->map(fn (BranchStock $s): array => [
-                'product' => $s->product?->name,
+                'product' => $s->product?->name.($s->variant !== null ? " / {$s->variant->name}" : ''),
                 'sku' => $s->product?->sku,
                 'branch' => $s->branch?->name,
                 'quantity' => (float) $s->quantity,
+                'sold_on' => $took
+                    ->filter(fn (StockMovement $m): bool => $m->product_id === $s->product_id
+                        && $m->variant_id === $s->variant_id
+                        && $m->branch_id === $s->branch_id)
+                    ->map(fn (StockMovement $m): ?string => ($sale = $sales->get($m->reference_id)) === null
+                        ? null
+                        : ($sale->offline_number ?? $sale->invoice_number))
+                    ->filter()
+                    ->unique()
+                    ->take(5)
+                    ->values()
+                    ->all(),
             ])
             ->values()
             ->all();

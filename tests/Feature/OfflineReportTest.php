@@ -8,6 +8,7 @@ use App\Models\CashSession;
 use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\ReportService;
@@ -234,6 +235,42 @@ class OfflineReportTest extends TestCase
         $this->assertCount(1, $oversold);
         $this->assertSame('Milkpak 1L', $oversold[0]['product']);
         $this->assertEqualsWithDelta(-2.0, $oversold[0]['quantity'], 0.001);
+    }
+
+    public function test_the_recount_names_the_sales_that_took_the_shelf_below_nought(): void
+    {
+        // B51: the last piece, sold offline on two tills — INV-000034 and
+        // INV-000035, stock −1 — and nothing led from the shelf to the slips.
+        $main = Branch::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'name' => 'Main', 'is_default' => true]);
+        $piece = Product::query()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product',
+            'item_type' => 'physical_product', 'name' => 'QA Last Piece', 'price' => 100,
+        ]);
+        BranchStock::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'branch_id' => $main->id, 'product_id' => $piece->id, 'quantity' => -1]);
+
+        $first = $this->sale(['offline_number' => 'OFF-TILL-YUJU-000003']);
+        $second = $this->sale(['offline_number' => 'OFF-TILL-VBLY-000001']);
+        $online = $this->sale(['offline_number' => null]);
+        foreach ([[$first, 0], [$second, -1]] as [$sale, $after]) {
+            StockMovement::withoutTenancy()->create([
+                'tenant_id' => $this->tenant->id, 'branch_id' => $main->id, 'product_id' => $piece->id,
+                'type' => 'out', 'quantity_change' => -1, 'quantity_after' => $after,
+                'reason' => "Sale {$sale->invoice_number}", 'reference_type' => 'sale', 'reference_id' => $sale->id,
+            ]);
+        }
+        // The same item below nought at ANOTHER place, by another sale, is that place's.
+        $outlet = Branch::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'name' => 'Outlet']);
+        StockMovement::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'branch_id' => $outlet->id, 'product_id' => $piece->id,
+            'type' => 'out', 'quantity_change' => -1, 'quantity_after' => -1,
+            'reason' => 'Sale', 'reference_type' => 'sale', 'reference_id' => $online->id,
+        ]);
+
+        $row = $this->report()['oversold'][0];
+
+        $this->assertSame('QA Last Piece', $row['product']);
+        // The sale that left it at nought sold what was there; the one after it did not.
+        $this->assertSame(['OFF-TILL-VBLY-000001'], $row['sold_on']);
     }
 
     public function test_stock_that_is_merely_low_is_not_a_recount(): void
