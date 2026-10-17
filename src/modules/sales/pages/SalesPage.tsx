@@ -32,6 +32,7 @@ import { useAuthStore } from "../../../stores/authStore";
 import { afterTheSale } from "../afterTheSale";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
+import { drawerShort } from "../drawerShort";
 import { saleParams, VOID_REASONS, type VoidReasonCode } from "../services/salesService";
 import { counted } from "../../../common/format/counted";
 import {
@@ -428,6 +429,9 @@ export default function SalesPage() {
   /** The answer to what is on screen NOW — not to the selection before it. */
   const backWorth = backSettled === backAsked && !worth.isFetching && worth.data ? worth.data : null;
   const nothingBack = backAsked === "[]";
+  // More cash than the drawer holds: refused by the server, said here first ($6).
+  const cashBack = backWorth ? (backWorth.handed_back ?? backWorth.refund_total) : 0;
+  const shortBy = drawerShort(backWorth, approval.drawerId !== "");
 
   const exCredit = nothingBack ? 0 : backWorth?.refund_total ?? null;
   // WHAT GOES OUT — asked of the server too. Worked out here, tag against tag,
@@ -829,6 +833,15 @@ export default function SalesPage() {
                     <Alert variant="warning" title={NO_DRAWER[backWorth.drawer as "none" | "practice"].title} message={NO_DRAWER[backWorth.drawer as "none" | "practice"].message} />
                   </div>
                 )}
+                {shortBy !== null && (
+                  <div data-testid="refund-more-than-drawer">
+                    <Alert
+                      variant="warning"
+                      title="More than the drawer holds"
+                      message={`The drawer holds ${money(shortBy)} — this hands back ${money(cashBack)} in cash. Put cash in the drawer first, or hand it back from a drawer that holds it.`}
+                    />
+                  </div>
+                )}
                 {!nothingBack && <RefundApproval needsApproval={may.needsApproval} ownDrawer={backWorth?.drawer} value={approval} onChange={setApproval} />}
                 {processReturn.error instanceof ApiError && (
                   <Alert variant="error" title="Return failed" message={processReturn.error.message} />
@@ -842,7 +855,7 @@ export default function SalesPage() {
                 )}
                 <div className="flex justify-end gap-3">
                   <Button size="sm" variant="outline" onClick={() => setReturning(false)}>Back</Button>
-                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q) || !saidWhichUnits || !approvalReady(approval, may.needsApproval)}>
+                  <Button size="sm" onClick={doReturn} disabled={!connected || processReturn.isPending || Object.values(returnQty).every((q) => !q) || !saidWhichUnits || shortBy !== null || !approvalReady(approval, may.needsApproval)}>
                     {processReturn.isPending ? "Processing…" : "Refund & restock"}
                   </Button>
                 </div>

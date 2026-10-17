@@ -226,7 +226,8 @@ export type CashMovementType =
   | "khata_in"
   | "supplier_out"
   | "expense_out"
-  | "void_refund";
+  | "void_refund"
+  | "rider_in";
 
 export interface CashMovement {
   id: string;

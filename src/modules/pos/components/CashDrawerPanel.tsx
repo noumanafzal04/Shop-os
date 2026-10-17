@@ -50,6 +50,7 @@ const MOVEMENT_LABEL: Record<string, string> = {
   void_refund: "Void refund",
   deposit_in: "Advance taken",
   deposit_out: "Advance returned",
+  rider_in: "Rider handed in",
 };
 
 const TENDER_LABEL: Record<string, string> = {

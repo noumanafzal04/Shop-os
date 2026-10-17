@@ -156,6 +156,8 @@ export interface ReturnWorth {
   off_khata?: number;
   handed_back?: number;
   back_by?: string;
+  /** What this person's own drawer holds now — null with none open (money pass $6). */
+  drawer_holds?: number | null;
 }
 
 export interface SaleReturn {
