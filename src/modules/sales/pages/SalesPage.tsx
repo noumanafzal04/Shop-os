@@ -30,6 +30,7 @@ import { NoAccess } from "../../../common/ui/NoAccess";
 import { deniedReason } from "../../../common/api/denied";
 import { useAuthStore } from "../../../stores/authStore";
 import { afterTheSale } from "../afterTheSale";
+import { voidBlocked } from "../voidBlocked";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
 import { drawerShort } from "../drawerShort";
@@ -371,12 +372,15 @@ export default function SalesPage() {
     );
   };
 
+  // What stands between this sale and the void — the day, the drawer (Q18, B86).
+  const voidHeldBack = detail.data?.void ? voidBlocked(detail.data.void, approval.drawerId !== "", money) : null;
+
   const doCancel = () => {
-    if (!detailId || cancel.isPending) return;
+    if (!detailId || cancel.isPending || voidHeldBack !== null || !approvalReady(approval, may.voidNeedsApproval)) return;
     cancel.mutate(
-      { id: detailId, reason_code: cancelCode, reason: cancelReason.trim() || undefined },
+      { id: detailId, reason_code: cancelCode, reason: cancelReason.trim() || undefined, ...approvalPayload(approval, may.voidNeedsApproval) },
       {
-        onSuccess: () => setConfirmingCancel(false),
+        onSuccess: () => { setConfirmingCancel(false); setApproval(NO_APPROVAL); },
         // A void moves stock back and takes money out of a drawer. The dialog
         // closing was the only signal, so a refused void looked like a done one.
         ...failed(toast, "That sale was NOT voided — nothing moved."),
@@ -776,9 +780,31 @@ export default function SalesPage() {
                 />
                 <Label>Note <span className="font-normal text-gray-400">(optional)</span></Label>
                 <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="e.g. Shelf label was stale" />
+                {/* What leaves the drawer, said before the press. */}
+                {(detail.data.void?.cash_back ?? 0) > 0 && (
+                  <p data-testid="void-cash-back" className="text-theme-sm text-gray-700 dark:text-gray-300">
+                    Hands back <span className="font-semibold">{money(detail.data.void?.cash_back ?? 0)}</span> in cash
+                    {detail.data.void?.from_drawer ? " out of the drawer." : " — no drawer took it in, so none is counted."}
+                  </p>
+                )}
+                {detail.data.void && (
+                  <RefundApproval
+                    purpose="void"
+                    needsApproval={may.voidNeedsApproval}
+                    ownDrawer={detail.data.void.drawer}
+                    drawerNeeded={detail.data.void.from_drawer}
+                    value={approval}
+                    onChange={setApproval}
+                  />
+                )}
+                {voidHeldBack && (
+                  <p data-testid="void-held-back" role="alert" className="rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-300">
+                    {voidHeldBack}
+                  </p>
+                )}
                 <div className="flex justify-end gap-3">
-                  <Button size="sm" variant="outline" onClick={() => setConfirmingCancel(false)}>Back</Button>
-                  <Button size="sm" onClick={doCancel} disabled={cancel.isPending}>
+                  <Button size="sm" variant="outline" onClick={() => { setConfirmingCancel(false); setApproval(NO_APPROVAL); }}>Back</Button>
+                  <Button size="sm" onClick={doCancel} disabled={cancel.isPending || voidHeldBack !== null || !approvalReady(approval, may.voidNeedsApproval)}>
                     {cancel.isPending ? "Cancelling…" : "Confirm cancel — restore stock"}
                   </Button>
                 </div>
@@ -992,6 +1018,13 @@ export default function SalesPage() {
                 </div>
               </div>
             ) : (
+              <>
+              {/* Why there is no Cancel sale: its day is over (Q18). Said, not just missing. */}
+              {may.voids && detail.data.status === "completed" && detail.data.void?.open === false && (
+                <p data-testid="void-closed" className="mb-3 text-right text-theme-xs text-gray-500 dark:text-gray-400">
+                  {detail.data.void.why_not}
+                </p>
+              )}
               <div className="flex flex-wrap justify-end gap-3">
                 <Button size="sm" variant="outline" disabled={printing} onClick={() => printReceipt()}>
                   {printing ? "Printing…" : (trail.data?.length ?? 0) > 0 ? "Print a copy" : "Print receipt"}
@@ -1013,13 +1046,15 @@ export default function SalesPage() {
                     Exchange
                   </Button>
                 )}
-                {may.voids && detail.data.status === "completed" && (
-                  <Button size="sm" variant="outline" onClick={() => setConfirmingCancel(true)}>
+                {/* Only while its own day is going (Q18) — the server says so in `void`. */}
+                {may.voids && detail.data.status === "completed" && detail.data.void?.open === true && (
+                  <Button size="sm" variant="outline" onClick={() => { setApproval(NO_APPROVAL); setConfirmingCancel(true); }}>
                     Cancel sale
                   </Button>
                 )}
                 <Button size="sm" onClick={detailModal.closeModal}>Close</Button>
               </div>
+              </>
             )}
           </>
         )}

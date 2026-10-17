@@ -10,23 +10,29 @@ const SELECT =
   "h-11 w-full rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300";
 
 /**
- * WHOSE DRAWER, AND WHO SAYS YES — on the return and exchange sheets.
+ * WHOSE DRAWER, AND WHO SAYS YES — on the return, exchange and void sheets.
  *
  * See refundApproval.ts. A supervisor with no drawer of their own picks the
  * cashier's drawer the notes come out of (only who may read the tills is
  * shown them); a cashier, or anyone naming another drawer, is asked for a
  * supervisor and their PIN. The server checks every part of it again.
+ *
+ * A void (Q18) is approved by somebody who may void, and its notes never go
+ * back out of no drawer (B86) — so "no drawer" is not offered for one.
  */
-export function RefundApproval({ needsApproval, ownDrawer, value, onChange }: {
+export function RefundApproval({ needsApproval, ownDrawer, value, onChange, purpose = "refund", drawerNeeded = true }: {
   needsApproval: boolean;
-  /** The person's own drawer state, from returns/worth. */
+  /** The person's own drawer state, from returns/worth or the sale's `void`. */
   ownDrawer: "open" | "practice" | "none" | null | undefined;
   value: ApprovalState;
   onChange: (next: ApprovalState) => void;
+  purpose?: "refund" | "void";
+  /** False when no notes go back across the counter (a card sale): no drawer to choose. */
+  drawerNeeded?: boolean;
 }) {
   const me = useAuthStore((st) => st.user);
   const readsTills = useAuthStore((st) => st.hasPermission("reports.view") || st.hasPermission("settings.manage"));
-  const choosesDrawer = readsTills && ownDrawer !== "open";
+  const choosesDrawer = drawerNeeded && readsTills && ownDrawer !== "open";
   const asking = asksForApproval(value, needsApproval);
 
   const drawers = useQuery({
@@ -43,7 +49,9 @@ export function RefundApproval({ needsApproval, ownDrawer, value, onChange }: {
   });
 
   const others = (drawers.data ?? []).filter((d) => d.status === "open" && d.user?.id !== me?.id);
-  const approvers = (roster.data ?? []).filter((u) => u.approves_refunds !== false && u.has_pin && !u.pin_locked);
+  const mayApprove = (u: { approves_refunds?: boolean; approves_voids?: boolean }) =>
+    purpose === "void" ? u.approves_voids === true : u.approves_refunds !== false;
+  const approvers = (roster.data ?? []).filter((u) => mayApprove(u) && u.has_pin && !u.pin_locked);
 
   if (!choosesDrawer && !asking) return null;
 
@@ -63,7 +71,7 @@ export function RefundApproval({ needsApproval, ownDrawer, value, onChange }: {
               approverId: value.approverId || (e.target.value !== "" && approvers.some((u) => u.id === me?.id) ? me?.id ?? "" : ""),
             })}
           >
-            <option value="">No drawer — not handed over at a till</option>
+            <option value="">{purpose === "void" ? "Choose the drawer it comes out of" : "No drawer — not handed over at a till"}</option>
             {others.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.user?.name ?? "A cashier"}'s drawer{d.register?.name ? ` · ${d.register.name}` : ""}

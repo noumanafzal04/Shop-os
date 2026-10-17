@@ -95,8 +95,8 @@ export function useSaleMutations() {
   });
 
   const cancel = useMutation({
-    mutationFn: ({ id, reason_code, reason }: { id: string; reason_code: VoidReasonCode; reason?: string }) =>
-      salesService.cancel(id, reason_code, reason),
+    mutationFn: ({ id, ...payload }: { id: string; reason_code: VoidReasonCode; reason?: string; cash_session_id?: string; approval?: { user_id: string; pin: string } }) =>
+      salesService.cancel(id, payload),
     onSuccess: invalidate,
   });
 

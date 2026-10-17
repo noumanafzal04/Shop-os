@@ -66,8 +66,8 @@ export const salesService = {
    * A void needs a CODED reason — free text alone can't be tallied, and the
    * void report per cashier is the control that catches a ring-and-void.
    */
-  cancel: (id: string, reason_code: VoidReasonCode, reason?: string) =>
-    apiPost<Sale>(`/sales/${id}/cancel`, { reason_code, reason }),
+  cancel: (id: string, payload: { reason_code: VoidReasonCode; reason?: string; cash_session_id?: string; approval?: { user_id: string; pin: string } }) =>
+    apiPost<Sale>(`/sales/${id}/cancel`, payload),
 
   processReturn: (
     id: string,

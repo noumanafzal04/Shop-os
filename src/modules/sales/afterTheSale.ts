@@ -20,7 +20,9 @@
  *
  * Since the owner's answer to B01 (2026-10-14) a cashier may START a return or
  * an exchange: the sheet asks for a supervisor's PIN, and the server takes it
- * only with one (SupervisorApproval). `needsApproval` says so.
+ * only with one (SupervisorApproval). `needsApproval` says so. Since Q18
+ * (2026-10-17) the same holds for a void: a cashier starts it, and somebody
+ * who may void approves it with their PIN (`voidNeedsApproval`).
  */
 export interface AfterTheSale {
   refunds: boolean;
@@ -28,11 +30,15 @@ export interface AfterTheSale {
   voids: boolean;
   /** Return / Exchange are offered, and finish only with a supervisor's PIN. */
   needsApproval: boolean;
+  /** Cancel sale is offered, and finishes only with the PIN of somebody who may void. */
+  voidNeedsApproval: boolean;
 }
 
 export function afterTheSale(can: (permission: string) => boolean): AfterTheSale {
   const own = can("sales.refund");
   const refunds = own || can("sales.manage");
+  const ownVoid = can("sales.void");
+  const voids = ownVoid || can("sales.manage");
 
-  return { refunds, exchanges: refunds, voids: can("sales.void"), needsApproval: refunds && !own };
+  return { refunds, exchanges: refunds, voids, needsApproval: refunds && !own, voidNeedsApproval: voids && !ownVoid };
 }

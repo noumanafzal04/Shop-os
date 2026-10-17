@@ -11,6 +11,8 @@ export interface TillUser {
   pin_locked: boolean;
   /** May approve money going back with their PIN (SupervisorApproval). Absent from an older server. */
   approves_refunds?: boolean;
+  /** May say yes to a sale being voided (Q18). */
+  approves_voids?: boolean;
 }
 
 export interface UnlockResult {

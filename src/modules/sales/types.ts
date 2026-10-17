@@ -104,6 +104,26 @@ export interface Sale {
   payments?: Array<{ id: string; method: PaymentMethod; amount: string; reference: string | null }>;
   // Serialized retail: IMEI/serials captured on this sale (with warranty).
   serials?: SaleSerial[];
+  /** On one sale's sheet: whether it may still be voided, and what that hands back. Null once it is not a completed sale. */
+  void?: SaleVoid | null;
+}
+
+/**
+ * WHETHER A SALE MAY STILL BE VOIDED — the server's answer, asked before the
+ * sheet offers the button (SaleController::voiding, Q18, B86).
+ */
+export interface SaleVoid {
+  /** Its own shop-day is still going and has not been closed off. */
+  open: boolean;
+  /** Why not, in the shop's words, when it is not. */
+  why_not: string | null;
+  /** The notes it took and kept. */
+  cash_back: number;
+  /** The notes must go back out of a counted drawer — a drawer took them in. */
+  from_drawer: boolean;
+  /** This person's own drawer: open, practice only, none, or no till at all. */
+  drawer: "open" | "practice" | "none" | null;
+  drawer_holds: number | null;
 }
 
 /** One serialized unit sold — IMEI/serial + its warranty window. */

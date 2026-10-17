@@ -464,7 +464,7 @@ export const QA_SECTIONS: QaSection[] = [
           "Revenue is reported GROSS with refunds as their own dated line. A refund is dated by the day it was handed back, because netting it into the original day would rewrite a day that has been closed and banked.",
         ],
         checks: [
-          { do: "As a cashier with Sales & invoices only, open a completed sale from the Sales list.", expect: "Print receipt and Gift receipt are there; Return / Refund, Exchange and Cancel sale are NOT. Give them Refund a sale: the first two appear. Give them Void a completed sale: Cancel sale appears." },
+          { do: "As a cashier with Sales & invoices only, open a completed sale from the Sales list, rung today.", expect: "Return / Refund, Exchange and Cancel sale are there, and each asks for a supervisor and their PIN before it can be pressed — for Cancel sale only people who may void are offered. Open a sale from yesterday: no Cancel sale, and a line says why." },
           { do: "Refund one line of a two-line sale.", expect: "Money out matches that line, that line's stock comes back, and the sale is marked partially refunded — and it is STILL counted in the day's sales. A whole ticket vanishing from a report because one item came back is a defect this product has had." },
           { do: "Search for a sale by the customer's phone, then by an OFF- slip number.", expect: "Both find it." },
           { do: "On a sale of a taxed item, press Return / Refund and type a quantity.", expect: "Before anything is pressed the sheet says what goes back to the customer, and how much of it is tax. It is the price PAID — a discount on the bill has come off each piece — and it is the figure the refund then records." },
