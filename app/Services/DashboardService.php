@@ -118,7 +118,7 @@ class DashboardService
         // chart draws. The tiles, the pills and the chart all read from these
         // arrays, so those panels can never contradict one another.
         $readsFrom = $period->readsFrom();
-        $byDay = $this->rollups($tenant, $branchId, $readsFrom, $period->to, $sells, $keepsBooks);
+        $byDay = $this->rollups($tenant, $branchId, $readsFrom, $period->to, $sells);
 
         // TODAY IS ALWAYS ANSWERED, whatever period was asked. The line at the
         // head of the screen ("14 sales so far today") is about now, and a
@@ -127,7 +127,7 @@ class DashboardService
         // asking, they always do.
         $nearby = $readsFrom <= $yesterday && $period->to >= $today
             ? $byDay
-            : $this->rollups($tenant, $branchId, $yesterday, $today, $sells, $keepsBooks);
+            : $this->rollups($tenant, $branchId, $yesterday, $today, $sells);
         $salesByDay = $nearby['sales'];
 
         $now = $this->summed($nearby, $today, $today);
@@ -443,7 +443,7 @@ class DashboardService
      *               cogs: array<string, float>, expenses: array<string, float>, income: array<string, float>,
      *               refunds: array<string, float>, tax: array<string, float>}
      */
-    private function rollups(Tenant $tenant, ?string $branchId, string $from, string $to, bool $sells, bool $keepsBooks): array
+    private function rollups(Tenant $tenant, ?string $branchId, string $from, string $to, bool $sells): array
     {
         $start = ShopDay::startOf($from, $tenant);
         $end = ShopDay::endOf($to, $tenant);
@@ -453,8 +453,14 @@ class DashboardService
             'cogs' => $sells ? $this->dailyCogs($tenant, $branchId, $start, $end) : [],
             // Expenses are branch-scoped: a focused branch deducts only its own
             // costs; the all-branches view (branchId null) sums the whole tenant.
-            'expenses' => $keepsBooks ? $this->dailyExpenses($tenant, $branchId, $from, $to) : [],
-            'income' => $keepsBooks ? $this->dailyIncome($tenant, $branchId, $from, $to) : [],
+            //
+            // READ WHETHER OR NOT THE MODULE IS ON (B43). Money spent was
+            // spent: with Expenses switched off this said 0 spent and a profit
+            // 59,500 better than the Reports screen's for the same days. The
+            // module decides what the shop can record and the panels it is
+            // shown (below), never whether what it recorded counts.
+            'expenses' => $this->dailyExpenses($tenant, $branchId, $from, $to),
+            'income' => $this->dailyIncome($tenant, $branchId, $from, $to),
             // What went back out over the counter. Rolled up the same way as the
             // others so the tile, the delta and the chart cannot disagree —
             // and rolled up at all because they once agreed on a profit that

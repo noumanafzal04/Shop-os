@@ -122,6 +122,21 @@ final class ADashboardIsAskedAboutAPeriodTest extends TestCase
         $this->assertEquals(2300, $dash['highlights']['top_customer']['revenue']);
     }
 
+    public function test_money_spent_counts_after_the_shop_stops_keeping_expenses_here(): void
+    {
+        // B43: Expenses switched off — the dashboard said nothing was spent and
+        // showed a profit without it, while Reports still counted it.
+        $this->shop->forceFill(['features' => array_merge($this->shop->features ?? [], ['expenses' => false])])->save();
+        $this->assertFalse($this->shop->fresh()->featureEnabled('expenses'));
+
+        $dash = $this->dashboard('from=2026-10-08&to=2026-10-08');
+        $this->assertEquals(50, $dash['period']['expenses'], 'the money spent vanished with the module');
+        $this->assertEquals(950, $dash['period']['profit']);
+
+        $report = $this->as($this->owner)->getJson('/api/v1/reports/summary?period=custom&from=2026-10-08&to=2026-10-08')->assertOk()->json('data');
+        $this->assertEquals($report['totals']['expenses'], $dash['period']['expenses'], 'the dashboard and Reports disagree on what was spent');
+    }
+
     public function test_yesterday_is_yesterday_on_everything_that_is_a_flow(): void
     {
         $dash = $this->dashboard('from=2026-10-08&to=2026-10-08');

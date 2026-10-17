@@ -100,6 +100,27 @@ class AStockHistoryReadsLikeOneShelfTest extends TestCase
         $this->assertCount(4, $this->history($rice), 'the whole-shop view lost lines');
     }
 
+    public function test_a_person_kept_to_one_place_reads_only_that_place(): void
+    {
+        // B42: Usman (Main only) asked for the stock history and was handed the
+        // godown's lines and its balances as well.
+        $rice = $this->item('Rice');
+        $this->moved($rice, $this->godown->id, 300, 300, 'PO-1 received', '2026-10-02 09:00:00');
+        $this->moved($rice, $this->main->id, -2, 8, 'Sale INV-1', '2026-10-03 09:00:00');
+        $usman = User::factory()->tenantStaff($this->shop, ['inventory.manage'])->create(['branch_id' => $this->main->id, 'name' => 'Usman']);
+
+        $token = $usman->createToken('t', ['access'])->plainTextToken;
+        $this->app['auth']->forgetGuards();
+        $this->defaultHeaders = array_diff_key($this->defaultHeaders, ['X-Branch-Id' => true]);
+        $asked = $this->withToken($token)->getJson('/api/v1/inventory/movements?per_page=100');
+
+        $this->assertSame(['Sale INV-1'], collect($asked->assertOk()->json('data'))->pluck('reason')->all(), "another place's lines reached somebody kept to Main");
+
+        // Naming the other place does not open it: Main's lines, still.
+        $other = $this->withToken($token)->withHeader('X-Branch-Id', $this->godown->id)->getJson('/api/v1/inventory/movements?per_page=100');
+        $this->assertSame(['Sale INV-1'], collect($other->assertOk()->json('data'))->pluck('reason')->all());
+    }
+
     public function test_two_lines_in_one_second_read_newest_first(): void
     {
         $tea = $this->item('Tea');

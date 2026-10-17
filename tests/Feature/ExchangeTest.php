@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\City;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
@@ -80,6 +81,36 @@ class ExchangeTest extends TestCase
         $this->assertSame('split', $res['sale']['payment_method']); // credit + cash
         $this->assertEquals(5, $shirtS->fresh()->stock_quantity); // returned → restocked
         $this->assertEquals(4, $shirtL->fresh()->stock_quantity); // replacement sold
+    }
+
+    public function test_an_exchange_keeps_the_customer_and_the_points_follow_the_goods(): void
+    {
+        // B10: the replacement sale had no customer — the return took the
+        // shirt's points back, and the shirt taken home earned none.
+        $this->shop->forceFill(['settings' => array_merge($this->shop->settings ?? [], [
+            'loyalty_enabled' => true, 'loyalty_earn_per_amount' => 10,
+        ])])->save();
+        $small = $this->product('Shirt S', 100, 5);
+        $large = $this->product('Shirt L', 150, 5);
+
+        $sale = $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash', 'amount_paid' => 100,
+            'customer_name' => 'Ayesha', 'customer_phone' => '03001112233',
+            'items' => [['product_id' => $small->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+        $ayesha = Customer::withoutTenancy()->findOrFail($sale['customer_id']);
+        $this->assertSame(10, (int) $ayesha->loyalty_points);
+
+        $res = $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/exchange", [
+            'return_items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => 1]],
+            'items' => [['product_id' => $large->id, 'quantity' => 1]],
+            'payments' => [['method' => 'cash', 'amount' => 50]],
+        ])->assertCreated()->json('data');
+
+        $this->assertSame($ayesha->id, $res['sale']['customer_id'], 'the replacement was sold to nobody');
+        $this->assertSame('Ayesha', $res['sale']['customer_name']);
+        // 10 for the small shirt, 10 back when it came back, 15 for the large one.
+        $this->assertSame(15, (int) $ayesha->fresh()->loyalty_points);
     }
 
     public function test_even_exchange_moves_no_money(): void

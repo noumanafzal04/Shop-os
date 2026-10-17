@@ -72,6 +72,13 @@ class ProcessExchangeAction
                 'items' => $data['items'],
                 'payments' => $tenders,
                 'notes' => "Exchange for {$sale->invoice_number}",
+                // THE SAME CUSTOMER (B10). The replacement was a sale to
+                // nobody: the return took the shirt's points back, the new
+                // shirt earned none, and the customer's history stopped at the
+                // goods they brought back. Their price group and their khata
+                // follow them too, as on any sale to them.
+                'customer_name' => $sale->customer_name ?? $sale->customer?->name,
+                'customer_phone' => $sale->customer_phone ?? $sale->customer?->phone,
                 // The credit may come back as change on a downgrade (see the
                 // top of this file). Said here, server-side only: a request to
                 // /sales cannot carry it — StoreSaleRequest does not declare it.
