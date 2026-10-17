@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B89 · next question: Q20**). `L…` = found by the fixer while fixing.
+(**next bug: B89 · next question: Q24**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -31,8 +31,8 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B12 | P2 | Purchases / cost | First purchase of a size sets cost to the new price, not the average with stock on the shelf | FIXED `8d60f93` — a size's first purchase blends with the design's cost on the shelf |
 | B13 | P2 | Suppliers | Pay sheet "due" from the ordered total on a part-received PO | FIXED `db44390` · re-tested PASS (pass 2) |
 | B14 | P2 | Day & banking | Sales without a shift never reach the day's figures; a closed day still takes sales | FIXED `efa8c84` `93699cb` — the closed-day half was fixed earlier (BUSINESS_DAY_CLOSED). Now a day's "Rung up" counts the sales no drawer took (an order paid on the doorstep, a sale with no shift) — said under the figure ("2 not at a counter"), frozen at close, never in a drawer's expected cash (`AwayFromDrawers`) |
-| B15 | P2 | Stocktake | Count by category: sub-categories not offered; parent finds nothing; error not shown | OPEN |
-| B16 | P2 | Inventory | Design row = this place, size rows = all places; items without sizes never place-scoped | OPEN |
+| B15 | P2 | Stocktake | Count by category: sub-categories not offered; parent finds nothing; error not shown | FIXED `7cac576` `f6df7c9` — a category is counted with everything filed under it, any depth (`Category::selfAndBelow`); every category offered by its path ("Men > Kurtas"); a refusal is said inside the dialog |
+| B16 | P2 | Inventory | Design row = this place, size rows = all places; items without sizes never place-scoped | FIXED `6495802` `d36380b` — every row carries `on_hand` (where the person is looking: the whole shop in the owner's all-places view, else that place; the same question as Out of stock) and `branch_stock` (the till's own place, now on items without sizes too). Stock screens read the first, the till the second; Adjust says what the place it writes to holds |
 | B17 | P2 | Orders | Phone order → sale has tax 0 and channel "online" | PART `efa8c84` `93699cb` — the sale of a phone or WhatsApp order now says how it came in (not "online"). The tax half waits on **Q17** (orders are priced without tax) |
 | B18 | P3 | Till | "Paid Rs 4,990 · Change Rs 0" for a khata sale | OPEN |
 | B19 | P3 | Khata statement | Raw code "Payment (bank_transfer)" | OPEN |
@@ -166,6 +166,10 @@ Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branc
 | Q17 | (2026-10-17, B17) A phone or online order's sale is rung with tax 0 — the till charges 17 % on the same goods (asked first on 2026-10-12, never answered). Tax orders by the till's rule? | Yes — price the order with tax at placement (an `orders.tax` figure, shown at checkout on the storefront and the app), carried onto its sale, so the receipt and the Tax report see it. **ANSWERED 2026-10-17: yes, the till's tax rules. PARKED by the user (2026-10-17): online orders later.** |
 | Q18 | (2026-10-17, a client through the user) Can an issued invoice be deleted? Today: no delete; Cancel sale (void) keeps the record and number, reverses stock, khata, points, trade-ins and serials, needs `sales.void` and a reason. Until when may a sale be voided, and by whom? | **ANSWERED 2026-10-17:** only within the sale's own shop-day, while that day is not closed (Close day, or the day turning at its hour — whichever first); after it, only Return / Refund. A cashier may START a void; a manager's / supervisor's PIN approves it. Cash goes back from an open drawer that holds it; no shift, or a drawer short → refused, never left unrecorded (B86). **BUILT `12f4e0e` `09e0a4c`** — `StillItsDay` (one rule for the void and the sheet; 409 SALE_DAY_OVER; reopening the day reopens it), `SupervisorApproval::forVoid`, the sheet offers Cancel sale only in the day and says why not after |
 | Q19 | (2026-10-17, the same client) A customer bought 8 items, the bill is printed, they want 2 more: edit the bill instead of a new print? | **ANSWERED 2026-10-17: both, A the default; same shop-day only.** A "Add to this bill": a new ordinary sale LINKED to the paid one — the paid one never changes — and one receipt showing both bills and the total. B "Re-ring" (manager PIN, same day, no return/refund or later processing against it): the old bill voided as "Replaced by …", its payment carried onto the new bill, only the difference taken or handed back. TO BUILD (after the bugs) |
+| Q20 | (2026-10-17, the user's multi-branch spec, written with ChatGPT — audited, nothing built) Where a product is SOLD will be chosen per product (all places / these places). Should a category ALSO be switched on per place, or show at a place whenever an item in it is sold there? | Fixer: derived from its items — a separate switch lets a category be on with all its items off (an empty shelf on the till) and is the same choice made twice. |
+| Q21 | May a place HOLD and receive stock of an item it does not sell (a godown; a transfer passing through; a purchase delivered there)? | Fixer: yes — "sold here" governs selling (till, online, sale refused by the server); stock, purchasing and transfers see every item. |
+| Q22 | A new place opened later: are items set to "all places" sold there at once? | Fixer: yes; items on chosen places are not, until ticked. |
+| Q23 | When: after the open bugs, or now? Phase 1 (sold-where: table + flag, form, server refusal, till and offline list, tests) ~5–7 h; Phase 2 (categories from their items, list filter) ~2 h; Phase 3 online store per place (with the parked online work); Phase 4 profit by place check ~2 h. | — |
 
 ## Pass 1 — Phase 1, clothing shop (cloud tester, 2026-10-14) — details
 
