@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\OfflineRefusal;
 use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Promotion;
@@ -76,7 +77,17 @@ class PosCatalogController extends Controller
             return null;
         }
 
-        return Sale::query()->where('pos_device_id', $device->id)->max('offline_seq');
+        $sold = Sale::query()->where('pos_device_id', $device->id)->max('offline_seq');
+
+        // And every slip the shop REFUSED (B49): it was printed and handed to
+        // a customer too, and a till whose data was cleared would otherwise
+        // print the same number again for someone else.
+        $refused = OfflineRefusal::query()->where('pos_device_id', $device->id)->pluck('offline_number')
+            ->map(fn (?string $printed): ?int => $printed !== null && preg_match('/-(\d+)$/', $printed, $m) === 1 ? (int) $m[1] : null)
+            ->filter()
+            ->max();
+
+        return $sold === null && $refused === null ? null : max((int) $sold, (int) $refused);
     }
 
     /**

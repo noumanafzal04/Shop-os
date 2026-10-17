@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 use App\Http\Controllers\Controller;
 use App\Models\BranchStock;
 use App\Models\CashSession;
+use App\Models\OfflineRefusal;
 use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Support\ApiResponse;
@@ -30,6 +31,8 @@ use Illuminate\Http\Request;
  *   • what was rung past the shop's window    (`beyond_offline_window`)
  *   • what landed against a day already signed off (`after_day_close`)
  *   • what went NEGATIVE on the shelf          — the recount list
+ *   • what was REFUSED, and what became of it  — money in a drawer with no
+ *                                                sale, until settled (B49)
  *
  * ── Why "after the day was closed" is reported and not fixed ────────────
  *
@@ -120,6 +123,10 @@ class OfflineReportController extends Controller
                 // was, and the arrival times are the only record of it.
                 'oldest' => (clone $late)->min('sold_at'),
                 'newest' => (clone $late)->max('sold_at'),
+                // Refused and still owed to a person, however long ago: the
+                // money is in a drawer with no sale against it (B49).
+                'refused_owed' => OfflineRefusal::query()->owed()->count(),
+                'refused_owed_total' => (float) OfflineRefusal::query()->owed()->sum('till_total'),
             ],
             'sales' => (clone $late)
                 ->with(['device:id,name,code', 'register:id,name'])
@@ -152,9 +159,49 @@ class OfflineReportController extends Controller
                 ])
                 ->values(),
             'shifts' => $this->shifts($lateShifts),
+            'refused' => $this->refused($from),
             'oversold' => $this->oversold(),
             'clocks' => $this->clocks($from),
         ]);
+    }
+
+    /**
+     * THE SALES THE SHOP REFUSED, AND WHAT BECAME OF EACH (B49).
+     *
+     * Every one still owed, however old — a refusal from last month that
+     * nobody settled is still cash with no sale against it — then those
+     * settled in the period, with who settled them and how.
+     */
+    private function refused(CarbonInterface $from): array
+    {
+        return OfflineRefusal::query()
+            ->with(['device:id,name,code', 'ringer:id,name', 'settler:id,name', 'sale:id,invoice_number'])
+            ->where(fn (Builder $q) => $q->whereNull('settled_as')->orWhere('settled_at', '>=', $from))
+            ->orderByRaw('settled_as is not null')
+            ->orderByDesc('refused_at')
+            ->limit(self::RECENT)
+            ->get()
+            ->map(fn (OfflineRefusal $r): array => [
+                'id' => $r->id,
+                // What it is settled by — from here too, when the till that
+                // rang it is gone (broken, wiped) and cannot.
+                'op' => $r->op,
+                'offline_number' => $r->offline_number,
+                'sold_at' => $r->sold_at?->toIso8601String(),
+                'refused_at' => $r->refused_at?->toIso8601String(),
+                'till' => $r->device?->label(),
+                'rung_by' => $r->ringer?->name,
+                'till_total' => $r->till_total === null ? null : (float) $r->till_total,
+                'reason' => $r->reason,
+                'settled_as' => $r->settled_as,
+                'settled_note' => $r->settled_note,
+                'settled_by' => $r->settler?->name,
+                'settled_at' => $r->settled_at?->toIso8601String(),
+                'invoice_number' => $r->sale?->invoice_number,
+                'sale_id' => $r->sale_id,
+            ])
+            ->values()
+            ->all();
     }
 
     /**

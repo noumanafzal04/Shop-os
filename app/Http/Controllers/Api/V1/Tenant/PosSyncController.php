@@ -7,6 +7,7 @@ use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Pos\SyncRequest;
 use App\Models\CashSession;
+use App\Models\OfflineRefusal;
 use App\Models\PosDevice;
 use App\Models\Product;
 use App\Models\Sale;
@@ -105,7 +106,7 @@ class PosSyncController extends Controller
         // in words, and not retried: the same sale would be refused again.
         $checked = Validator::make($operation['sale'], $saleRules);
         if ($checked->fails()) {
-            return $this->failed($operation['op'], $this->whyRefused($checked->errors()->toArray()), 'SALE_INVALID');
+            return $this->refused($operation, $device, $soldAt, $this->whyRefused($checked->errors()->toArray()), 'SALE_INVALID');
         }
         $sale = $checked->validated();
 
@@ -203,13 +204,15 @@ class PosSyncController extends Controller
                 'trusted_prices' => false,
             ]);
 
+            $this->recordedAfterAll($operation['op'], $created);
+
             return $this->done('applied', $operation['op'], $created, $violations);
         } catch (DomainException $e) {
             // Something the shop can act on — a product deleted since, a
             // discount over the ceiling, a customer removed. The sale stays in
             // the till's outbox marked for attention rather than retrying for
             // ever against an answer that will not change.
-            return $this->failed($operation['op'], $e->getMessage(), $e->errorCode);
+            return $this->refused($operation, $device, $soldAt, $e->getMessage(), $e->errorCode);
         } catch (Throwable $e) {
             // Anything else. Retryable, because it may be transient.
             report($e);
@@ -496,6 +499,58 @@ class PosSyncController extends Controller
         }
 
         return 'This sale cannot be recorded as it stands: '.(array_values($errors)[0][0] ?? 'it was refused.');
+    }
+
+    /**
+     * REFUSED FOR GOOD — and kept where the owner will see it (B49).
+     *
+     * The till keeps the row too, but only that tablet could ever see it: the
+     * money is in a drawer with no sale against it, and the owner was the one
+     * person who never heard. So the refusal is written here, the moment it is
+     * made, whatever the till does next — Reports → Offline lists it until a
+     * person settles it. Sent twice, it is one record. A practice sale is not
+     * kept: nothing in a practice drawer is real money.
+     *
+     * @param  array<string, mixed>  $operation
+     * @return array<string, mixed>
+     */
+    private function refused(array $operation, ?PosDevice $device, Carbon $soldAt, string $message, ?string $code): array
+    {
+        if (($operation['training'] ?? false) !== true) {
+            try {
+                OfflineRefusal::query()->updateOrCreate(
+                    ['op' => $operation['op']],
+                    [
+                        'branch_id' => $device?->branch_id,
+                        'pos_device_id' => $device?->id,
+                        'offline_number' => $operation['offline_number'] ?? null,
+                        'sold_at' => $soldAt,
+                        'rung_by' => $this->rungBy($operation),
+                        'till_total' => $operation['till_total'] ?? null,
+                        'reason' => $message,
+                        'code' => $code,
+                        'payload' => $operation['sale'] ?? null,
+                        'refused_at' => now(),
+                    ],
+                );
+            } catch (Throwable $e) {
+                // The answer to the till matters more than the record: it must
+                // still be told this sale was refused, and why.
+                report($e);
+            }
+        }
+
+        return $this->failed($operation['op'], $message, $code);
+    }
+
+    /** A sale refused before and accepted now — its cause was put right — is no longer owed. */
+    private function recordedAfterAll(string $op, Sale $sale): void
+    {
+        OfflineRefusal::query()->owed()->where('op', $op)->update([
+            'settled_as' => OfflineRefusal::RECORDED,
+            'sale_id' => $sale->id,
+            'settled_at' => now(),
+        ]);
     }
 
     private function failed(string $op, string $message, ?string $code, bool $retryable = false): array

@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\V1\Tenant\InstallmentPlanController;
 use App\Http\Controllers\Api\V1\Tenant\InventoryController;
 use App\Http\Controllers\Api\V1\Tenant\KeepShopController;
 use App\Http\Controllers\Api\V1\Tenant\KitchenController;
+use App\Http\Controllers\Api\V1\Tenant\OfflineRefusalController;
 use App\Http\Controllers\Api\V1\Tenant\OfflineReportController;
 use App\Http\Controllers\Api\V1\Tenant\OrderController;
 use App\Http\Controllers\Api\V1\Tenant\PharmacyController;
@@ -578,6 +579,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // the sales have a shift to name, closes last so the drawer
                     // is counted against every sale that belongs inside it.
                     Route::post('/sync/shifts', [PosShiftSyncController::class, 'store']);
+                    // A sale the sync refused, settled at the till: rung again,
+                    // or dealt with another way and said how (B49).
+                    Route::post('/refused-sales/{op}/settle', [OfflineRefusalController::class, 'settle'])->whereUuid('op');
                     Route::get('/catalog', [PosCatalogController::class, 'delta']);
                     // Who is at the till. The roster and the PIN handover — the
                     // outgoing cashier's session on this device ends with it.

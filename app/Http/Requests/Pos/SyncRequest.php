@@ -114,6 +114,9 @@ class SyncRequest extends FormRequest
             // What the till charged for each line, in the sale's own order
             // (Q10). Kept only by the sync path, only on a line that names the
             // same product, and every difference is noted for the owner.
+            // What the till said the sale came to — kept only if it is refused,
+            // so the owner can read how much sits in a drawer with no sale (B49).
+            'operations.*.till_total' => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             'operations.*.till_prices' => ['nullable', 'array', 'max:500'],
             'operations.*.till_prices.*' => ['nullable', 'array'],
             'operations.*.till_prices.*.product_id' => ['nullable', 'uuid'],
