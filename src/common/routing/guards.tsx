@@ -14,6 +14,7 @@ import { useMe } from "../../modules/auth/hooks/useAuth";
 import type { UserRole } from "../../modules/auth/types";
 import { canVisitAdmin } from "./adminScreenPermissions";
 import { canBeAt } from "./screenPermissions";
+import { refusedState } from "./refused";
 
 /**
  * Each role's home:
@@ -92,8 +93,10 @@ export function RequireFeature({ feature }: { feature: string | string[] }) {
   const features = useAuthStore((s) => s.user?.tenant?.features);
   const wanted = Array.isArray(feature) ? feature : [feature];
 
+  const { pathname } = useLocation();
+
   if (!wanted.some((f) => features?.[f])) {
-    return <Navigate to="/tenant" replace />;
+    return <Navigate to="/tenant" replace state={refusedState(pathname, "module")} />;
   }
 
   return <Outlet />;
@@ -141,7 +144,7 @@ export function RequireTenantScreen() {
   const can = (p: string) => role === "shop_owner" || (permissions?.includes(p) ?? false);
 
   if (!canBeAt(pathname, can)) {
-    return <Navigate to="/tenant" replace />;
+    return <Navigate to="/tenant" replace state={refusedState(pathname, "permission")} />;
   }
 
   return <Outlet />;

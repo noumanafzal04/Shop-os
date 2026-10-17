@@ -167,6 +167,9 @@ export default function PurchaseOrdersPage() {
   const rows = orders.data?.data ?? [];
   const seesMoney = sentMoney(rows, "total");
   const d = detail.data;
+  // Still expected, and — when the server has said — this person's to take in.
+  const awaited = d?.status === "ordered" || d?.status === "partially_received";
+  const receivable = awaited && d?.can?.receive !== false;
 
   return (
     <>
@@ -271,9 +274,15 @@ export default function PurchaseOrdersPage() {
             {cancel.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={cancel.error.message} /></div>}
             {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Action failed" message={receive.error.message} /></div>}
 
-            {(d.status === "ordered" || d.status === "partially_received") && (
-              <ReceiveInto value={into} onChange={setInto} orderedFor={d.deliver_to_branch_id} />
+            {/* B35: a keeper pinned to the shop was offered "Receive all" on
+                the godown's order, and refused when they pressed it. The
+                server says who may take it in; the screen only draws that. */}
+            {awaited && d.can?.receive === false && (
+              <p data-testid="not-yours-to-receive" className="mb-3 text-theme-sm text-gray-500 dark:text-gray-400">
+                This delivery goes to {d.deliver_to?.name ?? "another place"} — it is taken in by somebody who works there.
+              </p>
             )}
+            {receivable && <ReceiveInto value={into} onChange={setInto} orderedFor={d.deliver_to_branch_id} />}
 
             <div className="flex flex-wrap justify-end gap-3">
               {rights.raises && d.status === "draft" && (
@@ -286,7 +295,7 @@ export default function PurchaseOrdersPage() {
                   {place.isPending ? "Placing…" : "Place order"}
                 </Button>
               )}
-              {(d.status === "ordered" || d.status === "partially_received") && (
+              {receivable && (
                 <>
                   {/* ONE PRESS, WHERE ONE PRESS IS ENOUGH. A medicine is refused
                       without its expiry, and a phone received in one press

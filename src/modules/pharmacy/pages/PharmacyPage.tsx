@@ -12,6 +12,7 @@ import { toIsoDate } from "../../../components/ui/filters";
 import { shopTodayDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate, shopDateTime } from "../../../common/format/date";
+import { useCan } from "../../../stores/useCan";
 
 const iso = (d: Date) => toIsoDate(d);
 
@@ -30,6 +31,11 @@ const TABS = [
  */
 export default function PharmacyPage() {
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("register");
+  // A recall is the server's `inventory.manage`; the register is also open to
+  // `reports.view` (B45). Somebody holding only that sees the register alone.
+  const can = useCan();
+  const tabs = TABS.filter(([key]) => key !== "recall" || can("inventory.manage"));
+  const showing = tabs.some(([key]) => key === tab) ? tab : "register";
 
   return (
     <>
@@ -42,14 +48,16 @@ export default function PharmacyPage() {
         </p>
       </div>
 
-      <FilterTabs
-        tabs={TABS.map(([key, label]) => ({ key, label }))}
-        value={tab}
-        onChange={setTab}
-        className="mb-6"
-      />
+      {tabs.length > 1 && (
+        <FilterTabs
+          tabs={tabs.map(([key, label]) => ({ key, label }))}
+          value={showing}
+          onChange={setTab}
+          className="mb-6"
+        />
+      )}
 
-      {tab === "register" ? <RegisterTab /> : <RecallTab />}
+      {showing === "register" ? <RegisterTab /> : <RecallTab />}
     </>
   );
 }

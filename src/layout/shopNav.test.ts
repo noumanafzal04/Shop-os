@@ -297,9 +297,11 @@ describe("the menu offers nothing the API will refuse", () => {
   });
 
   it("the trade screens carry the permission their own action needs", () => {
-    // The dispensing register and the warranty desk are counter work, so a
-    // cashier reaches them; the portfolio is what the shop shows the world.
-    expect(paths("pharmacy", "advanced", false, CASHIER)).toContain("/tenant/pharmacy");
+    // The warranty desk is counter work, so a cashier reaches it; the
+    // chemist's register is paperwork the server keeps to stock or reports
+    // (B45); the portfolio is what the shop shows the world.
+    expect(paths("pharmacy", "advanced", false, CASHIER)).not.toContain("/tenant/pharmacy");
+    expect(paths("pharmacy", "advanced", false, holding("inventory.manage"))).toContain("/tenant/pharmacy");
     expect(paths("retail", "advanced", false, CASHIER)).toContain("/tenant/warranty");
     expect(paths("services", "advanced", false, CASHIER)).not.toContain("/tenant/portfolio");
     expect(paths("services", "advanced", false, holding("settings.manage")))

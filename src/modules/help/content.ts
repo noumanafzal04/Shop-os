@@ -1153,7 +1153,9 @@ export const HELP_ARTICLES: HelpArticle[] = [
     modules: ["pos"],
     trades: ["pharmacy"],
     permission: "sales.manage",
-    screen: "/tenant/pharmacy",
+    // The till, where the prescription is taken. The register it fills is
+    // its own article: it is not a cashier's screen (B45).
+    screen: "/tenant/pos",
     keywords: ["rx", "prescription", "doctor", "dispense", "medicine", "generic", "salt"],
     body: [
       { type: "p", text: "Sell as normal, and capture the doctor and the prescription against the ticket. Both stay with the sale." },
@@ -1163,6 +1165,24 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "Give a medicine a drug schedule on its product page and it becomes prescription-only automatically — you cannot mark something Schedule G and leave the prescription box unticked, because a controlled drug that needs no prescription is not a thing." },
       { type: "warn", text: "A controlled medicine is dispensed in person, over your counter, and nowhere else. The till will not ring one until you have recorded the prescription number and the prescriber — and it cannot be put on a delivery or a telephone order at all, for anyone. That is deliberate: a pharmacist has to sight the script." },
       { type: "note", text: "Everything you dispense against a prescription lands in Pharmacy → Dispensing register, with the lot it came from, the patient and the prescriber. That is the list a regulator asks to see, so the two rules above exist to keep it complete." },
+    ],
+  },
+  {
+    id: "dispensing-register",
+    title: "The dispensing register and a batch recall",
+    summary: "What was dispensed, against whose prescription — and who took a withdrawn batch home.",
+    group: "Products & stock",
+    modules: ["inventory"],
+    trades: ["pharmacy"],
+    // The register is the shop's paperwork, kept to whoever looks after the
+    // stock or reads the shop's reports — not to the counter (B45).
+    permission: "inventory.manage",
+    screen: "/tenant/pharmacy",
+    keywords: ["register", "inspector", "controlled", "recall", "batch", "lot", "withdrawn"],
+    body: [
+      { type: "p", text: "Pharmacy → Dispensing register lists every medicine sold against a prescription: when, the lot it came from, the patient and the prescriber. Pick the days, or show the controlled medicines only — this is the list an inspector asks to see." },
+      { type: "p", text: "Batch recall: type the lot number from a withdrawal notice and see every sale it went out on, with the customer, so you can reach them." },
+      { type: "note", text: "Opened by whoever looks after the stock or reads the shop's reports. A cashier records the prescription at the till; the register fills itself from those sales." },
     ],
   },
   {

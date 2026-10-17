@@ -44,10 +44,12 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   "/tenant/orders/new": "orders.manage",
   "/tenant/day": "sales.manage",
   "/tenant/documents": "sales.manage",
-  // Counter lookups: the chemist's register and the warranty desk are both
-  // things done with a customer standing there.
-  "/tenant/pharmacy": "sales.manage",
+  // The warranty desk is done with a customer standing there.
   "/tenant/warranty": "sales.manage",
+  // The chemist's paperwork is not (B45). The register an inspector asks to
+  // see is the server's `reports.view` or `inventory.manage` — a cashier
+  // holding only `sales.manage` was let in and every request was refused.
+  "/tenant/pharmacy": ["reports.view", "inventory.manage"],
 
   "/tenant/orders": "orders.manage",
   "/tenant/riders": "orders.manage",

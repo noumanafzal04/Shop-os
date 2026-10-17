@@ -1,4 +1,6 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Navigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import PageMeta from "../../../components/common/PageMeta";
 import Label from "../../../components/form/Label";
 import Select from "../../../components/form/Select";
@@ -22,7 +24,17 @@ export default function ShopSetupPage() {
   const businessTypes = useBusinessTypes();
   const setup = useCompleteSetup();
 
-  const [cityId, setCityId] = useState("");
+  // B23: the city and address the shop was made with are already known —
+  // asked again from nothing, the form read as if they had been lost. What
+  // the owner picks or types replaces them (null = untouched).
+  const [pickedCity, setCityId] = useState<string | null>(null);
+  const cityId = pickedCity ?? user?.tenant?.city?.id ?? "";
+  // …and a device signed in before setup was finished elsewhere held its old
+  // answer for the five minutes /me is trusted, stuck on this form. Asked now.
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+  }, [queryClient]);
   // The money the shop trades in. Asked HERE, on the first screen a new shop
   // sees, because it is fixed once there is a sale on the books — and "you
   // should have chosen this before you began" is no use to somebody who has
@@ -30,7 +42,8 @@ export default function ShopSetupPage() {
   const currencies = useShopCurrencies();
   const [currency, setCurrency] = useState("");
   const chosenCurrency = currency || currencies.data?.current.code || "";
-  const [address, setAddress] = useState("");
+  const [typedAddress, setAddress] = useState<string | null>(null);
+  const address = typedAddress ?? user?.tenant?.address ?? "";
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [detectedCity, setDetectedCity] = useState<string | null>(null);
 
@@ -58,7 +71,7 @@ export default function ShopSetupPage() {
   const onLocation = ({ lat, lng, place }: PickedLocation) => {
     setCoords({ lat, lng });
     if (!place) return;
-    if (place.formatted) setAddress((a) => a || place.formatted);
+    if (place.formatted && !address) setAddress(place.formatted);
     if (place.city) {
       setDetectedCity(place.city);
       const name = place.city.toLowerCase();
@@ -87,6 +100,11 @@ export default function ShopSetupPage() {
       longitude: coords?.lng,
     });
   };
+
+  // Done — here, or on another device. The form is for a shop not yet set up.
+  if (user?.tenant?.setup_completed) {
+    return <Navigate to="/tenant" replace />;
+  }
 
   return (
     <>
@@ -137,6 +155,7 @@ export default function ShopSetupPage() {
                 City <span className="text-error-500">*</span>
               </Label>
               <Select
+                aria-label="City"
                 value={cityId}
                 options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
                 placeholder={cities.isLoading ? "Loading cities…" : "Choose your city"}

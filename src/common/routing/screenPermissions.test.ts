@@ -157,10 +157,15 @@ describe("the counter's screens travel together", () => {
       "/tenant/day",
       "/tenant/documents",
       "/tenant/warranty",
-      "/tenant/pharmacy",
     ]) {
       expect(canVisit(path, cashier), path).toBe(true);
     }
+  });
+
+  it("keeps the chemist's register to whoever the server lets read it (B45)", () => {
+    expect(canVisit("/tenant/pharmacy", (p) => p === "sales.manage")).toBe(false);
+    expect(canVisit("/tenant/pharmacy", (p) => p === "reports.view")).toBe(true);
+    expect(canVisit("/tenant/pharmacy", (p) => p === "inventory.manage")).toBe(true);
   });
 
   it("does not give them the back office", () => {

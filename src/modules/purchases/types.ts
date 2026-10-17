@@ -60,6 +60,8 @@ export interface PurchaseOrder {
    */
   deliver_to_branch_id?: string | null;
   deliver_to?: { id: string; name: string; kind: "shop" | "warehouse" } | null;
+  /** What THIS person may do to it now — the server's StockPlace rule, on the order's page only (B35). */
+  can?: { receive: boolean };
   po_number: string;
   status: PurchaseStatus;
   order_date: string;

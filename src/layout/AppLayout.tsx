@@ -1,5 +1,6 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
 import { Outlet } from "react-router";
+import { RefusedNotice } from "../common/routing/RefusedNotice";
 import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import DemoBanner from "../modules/landing/components/DemoBanner";
 import AppHeader from "./AppHeader";
@@ -88,6 +89,7 @@ const LayoutContent: React.FC = () => {
             on the orders page is a chime for people already looking.
           */}
           <OrderAlertsListener />
+          <RefusedNotice />
           <WrittenTheShopsWay>
             <Outlet />
           </WrittenTheShopsWay>
