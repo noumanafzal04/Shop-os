@@ -132,7 +132,7 @@ describe("the till's kitchen settings follow the kitchen, not the floor", () => 
   it("leaves the two universal ones alone", () => {
     // If the filter ever ate everything, every assertion above about a missing
     // tab would pass for the wrong reason.
-    expect(subKeys({})).toEqual(["till", "registers"]);
+    expect(subKeys({})).toEqual(["till", "registers", "devices"]);
   });
 
   it("Quotes & advances follows its own module", () => {

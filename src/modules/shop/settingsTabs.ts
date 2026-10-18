@@ -85,6 +85,10 @@ export function settingsTabsFor(features: Record<string, boolean> | undefined) {
 export const POS_SUBTABS = [
   { key: "till", label: "Counter" },
   { key: "registers", label: "Lanes & PINs" },
+  // The machines themselves — who is signed in where, each till, and what a
+  // till holds for an outage. A long list in a busy shop; on its own tab it no
+  // longer buries the lanes and PINs (settings clean-up 2026-10-18).
+  { key: "devices", label: "Devices & offline" },
   // Its own module. Shown to every till, four trades were offered two
   // switches — both ON by default — for a feature they do not have.
   { key: "selling", label: "Quotes & advances", needs: "documents" },

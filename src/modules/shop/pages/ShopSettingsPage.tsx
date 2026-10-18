@@ -695,9 +695,6 @@ export default function ShopSettingsPage() {
                           />
                         </div>
 
-                        <Field label={`Delivery fee (${sym})`} hint="Charged on delivery orders. Set 0 for free delivery / pickup-only." error={errorFor("delivery_fee")}>
-                          <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} className="max-w-xs" />
-                        </Field>
                       </>
                     ) : (
                       <p className="text-sm text-gray-500 dark:text-gray-400">{words.onlineOff}</p>
@@ -899,6 +896,12 @@ export default function ShopSettingsPage() {
                           <Field label="Prep time (min)" hint="Estimated preparation time shown to customers.">
                             <Input type="number" min="1" max="480" value={prefs.prep_time_minutes != null ? String(prefs.prep_time_minutes) : ""} onChange={(e) => setP("prep_time_minutes", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 25" />
                           </Field>
+                          {/* With the rest of delivery, not under the shop's name
+                              (the client, 2026-10-18). It is a shop field, so
+                              this tab's Save sends the profile too. */}
+                          <Field label={`Delivery fee (${sym})`} hint="Charged on delivery orders. 0 = free delivery." error={errorFor("delivery_fee")}>
+                            <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} />
+                          </Field>
                           <Field label={`Minimum order (${sym})`} hint="Delivery orders below this are rejected.">
                             <Input type="number" min="0" value={prefs.min_order_amount != null ? String(prefs.min_order_amount) : ""} onChange={(e) => setP("min_order_amount", e.target.value === "" ? null : Number(e.target.value))} placeholder="No minimum" />
                           </Field>
@@ -913,7 +916,16 @@ export default function ShopSettingsPage() {
                 }
                 right={<TaxGroupsManager />}
               />
-              {prefsFooter}
+              <SaveBar
+                dirty={profileDirty || prefsDirty}
+                saving={save.isPending || updatePrefs.isPending}
+                onSave={() => {
+                  if (profileDirty) submitProfile();
+                  if (prefsDirty) savePrefs();
+                }}
+                label="Save preferences"
+                blocked={profileDirty && !form.business_name.trim()}
+              />
               </>
             )}
 
@@ -1196,20 +1208,15 @@ export default function ShopSettingsPage() {
                       <SectionCard icon={<UserGlyph />} title="Till PINs" description="A short PIN lets someone take the till in a second, so sales, voids and drawers belong to whoever actually made them. A PIN only works at a till already signed in — never to log in.">
                         <TillPinsPanel />
                       </SectionCard>
+                    </>
+                  }
+                />
+              )}
 
-                      <SectionCard
-                        icon={<UserGlyph />}
-                        title="Signed-in devices"
-                        description="Every browser and tablet currently signed in to your account. Lost one, or lent it out and never got it back? Sign that one out without throwing every working till off mid-queue."
-                      >
-                        <DeviceSessionsPanel />
-                      </SectionCard>
-
-                      {/* A SESSION is who is signed in; a TILL is the machine
-                          itself, which keeps its identity across sign-outs and
-                          cashier handovers. Both belong here, and the two
-                          answer different questions — "whose login is on that
-                          tablet" and "when did that tablet last reach us". */}
+              {activePosTab === "devices" && (
+                <TwoCol
+                  left={
+                    <>
                       {/* WHAT THIS DEVICE IS HOLDING, before it needs it.
                           A shop turned its wifi off to test the till and got
                           an empty screen — the catalog had been syncing on its
@@ -1225,14 +1232,6 @@ export default function ShopSettingsPage() {
                         <OfflineReadyPanel />
                       </SectionCard>
 
-                      <SectionCard
-                        icon={<CartGlyph />}
-                        title="Your tills"
-                        description="The devices this shop's POS runs on, and when each last reached us. Signing one out stops it being used without touching the sales it already sent."
-                      >
-                        <TillDevicesPanel />
-                      </SectionCard>
-
                       {/* Sits with the tills because it is a fact ABOUT them:
                           whether this shop's own devices have been proved able
                           to price without the server. */}
@@ -1242,6 +1241,30 @@ export default function ShopSettingsPage() {
                         description="Every sale is priced a second time by the offline engine and the two answers compared. Customers always pay the server's price — this is the evidence being gathered before a till is allowed to price on its own."
                       >
                         <PricingVariancesPanel />
+                      </SectionCard>
+                    </>
+                  }
+                  right={
+                    <>
+                      {/* A SESSION is who is signed in; a TILL is the machine
+                          itself, which keeps its identity across sign-outs and
+                          cashier handovers. Both belong here, and the two
+                          answer different questions — "whose login is on that
+                          tablet" and "when did that tablet last reach us". */}
+                      <SectionCard
+                        icon={<CartGlyph />}
+                        title="Your tills"
+                        description="The devices this shop's POS runs on, and when each last reached us. Signing one out stops it being used without touching the sales it already sent."
+                      >
+                        <TillDevicesPanel />
+                      </SectionCard>
+
+                      <SectionCard
+                        icon={<UserGlyph />}
+                        title="Signed-in devices"
+                        description="Every browser and tablet currently signed in to your account. Lost one, or lent it out and never got it back? Sign that one out without throwing every working till off mid-queue."
+                      >
+                        <DeviceSessionsPanel />
                       </SectionCard>
                     </>
                   }

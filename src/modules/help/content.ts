@@ -2473,7 +2473,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: ["till", "device", "tablet", "offline", "internet", "pricing", "variance", "sign out", "lost tablet", "update", "new version", "refresh", "upgrade"],
     body: [
       { type: "h", text: "Getting a device ready to sell offline" },
-      { type: "p", text: "Settings → Point of Sale → Lanes & PINs, at the top: \u201cSelling without a connection\u201d. It tells you what THIS device is holding right now — how many products and customers are saved on it, and when it last checked." },
+      { type: "p", text: "Settings → Point of Sale → Devices & offline, at the top: \u201cSelling without a connection\u201d. It tells you what THIS device is holding right now — how many products and customers are saved on it, and when it last checked." },
       {
         type: "steps",
         items: [
@@ -2502,7 +2502,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "p", text: "You do not have to do any of this for it to work — the till copies your products down on its own, on opening, on reconnecting and every fifteen minutes. The button is there so you can CHECK, and so you can top a device up deliberately before a day you expect trouble." },
 
       { type: "h", text: "Your tills" },
-      { type: "p", text: "Shop settings → Point of Sale → Lanes & PINs. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
+      { type: "p", text: "Shop settings → Point of Sale → Devices & offline. Every device that opens the POS adds itself to this list on its own — there is nothing to register by hand. Each row shows which lane it stands at and when it last reached us." },
       { type: "p", text: "A till that goes quiet is a till that has lost its connection, so 'last reached us' is the number worth reading. It updates while the POS is open, not only when the browser is reloaded." },
       { type: "note", text: "Signing a till out is not a delete. The tablet stops being usable, but its row stays and every sale it already sent still points at it — which is exactly what you will want to look up afterwards. 'Allow again' brings it back if it turns up." },
       { type: "p", text: "Name each one. 'Name it' beside a till lets you call it what the staff call it — 'Counter tablet', 'Lane 2'. It is worth the ten seconds: the offline report puts this name against every sale that came in late, and a problem on ONE tablet is a very different thing from a problem in the shop. Three tills all reading 'Unnamed till' tell you nothing." },
@@ -2825,10 +2825,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
         rows: [
           ["Business", "Name, logo, contact, map location, whether your online shop is open — and your currency and how your dates are written."],
           ["Tax & Delivery", "Your default tax rate, whether prices already include tax, and how customers get their orders."],
-          ["Point of Sale", "Four sub-tabs: Counter (till defaults, discount ceiling, whether a shift is required), Lanes & PINs, Quotes & advances, and Kitchen if you take dine-in orders."],
+          ["Point of Sale", "Sub-tabs: Counter (till defaults, discount ceiling, whether a shift is required), Lanes & PINs, Devices & offline (signed-in devices, tills, selling without a connection), Quotes & advances, and Kitchen if you take dine-in orders."],
           ["Loyalty", "Points — what a customer earns, what a point is worth, and the least they can redeem."],
           ["Receipt", "Receipt and invoice layout, with a live preview as you change it, plus your NTN / STRN."],
-          ["Point of Sale → Lanes & PINs", "Also lists YOUR TILLS — every device the POS runs on, when each last reached us, and how to sign out one that went missing."],
+          ["Point of Sale → Devices & offline", "Lists YOUR TILLS — every device the POS runs on, when each last reached us, and how to sign out one that went missing."],
           ["Hardware", "Printers, cash drawers, scanners and weighing scales."],
           ["Barcodes", "What prints on a label, and scale barcodes for items sold by weight."],
         ],
@@ -2880,7 +2880,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         text: "This switch used to work for a dine-in tab only. A salon, a workshop or a counter shop that turned it on was never asked for a tip at the till. It now asks wherever a sale is paid.",
       },
       { type: "h", text: "Your tills" },
-      { type: "p", text: `Settings → Point of Sale → Lanes & PINs. Every device that opens ${PRODUCT.name} signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us.` },
+      { type: "p", text: `Settings → Point of Sale → Devices & offline. Every device that opens ${PRODUCT.name} signs itself in here, so you can see which tablets and computers your shop runs on and when each last reached us.` },
       { type: "p", text: "Lost a tablet, or lent one out and never got it back? Sign it out. It stops being usable straight away, but it stays on the list — the sales it already sent still belong to it, and you may want to see what happened. If it turns up, allow it again." },
       {
         type: "note",

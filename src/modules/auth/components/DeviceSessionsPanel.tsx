@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
@@ -20,7 +21,11 @@ import { shopDate } from "../../../common/format/date";
  * beside four others is how someone locks themselves out of the till by
  * mistake at the end of a long shift.
  */
+/** How many rows show before "Show all". */
+const FIRST = 5;
+
 export default function DeviceSessionsPanel() {
+  const [all, setAll] = useState(false);
   const qc = useQueryClient();
   const toast = useToast();
   const confirm = useConfirm();
@@ -60,9 +65,14 @@ export default function DeviceSessionsPanel() {
     return <p className="text-theme-sm text-gray-500 dark:text-gray-400">No other devices are signed in.</p>;
   }
 
+  const shown = all ? rows : rows.filter((s, i) => i < FIRST || s.is_current);
+  const total = rows.length;
+  const hidden = total - shown.length;
+
   return (
+    <>
     <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-      {rows.map((s) => (
+      {shown.map((s) => (
         <li key={s.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
@@ -82,6 +92,19 @@ export default function DeviceSessionsPanel() {
         </li>
       ))}
     </ul>
+      {/* Dozens pile up over months; the first few are what anyone came for.
+          This device always stays in sight. */}
+      {hidden > 0 && (
+        <button type="button" onClick={() => setAll(true)} className="mt-2 text-theme-sm font-medium text-brand-500 hover:text-brand-600">
+          Show all {total}
+        </button>
+      )}
+      {all && total > FIRST && (
+        <button type="button" onClick={() => setAll(false)} className="mt-2 text-theme-sm font-medium text-brand-500 hover:text-brand-600">
+          Show fewer
+        </button>
+      )}
+    </>
   );
 }
 

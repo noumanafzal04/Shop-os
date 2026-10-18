@@ -73,7 +73,7 @@ test.afterAll(async ({ request }) => {
 // ── the Settings screen, as a person uses it ─────────────────────────
 
 const TABS = ["Business", "Your modules", "Tax & Delivery", "Point of Sale", "Loyalty", "Receipt", "Hardware", "Barcodes"] as const;
-const POS_TABS = ["Counter", "Lanes & PINs", "Quotes & advances", "Kitchen"] as const;
+const POS_TABS = ["Counter", "Lanes & PINs", "Devices & offline", "Quotes & advances", "Kitchen"] as const;
 
 async function openSettings(page: Page, tab: (typeof TABS)[number], sub?: (typeof POS_TABS)[number]): Promise<void> {
   await page.goto("/tenant/settings");

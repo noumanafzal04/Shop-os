@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Badge from "../../../components/ui/badge/Badge";
@@ -39,7 +40,11 @@ function lastSeen(device: PosDevice): string {
   return `${days} day${days === 1 ? "" : "s"} ago`;
 }
 
+/** How many tills show before "Show all". */
+const FIRST = 5;
+
 export default function TillDevicesPanel() {
+  const [all, setAll] = useState(false);
   const confirm = useConfirm();
   const toast = useToast();
   const qc = useQueryClient();
@@ -160,7 +165,7 @@ export default function TillDevicesPanel() {
       )}
 
       <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-        {devices.map((device) => {
+        {(all ? devices : devices.filter((d, i) => i < FIRST || d.id === thisDevice)).map((device) => {
           const isThis = device.id === thisDevice;
 
           return (
@@ -231,6 +236,18 @@ export default function TillDevicesPanel() {
           );
         })}
       </div>
+      {/* Dozens pile up over months; the first few are what anyone came for.
+          This device always stays in sight. */}
+      {!all && devices.length > devices.filter((d, i) => i < FIRST || d.id === thisDevice).length && (
+        <button type="button" onClick={() => setAll(true)} className="mt-2 text-theme-sm font-medium text-brand-500 hover:text-brand-600">
+          Show all {devices.length}
+        </button>
+      )}
+      {all && devices.length > FIRST && (
+        <button type="button" onClick={() => setAll(false)} className="mt-2 text-theme-sm font-medium text-brand-500 hover:text-brand-600">
+          Show fewer
+        </button>
+      )}
     </div>
   );
 }
