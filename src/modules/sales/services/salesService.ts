@@ -58,6 +58,13 @@ export const salesService = {
   show: (id: string) => apiGet<Sale>(`/sales/${id}`),
 
   create: (payload: SaleInput) => apiPost<Sale>("/sales", payload),
+  /**
+   * Re-ring (Q19 B): the bill is voided as replaced and this one rung, in one
+   * step. `payload` tenders only the DIFFERENCE — the server carries what was
+   * already paid onto the new bill.
+   */
+  reRing: (id: string, payload: SaleInput & { approval?: { user_id: string; pin: string } }) =>
+    apiPost<Sale>(`/sales/${id}/re-ring`, payload),
 
   /** What that sale would come to, asked before it is rung. Nothing is written. */
   worth: (payload: SaleInput) => apiPost<SaleWorth>("/sales/worth", payload),

@@ -93,3 +93,16 @@ describe("adding to a bill already paid", () => {
     expect(visitLine({ id: "s1", visit: { ...visit, bills: [visit.bills[0]], together: 800 } }, money), "one bill is not a visit of two").toBeNull();
   });
 });
+
+/** Q19 B: a re-rung bill names what was paid on the bill it replaced. */
+describe("a re-rung bill's sheet", () => {
+  it("says what was paid on the old bill apart from what changed hands now", () => {
+    expect(settledLines(sale({
+      total: "500.00", amount_paid: "800.00", change_due: "300.00", payment_method: "cash",
+      payments: [{ id: "p1", method: "cash", amount: "800.00", reference: "Carried from INV-000034" }],
+    }))).toEqual([
+      { label: "Paid on INV-000034", amount: 800 },
+      { label: "Change", amount: 300 },
+    ]);
+  });
+});

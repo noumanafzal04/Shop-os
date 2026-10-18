@@ -48,6 +48,10 @@ export interface SaleItem {
   unit_price: string;
   unit_cost?: string | null;
   line_total: string;
+  /** The per-line discount the cashier keyed, as charged. */
+  line_discount?: string;
+  /** The options chosen, by name — the snapshot keeps no ids. */
+  modifiers?: Array<{ group: string; name: string; price_delta: number }> | null;
 }
 
 /** One customer's visit: the first bill and the ones added to it (Q19 A). */
@@ -65,6 +69,10 @@ export interface Sale {
   adds_to_sale_id?: string | null;
   /** The visit's bills; null for a bill on its own (Q19 A). */
   visit?: SaleVisit | null;
+  /** On one sale's sheet: whether it may be re-rung, and what would carry over (Q19 B). */
+  re_ring?: { open: boolean; why_not: string | null; carried: Array<{ method: string; amount: number }> } | null;
+  /** On the answer to a re-ring: the bill it replaced (Q19 B). */
+  replaces?: { id: string; invoice_number: string; total: number } | null;
   /**
    * The `OFF-…` number printed at the till when there was no server.
    *
@@ -273,6 +281,8 @@ export interface SaleWorth {
 }
 
 export interface SaleInput {
+  /** The paid bill this sale is added to — the first of the visit (Q19 A). */
+  adds_to_sale_id?: string;
   channel: SaleChannel;
   customer_name?: string;
   customer_phone?: string;

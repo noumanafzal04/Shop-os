@@ -32,6 +32,9 @@ import { completeOffline, linesFromCatalog, OfflineRefused, promotionLocally } f
 import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
 import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
 import { billToAddTo, settledLines, visitLine, type AddingTo } from "../saleComplete";
+import { reRingDifference, reRingingOf, slipOf, type ReRinging } from "../reRing";
+import { RefundApproval } from "../../sales/components/RefundApproval";
+import { NO_APPROVAL, approvalPayload, approvalReady, type ApprovalState } from "../../sales/refundApproval";
 import { queueTally } from "../../offline/db/repo";
 import { markTillHere } from "../../offline/device/tillHere";
 import { refusedRows, refusedTotal, type OutboxRow } from "../../offline/outbox/outbox";
@@ -957,6 +960,12 @@ export default function PosPage() {
   // The paid bill this sale is being added to (Q19 A) — the customer came back
   // to the counter for two more. Null on every ordinary sale.
   const [addingTo, setAddingTo] = useState<AddingTo | null>(null);
+  // The paid bill being re-rung (Q19 B): loaded back onto the counter, and on
+  // Complete voided as replaced by this one, what was paid carried over.
+  const [reRinging, setReRinging] = useState<(ReRinging & { left: string[] }) | null>(null);
+  const [reRingApproval, setReRingApproval] = useState<ApprovalState>(NO_APPROVAL);
+  // A re-ring cancels a bill, so it is a void's to approve.
+  const needsReRingApproval = !hasPermission("sales.void");
 
   // Modifier configurator (food items with choices / add-ons)
   const [cfg, setCfg] = useState<CatalogProduct | null>(null);
@@ -1075,9 +1084,11 @@ export default function PosPage() {
   //
   // Held as one string so the bill below is re-made when the METHODS change
   // and not on every render that builds a new array of the same ones.
-  const tenderKey = (method === "split"
-    ? tenders.filter((t) => Number(t.amount) > 0).map((t) => t.method)
-    : [method]).join(",");
+  const tenderKey = [
+    // A re-ring is settled by what was paid on the old bill AND the difference (Q19 B).
+    ...(reRinging?.carried.map((t) => t.method) ?? []),
+    ...(method === "split" ? tenders.filter((t) => Number(t.amount) > 0).map((t) => t.method) : [method]),
+  ].join(",");
   /**
    * THE BILL, from the one implementation — `tillBill`.
    *
@@ -1167,7 +1178,14 @@ export default function PosPage() {
    *
    * Dropped the moment the bill changes; see `billKey`.
    */
-  const payable = serverDue ?? localPayable;
+  const fullPayable = serverDue ?? localPayable;
+  /**
+   * WHAT IS COLLECTED NOW. While a bill is re-rung (Q19 B) what was paid on
+   * the old bill is carried over, so the counter asks only for the difference —
+   * and every comparison below (Complete, change, quick tenders) works off it.
+   */
+  const reRingMoney = reRinging === null ? null : reRingDifference(fullPayable, reRinging, money);
+  const payable = reRingMoney === null ? fullPayable : reRingMoney.take;
   // The cash rounding is a fact about the till's own figure. Taken from
   // `payable` it would report the whole server correction as "rounding".
   const rounding = bill.rounding;
@@ -1304,6 +1322,8 @@ export default function PosPage() {
 
   const clearSale = () => {
     setAddingTo(null);
+    setReRinging(null);
+    setReRingApproval(NO_APPROVAL);
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone(""); setTip("");
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
@@ -1537,7 +1557,24 @@ export default function PosPage() {
           `${ringingAgain.row.offlineNumber} is being rung again, and that needs the line — the sale it becomes is named to the shop as that slip's. Wait for the line, or press Stop.`,
         ]);
       }
+      // A re-ring voids a bill on the server and rings its replacement in one
+      // step; with no line there is nothing to void (Q19 B).
+      if (reRinging !== null && !connected) {
+        throw new OfflineRefused([
+          `Re-ringing ${reRinging.invoice_number} needs the line — the old bill is cancelled on the server as this one is rung. Wait for the line, or press Stop.`,
+        ]);
+      }
       if (!connected) return { data: await ringOffline(payload as unknown as Record<string, unknown>) };
+
+      if (reRinging !== null) {
+        return salesService.reRing(reRinging.id, {
+          ...payload,
+          // The whole new bill, as the cashier was shown it: the server
+          // carries what was paid and takes only the difference tendered.
+          expected_payable: fullPayable,
+          ...approvalPayload(reRingApproval, needsReRingApproval),
+        });
+      }
 
       // What the cashier was SHOWN, so the sale is made at that figure or not
       // at all. Online only: a queued sale already happened, and refusing it
@@ -2307,6 +2344,56 @@ export default function PosPage() {
     </div>
   );
 
+  /**
+   * WHICH BILL IS BEING RE-RUNG (Q19 B), what was paid on it, and what
+   * changes hands now — in sight the whole time, with Stop one press away.
+   * The supervisor's PIN is asked here, before Complete, when the person at
+   * the till may not cancel a bill alone.
+   */
+  const reRingStrip = reRinging !== null && reRingMoney !== null && (
+    <div
+      data-pos-re-ring
+      className="mt-2 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-xs text-gray-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-gray-200"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          Re-ringing <span className="font-mono font-medium">{reRinging.invoice_number}</span> — {money(reRinging.paid)} was paid
+          on it and carries over; it is cancelled when this bill completes.
+          {cart.length > 0 && (
+            <span data-re-ring-difference className="mt-0.5 block font-medium text-warning-700 dark:text-warning-400">
+              {reRingMoney.blocked
+                ?? (reRingMoney.take > 0
+                  ? `Take ${money(reRingMoney.take)} more.`
+                  : reRingMoney.back > 0
+                    ? `Hand back ${money(reRingMoney.back)} in cash.`
+                    : "Nothing changes hands.")}
+            </span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={clearSale}
+          className="rounded-lg border border-warning-300 px-2.5 py-1 font-medium hover:bg-warning-100 dark:border-warning-500/40 dark:hover:bg-warning-500/20"
+        >
+          Stop
+        </button>
+      </div>
+      {reRinging.left.length > 0 && (
+        <div className="mt-1.5">
+          <span className="font-medium">Not put back on the bill:</span>
+          <ul className="mt-0.5 list-disc pl-4">
+            {reRinging.left.map((why) => <li key={why}>{why}</li>)}
+          </ul>
+        </div>
+      )}
+      {needsReRingApproval && (
+        <div className="mt-2">
+          <RefundApproval needsApproval ownDrawer={null} value={reRingApproval} onChange={setReRingApproval} purpose="void" drawerNeeded={false} />
+        </div>
+      )}
+    </div>
+  );
+
   const ringAgainPaid = ringingAgain === null ? null : refusedTotal(ringingAgain.row);
   const ringAgainStrip = ringingAgain !== null && (
     <div
@@ -2578,6 +2665,61 @@ export default function PosPage() {
     refusedModal.closeModal();
   };
 
+  /**
+   * RE-RING (Q19 B): the bill back on the counter, to be changed and rung as
+   * its replacement. Asked of the server first — it says whether this bill
+   * may be re-rung and what was paid on it — and loaded through the same
+   * fence as a slip rung again, so an item switched off since is named rather
+   * than rung.
+   */
+  const startReRing = async (sale: Sale) => {
+    if (!connected) {
+      setPosNotice("Re-ringing a bill needs the line — the old bill is cancelled on the server as the new one is rung.");
+      return;
+    }
+    if (cart.length > 0) {
+      setPosNotice("There is a bill on the till. Finish it or hold it first — a bill is re-rung on an empty counter.");
+      return;
+    }
+
+    let full: Sale;
+    try {
+      full = (await salesService.show(sale.id)).data;
+    } catch {
+      setPosNotice("The bill could not be read just now. Nothing was changed — try again.");
+      return;
+    }
+    const quote = reRingingOf(full);
+    if (quote === null) {
+      setPosNotice(full.re_ring?.why_not ?? `${full.invoice_number} can't be re-rung.`);
+      return;
+    }
+
+    const ids = [...new Set((full.items ?? []).map((i) => i.product_id).filter((id): id is string => id !== null))];
+    const found = new Map<string, CatalogProduct>();
+    try {
+      await Promise.all(ids.map(async (id) => {
+        try {
+          found.set(id, (await catalogService.product(id)).data);
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 404)) throw e;
+        }
+      }));
+    } catch {
+      setPosNotice("The shop's items could not be read just now. Nothing was changed — try again.");
+      return;
+    }
+
+    const slip = slipOf(full, (id) => found.get(id));
+    const plan = planRingAgain(slip.sale, (id) => found.get(id), (p, v) => whyNotSellable(p, v));
+    setCart(plan.lines.map(ringLine));
+    setCustomer(full.customer_name ?? "");
+    setCustomerPhone(full.customer_phone ?? "");
+    setReRingApproval(NO_APPROVAL);
+    setReRinging({ ...quote, left: [...slip.left, ...plan.left] });
+    receiptModal.closeModal();
+  };
+
   const saveDealtWith = async (row: OutboxRow, note: string) => {
     setRefusedBusy(row.op);
     try {
@@ -2616,7 +2758,10 @@ export default function PosPage() {
   // The allowance can never exceed the bill: the shop would owe the customer
   // money for their scrap, which is buying stock, not selling any.
   const tradeInTooBig = tradeInTotal > total;
-  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && (
+  // A re-ring that would hand back notes nobody paid, or that still waits
+  // for a supervisor's PIN, is not a bill that can be completed (Q19 B).
+  const reRingHeld = reRingMoney !== null && (reRingMoney.blocked !== null || !approvalReady(reRingApproval, needsReRingApproval));
+  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && (
     method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
       : method === "split" ? total > 0 && splitPaid >= payable
@@ -3104,6 +3249,7 @@ export default function PosPage() {
         {offlineRefused > 0 && <div className="bg-pos-ground px-3">{refusedStrip}</div>}
         {ringingAgain !== null && <div className="bg-pos-ground px-3">{ringAgainStrip}</div>}
         {addingTo !== null && <div className="bg-pos-ground px-3">{addingStrip}</div>}
+        {reRinging !== null && <div className="bg-pos-ground px-3 sm:hidden">{reRingStrip}</div>}
         </div>
 
         <div className={`${phonePane === "catalog" ? "flex" : "hidden"} min-h-0 flex-col overflow-hidden bg-pos-ground p-3 sm:flex lg:col-span-6 xl:col-span-5`}>
@@ -3249,6 +3395,7 @@ export default function PosPage() {
             {offlineRefused > 0 && <div className="hidden sm:block">{refusedStrip}</div>}
             {ringingAgain !== null && <div className="hidden sm:block">{ringAgainStrip}</div>}
             {addingTo !== null && <div className="hidden sm:block">{addingStrip}</div>}
+            {reRinging !== null && <div className="hidden sm:block">{reRingStrip}</div>}
             {/* The reprint tray, at the till rather than in a report: a receipt
                 that never came out is a customer still standing there. */}
             {(failedReceipts.data?.length ?? 0) > 0 && (
@@ -4599,6 +4746,23 @@ export default function PosPage() {
                   </div>
                 </div>
               )}
+              {/* A re-ring (Q19 B): the figure above is only the difference —
+                  what was paid on the old bill is carried, not taken again. */}
+              {reRinging !== null && reRingMoney !== null && (
+                <div data-tender-re-ring className="mt-2 space-y-0.5 border-t border-brand-200/60 pt-2 text-theme-xs dark:border-brand-500/20">
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>New bill</span><span className="tabular-nums">{money(fullPayable)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                    <span>Paid on {reRinging.invoice_number}</span><span className="tabular-nums">− {money(reRinging.paid)}</span>
+                  </div>
+                  {reRingMoney.back > 0 && (
+                    <div className="flex justify-between font-semibold text-warning-700 dark:text-warning-400">
+                      <span>Hand back in cash</span><span className="tabular-nums">{money(reRingMoney.back)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               {/* The bill and what it settles to, stated separately — the
                   cashier is taking a figure the drawer can actually hold, and
                   the customer is entitled to see where the difference went. */}
@@ -4880,11 +5044,22 @@ export default function PosPage() {
               </div>
             )}
             {method === "split" && splitHasCredit && !hasCustomer && <p className="mt-3 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>}
+            {reRingHeld && (
+              <p data-re-ring-held className="mt-3 text-theme-xs text-error-500">
+                {reRingMoney?.blocked ?? `Re-ringing ${reRinging?.invoice_number ?? "a bill"} cancels it, so a supervisor approves it first — their PIN goes in on the re-ring note above the bill.`}
+              </p>
+            )}
           </div>
           <div className="flex shrink-0 gap-3 border-t border-gray-100 px-6 py-4 dark:border-gray-800">
             <Button size="sm" variant="outline" onClick={tenderModal.closeModal}>Cancel</Button>
             <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
-              {checkout.isPending ? "Processing…" : method === "credit" ? `Complete · on credit ${money(total)}` : `Complete sale · ${money(Math.max(0, payable - bankDiscount))}`}
+              {checkout.isPending
+                ? "Processing…"
+                : reRingMoney !== null && reRingMoney.back > 0
+                  ? `Complete · hand back ${money(reRingMoney.back)}`
+                  : method === "credit"
+                    ? `Complete · on credit ${money(reRingMoney === null ? total : payable)}`
+                    : `Complete sale · ${money(Math.max(0, payable - bankDiscount))}`}
             </Button>
           </div>
         </div>
@@ -5240,6 +5415,12 @@ export default function PosPage() {
                   </span>
                 </div>
               ))}
+              {/* The bill this one replaced (Q19 B). */}
+              {lastSale.replaces && (
+                <p data-replaces className="pt-1 text-theme-xs font-medium text-warning-700 dark:text-warning-400">
+                  Replaces {lastSale.replaces.invoice_number} ({money(lastSale.replaces.total)}) — that bill is cancelled as re-rung.
+                </p>
+              )}
               {/* One visit, more than one bill (Q19 A). */}
               {visitLine(lastSale, money) !== null && (
                 <p data-visit className="pt-1 text-theme-xs font-medium text-brand-600 dark:text-brand-400">{visitLine(lastSale, money)}</p>
@@ -5314,6 +5495,14 @@ export default function PosPage() {
                 <button type="button" data-testid="add-to-bill" className={ROW_ACTION}
                   onClick={() => { setAddingTo(billToAddTo(lastSale)); receiptModal.closeModal(); scanRef.current?.focus(); }}>
                   Add to this bill
+                </button>
+              )}
+              {/* Changed instead of added to (Q19 B): voided as replaced, what
+                  was paid carried over. The server says whether it may be. */}
+              {!("offline" in lastSale && lastSale.offline === true) && (
+                <button type="button" data-testid="re-ring" className={`${ROW_ACTION} whitespace-nowrap`}
+                  onClick={() => void startReRing(lastSale)}>
+                  Re-ring
                 </button>
               )}
             </div>

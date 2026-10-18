@@ -40,6 +40,9 @@ const ALONE: Partial<Record<PaymentMethod, string>> = {
 
 const n = (v: string | number | null | undefined): number => Number(v ?? 0) || 0;
 
+/** How the server writes a tender carried from a re-rung bill (ReRingSaleAction). */
+const CARRIED = "Carried from ";
+
 export function settledLines(sale: SettledSale): SheetLine[] {
   const lines: SheetLine[] = [];
 
@@ -50,8 +53,16 @@ export function settledLines(sale: SettledSale): SheetLine[] {
   if (n(sale.trade_in_total) > 0) lines.push({ label: "Traded in", amount: -n(sale.trade_in_total) });
 
   const legs = (sale.payments ?? []).filter((p) => p.method !== "trade_in");
-  if (sale.payment_method === "split" && legs.length > 0) {
-    for (const leg of legs) lines.push({ label: LEG[leg.method] ?? "Other", amount: n(leg.amount) });
+  // A re-rung bill (Q19 B) carries what was paid on the old one: said as
+  // that, never as notes handed over now.
+  const paidOn = (reference: string | null | undefined): string | null =>
+    reference?.startsWith(CARRIED) ? reference.slice(CARRIED.length) : null;
+  const carries = legs.some((leg) => paidOn(leg.reference) !== null);
+  if ((sale.payment_method === "split" || carries) && legs.length > 0) {
+    for (const leg of legs) {
+      const from = paidOn(leg.reference);
+      lines.push({ label: from !== null ? `Paid on ${from}` : LEG[leg.method] ?? "Other", amount: n(leg.amount) });
+    }
   } else {
     lines.push({ label: ALONE[sale.payment_method] ?? "Paid", amount: n(sale.amount_paid) });
   }
