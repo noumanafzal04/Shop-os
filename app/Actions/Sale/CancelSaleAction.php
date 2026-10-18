@@ -38,8 +38,12 @@ class CancelSaleAction
         private readonly TenantContext $context,
     ) {}
 
-    /** @param  ?string  $drawerId  the open drawer the notes come out of; the voider's own when null */
-    public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null, ?string $drawerId = null): Sale
+    /**
+     * @param  ?string  $drawerId  the open drawer the notes come out of; the voider's own when null
+     * @param  bool  $carried  re-rung (Q19 B): the money is carried onto the new bill, so no
+     *                         notes leave here — ReRingSaleAction writes the drawer's side
+     */
+    public function execute(Sale $sale, ?string $reason = null, ?string $reasonCode = null, ?string $drawerId = null, bool $carried = false): Sale
     {
         if ($sale->isCancelled()) {
             throw DomainException::conflict('This sale is already cancelled.', 'SALE_ALREADY_CANCELLED');
@@ -56,11 +60,11 @@ class CancelSaleAction
             );
         }
 
-        return DB::transaction(function () use ($sale, $reason, $reasonCode, $drawerId): Sale {
+        return DB::transaction(function () use ($sale, $reason, $reasonCode, $drawerId, $carried): Sale {
             // The notes first, before anything moves: whether they can go back,
-            // and out of which drawer.
+            // and out of which drawer. Carried onto a new bill, they do not.
             $cashBack = self::cashBack($sale);
-            $drawer = $this->drawerFor($sale, $cashBack, $drawerId);
+            $drawer = $carried ? null : $this->drawerFor($sale, $cashBack, $drawerId);
 
             // Restore stock by REVERSING the exact movements this sale recorded
             // — not by re-reading product recipes. A combo's components can be

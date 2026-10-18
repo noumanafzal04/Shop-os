@@ -703,6 +703,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     // It also returns goods, hence the refund permission.
                     Route::post('/{sale}/exchange', [SaleController::class, 'exchange'])
                         ->middleware(['feature:pos', 'permission:sales.refund,sales.manage', 'once', 'throttle:20,1']);
+                    // Re-ring (Q19 B): a void and a new bill in one step, what was
+                    // paid carried over. A void's permission, or a supervisor's PIN
+                    // (the controller asks, as it does for a void).
+                    Route::post('/{sale}/re-ring', [SaleController::class, 'reRing'])
+                        ->middleware(['feature:pos', 'permission:sales.void,sales.manage', 'once', 'throttle:20,1']);
                     // Receipts. Rendering one is a counter action, not a report:
                     // the render itself is what gets logged, and the log is what
                     // decides whether the paper says ORIGINAL or REPRINT.

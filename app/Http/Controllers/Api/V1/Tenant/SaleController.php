@@ -6,8 +6,11 @@ use App\Actions\Sale\CancelSaleAction;
 use App\Actions\Sale\CreateSaleAction;
 use App\Actions\Sale\ProcessExchangeAction;
 use App\Actions\Sale\ProcessSaleReturnAction;
+use App\Actions\Sale\ReRingSaleAction;
 use App\Enums\SaleStatus;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Sale\ReRingSaleRequest;
 use App\Http\Requests\Sale\StoreExchangeRequest;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Requests\Sale\StoreSaleReturnRequest;
@@ -228,12 +231,63 @@ class SaleController extends Controller
             ...$sale->toArray(),
             // The first bill and the ones added to it (Q19 A).
             'visit' => BillToAddTo::visit($sale),
+            // Whether it may be re-rung, and what would carry over (Q19 B).
+            're_ring' => $sale->isCancelled() ? null : self::reRinging($sale),
             // Whether it may still be voided, and what that would hand back —
             // asked before the sheet offers the button (Q18, B86).
             'void' => $sale->status === SaleStatus::Completed && ! $sale->is_training
                 ? self::voiding($sale, $request->user())
                 : null,
         ]);
+    }
+
+    /**
+     * WHETHER THIS BILL MAY BE RE-RUNG, and what the customer already paid
+     * that would carry onto the new one — asked before the till offers it.
+     *
+     * @return array{open: bool, why_not: ?string, carried: list<array{method: string, amount: float}>}
+     */
+    private static function reRinging(Sale $sale): array
+    {
+        $why = StillItsDay::overFor($sale);
+        if ($why === null) {
+            try {
+                ReRingSaleAction::assertPlain($sale);
+            } catch (DomainException $refused) {
+                $why = $refused->getMessage();
+            }
+        }
+
+        return ['open' => $why === null, 'why_not' => $why, 'carried' => ReRingSaleAction::carried($sale)];
+    }
+
+    /**
+     * RE-RING (Q19 B): the bill printed and paid is replaced — voided as
+     * re-rung — by the bill the customer now wants, and what they paid
+     * carries over, so only the difference crosses the counter. The same day,
+     * a plain bill, and the void's own rule for who may do it.
+     */
+    public function reRing(ReRingSaleRequest $request, string $id, ReRingSaleAction $action): JsonResponse
+    {
+        $data = $request->validated();
+        $sale = Sale::query()->with('items')->findOrFail($id);
+        StillItsDay::refuseIfOver($sale);
+        $actor = $request->user();
+        $approver = SupervisorApproval::forVoid($actor, $data['cash_session_id'] ?? null, $data['approval'] ?? null);
+        unset($data['approval']);
+
+        ['old' => $old, 'new' => $new] = $action->execute($sale, $data);
+        if ($approver !== null) {
+            SupervisorApproval::record($approver, $actor, $new->cash_session_id ?? BooksDrawer::tillFor($actor)?->id, $old, (float) $old->total, "Re-ring {$old->invoice_number} as {$new->invoice_number}");
+        }
+
+        return ApiResponse::created(
+            $new->toArray() + [
+                'replaces' => ['id' => $old->id, 'invoice_number' => $old->invoice_number, 'total' => (float) $old->total],
+                'visit' => BillToAddTo::visit($new),
+            ],
+            "{$old->invoice_number} re-rung as {$new->invoice_number}",
+        );
     }
 
     /** @return array{open: bool, why_not: ?string, cash_back: float, from_drawer: bool, drawer: ?string, drawer_holds: ?float} */

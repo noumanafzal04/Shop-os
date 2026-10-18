@@ -200,6 +200,12 @@ class Sale extends BaseModel
      * Why a sale was voided. A fixed list, because the point of recording it is
      * that a manager can COUNT them per cashier — free text can't be tallied.
      */
+    /**
+     * Why a bill re-rung at the counter was cancelled (Q19 B). Not one of the
+     * reasons a person picks: only the re-ring writes it.
+     */
+    public const REASON_RE_RUNG = 're_rung';
+
     public const VOID_REASONS = [
         'wrong_item', 'customer_changed_mind', 'price_error', 'duplicate', 'test_sale', 'other',
     ];
