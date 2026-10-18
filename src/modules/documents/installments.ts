@@ -22,6 +22,15 @@ export function dueOn(first: string, n: number): string {
   return `${year}-${pad(month)}-${pad(Math.min(d, lastDay))}`;
 }
 
+/** The day it falls due each month, under the monthly amount: "on the 16th". */
+export function dueDayWords(first: string): string {
+  const d = Number(first.slice(8, 10));
+  const tens = d % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[d % 10] ?? "th";
+
+  return d > 28 ? `on the ${d}${suffix} or last day` : `on the ${d}${suffix}`;
+}
+
 /** A month later than `date` (the form's first-due default), on the same rule. */
 export const aMonthAfter = (date: string): string => dueOn(date, 2);
 

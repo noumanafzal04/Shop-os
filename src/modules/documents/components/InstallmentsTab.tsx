@@ -6,7 +6,7 @@ import { shopDate } from "../../../common/format/date";
 import { shopWallToday } from "../../../common/shopDay";
 import { useMoney } from "../../shop/hooks/useShop";
 import { useInstallmentPlans, useInstallmentSummary } from "../hooks/useInstallments";
-import { daysUntil, whenDue } from "../installments";
+import { daysUntil, dueDayWords, whenDue } from "../installments";
 import type { InstallmentPlan, PlanFilter } from "../services/installmentService";
 
 const FILTERS: Array<{ value: PlanFilter; label: string; tone: string }> = [
@@ -55,7 +55,7 @@ export default function InstallmentsTab({ onOpen }: { onOpen: (planId: string) =
 
   return (
     <div data-testid="installments">
-      <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Tile label="Out on installments" value={money(s?.out ?? 0)} hint={`Across ${s?.counts.running ?? 0} running plan${s?.counts.running === 1 ? "" : "s"}`} onClick={() => show("running")} />
         <Tile label="Late" value={money(s?.late.total ?? 0)} hint={(s?.late.plans ?? 0) > 0 ? `${s!.late.plans} plan${s!.late.plans === 1 ? "" : "s"} — worth a phone call` : "Nobody is late"} tone={(s?.late.plans ?? 0) > 0 ? "late" : undefined} onClick={() => show("late")} />
         <Tile label="Due this month" value={money(s?.due_this_month ?? 0)} hint="Still to come this month — late not included" tone="warn" onClick={() => show("this_month")} />
@@ -129,7 +129,7 @@ function Row({ plan: p, today, money, onOpen }: { plan: InstallmentPlan; today: 
   return (
     <tr className={`cursor-pointer border-b border-gray-100 last:border-0 dark:border-gray-800 ${tint}`} onClick={() => onOpen(p.id)} data-state={late ? "late" : soon ? "due_soon" : p.status}>
       <td className="px-5 py-3">
-        <span className="font-medium text-brand-500">{p.number}</span>
+        <span className="whitespace-nowrap font-medium text-brand-500">{p.number}</span>
         <span className="block text-theme-xs text-gray-400">{shopDate(p.created_at)}</span>
       </td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
@@ -139,18 +139,22 @@ function Row({ plan: p, today, money, onOpen }: { plan: InstallmentPlan; today: 
         )}
       </td>
       <td className="max-w-[12rem] truncate px-3 py-3 text-theme-xs text-gray-500 dark:text-gray-400">{p.items.map((i) => (i.quantity === 1 ? i.name : `${i.quantity} × ${i.name}`)).join(", ") || "—"}</td>
-      <td className="px-3 py-3 text-right tabular-nums">{money(p.total)}</td>
+      <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{money(p.total)}</td>
       <td className="px-3 py-3">
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
             <div className={`h-full rounded-full ${p.status === "paid_off" ? "bg-success-500" : "bg-brand-500"}`} style={{ width: `${Math.round(share * 100)}%` }} />
           </div>
-          <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">{s.months_paid} of {p.months}</span>
+          <span className="whitespace-nowrap text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">{s.months_paid} of {p.months} months</span>
         </div>
       </td>
-      <td className={`px-3 py-3 text-right font-semibold tabular-nums ${late ? "text-error-600 dark:text-error-400" : p.status === "running" ? "text-gray-800 dark:text-white/90" : "text-gray-400"}`}>{money(s.left)}</td>
-      <td className="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">{money(p.monthly)}</td>
-      <td className="bg-brand-50/70 px-3 py-3 text-right tabular-nums dark:bg-brand-500/[0.07]" data-testid="to-collect">
+      <td className={`whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums ${late ? "text-error-600 dark:text-error-400" : p.status === "running" ? "text-gray-800 dark:text-white/90" : "text-gray-400"}`}>{money(s.left)}</td>
+      <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-600 dark:text-gray-300">
+        {money(p.monthly)}
+        {/* Which day of the month it falls due — the question a customer asks. */}
+        <span className="block text-theme-xs text-gray-400">{dueDayWords(p.first_due_on)}</span>
+      </td>
+      <td className="whitespace-nowrap bg-brand-50/70 px-3 py-3 text-right tabular-nums dark:bg-brand-500/[0.07]" data-testid="to-collect">
         {p.status !== "running" ? <span className="text-gray-400">—</span>
           : s.due_now > 0 ? <span className={`font-semibold ${late ? "text-error-600 dark:text-error-400" : "text-warning-600 dark:text-warning-400"}`}>{money(s.due_now)}</span>
             : <span className="text-theme-xs font-medium text-success-600 dark:text-success-400">Up to date</span>}
@@ -159,12 +163,12 @@ function Row({ plan: p, today, money, onOpen }: { plan: InstallmentPlan; today: 
         {p.status === "paid_off" ? <span className="font-semibold text-success-600 dark:text-success-400">Paid off</span>
           : p.status === "closed" ? <span className="text-gray-400">Closed</span>
             : late ? <span className="font-semibold text-error-600 dark:text-error-400">Late {s.late_months} month{s.late_months === 1 ? "" : "s"} · {money(s.late)}</span>
-              : s.next_due_on ? <span className={soon ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-500 dark:text-gray-400"}>{shopDate(s.next_due_on)} · {whenDue(s.next_due_on, today)}</span>
+              : s.next_due_on ? <span className={soon ? "font-medium text-warning-600 dark:text-warning-400" : "text-gray-500 dark:text-gray-400"}><span className="whitespace-nowrap">{shopDate(s.next_due_on)}</span>{" "}<span className="block whitespace-nowrap">{whenDue(s.next_due_on, today)}</span></span>
                 : "—"}
       </td>
       <td className="px-5 py-3 text-right">
         {p.status === "running" && (
-          <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} className="text-theme-sm font-medium text-brand-500 hover:text-brand-600">
+          <button type="button" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} className="whitespace-nowrap text-theme-sm font-medium text-brand-500 hover:text-brand-600">
             Take installment
           </button>
         )}

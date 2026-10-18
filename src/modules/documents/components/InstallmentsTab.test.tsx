@@ -53,7 +53,7 @@ describe("the installments list", () => {
     expect(late).toHaveTextContent("Late 2 months · Rs 10,000");
     const soon = screen.getByText("INS-000002").closest("tr")!;
     expect(soon).toHaveAttribute("data-state", "due_soon");
-    expect(soon).toHaveTextContent("2026-11-16 · in 4 days");
+    expect(soon).toHaveTextContent("2026-11-16 in 4 days");
     expect(soon).toHaveTextContent("0 of 10");
     const done = screen.getByText("INS-000001").closest("tr")!;
     expect(done).toHaveAttribute("data-state", "paid_off");

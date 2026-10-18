@@ -11,7 +11,7 @@ import { boardWords, hasJobBoard, type BoardWords } from "../../workshop/words";
 import { isPastDate } from "../../../common/shopDay";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
-import Button from "../../../components/ui/button/Button";
+import { BoxIconLine, CalenderIcon, FileIcon } from "../../../icons";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import NewDocumentSheet, { type Starting } from "../components/NewDocumentSheet";
 import InstallmentsTab from "../components/InstallmentsTab";
@@ -55,6 +55,23 @@ const countFor = (c: DocumentSummary["layaway_counts"], status: string): number 
  * and false of the shop.
  */
 type Tab = DocumentKind | "installments";
+/** One look per kind: the button that starts it and the tab that lists it. */
+const START = "inline-flex items-center gap-2 whitespace-nowrap rounded-lg border px-4 py-2.5 text-theme-sm font-semibold shadow-theme-xs transition";
+const KIND_LOOK = {
+  installments: {
+    button: "border-theme-purple-500/30 bg-theme-purple-500/10 text-theme-purple-500 hover:bg-theme-purple-500/20 dark:border-theme-purple-500/40 dark:bg-theme-purple-500/15 dark:text-theme-purple-500",
+    dot: "bg-theme-purple-500",
+  },
+  layaway: {
+    button: "border-warning-200 bg-warning-50 text-warning-700 hover:bg-warning-100 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20",
+    dot: "bg-warning-500",
+  },
+  quotation: {
+    button: "border-brand-500 bg-brand-500 text-white hover:bg-brand-600",
+    dot: "bg-brand-500",
+  },
+} as const;
+
 
 function tabsFor(businessType: string | null, words: BoardWords, installments: boolean): Array<[Tab, string]> {
   const tabs: Array<[Tab, string]> = [];
@@ -142,14 +159,25 @@ export default function DocumentsPage() {
             Prices you've promised, and goods you're holding until they're paid for.
           </p>
         </div>
-        <div className="flex gap-2">
+        {/* Three different things, so three different buttons — each in the
+            colour of its own tab below, so the button and the list it adds
+            to read as one (the client: "button sary same lg rhy hain"). */}
+        <div className="flex flex-wrap gap-2">
           {installmentsOn && (
-            <Button size="sm" variant="outline" onClick={() => setStarting("installments")}>Sell on installments</Button>
+            <button type="button" data-start="installments" onClick={() => setStarting("installments")} className={`${START} ${KIND_LOOK.installments.button}`}>
+              <CalenderIcon className="size-4 shrink-0" /> Sell on installments
+            </button>
           )}
           {layawayOn && (
-            <Button size="sm" variant="outline" onClick={() => setStarting("layaway")}>Hold goods on advance</Button>
+            <button type="button" data-start="layaway" onClick={() => setStarting("layaway")} className={`${START} ${KIND_LOOK.layaway.button}`}>
+              <BoxIconLine className="size-4 shrink-0" /> Hold goods on advance
+            </button>
           )}
-          {quotesOn && <Button size="sm" onClick={() => setStarting("quotation")}>New quotation</Button>}
+          {quotesOn && (
+            <button type="button" data-start="quotation" onClick={() => setStarting("quotation")} className={`${START} ${KIND_LOOK.quotation.button}`}>
+              <FileIcon className="size-4 shrink-0" /> New quotation
+            </button>
+          )}
         </div>
       </div>
 
@@ -171,8 +199,30 @@ export default function DocumentsPage() {
         }}
       />
 
+      {/* ── Filters ────────────────────────────────────────────────── */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 p-1 dark:border-gray-700">
+          {tabs.map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => { setKind(key); if (key !== "layaway" && (status === "quiet" || status === "paid_up")) setStatus("open"); }}
+              className={`whitespace-nowrap rounded-md px-3.5 py-1.5 text-theme-sm font-medium transition ${
+                kind === key
+                  ? "bg-brand-500 text-white"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
+              }`}
+            >
+              <span className={`mr-1.5 inline-block size-2 rounded-full align-middle ${kind === key ? "bg-white" : (KIND_LOOK[key as keyof typeof KIND_LOOK]?.dot ?? "bg-gray-300")}`} aria-hidden />
+              {label}
+            </button>
+          ))}
+        </div>
+
+      </div>
+
       {/* ── What's outstanding ─────────────────────────────────────── */}
-      <div className={`mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${kind === "installments" ? "hidden" : ""}`}>
+      <div className={`mb-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 ${kind === "installments" ? "hidden" : ""}`}>
         <Tile
           label="Advances held"
           value={money(summary.data?.deposits_held ?? 0)}
@@ -198,27 +248,6 @@ export default function DocumentsPage() {
           tone={(summary.data?.overdue ?? 0) > 0 ? "warn" : undefined}
           onClick={() => setStatus("lapsed")}
         />
-      </div>
-
-      {/* ── Filters ────────────────────────────────────────────────── */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex gap-1 rounded-lg border border-gray-200 p-1 dark:border-gray-700">
-          {tabs.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setKind(key); if (key !== "layaway" && (status === "quiet" || status === "paid_up")) setStatus("open"); }}
-              className={`rounded-md px-3.5 py-1.5 text-theme-sm font-medium transition ${
-                kind === key
-                  ? "bg-brand-500 text-white"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
       </div>
 
       {kind === "installments" ? <InstallmentsTab onOpen={setOpenPlan} /> : (<>
@@ -330,7 +359,7 @@ function Row({
   return (
     <tr className={`border-b border-gray-100 last:border-0 dark:border-gray-800 ${tint}`} data-state={kind === "layaway" ? adv.state : undefined}>
       <td className="px-5 py-3">
-        <Link to={`/tenant/documents/${doc.id}`} className="font-medium text-brand-500 hover:text-brand-600">
+        <Link to={`/tenant/documents/${doc.id}`} className="whitespace-nowrap font-medium text-brand-500 hover:text-brand-600">
           {doc.number}
         </Link>
         <div className="mt-0.5 flex items-center gap-1.5">
