@@ -77,9 +77,9 @@ export default function WarrantyLookupPage() {
   return (
     <>
       <PageMeta title="Warranty desk" description="Look up a serial and book units in" />
-      <div className="mx-auto max-w-3xl">
+      <div className="max-w-3xl">
         <div className="mb-5">
-          <h1 className="text-title-sm font-semibold text-gray-800 dark:text-white/90">Warranty desk</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Warranty desk</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
             Look a serial up, take the unit in, and record what happened to it.
           </p>

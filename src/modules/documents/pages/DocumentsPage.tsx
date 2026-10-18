@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { FilterBar } from "../../../components/ui/filters";
 import Badge from "../../../components/ui/badge/Badge";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -201,23 +202,17 @@ export default function DocumentsPage() {
 
       {/* ── Filters ────────────────────────────────────────────────── */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-gray-200 p-1 dark:border-gray-700">
-          {tabs.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setKind(key); if (key !== "layaway" && (status === "quiet" || status === "paid_up")) setStatus("open"); }}
-              className={`whitespace-nowrap rounded-md px-3.5 py-1.5 text-theme-sm font-medium transition ${
-                kind === key
-                  ? "bg-brand-500 text-white"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"
-              }`}
-            >
-              <span className={`mr-1.5 inline-block size-2 rounded-full align-middle ${kind === key ? "bg-white" : (KIND_LOOK[key as keyof typeof KIND_LOOK]?.dot ?? "bg-gray-300")}`} aria-hidden />
-              {label}
-            </button>
-          ))}
-        </div>
+        <FilterTabs
+          label="Which list"
+          value={kind}
+          onChange={(key) => { setKind(key); if (key !== "layaway" && (status === "quiet" || status === "paid_up")) setStatus("open"); }}
+          tabs={tabs.map(([key, label]) => ({
+            key,
+            label,
+            // The colour of the button that starts it, so the two read as one.
+            icon: <span className={`inline-block size-2 rounded-full ${kind === key ? "bg-white" : (KIND_LOOK[key as keyof typeof KIND_LOOK]?.dot ?? "bg-gray-300")}`} aria-hidden />,
+          }))}
+        />
 
       </div>
 

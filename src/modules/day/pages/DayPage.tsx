@@ -3,6 +3,7 @@ import { rungUpHint } from "../rungUpHint";
 import { useOnceKey } from "../../../common/onceKey";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import Label from "../../../components/form/Label";
@@ -274,26 +275,18 @@ export default function DayPage() {
         )}
       </div>
 
-      <div className="mb-5 flex gap-1 rounded-xl border border-gray-200 p-1 dark:border-gray-800 sm:w-fit">
-        {(([
-          ["today", "Today"],
-          ["shifts", "Shifts"],
-          ["history", "Past days"],
-          ["banking", "Banking"],
-        ] as [Tab, string][]).filter(([key]) => key !== "shifts" || canSeeShifts)).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => { setTab(key); setPage(1); }}
-            className={`flex-1 rounded-lg px-4 py-2 text-theme-sm font-medium transition sm:flex-none ${
-              tab === key
-                ? "bg-brand-500 text-white"
-                : "text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <FilterTabs
+        className="mb-5"
+        label="Day and banking"
+        value={tab}
+        onChange={(key) => { setTab(key); setPage(1); }}
+        tabs={([
+          { key: "today", label: "Today" },
+          { key: "shifts", label: "Shifts" },
+          { key: "history", label: "Past days" },
+          { key: "banking", label: "Banking" },
+        ] as const).filter((t) => t.key !== "shifts" || canSeeShifts)}
+      />
 
       {/* ── Today ──────────────────────────────────────────────────── */}
       {tab === "today" && (

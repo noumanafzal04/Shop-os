@@ -156,7 +156,7 @@ export default function PromotionsPage() {
       <PageMeta title="Promotions" description="Automatic scheduled discounts" />
       <div className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-title-sm font-semibold text-gray-800 dark:text-white/90">Promotions</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Promotions</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">Automatic discounts — no code needed. The best live one applies at the till.</p>
         </div>
         <Button size="sm" onClick={openNew}>+ New promotion</Button>

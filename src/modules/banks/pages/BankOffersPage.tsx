@@ -99,7 +99,7 @@ export default function BankOffersPage() {
 
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">Bank card offers</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Bank card offers</h1>
           <p className="mt-1 max-w-2xl text-theme-sm text-gray-500 dark:text-gray-400">
             When a bank runs a deal on its own cards, the customer pays less and{" "}
             <strong>the bank pays you the difference</strong>. Set the deal up here, pick the bank at

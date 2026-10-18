@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router";
 
 import { ApiError } from "../../../common/types/api";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { OrderAlerts } from "../../notifications/OrderAlerts";
 import Alert from "../../../components/ui/alert/Alert";
 import Button from "../../../components/ui/button/Button";
@@ -293,45 +294,32 @@ export default function OwnerOrdersPage() {
         </Link>
       </div>
 
-      <div role="tablist" aria-label="Which orders" className="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        {TABS.map((t) => {
-          const on = tab === t.value;
-
-          return (
-            <button
-              key={t.value}
-              type="button"
-              role="tab"
-              id={`orders-tab-${t.value}`}
-              aria-selected={on}
-              aria-controls="orders-panel"
-              onClick={() => show(t.value)}
-              className={`-mb-px flex min-h-11 items-center gap-2 border-b-[3px] px-4 text-theme-sm font-semibold transition ${
-                on
-                  ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                  : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+      {/* On Today: how many are still being worked — in sight from the
+          other tab too, so looking something up does not hide a queue. */}
+      <FilterTabs
+        className="mb-4"
+        label="Which orders"
+        value={tab}
+        onChange={show}
+        tabs={TABS.map((t) => ({
+          key: t.value,
+          label: t.label,
+          badge: t.value === "today" && beingWorked !== undefined ? (
+            <span
+              data-testid="being-worked"
+              aria-label={`${beingWorked} being worked`}
+              className={`grid min-w-5 place-items-center rounded-md px-1 text-theme-xs tabular-nums ${
+                tab === "today" ? "bg-white/25 text-white"
+                  : beingWorked > 0 ? "bg-brand-500 text-white" : "bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300"
               }`}
             >
-              {t.label}
-              {/* On Today: how many are still being worked — in sight from the
-                  other tab too, so looking something up does not hide a queue. */}
-              {t.value === "today" && beingWorked !== undefined && (
-                <span
-                  data-testid="being-worked"
-                  aria-label={`${beingWorked} being worked`}
-                  className={`grid min-w-5 place-items-center rounded-md px-1 text-theme-xs tabular-nums ${
-                    beingWorked > 0 ? "bg-brand-500 text-white" : "bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300"
-                  }`}
-                >
-                  {beingWorked}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+              {beingWorked}
+            </span>
+          ) : undefined,
+        }))}
+      />
 
-      <div role="tabpanel" id="orders-panel" aria-labelledby={`orders-tab-${tab}`}>
+      <div id="orders-panel">
         {/* A DELIVERY WITH NOBODY CARRYING IT is a customer waiting for a bike
             that was never sent. It is counted across the whole shop, not just
             what is on screen, because it is a warning rather than a filter

@@ -2,6 +2,7 @@ import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
@@ -94,22 +95,13 @@ export default function DisposalsPage() {
 
       <WriteOffModal open={writingOff} onClose={() => setWritingOff(false)} />
 
-      <div className="mb-4 flex gap-1 border-b border-gray-200 dark:border-gray-800">
-        {TABS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setTab(key)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-theme-sm font-medium transition ${
-              tab === key
-                ? "border-brand-500 text-brand-500"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <FilterTabs
+        className="mb-4"
+        label="Which disposals"
+        value={tab}
+        onChange={setTab}
+        tabs={TABS.map(([key, label]) => ({ key, label }))}
+      />
 
       {rows.length > 0 && (
         <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">

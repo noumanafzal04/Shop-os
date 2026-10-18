@@ -228,7 +228,10 @@ export function FilterChips<T extends string>({
 }) {
   return (
     <div className="-mx-1 overflow-x-auto px-1 pb-0.5" role="group" aria-label={ariaLabel}>
-      <div className="flex w-max gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800/60">
+      {/* The shop's status pills (Customers, Quotes, Transfers): one look for
+          "which of these" across every list, kept apart from FilterTabs —
+          the segmented track that picks a TOPIC (design audit 2026-10-18). */}
+      <div className="flex w-max gap-2">
         {options.map((option) => {
           const active = value === option.value;
           const count = counts?.[option.value === "" ? "all" : option.value];
@@ -239,23 +242,15 @@ export function FilterChips<T extends string>({
               type="button"
               aria-pressed={active}
               onClick={() => onChange(option.value)}
-              className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-theme-sm font-medium transition ${
+              className={`flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-theme-sm font-medium transition ${
                 active
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-white/10 dark:text-white"
-                  : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                  ? "border-brand-500 bg-brand-500 text-white"
+                  : "border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/5"
               }`}
             >
               {option.label}
               {count !== undefined && (
-                <span
-                  className={`grid min-w-5 place-items-center rounded-md px-1 text-theme-xs tabular-nums ${
-                    active
-                      ? "bg-brand-500 text-white"
-                      : "bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300"
-                  }`}
-                >
-                  {count}
-                </span>
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-gray-400"}`}>{count}</span>
               )}
             </button>
           );

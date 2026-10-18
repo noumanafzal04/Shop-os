@@ -1,6 +1,7 @@
 import { useState } from "react";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterBar } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import Select from "../../../components/form/Select";
@@ -98,13 +99,14 @@ export default function CouponsPage() {
         <Button size="sm" onClick={openCreate}>+ New coupon</Button>
       </div>
 
-      <div className="mb-4 max-w-xs">
-        <Input
-          placeholder="Search a code…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value.toUpperCase()); setPage(1); }}
-        />
-      </div>
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value.toUpperCase()); setPage(1); },
+          placeholder: "Search a code…",
+          label: "Search coupons",
+        }}
+      />
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">

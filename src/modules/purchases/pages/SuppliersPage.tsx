@@ -3,6 +3,7 @@ import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
+import { FilterBar } from "../../../components/ui/filters";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
 import TextArea from "../../../components/form/input/TextArea";
@@ -161,9 +162,14 @@ export default function SuppliersPage() {
         {rights.editsSuppliers && <Button size="sm" onClick={openCreate}>+ New supplier</Button>}
       </div>
 
-      <div className="mb-4 max-w-xs">
-        <Input placeholder="Search suppliers…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
-      </div>
+      <FilterBar
+        search={{
+          value: search,
+          onChange: (value) => { setSearch(value); setPage(1); },
+          placeholder: "Search suppliers…",
+          label: "Search suppliers",
+        }}
+      />
 
       <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
