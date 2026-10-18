@@ -69,6 +69,8 @@ export interface Sale {
   adds_to_sale_id?: string | null;
   /** The visit's bills; null for a bill on its own (Q19 A). */
   visit?: SaleVisit | null;
+  /** On one sale's sheet: whether more may still be added to it (Q19 A). */
+  add_to?: { open: boolean; why_not: string | null } | null;
   /** On one sale's sheet: whether it may be re-rung, and what would carry over (Q19 B). */
   re_ring?: { open: boolean; why_not: string | null; carried: Array<{ method: string; amount: number }> } | null;
   /** On the answer to a re-ring: the bill it replaced (Q19 B). */

@@ -4,7 +4,7 @@ import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { uuid } from "../../../common/uuid";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { hasSecondShop } from "../../branches/places";
-import { Link, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -30,6 +30,7 @@ import { NoAccess } from "../../../common/ui/NoAccess";
 import { deniedReason } from "../../../common/api/denied";
 import { useAuthStore } from "../../../stores/authStore";
 import { afterTheSale } from "../afterTheSale";
+import type { TillAsk } from "../../pos/tillAsk";
 import { voidBlocked } from "../voidBlocked";
 import { ApiError } from "../../../common/types/api";
 import type { SaleStatus } from "../types";
@@ -178,6 +179,9 @@ export default function SalesPage() {
   // `?? false`: a missing key is OFF here as everywhere else; this one line
   // used to read it as ON.
   const may = afterTheSale(useAuthStore((st) => st.hasPermission));
+  // The till is where a bill is added to or re-rung (Q19); it rides sales.manage.
+  const canRing = useAuthStore((st) => st.hasPermission)("sales.manage");
+  const navigate = useNavigate();
   const hasPos = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.pos ?? false,
   );
@@ -1044,6 +1048,19 @@ export default function SalesPage() {
                 {may.exchanges && hasPos && (detail.data.status === "completed" || detail.data.status === "partially_refunded") && (
                   <Button size="sm" variant="outline" onClick={() => setExchanging(true)}>
                     Exchange
+                  </Button>
+                )}
+                {/* The customer came back with the bill (Q19): it goes to the
+                    till to be added to or re-rung. The server says whether it
+                    still may be, by the rule the till's Complete keeps. */}
+                {hasPos && canRing && detail.data.add_to?.open === true && (
+                  <Button size="sm" variant="outline" onClick={() => navigate("/tenant/pos", { state: { addTo: detail.data.id } satisfies TillAsk })}>
+                    Add to this bill
+                  </Button>
+                )}
+                {hasPos && canRing && detail.data.re_ring?.open === true && (
+                  <Button size="sm" variant="outline" onClick={() => navigate("/tenant/pos", { state: { reRing: detail.data.id } satisfies TillAsk })}>
+                    Re-ring at the till
                   </Button>
                 )}
                 {/* Only while its own day is going (Q18) — the server says so in `void`. */}

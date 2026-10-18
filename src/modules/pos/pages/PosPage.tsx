@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BankOfferRow } from "../../banks/components/BankOfferRow";
 import { ServedByRow } from "../components/ServedByRow";
 import type { CardType } from "../../banks/services/banksService";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { uuid } from "../../../common/uuid";
 import { ChevronLeftIcon, ChevronDownIcon, TrashBinIcon, PlusIcon, AlertIcon, CloseIcon, DocsIcon, DollarLineIcon, ListIcon, TableIcon, UserCircleIcon, CheckLineIcon } from "../../../icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +33,7 @@ import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
 import { planRingAgain, slipBill, type LineToRing } from "../ringAgain";
 import { billToAddTo, settledLines, visitLine, type AddingTo } from "../saleComplete";
 import { reRingDifference, reRingingOf, slipOf, type ReRinging } from "../reRing";
+import { tillAskOf } from "../tillAsk";
 import { RefundApproval } from "../../sales/components/RefundApproval";
 import { NO_APPROVAL, approvalPayload, approvalReady, type ApprovalState } from "../../sales/refundApproval";
 import { queueTally } from "../../offline/db/repo";
@@ -2719,6 +2720,40 @@ export default function PosPage() {
     setReRinging({ ...quote, left: [...slip.left, ...plan.left] });
     receiptModal.closeModal();
   };
+
+  // Two more for a bill found in Sales, not on the sheet (Q19 A).
+  const startAddingTo = async (id: string) => {
+    if (cart.length > 0) {
+      setPosNotice("There is a bill on the till. Finish it or hold it first — the extra items go on an empty counter.");
+      return;
+    }
+    let full: Sale;
+    try {
+      full = (await salesService.show(id)).data;
+    } catch {
+      setPosNotice("The bill could not be read just now. Nothing was changed — try again.");
+      return;
+    }
+    if (full.add_to?.open !== true) {
+      setPosNotice(full.add_to?.why_not ?? `Nothing can be added to ${full.invoice_number} now — ring a new sale.`);
+      return;
+    }
+    setAddingTo(billToAddTo(full));
+    scanRef.current?.focus();
+  };
+
+  // A bill sent here from Sales (Q19): read once, then dropped from the
+  // history entry, so Back or a reload does not start it again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const ask = tillAskOf(location.state);
+    if (ask === null) return;
+    navigate(location.pathname, { replace: true, state: null });
+    if ("reRing" in ask) void startReRing({ id: ask.reRing } as Sale);
+    else void startAddingTo(ask.addTo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const saveDealtWith = async (row: OutboxRow, note: string) => {
     setRefusedBusy(row.op);
