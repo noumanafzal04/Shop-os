@@ -122,6 +122,26 @@ class ABillCanBeAddedToTest extends TestCase
         $this->assertSame($count, Sale::withoutTenancy()->count(), 'a refused addition rang a sale anyway');
     }
 
+    /** The bill found in Sales later the same day says whether it can still be added to. */
+    public function test_the_sale_says_whether_it_can_still_be_added_to(): void
+    {
+        $this->travelTo('2026-10-16 15:00:00');
+        $yesterday = $this->sell(['Milk' => 1]);
+        $this->travelTo('2026-10-17 12:00:00');
+        $today = $this->sell(['Milk' => 1]);
+        $addition = $this->sell(['Bread' => 1], ['adds_to_sale_id' => $today['id']]);
+        $cancelled = $this->sell(['Milk' => 1]);
+        DB::table('sales')->where('id', $cancelled['id'])->update(['status' => 'cancelled']);
+
+        $addTo = fn (array $sale) => $this->as()->getJson("/api/v1/sales/{$sale['id']}")->assertOk()->json('data.add_to');
+
+        $this->assertSame(['open' => true, 'why_not' => null], $addTo($today));
+        $this->assertSame(['open' => true, 'why_not' => null], $addTo($addition), 'an addition is added to through its first bill');
+        $this->assertFalse($addTo($yesterday)['open']);
+        $this->assertStringContainsString('another day', $addTo($yesterday)['why_not']);
+        $this->assertStringContainsString('cancelled', $addTo($cancelled)['why_not']);
+    }
+
     public function test_the_offline_door_cannot_add_to_a_bill_from_another_day(): void
     {
         $this->travelTo('2026-10-16 15:00:00');

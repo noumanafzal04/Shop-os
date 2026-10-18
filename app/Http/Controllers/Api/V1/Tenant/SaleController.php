@@ -231,6 +231,9 @@ class SaleController extends Controller
             ...$sale->toArray(),
             // The first bill and the ones added to it (Q19 A).
             'visit' => BillToAddTo::visit($sale),
+            // Whether more may still be added to it (Q19 A) — so the sale's
+            // page offers it by the rule the till's Complete keeps.
+            'add_to' => self::addingTo($sale),
             // Whether it may be re-rung, and what would carry over (Q19 B).
             're_ring' => $sale->isCancelled() ? null : self::reRinging($sale),
             // Whether it may still be voided, and what that would hand back —
@@ -239,6 +242,24 @@ class SaleController extends Controller
                 ? self::voiding($sale, $request->user())
                 : null,
         ]);
+    }
+
+    /**
+     * WHETHER MORE MAY STILL BE ADDED TO THIS BILL (Q19 A): the customer came
+     * back, the cashier found the bill in Sales. The till's own place is
+     * checked again when the addition is rung.
+     *
+     * @return array{open: bool, why_not: ?string}
+     */
+    private static function addingTo(Sale $sale): array
+    {
+        try {
+            BillToAddTo::firstOf($sale->id, $sale->branch_id, (bool) $sale->is_training);
+        } catch (DomainException $refused) {
+            return ['open' => false, 'why_not' => $refused->getMessage()];
+        }
+
+        return ['open' => true, 'why_not' => null];
     }
 
     /**
