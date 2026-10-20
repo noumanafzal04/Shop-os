@@ -3,7 +3,7 @@ import { effectiveTaxRate } from "../offline/pricing/priceCart";
 import { round2 } from "../offline/pricing/money";
 import fixtures from "./fixtures/till-bill.json";
 import { lineNet, lineUnit, packPrice } from "./lineMath";
-import { followLevel, settleInCoins, tillBill, type BillGroup, type BillLine, type PriceLevel, shortBy } from "./tillBill";
+import { followLevel, settleInCoins, taxableShown, tillBill, type BillGroup, type BillLine, type PriceLevel, shortBy } from "./tillBill";
 
 /**
  * EVERY BILL THE SERVER WAS ASKED TO MAKE, made again by the counter screen.
@@ -195,5 +195,21 @@ describe("a cash tender that is too small", () => {
 
   it("something that is not a number has paid nothing", () => {
     expect(shortBy("abc", 100)).toBe(100);
+  });
+});
+
+describe("what the till says is taxable (the full re-test, #4)", () => {
+  it("is the price less the tax inside it when prices include tax", () => {
+    expect(taxableShown(99.99, 14.53, true)).toBe(85.46);
+    expect(taxableShown(117, 17, true)).toBe(100);
+  });
+
+  it("is the base itself when the tax goes on top", () => {
+    expect(taxableShown(99.99, 17, false)).toBe(99.99);
+  });
+
+  it("is what the till's strip shows", () => {
+    const source = Object.values(import.meta.glob("./pages/PosPage.tsx", { query: "?raw", import: "default", eager: true }))[0] as string;
+    expect(source).toMatch(/k: "Taxable", v: money\(taxableShown\(taxableBase, taxAmount, taxInclusive\)\)/);
   });
 });

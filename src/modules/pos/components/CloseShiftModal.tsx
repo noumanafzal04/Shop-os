@@ -8,6 +8,14 @@ import { tillFlag, useTillSettings, useTillCurrency } from "../../offline/tillSe
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useOfflineStore } from "../../offline/offlineStore";
 
+/** Rupees and paisa as typed: digits and one point, two places at most. */
+function typedMoney(raw: string): string {
+  const [whole, ...rest] = raw.replace(/[^\d.]/g, "").split(".");
+  return rest.length === 0 ? whole : `${whole}.${rest.join("").slice(0, 2)}`;
+}
+
+const looseCash = (typed: string): number => Math.round((Number(typed) || 0) * 100) / 100;
+
 /** Tenders a cashier may be asked to declare. Cash is counted, not declared. */
 const DECLARABLE = [
   { key: "card", label: "Card" },
@@ -40,6 +48,8 @@ export default function CloseShiftModal({
   onSubmit: (payload: {
     counted: number;
     denominations?: Record<string, number>;
+    /** Paisa no note box holds — already inside `counted`. */
+    loose?: number;
     declared?: Record<string, number>;
     notes?: string;
   }) => void;
@@ -50,6 +60,10 @@ export default function CloseShiftModal({
 
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [typed, setTyped] = useState("");
+  // WHAT NO NOTE BOX HOLDS (the full re-test, #9). A drawer expected to hold
+  // 53,708.50 could only be counted to the rupee, and "0.5" typed in the 1s
+  // box became 5 coins. Rupees and paisa, added to the notes.
+  const [loose, setLoose] = useState("");
   const [declared, setDeclared] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [empty, setEmpty] = useState(false);
@@ -86,14 +100,14 @@ export default function CloseShiftModal({
   const countedTotal = useMemo(() => {
     if (!byNote) return Number(typed) || 0;
     // To the paisa: three dimes are 0.30, not 0.30000000000000004.
-    return Math.round(denominations.reduce((sum, d) => sum + d * (Number(counts[String(d)]) || 0), 0) * 100) / 100;
-  }, [byNote, typed, counts, denominations]);
+    return Math.round((denominations.reduce((sum, d) => sum + d * (Number(counts[String(d)]) || 0), 0) + looseCash(loose)) * 100) / 100;
+  }, [byNote, typed, counts, denominations, loose]);
 
   // NOTHING COUNTED IS NOT A COUNT OF NOTHING. Two presses of "Close shift" —
   // the till's banner, then this sheet's — closed a drawer holding 22,580 as
   // counted at 0, and booked the whole drawer short. A box left untouched is
   // a count not yet made; an empty drawer is said out loud, with its own tick.
-  const counted = byNote ? Object.values(counts).some((v) => v !== "") : typed.trim() !== "";
+  const counted = byNote ? Object.values(counts).some((v) => v !== "") || loose !== "" : typed.trim() !== "";
   const mayClose = counted || empty;
 
   // Only meaningful when the cashier is allowed to see what was expected.
@@ -118,6 +132,7 @@ export default function CloseShiftModal({
     onSubmit({
       counted: countedTotal,
       denominations: byNote && Object.keys(denoms).length ? denoms : undefined,
+      loose: byNote && looseCash(loose) > 0 ? looseCash(loose) : undefined,
       declared: Object.keys(tenders).length ? tenders : undefined,
       notes: notes.trim() || undefined,
     });
@@ -175,6 +190,20 @@ export default function CloseShiftModal({
               </div>
             );
           })}
+          <div className="col-span-2 flex items-center gap-2 pt-1">
+            <label htmlFor="loose-cash" className="shrink-0 text-sm text-gray-500 dark:text-gray-400">Loose cash</label>
+            <input
+              id="loose-cash"
+              data-loose-cash
+              inputMode="decimal"
+              className="h-9 w-28 rounded-lg border border-gray-200 bg-white px-2 text-right text-sm tabular-nums text-gray-800 focus:border-brand-300 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+              value={loose}
+              placeholder="0.00"
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => setLoose(typedMoney(e.target.value))}
+            />
+            <span className="text-theme-xs text-gray-400">paisa or anything no box above holds</span>
+          </div>
         </div>
       ) : (
         <div>

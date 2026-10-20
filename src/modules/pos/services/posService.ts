@@ -370,6 +370,8 @@ export const posService = {
     notes?: string;
     /** {5000: 3, 1000: 12, …}. When present it DERIVES the total server-side. */
     denominations?: Record<string, number>;
+    /** Paisa no note box holds — added to the notes' count (the full re-test, #9). */
+    loose_cash?: number;
     /** What the cashier says each non-cash tender took. */
     declared_tenders?: Record<string, number>;
   }) => apiPost<CashSession>("/pos/session/close", payload),

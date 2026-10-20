@@ -77,3 +77,32 @@ describe("closing a shift nobody counted", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ counted: 0 }));
   });
 });
+
+describe("counting to the paisa (the full re-test, #9)", () => {
+  it("adds the loose paisa to the notes, and says them apart", () => {
+    const onSubmit = sheet();
+    fireEvent.change(screen.getByLabelText(/How many 1,000 notes/), { target: { value: "22" } });
+    fireEvent.change(screen.getByLabelText("Loose cash"), { target: { value: "79.50" } });
+
+    fireEvent.click(closeButton());
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ counted: 22079.5, denominations: { "1000": 22 }, loose: 79.5 }));
+  });
+
+  it("is a count on its own, and keeps money as money — one point, two places", () => {
+    const onSubmit = sheet();
+    const box = screen.getByLabelText("Loose cash");
+    fireEvent.change(box, { target: { value: "0.5x55" } });
+    expect(box).toHaveValue("0.55");
+
+    fireEvent.click(closeButton());
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ counted: 0.55, denominations: undefined, loose: 0.55 }));
+  });
+
+  it("sends no loose figure when there is none", () => {
+    const onSubmit = sheet();
+    fireEvent.change(screen.getByLabelText(/How many 500 notes/), { target: { value: "2" } });
+
+    fireEvent.click(closeButton());
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ counted: 1000, loose: undefined }));
+  });
+});

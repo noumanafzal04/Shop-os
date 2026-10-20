@@ -7,6 +7,19 @@ const sale = (over: Partial<SettledSale> = {}): SettledSale => ({
 });
 
 describe("how the bill was settled, under the total", () => {
+  it("says the tip and the cash rounding that stand between the total and what was paid (the full re-test)", () => {
+    expect(settledLines(sale({ total: "116.99", amount_paid: "136.99", payment_method: "card", tip_amount: "20.00" }))).toEqual([
+      { label: "Staff tip", amount: 20 },
+      { label: "Paid by card", amount: 136.99 },
+    ]);
+    expect(settledLines(sale({ total: "140.40", amount_paid: "140.00", rounding_adjustment: "-0.40" }))).toEqual([
+      { label: "Cash rounding", amount: -0.4 },
+      { label: "Paid in cash", amount: 140 },
+      { label: "Change", amount: 0 },
+    ]);
+    expect(settledLines(sale()).map((l) => l.label), "nothing said when there is none").toEqual(["Paid in cash", "Change"]);
+  });
+
   it("cash: what was handed over and the change", () => {
     expect(settledLines(sale({ amount_paid: "5000.00", change_due: "10.00" }))).toEqual([
       { label: "Paid in cash", amount: 5000 },

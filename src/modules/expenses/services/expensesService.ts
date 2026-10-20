@@ -163,6 +163,8 @@ export interface ReportSummary {
     tax: number;
     gross_profit: number;
     expenses: number;
+    /** A cash bill settled to a coin: no sale, but in net profit. */
+    cash_rounding?: number;
     net_profit: number;
   };
   series: Array<{

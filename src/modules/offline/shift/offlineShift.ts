@@ -132,6 +132,7 @@ export async function closeShiftOffline(
   tenantId: string | null,
   denominations?: Record<string, number> | null,
   declared?: Record<string, number> | null,
+  loose?: number,
 ): Promise<void> {
   const session = await mirroredShift(tenantId);
 
@@ -144,6 +145,7 @@ export async function closeShiftOffline(
       counted_cash: counted,
       notes,
       denominations: denominations ?? undefined,
+      ...(loose !== undefined && loose > 0 ? { loose_cash: loose } : {}),
       declared_tenders: declared ?? undefined,
     }, tenantId),
   );

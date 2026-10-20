@@ -11,7 +11,7 @@ import type { PaymentMethod, Sale } from "../sales/types";
  *        and never named the offer that paid the rest.
  */
 
-export type SettledSale = Pick<Sale, "total" | "amount_paid" | "change_due" | "payment_method" | "payments" | "trade_in_total" | "bank_offer">;
+export type SettledSale = Pick<Sale, "total" | "amount_paid" | "change_due" | "payment_method" | "payments" | "trade_in_total" | "bank_offer" | "tip_amount" | "rounding_adjustment">;
 
 export interface SheetLine {
   label: string;
@@ -51,6 +51,12 @@ export function settledLines(sale: SettledSale): SheetLine[] {
     lines.push({ label: `Bank offer · ${named}`, amount: -sale.bank_offer.discount });
   }
   if (n(sale.trade_in_total) > 0) lines.push({ label: "Traded in", amount: -n(sale.trade_in_total) });
+  // What stands between the total and what was paid (the full re-test): a
+  // cash bill settled to a coin (#11), and the staff's tip on top (#5) —
+  // "Total 116.99 · Paid by card 136.99" with nothing between read as a
+  // mistake.
+  if (n(sale.rounding_adjustment) !== 0) lines.push({ label: "Cash rounding", amount: n(sale.rounding_adjustment) });
+  if (n(sale.tip_amount) > 0) lines.push({ label: "Staff tip", amount: n(sale.tip_amount) });
 
   const legs = (sale.payments ?? []).filter((p) => p.method !== "trade_in");
   // A re-rung bill (Q19 B) carries what was paid on the old one: said as

@@ -13,6 +13,8 @@ export interface TillUser {
   approves_refunds?: boolean;
   /** May say yes to a sale being voided (Q18). */
   approves_voids?: boolean;
+  /** May let a discount past the shop's limit (the full re-test, #3). */
+  approves_discounts?: boolean;
 }
 
 export interface UnlockResult {

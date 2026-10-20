@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { kindOfBusiness } from "../../common/tenant/kindOfBusiness";
 import { TRADE_FEATURES } from "../../test/tradeFeatures";
-import { cashbookShape } from "./cashbookShape";
+import { cashbookColumns, cashbookShape, cashbookSplits } from "./cashbookShape";
 
 describe("what the cashbook looks like for this business", () => {
   it("a books-only business sees Income and Expenses — no column it can never fill", () => {
@@ -42,5 +42,32 @@ describe("what the cashbook looks like for this business", () => {
     expect(online.footnote).not.toBeNull();
     expect(online.footnote).not.toMatch(/POS|shift|drawer/);
     expect(online.footnote).toMatch(/booked across all payment types/);
+  });
+});
+
+describe("every part of Money in and Money out is shown (the full re-test)", () => {
+  const money = (n: number) => `Rs ${n.toFixed(2)}`;
+  const shop = cashbookShape(kindOfBusiness(TRADE_FEATURES.mart));
+  const quiet = { sales_revenue: 116.99, other_income: 0, cash_rounding: 0, expenses: 0, refunds: 0, supplier_payments: 0 };
+
+  it("names what suppliers were paid, and the rounding on cash bills, when there is any", () => {
+    const busy = { ...quiet, cash_rounding: 3.01, supplier_payments: 800 };
+
+    expect(cashbookColumns(shop, busy).map((c) => c.key)).toEqual(
+      ["sales_revenue", "other_income", "cash_rounding", "expenses", "refunds", "supplier_payments"],
+    );
+    expect(cashbookSplits(busy, money)).toEqual({
+      in: "Sales Rs 116.99 · Other Rs 0.00 · Rounding Rs 3.01",
+      out: "Expenses Rs 0.00 · Refunds Rs 0.00 · Suppliers Rs 800.00",
+    });
+  });
+
+  it("draws no column of dashes for a shop that never rounds or buys through the system", () => {
+    expect(cashbookColumns(shop, quiet)).toEqual(shop.columns);
+    expect(cashbookSplits(quiet, money).out).toBe("Expenses Rs 0.00 · Refunds Rs 0.00");
+  });
+
+  it("a rounding down is said too — it is money that did not come in", () => {
+    expect(cashbookSplits({ ...quiet, cash_rounding: -0.4 }, money).in).toMatch(/Rounding Rs -0.40$/);
   });
 });

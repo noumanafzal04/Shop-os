@@ -24,7 +24,7 @@ import { formatIn } from "../../../common/format/currency";
 import { useTillCurrency } from "../../offline/tillSettings";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, packPrice, recalcLine, withLineDiscount } from "../lineMath";
-import { followLevel, shortBy, tillBill, type BillGroup } from "../tillBill";
+import { followLevel, shortBy, taxableShown, tillBill, type BillGroup } from "../tillBill";
 import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
 import { billKey, serverDueFrom } from "../tenderRecovery";
@@ -965,6 +965,13 @@ export default function PosPage() {
   // Complete voided as replaced by this one, what was paid carried over.
   const [reRinging, setReRinging] = useState<(ReRinging & { left: string[] }) | null>(null);
   const [reRingApproval, setReRingApproval] = useState<ApprovalState>(NO_APPROVAL);
+  // A DISCOUNT PAST THE SHOP'S LIMIT (the full re-test, #3). The server's
+  // refusal said "a manager has to approve it" and the till offered no way
+  // to; switching the till to the manager failed too, the drawer being the
+  // cashier's. Its words are kept here, and a manager's PIN on THIS till is
+  // the yes — sent with the next press, never kept anywhere.
+  const [discountAsk, setDiscountAsk] = useState<string | null>(null);
+  const [discountApproval, setDiscountApproval] = useState<ApprovalState>(NO_APPROVAL);
   // A re-ring cancels a bill, so it is a void's to approve.
   const needsReRingApproval = !hasPermission("sales.void");
 
@@ -1325,6 +1332,8 @@ export default function PosPage() {
     setAddingTo(null);
     setReRinging(null);
     setReRingApproval(NO_APPROVAL);
+    setDiscountAsk(null);
+    setDiscountApproval(NO_APPROVAL);
     setCart([]); setDiscount(""); setTendered(""); setCustomer(""); setCustomerPhone(""); setTip("");
     setTradeIns([]); setTradeInSearch("");
     setVehicle(null); setVehicleSearch(""); setOdometer("");
@@ -1454,6 +1463,15 @@ export default function PosPage() {
     return offlineSale;
   };
 
+  /** The manager's yes (#3) — sent only once the server has asked for it. */
+  const discountYes = (): { discount_approval?: { user_id: string; pin: string } } =>
+    discountAsk !== null ? { discount_approval: { user_id: discountApproval.approverId, pin: discountApproval.pin } } : {};
+  // A different bill is a different question: the yes was to that discount.
+  useEffect(() => {
+    setDiscountAsk(null);
+    setDiscountApproval(NO_APPROVAL);
+  }, [cart, discount]);
+
   const checkout = useMutation({
     mutationFn: async () => {
       const payload: SaleInput = {
@@ -1574,13 +1592,14 @@ export default function PosPage() {
           // carries what was paid and takes only the difference tendered.
           expected_payable: fullPayable,
           ...approvalPayload(reRingApproval, needsReRingApproval),
+          ...discountYes(),
         });
       }
 
       // What the cashier was SHOWN, so the sale is made at that figure or not
       // at all. Online only: a queued sale already happened, and refusing it
       // at sync would lose the record of money that changed hands.
-      return salesService.create({ ...payload, expected_payable: payable });
+      return salesService.create({ ...payload, expected_payable: payable, ...discountYes() });
     },
     /**
      * A SHORT TENDER IS A QUESTION, NOT A FAILURE.
@@ -1594,6 +1613,10 @@ export default function PosPage() {
      * the amount.
      */
     onError: (error: unknown) => {
+      if (error instanceof ApiError && error.errorCode === "DISCOUNT_LIMIT_EXCEEDED") {
+        setDiscountAsk(error.message);
+        return;
+      }
       const due = serverDueFrom(error);
       if (due === null) return;
 
@@ -2796,7 +2819,9 @@ export default function PosPage() {
   // A re-ring that would hand back notes nobody paid, or that still waits
   // for a supervisor's PIN, is not a bill that can be completed (Q19 B).
   const reRingHeld = reRingMoney !== null && (reRingMoney.blocked !== null || !approvalReady(reRingApproval, needsReRingApproval));
-  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && (
+  // …and a discount past the limit waits for the manager's PIN (#3).
+  const discountHeld = discountAsk !== null && !approvalReady(discountApproval, true);
+  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && !discountHeld && (
     method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
       : method === "split" ? total > 0 && splitPaid >= payable
@@ -4352,7 +4377,7 @@ export default function PosPage() {
                   { k: "Total Qty", v: fmtQty(cart.reduce((s, l) => s + l.quantity, 0)), num: true, tone: cart.length ? undefined : "muted" },
                   { k: "Sub Total", v: money(grossSubtotal), num: true, tone: grossSubtotal ? undefined : "muted" },
                   { k: "Discount", v: discountTotal > 0 ? `−${money(discountTotal)}` : money(0), num: true, tone: discountTotal > 0 ? "discount" : "muted" },
-                  { k: "Taxable", v: money(taxableBase), num: true, tone: taxableBase ? undefined : "muted" },
+                  { k: "Taxable", v: money(taxableShown(taxableBase, taxAmount, taxInclusive)), num: true, tone: taxableBase ? undefined : "muted" },
                   { k: "Tax", v: money(taxAmount), num: true, tone: taxAmount ? undefined : "muted" },
                   { k: "Charges", v: money(0), num: true, tone: "muted" },
                   // The group is named because it changes the bill. A cashier reading a
@@ -5057,7 +5082,13 @@ export default function PosPage() {
                 />
               </div>
             )}
-            {serverDue === null && checkout.error instanceof Error && (
+            {discountAsk !== null && (
+              <div data-discount-approval className="mt-3 space-y-2 rounded-lg border border-warning-200 bg-warning-50 p-3 text-theme-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+                <p>{discountAsk} A manager approves it here with their PIN, then press Complete.</p>
+                <RefundApproval needsApproval ownDrawer={null} value={discountApproval} onChange={setDiscountApproval} purpose="discount" drawerNeeded={false} />
+              </div>
+            )}
+            {serverDue === null && checkout.error instanceof Error && !(checkout.error instanceof ApiError && checkout.error.errorCode === "DISCOUNT_LIMIT_EXCEEDED") && (
               <div className="mt-3">
                 <Alert
                   variant="error"

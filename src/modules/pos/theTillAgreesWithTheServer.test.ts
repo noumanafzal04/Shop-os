@@ -323,7 +323,9 @@ describe("a short tender is a question the till can answer", () => {
   });
 
   it("tells the server what the cashier was shown, online only", () => {
-    expect(code).toMatch(/salesService\.create\(\{ \.\.\.payload, expected_payable: payable \}\)/);
+    // …with a manager's yes to a discount past the limit, when one was asked
+    // for (the full re-test, #3) — online only too.
+    expect(code).toMatch(/salesService\.create\(\{ \.\.\.payload, expected_payable: payable, \.\.\.discountYes\(\) \}\)/);
     // Not in the payload itself, which is also what the OFFLINE queue stores:
     // a sale that already happened must never be refused at sync over it.
     const payloadBlock = code.slice(code.indexOf("const payload"), code.indexOf("if (!connected) return"));

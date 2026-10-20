@@ -197,6 +197,12 @@ export default function ReportsPage() {
             <MetricCard label="Cost of Goods" value={money(data.totals.cogs)} />
             <MetricCard label="Gross Profit" value={money(data.totals.gross_profit)} />
             <MetricCard label="Expenses" value={money(data.totals.expenses)} />
+            {/* A cash bill settled to a coin (the full re-test, #2): no sale,
+                but money the shop kept — or gave up — so net profit counts it
+                and the row says so. Only when there is some. */}
+            {(data.totals.cash_rounding ?? 0) !== 0 && (
+              <MetricCard label="Cash Rounding" value={money(data.totals.cash_rounding ?? 0)} />
+            )}
             <MetricCard label="Net Profit" value={money(data.totals.net_profit)} />
           </>
         ) : (

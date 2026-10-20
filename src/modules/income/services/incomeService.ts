@@ -65,9 +65,12 @@ export interface Cashbook {
   totals: {
     sales_revenue: number;
     other_income: number;
+    /** A cash bill settled to a coin — money in, never a sale. */
+    cash_rounding: number;
     money_in: number;
     expenses: number;
     refunds: number;
+    supplier_payments: number;
     money_out: number;
     net: number;
   };
@@ -75,9 +78,11 @@ export interface Cashbook {
     date: string;
     sales_revenue: number;
     other_income: number;
+    cash_rounding: number;
     money_in: number;
     expenses: number;
     refunds: number;
+    supplier_payments: number;
     money_out: number;
     net: number;
     balance: number;

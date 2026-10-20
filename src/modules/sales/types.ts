@@ -114,6 +114,10 @@ export interface Sale {
   trade_in_total?: string;
   trade_ins?: SaleTradeIn[];
   change_due: string;
+  /** The staff's, paid on top of the bill — inside what was paid, never in the total. */
+  tip_amount?: string | number | null;
+  /** A cash bill settled to a coin: + the shop kept it, − it gave it up. */
+  rounding_adjustment?: string | number | null;
   notes: string | null;
   sold_at: string;
   cancelled_at: string | null;
@@ -298,6 +302,8 @@ export interface SaleInput {
   served_by?: string;
   /** The staff's. Added to what must be handed over, and to nothing else. */
   tip_amount?: number;
+  /** A manager's yes to a discount past the shop's limit, typed on this till. Online only. */
+  discount_approval?: { user_id: string; pin: string };
   items: SaleLineInput[];
   discount?: number;
   coupon_code?: string;

@@ -26,7 +26,7 @@ export function RefundApproval({ needsApproval, ownDrawer, value, onChange, purp
   ownDrawer: "open" | "practice" | "none" | null | undefined;
   value: ApprovalState;
   onChange: (next: ApprovalState) => void;
-  purpose?: "refund" | "void";
+  purpose?: "refund" | "void" | "discount";
   /** False when no notes go back across the counter (a card sale): no drawer to choose. */
   drawerNeeded?: boolean;
 }) {
@@ -49,8 +49,10 @@ export function RefundApproval({ needsApproval, ownDrawer, value, onChange, purp
   });
 
   const others = (drawers.data ?? []).filter((d) => d.status === "open" && d.user?.id !== me?.id);
-  const mayApprove = (u: { approves_refunds?: boolean; approves_voids?: boolean }) =>
-    purpose === "void" ? u.approves_voids === true : u.approves_refunds !== false;
+  const mayApprove = (u: { approves_refunds?: boolean; approves_voids?: boolean; approves_discounts?: boolean }) =>
+    purpose === "void" ? u.approves_voids === true
+      : purpose === "discount" ? u.approves_discounts === true
+      : u.approves_refunds !== false;
   const approvers = (roster.data ?? []).filter((u) => mayApprove(u) && u.has_pin && !u.pin_locked);
 
   if (!choosesDrawer && !asking) return null;

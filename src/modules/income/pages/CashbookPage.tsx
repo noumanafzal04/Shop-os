@@ -8,7 +8,7 @@ import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { ReportWindow } from "../../expenses/components/ReportWindow";
 import { useReportWindow } from "../../expenses/hooks/useReportWindow";
 import { rangeParams } from "../../expenses/reportPeriod";
-import { cashbookShape } from "../cashbookShape";
+import { cashbookColumns, cashbookShape, cashbookSplits } from "../cashbookShape";
 
 /**
  * The cashbook: what each day came to.
@@ -35,6 +35,8 @@ export default function CashbookPage() {
   const shape = cashbookShape(useKindOfBusiness());
 
   const totals = data?.totals;
+  const columns = cashbookColumns(shape, totals);
+  const splits = cashbookSplits(totals, money);
   // The ledger opens on the same window this page is showing.
   const ledger = `/tenant/ledger?from=${when.sent.from}&to=${when.sent.to}`;
 
@@ -75,9 +77,9 @@ export default function CashbookPage() {
         {/* The split under each figure is only worth printing when there is
             more than one thing in it. */}
         <Card label="Money in" value={money(totals?.money_in ?? 0)} tone="in"
-          sub={shape.splits ? `Sales ${money(totals?.sales_revenue ?? 0)} · Other ${money(totals?.other_income ?? 0)}` : undefined} />
+          sub={shape.splits ? splits.in : undefined} />
         <Card label="Money out" value={money(totals?.money_out ?? 0)} tone="out"
-          sub={shape.splits ? `Expenses ${money(totals?.expenses ?? 0)} · Refunds ${money(totals?.refunds ?? 0)}` : undefined} />
+          sub={shape.splits || (totals?.supplier_payments ?? 0) !== 0 ? splits.out : undefined} />
         <Card label="Net this period" value={money(totals?.net ?? 0)} tone={(totals?.net ?? 0) >= 0 ? "in" : "out"} />
         <Card label="Cumulative net" value={money(data?.closing_balance ?? 0)} tone="neutral"
           sub={`Since opening · was ${money(data?.opening_balance ?? 0)} before this period`} />
@@ -90,7 +92,7 @@ export default function CashbookPage() {
             <thead>
               <tr className="border-b border-gray-200 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 <th className="px-6 py-3 font-medium">Date</th>
-                {shape.columns.map((c) => (
+                {columns.map((c) => (
                   <th key={c.key} className="px-6 py-3 font-medium text-right">{c.label}</th>
                 ))}
                 <th className="px-6 py-3 font-medium text-right">Net</th>
@@ -101,14 +103,14 @@ export default function CashbookPage() {
               {cashbook.isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i}>
-                    <td colSpan={shape.columns.length + 3} className="px-6 py-4">
+                    <td colSpan={columns.length + 3} className="px-6 py-4">
                       <div className="h-6 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
                     </td>
                   </tr>
                 ))
               ) : (data?.days ?? []).every((d) => d.money_in === 0 && d.money_out === 0) ? (
                 <tr>
-                  <TableEmpty from={cashbook} what="the cashbook" colSpan={shape.columns.length + 3} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableEmpty from={cashbook} what="the cashbook" colSpan={columns.length + 3} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     No money movement in this period yet.
                   </TableEmpty>
                 </tr>
@@ -128,7 +130,7 @@ export default function CashbookPage() {
                           {formatEntryDate(d.date)}
                         </Link>
                       </td>
-                      {shape.columns.map((c) => (
+                      {columns.map((c) => (
                         <td key={c.key} className="px-6 py-4 text-right">{d[c.key] ? money(d[c.key]) : "—"}</td>
                       ))}
                       <td className={`px-6 py-4 text-right font-medium ${d.net >= 0 ? "text-success-600 dark:text-success-500" : "text-error-500"}`}>

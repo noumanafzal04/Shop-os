@@ -130,6 +130,17 @@ export interface Bill {
   payable: number;
 }
 
+/**
+ * WHAT THE TILL SAYS IS TAXABLE (the full re-test, #4). With prices that
+ * include tax the base the tax is struck on sits INSIDE the price: 99.99 is
+ * 85.46 + 14.53 tax. The strip said "Taxable 99.99" beside "Tax 14.53", which
+ * reads as a base fourteen rupees too high. The bill is not changed — only
+ * what the cashier is shown.
+ */
+export function taxableShown(taxableBase: number, tax: number, taxInclusive: boolean): number {
+  return taxInclusive ? Math.max(0, round2(taxableBase - tax)) : taxableBase;
+}
+
 export function tillBill(input: BillInput): Bill {
   const lines = input.lines.map((l) => followLevel(l, input.group));
   const subtotal = cartSubtotal(lines);

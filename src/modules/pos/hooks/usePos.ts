@@ -159,10 +159,12 @@ export function useShiftMutations() {
    * is the shop's arithmetic and is computed on arrival.
    */
   const close = useMutation({
-    mutationFn: async ({ counted, notes, denominations, declared }: {
+    mutationFn: async ({ counted, notes, denominations, loose, declared }: {
       counted: number;
       notes?: string;
       denominations?: Record<string, number>;
+      /** Paisa no note box holds; the server adds it to the notes' count. */
+      loose?: number;
       declared?: Record<string, number>;
     }) => {
       const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
@@ -172,11 +174,12 @@ export function useShiftMutations() {
           counted_cash: counted,
           notes,
           denominations,
+          loose_cash: loose,
           declared_tenders: declared,
         });
       } catch (error) {
         if (error instanceof ApiError && error.status === 0) {
-          await closeShiftOffline(counted, notes ?? null, tenantId, denominations, declared);
+          await closeShiftOffline(counted, notes ?? null, tenantId, denominations, declared, loose);
           return { data: null } as never;
         }
 

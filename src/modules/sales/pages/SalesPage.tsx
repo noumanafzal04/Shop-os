@@ -708,6 +708,15 @@ export default function SalesPage() {
               <div className="text-base font-bold text-gray-800 dark:text-white/90">
                 Total: {money(detail.data.total)}
               </div>
+              {/* What stands between the total and what was paid (the full
+                  re-test, #5 #11): "Total 116.99 · Paid 136.99" said nothing
+                  of the 20 tip that made the difference. */}
+              {Number(detail.data.rounding_adjustment ?? 0) !== 0 && (
+                <div data-sale-rounding className="text-theme-xs text-gray-500">Cash rounding: {money(Number(detail.data.rounding_adjustment))}</div>
+              )}
+              {Number(detail.data.tip_amount ?? 0) > 0 && (
+                <div data-sale-tip className="text-theme-xs text-gray-500">Staff tip: {money(Number(detail.data.tip_amount))}</div>
+              )}
               <div className="text-theme-xs text-gray-500">
                 Paid {money(detail.data.amount_paid)}
                 {Number(detail.data.change_due) > 0 && ` · Change ${money(detail.data.change_due)}`}

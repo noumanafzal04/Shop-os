@@ -18,8 +18,8 @@ vi.mock("../../pos/services/tillService", () => ({
   tillService: {
     roster: async () => ({
       data: [
-        { id: "hina", name: "Hina", has_pin: true, pin_locked: false, approves_refunds: true, approves_voids: true },
-        { id: "farah", name: "Farah", has_pin: true, pin_locked: false, approves_refunds: true, approves_voids: false },
+        { id: "hina", name: "Hina", has_pin: true, pin_locked: false, approves_refunds: true, approves_voids: true, approves_discounts: false },
+        { id: "farah", name: "Farah", has_pin: true, pin_locked: false, approves_refunds: true, approves_voids: false, approves_discounts: true },
       ],
     }),
   },
@@ -48,6 +48,14 @@ describe("approving a void", () => {
     const approvedBy = screen.getByRole("combobox", { name: "Approved by" });
     await waitFor(() => expect(within(approvedBy).getByRole("option", { name: "Hina" })).toBeInTheDocument());
     expect(within(approvedBy).queryByRole("option", { name: "Farah" })).not.toBeInTheDocument();
+  });
+
+  it("a discount past the limit offers only who may go past it (the full re-test, #3)", async () => {
+    show({ purpose: "discount", drawerNeeded: false });
+
+    const approvedBy = screen.getByRole("combobox", { name: "Approved by" });
+    await waitFor(() => expect(within(approvedBy).getByRole("option", { name: "Farah" })).toBeInTheDocument());
+    expect(within(approvedBy).queryByRole("option", { name: "Hina" })).not.toBeInTheDocument();
   });
 
   it("while a refund still offers whoever may refund", async () => {
