@@ -3,8 +3,10 @@
 namespace App\Http\Resources;
 
 use App\Enums\UserRole;
+use App\Models\Tenant;
 use App\Models\User;
 use App\Support\StaffPresets;
+use App\Support\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -35,7 +37,7 @@ class UserResource extends JsonResource
             // Only for tenant staff: an owner holds everything by role and a
             // platform admin is not doing a shop job, so neither has one.
             'job' => $this->role === UserRole::Staff
-                ? (StaffPresets::matching($this->permissions ?? [])['label'] ?? null)
+                ? (StaffPresets::matching($this->permissions ?? [], self::shopOf($this->resource))['label'] ?? null)
                 : null,
             'email_verified' => $this->email_verified_at !== null,
             'phone_verified' => $this->phone_verified_at !== null,
@@ -46,5 +48,18 @@ class UserResource extends JsonResource
             'tenant' => new TenantResource($this->whenLoaded('tenant')),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * The shop whose form made this person — the one being served when it is
+     * theirs, so a page of staff costs no query per row.
+     */
+    private static function shopOf(User $user): ?Tenant
+    {
+        $serving = app(TenantContext::class)->get();
+
+        return $serving !== null && $serving->id === $user->tenant_id
+            ? $serving
+            : $user->tenant;
     }
 }

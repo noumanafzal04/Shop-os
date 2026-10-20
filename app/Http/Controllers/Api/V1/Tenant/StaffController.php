@@ -93,7 +93,7 @@ class StaffController extends Controller
             ->where('role', UserRole::Staff)
             ->where('tenant_id', $this->context->id())
             ->get(['id', 'permissions'])
-            ->filter(fn (User $user): bool => StaffPresets::isJob($job, $user->permissions ?? []))
+            ->filter(fn (User $user): bool => StaffPresets::isJob($job, $user->permissions ?? [], $this->context->get()))
             ->pluck('id')
             ->all();
     }

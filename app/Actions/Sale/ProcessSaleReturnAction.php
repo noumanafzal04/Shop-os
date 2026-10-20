@@ -164,9 +164,25 @@ class ProcessSaleReturnAction
             // Inclusive: tax is WITHIN line_total → extract the portion held
             // inside (line_total − line_total ÷ (1 + rate)).
             $lineRate = $saleItem->tax_rate !== null ? (float) $saleItem->tax_rate : $fallbackRate;
-            $lineTax = $inclusive
-                ? round($lineTotal - $lineTotal / (1 + $lineRate / 100), 2)
-                : round($lineTotal * $lineRate / 100, 2);
+            $taxOf = static fn (float $value): float => $inclusive
+                ? round($value - $value / (1 + $lineRate / 100), 2)
+                : round($value * $lineRate / 100, 2);
+            // Cumulatively too, as the value above (B6 of the full re-test):
+            // two 1-of-2 returns of a line taxed 31.45 each struck 15.72 on
+            // their own, and the paisa left over was never handed back. What
+            // went back before is read as it was struck (`line_tax`; a return
+            // from before the column, by the rule that struck it), so the last
+            // return takes exactly what remains of the line's tax.
+            $taxBefore = (float) SaleReturnItem::query()
+                ->where('sale_item_id', $saleItem->id)
+                ->get(['line_total', 'line_tax'])
+                ->sum(fn (SaleReturnItem $back): float => $back->line_tax !== null
+                    ? (float) $back->line_tax
+                    : $taxOf((float) $back->line_total));
+            $cumulativeTax = $soldQty > 0
+                ? round($taxOf($linePaid) * ($alreadyReturned + $qty) / $soldQty, 2)
+                : $taxOf($linePaid);
+            $lineTax = round(max(0.0, $cumulativeTax - $taxBefore), 2);
             $refundTax = round($refundTax + $lineTax, 2);
 
             $lines[] = [
@@ -269,6 +285,7 @@ class ProcessSaleReturnAction
                         'quantity' => $qty,
                         'unit_price' => (float) $saleItem->unit_price,
                         'line_total' => $lineTotal,
+                        'line_tax' => $line['line_tax'],
                         '_item_type' => $saleItem->item_type,
                         // Pack sold: restock draws back factor× the returned count.
                         '_unit_factor' => (float) ($saleItem->unit_factor ?? 1),

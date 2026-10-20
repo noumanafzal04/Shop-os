@@ -34,6 +34,7 @@ class CloseCashSessionAction
     /**
      * @param  array{
      *     denominations?: array<int|string, int|string>|null,
+     *     loose_cash?: float|int|string|null,
      *     declared_tenders?: array<string, float|int|string>|null,
      *     blind?: bool
      * }  $extra
@@ -57,8 +58,14 @@ class CloseCashSessionAction
             $denominations = DenominationCount::clean($extra['denominations'] ?? null, $cash);
             // The breakdown wins where there is one. It is the only figure a
             // second person can verify against the drawer itself.
+            //
+            // …plus what no note or coin box can hold (the full re-test, #9):
+            // a drawer expected to hold 53,708.50 could only be counted to the
+            // rupee, so an exact 50 short was booked as 50.50. Not stored on
+            // its own — it is the count less its notes, and the Z-read says so.
+            $loose = max(0.0, round((float) ($extra['loose_cash'] ?? 0), 2));
             $counted = $denominations !== null
-                ? DenominationCount::total($denominations, $cash)
+                ? round(DenominationCount::total($denominations, $cash) + $loose, 2)
                 : round($countedCash, 2);
 
             $declared = $this->cleanTenders($extra['declared_tenders'] ?? null);

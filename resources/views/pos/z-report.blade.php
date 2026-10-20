@@ -164,6 +164,16 @@
                     <td class="num">{{ $money((float) $value * (int) $qty) }}</td>
                 </tr>
             @endforeach
+            @php
+                // What no note box held (the full re-test, #9): the count less its notes.
+                $looseCash = round((float) $session->counted_cash - array_sum(array_map(fn ($v, $q) => (float) $v * (int) $q, array_keys($denoms), $denoms)), 2);
+            @endphp
+            @if ($looseCash > 0.001)
+                <tr>
+                    <td>Loose cash</td>
+                    <td class="num">{{ $money($looseCash) }}</td>
+                </tr>
+            @endif
             <tr class="total">
                 <td>Total counted</td>
                 <td class="num">{{ $money($session->counted_cash) }}</td>

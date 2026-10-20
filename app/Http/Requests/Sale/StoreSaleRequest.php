@@ -140,6 +140,11 @@ class StoreSaleRequest extends FormRequest
             // told the real one instead of having its sale quietly recorded
             // at a number nobody at the counter saw.
             'expected_payable' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            // A manager's yes to a discount past the shop's ceiling, typed on
+            // the cashier's till (B3 of the full re-test) — see DiscountCeiling.
+            'discount_approval' => ['sometimes', 'nullable', 'array'],
+            'discount_approval.user_id' => ['required_with:discount_approval', 'uuid'],
+            'discount_approval.pin' => ['required_with:discount_approval', 'string', 'max:12'],
             // Multi-tender / split payment: part cash + part card (+ part credit)
             // etc. When present it overrides the single tender above; amount_paid
             // becomes the sum of tenders.

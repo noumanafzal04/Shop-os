@@ -19,6 +19,7 @@ class SaleReturnItem extends Model
             'quantity' => 'decimal:3',
             'unit_price' => 'decimal:2',
             'line_total' => 'decimal:2',
+            'line_tax' => 'decimal:2',
         ];
     }
 

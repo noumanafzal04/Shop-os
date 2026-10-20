@@ -148,7 +148,10 @@ class DrawerMath
             'cash_sales' => $cashSales,
             'expected_cash' => $expected,
             'sales_count' => (int) (clone $sold)->count(),
-            'sales_total' => round((float) (clone $sold)->sum('total'), 2),
+            // What was taken, as Reports counts it (B8 of the full re-test): an
+            // exchange's replacement carries the returned goods' credit, and
+            // counting its whole total sold the swapped item twice.
+            'sales_total' => round((float) (clone $sold)->sum(DB::raw(Takings::takenSql())), 2),
             'discounts' => round((float) (clone $sold)->sum('discount'), 2),
             'tax' => round((float) (clone $sold)->sum('tax'), 2),
             'voids' => (int) self::sales()

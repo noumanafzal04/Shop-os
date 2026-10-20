@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Exceptions\DomainException;
+use App\Models\User;
 
 /**
  * The shop's discount ceiling, asked by every path that can give money away.
@@ -40,13 +41,20 @@ use App\Exceptions\DomainException;
 class DiscountCeiling
 {
     /**
+     * Past the ceiling, a manager says yes with their PIN on the cashier's
+     * till (B3 of the full re-test, 2026-10-18): the cashier's refusal said
+     * "a manager has to approve it" and offered no way to — switching the till
+     * to the manager failed too, the drawer being the cashier's. The approver
+     * is returned so the sale can record who said yes; null when nobody had to.
+     *
      * @param  float  $discount  every rupee coming off, line discounts included
      * @param  float  $subtotal  what the bill would be without any of it
+     * @param  array{user_id?: string, pin?: string}|null  $approval
      */
-    public static function assert(TenantContext $context, float $discount, float $subtotal): void
+    public static function assert(TenantContext $context, float $discount, float $subtotal, ?array $approval = null): ?User
     {
         if ($discount <= 0) {
-            return;
+            return null;
         }
 
         $settings = $context->get();
@@ -54,28 +62,34 @@ class DiscountCeiling
         $maxAmt = $settings?->setting('max_discount_amount');
 
         if (($maxPct === null || $maxPct === '') && ($maxAmt === null || $maxAmt === '')) {
-            return; // no ceiling configured
+            return null; // no ceiling configured
         }
 
         $user = auth()->user();
         // No authenticated actor = a backend/headless caller, which is trusted
         // by definition (the HTTP paths always have one).
         if ($user === null || $user->hasPermission(Permissions::DISCOUNTS_OVERRIDE)) {
-            return;
+            return null;
         }
 
         $pct = $subtotal > 0 ? round(($discount / $subtotal) * 100, 2) : 0.0;
         // In the shop's own money, to the paisa: a limit is a figure somebody is held to.
         $money = static fn (float $n): string => Currencies::format($n, $settings?->currency(), 2);
 
-        if ($maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001) {
+        $overPct = $maxPct !== null && $maxPct !== '' && $pct > (float) $maxPct + 0.001;
+        $overAmt = $maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001;
+        if (($overPct || $overAmt) && $approval !== null) {
+            return SupervisorApproval::verify($approval, Permissions::DISCOUNTS_OVERRIDE);
+        }
+
+        if ($overPct) {
             throw DomainException::forbidden(
                 "This discount is {$pct}% — above the {$maxPct}% limit. A manager has to approve it.",
                 'DISCOUNT_LIMIT_EXCEEDED',
             );
         }
 
-        if ($maxAmt !== null && $maxAmt !== '' && $discount > (float) $maxAmt + 0.001) {
+        if ($overAmt) {
             throw DomainException::forbidden(
                 'This discount is '.$money($discount)
                     .' — above the '.$money((float) $maxAmt)
@@ -83,5 +97,7 @@ class DiscountCeiling
                 'DISCOUNT_LIMIT_EXCEEDED',
             );
         }
+
+        return null;
     }
 }

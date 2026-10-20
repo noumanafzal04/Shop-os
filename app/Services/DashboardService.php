@@ -439,7 +439,7 @@ class DashboardService
      * always ended today; a period can now end last March, and a shop with
      * three years of sales must not have them all grouped to draw one month.
      *
-     * @return array{sales: array<string, array{sales_count: int, revenue: float, customers_count: int}>,
+     * @return array{sales: array<string, array{sales_count: int, revenue: float, rounding: float, customers_count: int}>,
      *               cogs: array<string, float>, expenses: array<string, float>, income: array<string, float>,
      *               refunds: array<string, float>, tax: array<string, float>}
      */
@@ -483,7 +483,7 @@ class DashboardService
      * Leaving income out made this the Cashbook's answer minus the whole of
      * what the business earned — for a books-only tenant, a permanent loss.
      *
-     * @param  array{sales: array<string, array{sales_count: int, revenue: float, customers_count: int}>,
+     * @param  array{sales: array<string, array{sales_count: int, revenue: float, rounding: float, customers_count: int}>,
      *               cogs: array<string, float>, expenses: array<string, float>, income: array<string, float>,
      *               refunds: array<string, float>, tax: array<string, float>}  $byDay
      * @return array{sales_count: int, revenue: float, other_income: float, refunds: float, expenses: float, profit: float}
@@ -506,7 +506,7 @@ class DashboardService
             'other_income' => $income,
             'refunds' => $refunds,
             'expenses' => $expenses,
-            'profit' => $revenue - $refunds - $sum($byDay['tax']) + $income - $sum($byDay['cogs']) - $expenses,
+            'profit' => $revenue - $refunds - $sum($byDay['tax']) + $income + (float) array_sum(array_column($sales, 'rounding')) - $sum($byDay['cogs']) - $expenses,
         ];
     }
 
@@ -543,6 +543,8 @@ class DashboardService
             ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
             ->selectRaw(
                 "{$day} as day, COUNT(*) as sales_count, COALESCE(SUM(".Takings::takenSql().'), 0) as revenue,'
+                // Cash bills settled to a coin (B2): profit's, never revenue's.
+                .' COALESCE(SUM('.Takings::roundingSql().'), 0) as rounding,'
                 // A walk-in has no customer row, so the sale's own id stands in
                 // for "one anonymous buyer" — collapsing every walk-in of the
                 // day into a single customer would be a lie.
@@ -554,6 +556,7 @@ class DashboardService
             ->mapWithKeys(fn ($row): array => [$row->day => [
                 'sales_count' => (int) $row->sales_count,
                 'revenue' => (float) $row->revenue,
+                'rounding' => (float) $row->rounding,
                 'customers_count' => (int) $row->customers_count,
             ]])
             ->all();

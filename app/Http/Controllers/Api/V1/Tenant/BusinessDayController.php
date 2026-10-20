@@ -20,6 +20,7 @@ use App\Support\ShopDay;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The trading day, and what left for the bank.
@@ -345,19 +346,36 @@ class BusinessDayController extends Controller
         // The same resolver the screen uses. This used to be its own query with
         // no ordering, so a shop with last night's day still open banked today's
         // takings against yesterday.
-        $dayId = $data['business_day_id'] ?? BusinessDay::openFor($this->branch->id())?->id;
+        // With none open, the day just closed off (B10 of the full re-test):
+        // the deposit used to save against no day at all, and the day whose
+        // takings it carried still said nothing was banked.
+        $dayId = $data['business_day_id']
+            ?? BusinessDay::openFor($this->branch->id())?->id
+            ?? BusinessDay::lastClosedFor($this->branch->id())?->id;
 
-        $deposit = BankDeposit::query()->create([
-            'branch_id' => $this->branch->id(),
-            'business_day_id' => $dayId,
-            'amount' => round((float) $data['amount'], 2),
-            'bank_name' => $data['bank_name'] ?? null,
-            'account_label' => $data['account_label'] ?? null,
-            'slip_number' => $data['slip_number'] ?? null,
-            'deposited_at' => $data['deposited_at'] ?? now(),
-            'deposited_by' => $request->user()->id,
-            'notes' => $data['notes'] ?? null,
-        ]);
+        $deposit = DB::transaction(function () use ($data, $dayId, $request): BankDeposit {
+            $deposit = BankDeposit::query()->create([
+                'branch_id' => $this->branch->id(),
+                'business_day_id' => $dayId,
+                'amount' => round((float) $data['amount'], 2),
+                'bank_name' => $data['bank_name'] ?? null,
+                'account_label' => $data['account_label'] ?? null,
+                'slip_number' => $data['slip_number'] ?? null,
+                'deposited_at' => $data['deposited_at'] ?? now(),
+                'deposited_by' => $request->user()->id,
+                'notes' => $data['notes'] ?? null,
+            ]);
+
+            // A closed day keeps its figures on its own row, written at the
+            // close — so a deposit after it is added there too. Reopening
+            // re-reads them all from the deposits (CloseBusinessDayAction).
+            BusinessDay::query()
+                ->whereKey($dayId)
+                ->where('status', BusinessDay::STATUS_CLOSED)
+                ->increment('banked_amount', (float) $deposit->amount);
+
+            return $deposit;
+        });
 
         return ApiResponse::created($deposit->load('depositedBy:id,name'), 'Deposit recorded');
     }

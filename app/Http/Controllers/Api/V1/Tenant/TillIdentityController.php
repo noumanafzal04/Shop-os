@@ -66,6 +66,8 @@ class TillIdentityController extends Controller
                 'approves_refunds' => $u->hasPermission(Permissions::SALES_REFUND),
                 // …and to a sale being voided (Q18).
                 'approves_voids' => $u->hasPermission(Permissions::SALES_VOID),
+                // …and to a discount past the shop's limit (B3 of the full re-test).
+                'approves_discounts' => $u->hasPermission(Permissions::DISCOUNTS_OVERRIDE),
             ])
             ->values();
 

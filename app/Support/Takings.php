@@ -99,6 +99,18 @@ final class Takings
         return "{$table}.total - {$table}.exchange_credit";
     }
 
+    /**
+     * THE ROUNDING ON A CASH BILL (B2, B11 of the full re-test). A bill of
+     * 116.99 settled at 120 keeps its total — tax is struck on it — and the
+     * 3.01 is its `rounding_adjustment` (CashRounding). The shop holds that
+     * money all the same, so the books that count money — Cashbook, Ledger,
+     * net profit — add it on its own line. Revenue does not: it is no sale.
+     */
+    public static function roundingSql(string $table = 'sales'): string
+    {
+        return "COALESCE({$table}.rounding_adjustment, 0)";
+    }
+
     public static function handedBackSql(string $table = 'sale_returns'): string
     {
         return "{$table}.refund_total - {$table}.exchange_credit";

@@ -581,6 +581,7 @@ class PosController extends Controller
             $request->user()->id,
             [
                 'denominations' => $data['denominations'] ?? null,
+                'loose_cash' => $data['loose_cash'] ?? null,
                 'declared_tenders' => $data['declared_tenders'] ?? null,
                 'blind' => (bool) $this->context->get()?->setting('pos_blind_close', false),
             ],
@@ -613,6 +614,7 @@ class PosController extends Controller
             $request->user()->id,
             [
                 'denominations' => $data['denominations'] ?? null,
+                'loose_cash' => $data['loose_cash'] ?? null,
                 'declared_tenders' => $data['declared_tenders'] ?? null,
                 // A manager closing someone else's lane already knows the
                 // expected figure — there is nothing to blind them to.
@@ -911,6 +913,8 @@ class PosController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'denominations' => ['sometimes', 'array'],
             'denominations.*' => ['integer', 'min:0', 'max:100000'],
+            // Paisa no note or coin box holds — added to the notes' count.
+            'loose_cash' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999'],
             // What the cashier says each non-cash tender took.
             'declared_tenders' => ['sometimes', 'array'],
             'declared_tenders.*' => ['numeric', 'min:0', 'max:99999999'],

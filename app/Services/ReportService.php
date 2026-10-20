@@ -121,6 +121,9 @@ class ReportService
         $salesCount = (clone $completedSales)->count();
         // An exchange's credit off both sides (B21) — see Takings.
         $revenue = (float) (clone $completedSales)->sum(DB::raw(Takings::takenSql()));
+        // Cash bills settled to a coin (B2, B11): the shop's money, never a
+        // sale — on its own line, into net profit only.
+        $rounding = round((float) (clone $completedSales)->sum(DB::raw(Takings::roundingSql())), 2);
 
         // A line has no branch of its own; it inherits the sale's.
         $cogs = (float) SaleItem::query()
@@ -214,7 +217,8 @@ class ReportService
                 'cogs' => round($cogs, 2),
                 'gross_profit' => round($kept - $tax - $cogs, 2),
                 'expenses' => round($expensesTotal, 2),
-                'net_profit' => round($kept - $tax + $otherIncome - $cogs - $expensesTotal, 2),
+                'cash_rounding' => $rounding,
+                'net_profit' => round($kept - $tax + $otherIncome + $rounding - $cogs - $expensesTotal, 2),
             ],
             // Paid against khata in the period — beside the sales, never in
             // them: the credit sale was counted on its own day (L14).
@@ -240,9 +244,10 @@ class ReportService
             ->whereIn('status', Takings::COUNTED)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['sold_at', 'total', 'exchange_credit', 'tax'])
+            ->get(['sold_at', 'total', 'exchange_credit', 'tax', 'rounding_adjustment'])
             ->groupBy(fn (Sale $s) => $bucket($s->sold_at));
         $revenueByBucket = $salesByBucket->map(fn (Collection $sales) => round((float) $sales->sum(fn (Sale $s) => Takings::taken($s)), 2));
+        $roundingByBucket = $salesByBucket->map(fn (Collection $sales) => (float) $sales->sum('rounding_adjustment'));
         $taxByBucket = $salesByBucket->map(fn (Collection $sales) => (float) $sales->sum('tax'));
 
         // The rest of what the headline profit takes off, a bucket at a time —
@@ -321,7 +326,7 @@ class ReportService
                 // days add up to the total above them. It used to be "cash-
                 // shaped" — revenue less expenses, no cost of goods, no tax, no
                 // refunds — and a day that made 347 said 1,980 (the revenue).
-                'profit' => round($revenue - $refunds - $tax - $cogs + $otherIncome - $expenses, 2),
+                'profit' => round($revenue - $refunds - $tax - $cogs + $otherIncome + ($roundingByBucket[$key] ?? 0.0) - $expenses, 2),
             ];
             $cursor = $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
         }
@@ -738,9 +743,12 @@ class ReportService
             ->whereIn('status', $liveSales)
             ->whereBetween('sold_at', [$fromStart, $toEnd])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->get(['sold_at', 'total', 'exchange_credit'])
-            ->groupBy(fn (Sale $s) => $bucket($s->sold_at))
-            ->map(fn (Collection $r) => round((float) $r->sum(fn (Sale $s) => Takings::taken($s)), 2));
+            ->get(['sold_at', 'total', 'exchange_credit', 'rounding_adjustment'])
+            ->groupBy(fn (Sale $s) => $bucket($s->sold_at));
+        // A cash bill settled to a coin (B2, B11): its own column, so the sales
+        // column still reads as Reports' revenue and money in reads as money.
+        $roundingByBucket = $salesByBucket->map(fn (Collection $r) => round((float) $r->sum('rounding_adjustment'), 2));
+        $salesByBucket = $salesByBucket->map(fn (Collection $r) => round((float) $r->sum(fn (Sale $s) => Takings::taken($s)), 2));
 
         $incomeByBucket = Income::withoutTenancy()
             ->where('tenant_id', $tenantId)
@@ -786,7 +794,7 @@ class ReportService
 
         $opening = round(
             (float) $scope(Sale::query()->where('tenant_id', $tenantId)
-                ->whereIn('status', $liveSales)->where('sold_at', '<', $fromStart))->sum('total')
+                ->whereIn('status', $liveSales)->where('sold_at', '<', $fromStart))->sum(DB::raw('total + '.Takings::roundingSql()))
             + (float) $scope(Income::withoutTenancy()->where('tenant_id', $tenantId)
                 ->where('income_date', '<', $from))->sum('amount')
             - (float) $scope(Expense::withoutTenancy()->where('tenant_id', $tenantId)
@@ -802,7 +810,7 @@ class ReportService
         $cursor = CarbonImmutable::parse($from);
         $last = CarbonImmutable::parse($to);
         $running = $opening;
-        $tSales = $tIncome = $tExpenses = $tRefunds = $tSupplier = 0.0;
+        $tSales = $tIncome = $tExpenses = $tRefunds = $tSupplier = $tRounding = 0.0;
 
         while ($cursor <= $last) {
             $key = $cursor->format($format);
@@ -811,7 +819,8 @@ class ReportService
             $expenses = $expenseByBucket[$key] ?? 0.0;
             $refunds = $refundByBucket[$key] ?? 0.0;
             $supplierPaid = $supplierPaidByBucket[$key] ?? 0.0;
-            $moneyIn = round($sales + $income, 2);
+            $rounding = $roundingByBucket[$key] ?? 0.0;
+            $moneyIn = round($sales + $income + $rounding, 2);
             $moneyOut = round($expenses + $refunds + $supplierPaid, 2);
             $net = round($moneyIn - $moneyOut, 2);
             $running = round($running + $net, 2);
@@ -821,11 +830,13 @@ class ReportService
             $tExpenses += $expenses;
             $tRefunds += $refunds;
             $tSupplier += $supplierPaid;
+            $tRounding += $rounding;
 
             $days[] = [
                 'date' => $key,
                 'sales_revenue' => $sales,
                 'other_income' => $income,
+                'cash_rounding' => $rounding,
                 'money_in' => $moneyIn,
                 'expenses' => $expenses,
                 'refunds' => $refunds,
@@ -838,7 +849,7 @@ class ReportService
             $cursor = $granularity === 'month' ? $cursor->addMonth() : $cursor->addDay();
         }
 
-        $totalIn = round($tSales + $tIncome, 2);
+        $totalIn = round($tSales + $tIncome + $tRounding, 2);
         $totalOut = round($tExpenses + $tRefunds + $tSupplier, 2);
 
         return [
@@ -848,9 +859,13 @@ class ReportService
             'totals' => [
                 'sales_revenue' => round($tSales, 2),
                 'other_income' => round($tIncome, 2),
+                'cash_rounding' => round($tRounding, 2),
                 'money_in' => $totalIn,
                 'expenses' => round($tExpenses, 2),
                 'refunds' => round($tRefunds, 2),
+                // Its own figure, as each day has it (B1): money out is
+                // expenses + refunds + this, and the screen says all three.
+                'supplier_payments' => round($tSupplier, 2),
                 'money_out' => $totalOut,
                 'net' => round($totalIn - $totalOut, 2),
             ],

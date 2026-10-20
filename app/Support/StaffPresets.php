@@ -319,9 +319,18 @@ class StaffPresets
      * rather than have thirty people silently become "Custom" because the
      * shop changed and they did not.
      */
-    public static function matching(array $permissions): ?array
+    public static function matching(array $permissions, ?Tenant $tenant = null): ?array
     {
         foreach (self::all() as $preset) {
+            if (self::sameSet($preset['permissions'], $permissions)) {
+                return $preset;
+            }
+        }
+
+        // …or as THIS shop's form applies it (B7 of the full re-test): the
+        // preset button ticks the TRIMMED list, so a cashier made with one
+        // click in a shop without every module was called "Custom".
+        foreach (self::trimmedFor($tenant) as $preset) {
             if (self::sameSet($preset['permissions'], $permissions)) {
                 return $preset;
             }
@@ -331,15 +340,23 @@ class StaffPresets
     }
 
     /** Does this person do that job — exactly, not approximately? */
-    public static function isJob(string $code, array $permissions): bool
+    public static function isJob(string $code, array $permissions, ?Tenant $tenant = null): bool
     {
-        foreach (self::all() as $preset) {
-            if ($preset['code'] === $code) {
-                return self::sameSet($preset['permissions'], $permissions);
-            }
-        }
+        return (self::matching($permissions, $tenant)['code'] ?? null) === $code;
+    }
 
-        return false;
+    /**
+     * This shop's presets with something left in them — a preset trimmed to
+     * nothing describes nobody.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private static function trimmedFor(?Tenant $tenant): array
+    {
+        return array_values(array_filter(
+            self::for($tenant),
+            static fn (array $preset): bool => $preset['permissions'] !== [],
+        ));
     }
 
     /**

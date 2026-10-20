@@ -38,6 +38,7 @@ use App\Support\RecipeFor;
 use App\Support\RegisterContext;
 use App\Support\ShopDay;
 use App\Support\SoldOut;
+use App\Support\SupervisorApproval;
 use App\Support\TenantContext;
 use App\Support\UnitCost;
 use Illuminate\Database\QueryException;
@@ -826,9 +827,13 @@ class CreateSaleAction
                 // Skipped on the trusted path: an online order or dine-in tab is
                 // replaying a total that was already settled, and re-adjudicating
                 // it here would refuse to complete a sale the customer has paid.
-                if (! $trusted) {
-                    DiscountCeiling::assert($this->context, $discount + $discretionaryLineDiscount, $subtotal);
-                }
+                $discretionaryGiven = round($discount + $discretionaryLineDiscount, 2);
+                $discountApprover = $trusted ? null : DiscountCeiling::assert(
+                    $this->context,
+                    $discretionaryGiven,
+                    $subtotal,
+                    $data['discount_approval'] ?? null,
+                );
 
                 // Coupon: validate + consume, add its discount (clamped to subtotal).
                 $couponCode = null;
@@ -1818,6 +1823,18 @@ class CreateSaleAction
                         ->values()
                         ->all(),
                 ];
+
+                // Who let the discount past the shop's limit, on the trail.
+                if ($discountApprover !== null && auth()->user() !== null) {
+                    SupervisorApproval::record(
+                        $discountApprover,
+                        auth()->user(),
+                        $sale->cash_session_id,
+                        $sale,
+                        $discretionaryGiven,
+                        "Discount on {$sale->invoice_number} past the shop's limit",
+                    );
+                }
 
                 return $sale;
             });

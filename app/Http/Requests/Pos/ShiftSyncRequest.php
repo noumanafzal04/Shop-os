@@ -72,6 +72,8 @@ class ShiftSyncRequest extends FormRequest
             // ── close ──
             'operations.*.counted_cash' => ['required_if:operations.*.kind,close', 'numeric', 'min:0', 'max:99999999'],
             'operations.*.notes' => ['nullable', 'string', 'max:500'],
+            // Paisa no note box holds, counted offline (the full re-test, #9).
+            'operations.*.loose_cash' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999'],
             'operations.*.declared_tenders' => ['sometimes', 'array'],
             'operations.*.declared_tenders.*' => ['numeric', 'min:0', 'max:99999999'],
         ];

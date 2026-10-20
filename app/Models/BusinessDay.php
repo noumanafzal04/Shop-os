@@ -114,6 +114,20 @@ class BusinessDay extends Model
     }
 
     /**
+     * The day last closed off at this counter — where takings banked after the
+     * close belong (B10 of the full re-test): a shop closes the day, THEN walks
+     * the money to the bank.
+     */
+    public static function lastClosedFor(?string $branchId): ?self
+    {
+        return static::query()
+            ->where('status', self::STATUS_CLOSED)
+            ->where('branch_id', $branchId)
+            ->latest('trading_date')
+            ->first();
+    }
+
+    /**
      * EVERY COUNTER THAT IS TRADING, NEWEST FIRST.
      *
      * `openFor(null)` cannot answer this and must not try: it would look for

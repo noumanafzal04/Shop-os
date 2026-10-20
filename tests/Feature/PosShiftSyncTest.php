@@ -243,6 +243,20 @@ class PosShiftSyncTest extends TestCase
         $this->assertSame('2026-08-18', $session->closed_at->toDateString());
     }
 
+    public function test_a_drawer_counted_offline_by_note_keeps_its_loose_paisa(): void
+    {
+        $id = (string) Str::uuid();
+        $this->sync([$this->openOp($id)])->assertOk();
+
+        $this->sync([[
+            'op' => (string) Str::uuid(), 'kind' => 'close', 'at' => '2026-08-18T14:00:00Z',
+            'session_id' => $id, 'counted_cash' => 0, 'denominations' => ['1000' => 3], 'loose_cash' => 0.5,
+        ]])->assertOk()->assertJsonPath('data.results.0.shift_status', 'closed');
+
+        // The full re-test, #9: three thousand-notes and fifty paisa no box held.
+        $this->assertEquals(3000.5, CashSession::withoutGlobalScopes()->find($id)->counted_cash);
+    }
+
     public function test_a_replayed_close_does_not_count_the_drawer_twice(): void
     {
         $id = (string) Str::uuid();

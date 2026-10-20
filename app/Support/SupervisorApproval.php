@@ -103,9 +103,11 @@ final class SupervisorApproval
         }
         if (! $approver->hasPermission($permission)) {
             throw DomainException::forbidden(
-                $permission === Permissions::SALES_VOID
-                    ? "{$approver->name} cannot approve this — ask somebody who may void a sale."
-                    : "{$approver->name} cannot approve this — ask somebody who can hand money back.",
+                match ($permission) {
+                    Permissions::SALES_VOID => "{$approver->name} cannot approve this — ask somebody who may void a sale.",
+                    Permissions::DISCOUNTS_OVERRIDE => "{$approver->name} cannot approve this — ask somebody who may go past the discount limit.",
+                    default => "{$approver->name} cannot approve this — ask somebody who can hand money back.",
+                },
                 'APPROVER_CANNOT',
             );
         }

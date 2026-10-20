@@ -242,6 +242,7 @@ class PosShiftSyncController extends Controller
             auth()->id(),
             [
                 'denominations' => $operation['denominations'] ?? null,
+                'loose_cash' => $operation['loose_cash'] ?? null,
                 'declared_tenders' => $operation['declared_tenders'] ?? null,
             ],
         );

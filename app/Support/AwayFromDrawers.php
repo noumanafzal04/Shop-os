@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Enums\SaleStatus;
 use App\Models\BusinessDay;
 use App\Models\Sale;
+use Illuminate\Support\Facades\DB;
 
 /**
  * THE DAY'S SALES THAT NO DRAWER TOOK (B14).
@@ -40,7 +41,7 @@ final class AwayFromDrawers
 
         return [
             'sales_count' => (int) (clone $sold)->count(),
-            'sales_total' => round((float) (clone $sold)->sum('total'), 2),
+            'sales_total' => round((float) (clone $sold)->sum(DB::raw(Takings::takenSql())), 2),
         ];
     }
 }

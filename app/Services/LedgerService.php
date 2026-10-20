@@ -372,8 +372,9 @@ class LedgerService
                 .' sales.sold_at as sort_at, sales.invoice_number as reference,'
                 ."  COALESCE(sales.customer_name, 'Counter sale') as description, 'Sales' as category,"
                 .' NULL as category_id, sales.payment_method as method,'
-                // An exchange's credit off both rows (B21) — see Takings.
-                .' '.Takings::takenSql().' as amount_in, 0 as amount_out',
+                // An exchange's credit off both rows (B21) — see Takings. A cash
+                // bill's rounding on: this is the money that came in (B2).
+                .' '.Takings::takenSql().' + '.Takings::roundingSql().' as amount_in, 0 as amount_out',
             );
 
         return $this->window($q, 'sales.sold_at', $from, $to, $strictlyBefore, ShopDay::shop($tenantId));
