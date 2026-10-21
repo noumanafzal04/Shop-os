@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B118 · next question: Q24**). `L…` = found by the fixer while fixing.
+(**next bug: B119 · next question: Q24**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -158,6 +158,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B115 | P2 | Catalogue / Till | A parent category's filter found nothing filed under its sub-categories (the user, 2026-10-21) | FIXED — Products, the till online and offline, the export and the storefront find the whole branch |
 | B116 | P2 | Till | Pay sheet (the user, 2026-10-21): five tender tabs, a trade-in section on every bill, Served by on Nobody, khata sent the cashier to another button, Enter did nothing | FIXED — default tender button + "Pay another way" list; trade-in folded until asked; Served by opens on the person at the till; khata asks whose on the sheet; Enter completes (not on a button or list) and the cash box opens selected |
 | B117 | P2 | Till / Staff | Any cashier could name any colleague as "Served by" — the name the staff report pays off (the user, 2026-10-21) | FIXED — new permission `sales.credit_others` (Shift supervisor, Manager; the owner always): without it the till offers only themselves and the server refuses another name (SERVED_BY_NOT_YOURS); migration `2026_10_21_000002` grants it to staff who may discount past the ceiling |
+| B118 | P2 | Till | "Sale failed — The given data was invalid." on the pay sheet (the user, 2026-10-21): khata let a name alone through, the server needs the phone, and the sheet hid the server's reason; the method row was still two controls | FIXED panel `6e64cfa` — khata waits for the phone; a refused sale says the field's reason; one "Payment method" list with the default chosen; Served by / Tip / trade-in under the money |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
