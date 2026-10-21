@@ -12,10 +12,25 @@ const SOURCE = Object.values(
 const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
 
 describe("the pay sheet", () => {
-  it("offers the default as a button and every other tender in one list", () => {
-    expect(code).toMatch(/<button type="button" onClick=\{\(\) => setMethod\(defaultTender\)\}/);
-    expect(code).toMatch(/<select\s+aria-label="Pay another way"/);
-    expect(code).toMatch(/\.filter\(\(m\) => m !== defaultTender\)\.map\(\(m\) => \(\s*<option key=\{m\} value=\{m\}>\{METHOD_LABEL\[m\]\}<\/option>/);
+  it("asks how it is paid in one list, the shop's default already chosen", () => {
+    const row = code.slice(code.indexOf('id="tender-method"'), code.indexOf('id="tender-method"') + 700);
+    expect(row).toMatch(/value=\{method\}\s*onChange=\{\(e\) => setMethod\(e\.target\.value as PayMethod\)\}/);
+    expect(row).toContain('{METHOD_LABEL[m]}{m === defaultTender ? " (default)" : ""}');
+    // …and the sheet opens on the default (openTender), so it is selected.
+    expect(code).toMatch(/setMethod\(defaultTender\);\s*setTradeInOpen\(false\);/);
+    expect(code).not.toContain('aria-label="Pay another way"');
+  });
+
+  it("puts the extras — who served, a tip, goods taken in — under the money", () => {
+    const at = (needle: string) => code.indexOf(needle);
+    expect(at('id="tender-method"')).toBeLessThan(at("data-pay-extras"));
+    expect(at("data-pay-extras")).toBeLessThan(at("<ServedByRow"));
+    expect(at("data-pay-extras")).toBeLessThan(at('id="till-tip"'));
+    expect(at("data-pay-extras")).toBeLessThan(at("Take goods in part-payment"));
+  });
+
+  it("does not let khata through on a name alone — the server finds the account by phone", () => {
+    expect(code).toMatch(/const creditNeedsCustomer = \(method === "credit" \|\| splitHasCredit\) && customerPhone\.trim\(\) === "";/);
   });
 
   it("folds the trade-in away until it is asked for, and opens each sheet folded", () => {

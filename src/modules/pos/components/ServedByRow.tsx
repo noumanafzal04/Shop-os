@@ -69,23 +69,26 @@ export function ServedByRow({ enabled, me, anyone, value, onChange }: Props) {
   if (!enabled || people.length === 0) return null;
 
   return (
-    <div className="mb-5">
-      <div className="mb-1.5 text-theme-sm font-medium text-gray-500 dark:text-gray-400">
-        Served by
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="served-by" className="shrink-0 text-theme-sm font-medium text-gray-600 dark:text-gray-300">
+          Served by
+        </label>
+        <select
+          id="served-by"
+          value={value ?? ""}
+          onChange={(e) => { seeded.current = true; onChange(e.target.value === "" ? null : e.target.value); }}
+          className="h-11 w-full max-w-[15rem] rounded-xl border border-gray-300 bg-white px-3 text-theme-sm text-gray-800 focus:border-brand-400 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+        >
+          {/* Selectable, not a disabled placeholder: un-naming somebody has to
+              stay possible after a name has been picked by mistake. */}
+          {anyone && <option value="">Nobody</option>}
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
       </div>
-      <select
-        value={value ?? ""}
-        onChange={(e) => { seeded.current = true; onChange(e.target.value === "" ? null : e.target.value); }}
-        className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-theme-sm text-gray-800 focus:border-brand-400 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-      >
-        {/* Selectable, not a disabled placeholder: un-naming somebody has to
-            stay possible after a name has been picked by mistake. */}
-        {anyone && <option value="">Nobody</option>}
-        {people.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </select>
-      <p className="mt-1 text-[11px] text-gray-400">
+      <p className="mt-1 text-right text-[11px] text-gray-400">
         {anyone ? "Who sold it — you, unless a colleague walked the customer round." : "Your own sales only — naming a colleague needs a manager."}
       </p>
     </div>

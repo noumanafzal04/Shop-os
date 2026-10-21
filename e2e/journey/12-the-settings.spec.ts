@@ -166,8 +166,7 @@ test("G1 · Default payment: the tender sheet opens on what the shop chose", asy
   await ring(page, item("soap").name);
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   const methods = tenderSheet(page).getByRole("group", { name: "Payment method" });
-  await expect(methods.getByRole("button", { name: /^Card/ }), "the till did not open on the shop's default").toHaveAttribute("aria-pressed", "true");
-  await expect(methods.getByRole("combobox", { name: "Pay another way" }), "Cash is one of the others now").toHaveValue("");
+  await expect(methods.getByRole("combobox", { name: "Payment method" }), "the till did not open on the shop's default").toHaveValue("card");
 
   await restore(request, { pos_default_payment: "cash" });
 });

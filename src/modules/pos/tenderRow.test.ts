@@ -97,7 +97,7 @@ describe("the tender row", () => {
    * once, contradicting it, by the badge.
    */
   it("marks the shop's own default, not always cash", () => {
-    expect(SOURCE).toMatch(/<MethodIcon m=\{defaultTender\} \/>\s*\{METHOD_LABEL\[defaultTender\]\}\s*<span className="text-\[9px\] font-bold uppercase text-gray-400">Default<\/span>/);
+    expect(SOURCE).toContain('{METHOD_LABEL[m]}{m === defaultTender ? " (default)" : ""}');
     expect(SOURCE).not.toContain('{m === "cash" && <span');
   });
 

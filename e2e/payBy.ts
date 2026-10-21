@@ -1,21 +1,17 @@
 import type { Locator, Page } from "@playwright/test";
 
+const VALUE: Record<string, string> = { Cash: "cash", Card: "card", Wallet: "wallet", Khata: "credit", Split: "split" };
+
 /**
- * Choose how the bill is paid on the pay sheet. The shop's default tender is
- * the one button; every other is in the "Pay another way" list beside it (the
- * user, 2026-10-21). A spec names the tender, not where the sheet put it.
+ * Choose how the bill is paid on the pay sheet: one "Payment method" list, the
+ * shop's default already chosen (the user, 2026-10-21). A spec names the
+ * tender; this picks it.
  */
 export async function payBy(scope: Page | Locator, label: "Cash" | "Card" | "Wallet" | "Khata" | "Split" | string): Promise<void> {
-  const methods = scope.getByRole("group", { name: "Payment method" });
-  const button = methods.getByRole("button", { name: new RegExp(`^${label}`) });
-
-  if (await button.count()) await button.click();
-  else await methods.getByRole("combobox", { name: "Pay another way" }).selectOption({ label });
+  await scope.getByRole("combobox", { name: "Payment method" }).selectOption(VALUE[label] ?? label);
 }
 
-/** Is this tender offered at all — as the button or in the list? */
+/** Is this tender offered at all? */
 export function offers(scope: Page | Locator, label: string): Locator {
-  const methods = scope.getByRole("group", { name: "Payment method" });
-
-  return methods.getByRole("button", { name: new RegExp(`^${label}`) }).or(methods.getByRole("option", { name: label, exact: true }));
+  return scope.getByRole("combobox", { name: "Payment method" }).locator(`option[value="${VALUE[label] ?? label}"]`);
 }

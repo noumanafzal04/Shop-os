@@ -55,7 +55,7 @@ try {
 
   qa.step("pay");
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
-  await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await page.getByRole("combobox", { name: "Payment method" }).selectOption("cash");
   out("amount due", await page.getByTestId("tender-amount-due").innerText());
   await page.getByRole("button", { name: /^Complete/ }).click();
   await page.getByRole("heading", { name: "Sale complete" }).waitFor({ timeout: 20_000 });

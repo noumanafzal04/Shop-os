@@ -214,20 +214,8 @@ const CardGlyph = () => (
 const PauseGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className={iconCls}><path d="M7 5v10M13 5v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
 );
-const SplitGlyph = () => (
-  <svg viewBox="0 0 20 20" fill="none" className={iconCls}><path d="M4 5h4l3.5 5H16M4 15h4l3.5-5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-);
-// A mobile wallet — JazzCash, Easypaisa, Raast. A phone with a note in it,
-// because that is what the cashier is looking at when they take one.
-const WalletGlyph = () => (
-  <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="5.5" y="2" width="9" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M8 5.5h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /><rect x="7.5" y="8.5" width="5" height="4" rx="1" stroke="currentColor" strokeWidth="1.4" /></svg>
-);
 const SearchGlyph = () => (
   <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5"><circle cx="9" cy="9" r="5.5" stroke="currentColor" strokeWidth="1.6" /><path d="M17 17l-3.4-3.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-);
-// Credit / khata (pay-later) — a small ledger/notebook glyph.
-const CreditGlyph = () => (
-  <svg viewBox="0 0 20 20" fill="none" className={iconCls}><rect x="4" y="2.5" width="12" height="15" rx="1.5" stroke="currentColor" strokeWidth="1.5" /><path d="M7 6h6M7 9h6M7 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
 );
 // Scan-sound toggle glyphs — speaker with waves (on) / a slash (muted).
 const SpeakerOnGlyph = () => (
@@ -245,8 +233,6 @@ const RowsGlyph = () => (
 );
 
 type PayMethod = "cash" | "card" | "wallet" | "credit" | "split";
-const MethodIcon = ({ m }: { m: PayMethod }) =>
-  m === "cash" ? <DollarLineIcon className="h-4 w-4" /> : m === "card" ? <CardGlyph /> : m === "wallet" ? <WalletGlyph /> : m === "credit" ? <CreditGlyph /> : <SplitGlyph />;
 /** What each tender is called at the counter. One copy, five readers. */
 const METHOD_LABEL: Record<PayMethod, string> = {
   cash: "Cash",
@@ -1221,7 +1207,7 @@ export default function PosPage() {
       setCouponDiscount(data.discount);
     } catch (e) {
       setCouponCode(null); setCouponDiscount(0);
-      setCouponMsg(e instanceof ApiError ? e.message : "Invalid coupon.");
+      setCouponMsg(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Invalid coupon.");
     }
   };
   const applyCoupon = () => {
@@ -2823,10 +2809,11 @@ export default function PosPage() {
     ? (categories.data ?? [])
     : (offlineShelf.data?.categories ?? []);
   // A credit (khata) sale — full or a split tender — needs a named customer.
-  const hasCustomer = !!(customer.trim() || customerPhone.trim());
   const cartHasRx = cart.some((l) => l.requires_prescription);
   const splitHasCredit = method === "split" && tenders.some((t) => t.method === "credit" && Number(t.amount) > 0);
-  const creditNeedsCustomer = (method === "credit" || splitHasCredit) && !hasCustomer;
+  // A khata is found by the customer's PHONE — the server refuses a name alone
+  // ("add the customer's phone"), so the sheet asks for what the server needs.
+  const creditNeedsCustomer = (method === "credit" || splitHasCredit) && customerPhone.trim() === "";
   // The allowance can never exceed the bill: the shop would owe the customer
   // money for their scrap, which is buying stock, not selling any.
   const tradeInTooBig = tradeInTotal > total;
@@ -4866,144 +4853,25 @@ export default function PosPage() {
                 The dead battery on the counter. Recorded as a tender, so the
                 sale keeps its price and the scrap becomes stock the shop can
                 count — instead of a discount that loses both. */}
-            {/* Folded away until it is wanted: most sales take no goods back,
-                and a whole section for it stood over every bill. */}
-            {has("inventory") && !tradeInOpen && tradeIns.length === 0 && (
-              <button type="button" onClick={() => setTradeInOpen(true)} className="mb-4 flex items-center gap-1 text-theme-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
-                <PlusIcon className="h-4 w-4" /> Take goods in part-payment
-              </button>
-            )}
-            {has("inventory") && (tradeInOpen || tradeIns.length > 0) && (
-              <div className="mb-5 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-theme-sm font-medium text-gray-500 dark:text-gray-400">Take goods in part-payment</span>
-                  {tradeInTotal > 0 && (
-                    <span className="text-theme-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">{money(tradeInTotal)}</span>
-                  )}
-                </div>
-
-                {tradeIns.map((t, i) => (
-                  <div key={i} className="mb-2 rounded-lg bg-gray-50 p-2 dark:bg-white/[0.04]">
-                    <div className="mb-1.5 flex items-center justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">{t.product_name}</span>
-                      <button onClick={() => setTradeIns((xs) => xs.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove trade-in">
-                        <CloseIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Input type="number" min="0" step={1} value={t.quantity} placeholder="Qty"
-                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
-                      <Input type="number" min="0" value={t.unit_allowance} placeholder="Allowance"
-                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, unit_allowance: e.target.value } : x)))} />
-                      <Input value={t.description} placeholder="e.g. Osaka 70Ah"
-                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
-                    </div>
-                  </div>
-                ))}
-
-                <Input value={tradeInSearch} placeholder="Search the item taken in — scrap battery, used tyre…"
-                  onChange={(e) => setTradeInSearch(e.target.value)} />
-                {tradeInSearch.trim().length > 1 && (
-                  <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                    {tradeInOptions.length === 0 ? (
-                      <p className="px-2 py-3 text-center text-theme-xs text-gray-400">
-                        No stock item matches. Add one (e.g. "Scrap Battery") so what comes in can be counted.
-                      </p>
-                    ) : (
-                      tradeInOptions.map((p) => (
-                        <button key={p.id} type="button"
-                          onClick={() => {
-                            setTradeIns((xs) => [...xs, {
-                              product_id: p.id, product_name: p.name,
-                              quantity: "1", unit_allowance: "", description: "",
-                            }]);
-                            setTradeInSearch("");
-                          }}
-                          className="block w-full truncate px-2 py-1.5 text-left text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
-                          {p.name}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-
-                {tradeInTooBig && (
-                  <p className="mt-2 text-theme-xs text-error-500">
-                    The allowance is more than the bill. The shop would owe them money — record that as a purchase instead.
-                  </p>
-                )}
+            {/* HOW IT IS PAID — one line, the shop's default already chosen
+                (the user, 2026-10-21: five tabs, then a button and a list,
+                were both harder than one list). The group keeps the question
+                named for a reader; Khata is the customers module's — a shop
+                without that screen must not be able to lend into it. */}
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <label id="tender-method-label" htmlFor="tender-method" className="shrink-0 text-theme-sm font-medium text-gray-600 dark:text-gray-300">Payment method</label>
+              <div role="group" aria-labelledby="tender-method-label" className="w-full max-w-[15rem]">
+                <select
+                  id="tender-method"
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value as PayMethod)}
+                  className="h-11 w-full rounded-xl border-2 border-brand-500 bg-white px-3 text-theme-sm font-semibold text-gray-800 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:bg-gray-900 dark:text-white/90"
+                >
+                  {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).map((m) => (
+                    <option key={m} value={m}>{METHOD_LABEL[m]}{m === defaultTender ? " (default)" : ""}</option>
+                  ))}
+                </select>
               </div>
-            )}
-            {/* Who sold it, above the tenders because it is a fact about the
-                sale rather than about the money. Absent entirely unless the
-                shop has asked for it. */}
-            <ServedByRow
-              enabled={!!settings.data?.pos_ask_who_served}
-              me={user?.id ?? null}
-              anyone={user?.role === "shop_owner" || (user?.permissions?.includes("sales.credit_others") ?? false)}
-              value={servedBy}
-              onChange={setServedBy}
-            />
-            {/* A tip is asked for HERE, with the money, because it is money:
-                it goes in the drawer with the bill and comes out for the
-                staff. It is never part of the bill — the figure above already
-                has it in, and the line under the box says how much of that
-                figure is the bill and how much is theirs. */}
-            {tipsOn && (
-              <div className="mb-5">
-                <label htmlFor="till-tip" className="mb-1.5 block text-theme-sm font-medium text-gray-500 dark:text-gray-400">Tip</label>
-                <Input
-                  id="till-tip"
-                  type="number"
-                  min="0"
-                  step={1}
-                  placeholder="0"
-                  value={tip}
-                  onChange={(e) => setTip(e.target.value)}
-                />
-                <p className="mt-1 text-theme-xs text-gray-400">
-                  {tipAmount > 0
-                    ? <>Bill {money(total)} · tip {money(tipAmount)}. The tip is the staff&rsquo;s — it is not a sale and is not taxed.</>
-                    : <>The staff&rsquo;s. Handed over with the bill, never part of it.</>}
-                </p>
-              </div>
-            )}
-            {/* WHICH TENDER IS SELECTED, SAID OUT LOUD.
-                Selection was carried by hue alone — same border width, same
-                icon, no state on the control. Four buttons that a reader
-                announces identically, in front of the step that decides how the
-                sale posts. `aria-pressed` names the state; `role=group` with a
-                label ties the four together so they are heard as one question
-                rather than four unrelated buttons. Colour still does the work
-                for everyone else, it is just no longer doing it alone —
-                including in high-contrast mode, where author backgrounds are
-                dropped and the selection used to vanish for sighted users too. */}
-            <div id="tender-method-label" className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
-            {/* The shop's own default is the one button; every other way to pay
-                is one choice away in the list beside it (the user, 2026-10-21:
-                five tabs for the one tender most sales use). */}
-            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setMethod(defaultTender)}
-                aria-pressed={method === defaultTender}
-                className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-theme-sm font-medium transition ${method === defaultTender ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
-                <MethodIcon m={defaultTender} />
-                {METHOD_LABEL[defaultTender]}
-                <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>
-              </button>
-              {/* Khata is the customers module's: the debt it writes can only
-                  be seen and collected on the Customers screen. A shop without
-                  that screen must not be able to lend into it. */}
-              <select
-                aria-label="Pay another way"
-                value={method === defaultTender ? "" : method}
-                onChange={(e) => setMethod(e.target.value === "" ? defaultTender : (e.target.value as PayMethod))}
-                className={`h-full min-h-12 w-full rounded-xl border-2 bg-white px-3 text-theme-sm font-medium transition focus:outline-hidden dark:bg-gray-900 ${method !== defaultTender ? "border-brand-500 text-brand-700 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}
-              >
-                <option value="">Pay another way…</option>
-                {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).filter((m) => m !== defaultTender).map((m) => (
-                  <option key={m} value={m}>{METHOD_LABEL[m]}</option>
-                ))}
-              </select>
             </div>
             {hasBankOffers && <BankOfferRow
               cardAmount={
@@ -5081,10 +4949,10 @@ export default function PosPage() {
                   // Whose khata, asked here — not "go and find the Customer
                   // button" behind the sheet the cashier is standing in.
                   <div data-khata-who className="space-y-2">
-                    <p>Whose khata? Type the customer&rsquo;s name or phone.</p>
+                    <p>Whose khata? The customer&rsquo;s phone finds their account.</p>
                     <div className="grid grid-cols-2 gap-2">
-                      <Input aria-label="Customer name" placeholder="Name" value={customer} onChange={(e) => setCustomer(e.target.value)} />
                       <Input aria-label="Customer phone" placeholder="03xx-xxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                      <Input aria-label="Customer name" placeholder="Name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
                     </div>
                   </div>
                 ) : <>Adds <span className="font-semibold">{money(payable)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
@@ -5111,6 +4979,115 @@ export default function PosPage() {
                 </div>
               </div>
             )}
+            {/* The extras — who served, a tip, goods taken in — under the money,
+                each one line, so the tender is what the sheet opens on. */}
+            <div data-pay-extras className="mt-5 space-y-3 border-t border-dashed border-gray-200 pt-4 empty:hidden dark:border-gray-700">
+            {/* Who sold it — a fact about the sale, not the money, so it sits
+                with the extras under the tender. Absent unless the shop asks. */}
+            <ServedByRow
+              enabled={!!settings.data?.pos_ask_who_served}
+              me={user?.id ?? null}
+              anyone={user?.role === "shop_owner" || (user?.permissions?.includes("sales.credit_others") ?? false)}
+              value={servedBy}
+              onChange={setServedBy}
+            />
+            {/* A tip is asked for HERE, with the money, because it is money:
+                it goes in the drawer with the bill and comes out for the
+                staff. It is never part of the bill — the figure above already
+                has it in, and the line under the box says how much of that
+                figure is the bill and how much is theirs. */}
+            {tipsOn && (
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="till-tip" className="shrink-0 text-theme-sm font-medium text-gray-600 dark:text-gray-300">Tip</label>
+                  <div className="w-full max-w-[15rem]">
+                    <Input
+                      id="till-tip"
+                      type="number"
+                      min="0"
+                      step={1}
+                      placeholder="0"
+                      value={tip}
+                      onChange={(e) => setTip(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <p className="mt-1 text-right text-theme-xs text-gray-400">
+                  {tipAmount > 0
+                    ? <>Bill {money(total)} · tip {money(tipAmount)}. The tip is the staff&rsquo;s — it is not a sale and is not taxed.</>
+                    : <>The staff&rsquo;s. Handed over with the bill, never part of it.</>}
+                </p>
+              </div>
+            )}
+            {/* Folded away until it is wanted: most sales take no goods back,
+                and a whole section for it stood over every bill. */}
+            {has("inventory") && !tradeInOpen && tradeIns.length === 0 && (
+              <button type="button" onClick={() => setTradeInOpen(true)} className="flex items-center gap-1 text-theme-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
+                <PlusIcon className="h-4 w-4" /> Take goods in part-payment
+              </button>
+            )}
+            {has("inventory") && (tradeInOpen || tradeIns.length > 0) && (
+              <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-theme-sm font-medium text-gray-500 dark:text-gray-400">Take goods in part-payment</span>
+                  {tradeInTotal > 0 && (
+                    <span className="text-theme-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">{money(tradeInTotal)}</span>
+                  )}
+                </div>
+
+                {tradeIns.map((t, i) => (
+                  <div key={i} className="mb-2 rounded-lg bg-gray-50 p-2 dark:bg-white/[0.04]">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="min-w-0 flex-1 truncate text-theme-sm font-medium text-gray-800 dark:text-white/90">{t.product_name}</span>
+                      <button onClick={() => setTradeIns((xs) => xs.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove trade-in">
+                        <CloseIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Input type="number" min="0" step={1} value={t.quantity} placeholder="Qty"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)))} />
+                      <Input type="number" min="0" value={t.unit_allowance} placeholder="Allowance"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, unit_allowance: e.target.value } : x)))} />
+                      <Input value={t.description} placeholder="e.g. Osaka 70Ah"
+                        onChange={(e) => setTradeIns((xs) => xs.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
+                    </div>
+                  </div>
+                ))}
+
+                <Input value={tradeInSearch} placeholder="Search the item taken in — scrap battery, used tyre…"
+                  onChange={(e) => setTradeInSearch(e.target.value)} />
+                {tradeInSearch.trim().length > 1 && (
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    {tradeInOptions.length === 0 ? (
+                      <p className="px-2 py-3 text-center text-theme-xs text-gray-400">
+                        No stock item matches. Add one (e.g. "Scrap Battery") so what comes in can be counted.
+                      </p>
+                    ) : (
+                      tradeInOptions.map((p) => (
+                        <button key={p.id} type="button"
+                          onClick={() => {
+                            setTradeIns((xs) => [...xs, {
+                              product_id: p.id, product_name: p.name,
+                              quantity: "1", unit_allowance: "", description: "",
+                            }]);
+                            setTradeInSearch("");
+                          }}
+                          className="block w-full truncate px-2 py-1.5 text-left text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
+                          {p.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {tradeInTooBig && (
+                  <p className="mt-2 text-theme-xs text-error-500">
+                    The allowance is more than the bill. The shop would owe them money — record that as a purchase instead.
+                  </p>
+                )}
+              </div>
+            )}
+            </div>
             {/* ANY failure, not only an ApiError.
                 
                 This read `checkout.error instanceof ApiError`, so a sale that
@@ -5159,14 +5136,19 @@ export default function PosPage() {
                   // button that will never work.
                   title={checkout.error.name === "OfflineRefused" ? "Can't ring this offline" : "Sale failed"}
                   message={
-                    checkout.error.name === "OfflineRefused" || checkout.error instanceof ApiError
-                      ? checkout.error.message
-                      : `${checkout.error.message} — this sale was not saved. Try again; if it keeps failing, write the sale down and tell the owner.`
+                    // The server's reason for the box it refused, not the
+                    // envelope's "The given data was invalid." — which named
+                    // nothing a cashier could put right.
+                    checkout.error instanceof ApiError
+                      ? (checkout.error.firstFieldError() ?? checkout.error.message)
+                      : checkout.error.name === "OfflineRefused"
+                        ? checkout.error.message
+                        : `${checkout.error.message} — this sale was not saved. Try again; if it keeps failing, write the sale down and tell the owner.`
                   }
                 />
               </div>
             )}
-            {method === "split" && splitHasCredit && !hasCustomer && <p className="mt-3 text-theme-xs text-error-500">Attach a customer to put part of this sale on credit.</p>}
+            {method === "split" && splitHasCredit && customerPhone.trim() === "" && <p className="mt-3 text-theme-xs text-error-500">Add the customer&rsquo;s phone (Customer button) to put part of this sale on khata.</p>}
             {reRingHeld && (
               <p data-re-ring-held className="mt-3 text-theme-xs text-error-500">
                 {reRingMoney?.blocked ?? `Re-ringing ${reRinging?.invoice_number ?? "a bill"} cancels it, so a supervisor approves it first — their PIN goes in on the re-ring note above the bill.`}
@@ -5251,7 +5233,7 @@ export default function PosPage() {
                 disabled={shift.move.isPending}
                 onClick={() => shift.move.mutate(terminalId, {
                   onSuccess: () => { setShiftError(null); openModal.closeModal(); },
-                  onError: (e) => setShiftError({ message: e instanceof ApiError ? e.message : "Could not move the shift." }),
+                  onError: (e) => setShiftError({ message: e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Could not move the shift." }),
                 })}
               >
                 {shift.move.isPending ? "Moving…" : `Move my shift to ${laneLabel ?? "this register"}`}

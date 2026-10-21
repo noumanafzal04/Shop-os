@@ -51,7 +51,7 @@ try {
   await qa.quiet(1500);
   out("till says about her", oneLine(await textOf(page, "main")).match(/Ayesha[^·]{0,80}(·[^·]{0,60}){0,2}/)?.[0] ?? "(her name not on the till)");
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
-  await page.getByRole("group", { name: "Payment method" }).getByRole("combobox", { name: "Pay another way" }).selectOption({ label: "Khata" });
+  await page.getByRole("combobox", { name: "Payment method" }).selectOption("credit");
   await qa.quiet(800);
   out("tender sheet", oneLine(await page.getByRole("dialog").last().innerText()).slice(0, 300));
   await page.getByRole("button", { name: /^Complete/ }).click();
