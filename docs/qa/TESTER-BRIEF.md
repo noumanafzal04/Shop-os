@@ -134,6 +134,25 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R81 | B96 | Sell, then exchange for a dearer size, paying the difference. Day & banking, Reports, Dashboard. | Day "Rung up" = Reports revenue = Dashboard today (the returned item is not sold twice). |
 | R82 | B97 | A drawer that should hold paisa (e.g. 53,708.50): close counting notes + "Loose cash" 0.50, Rs 50 short. Print the Z-read. Also once offline. | Variance exactly −50.00; the Z-read lists "Loose cash"; offline the same after sync. |
 | R83 | B98 | Close the shift, close the day, then record a deposit. | Banking shows the trading day; Past days "Banked" = the deposit; still-in-shop drops by it; sales/profit unchanged. |
+| R84 | B99 | Shop asks for shifts. A cashier takes a cash advance; the owner, with no shift open, cancels it keeping a fee. Then refund by card. | Cash refund refused "Open a shift before handing an advance back in cash"; nothing changes; the card refund goes through and no drawer moves. |
+| R85 | B100 | Cancel an advance keeping a fee; read Income, Reports, Cashbook as the owner and as someone pinned to that branch. | Both see the fee; the same other income and profit. |
+| R86 | B101 | Send stock between places; read Reports → Stock value and Stock by place before, during and after. | Shop-wide value never changes and says how much is "on the road"; by-place Total includes On the road. |
+| R87 | B102 | Limit 10 %. 179.98 off 1,799.98 as a LINE discount and as a BILL discount; then 181. | 179.98 goes through both ways; 181 refused both ways, naming 10.06 %. |
+| R88 | B103 | Bank part of the drawers (more than the cash sales, e.g. khata or other income in the drawer). | "Still in the shop" = In the drawers − Banked, never below nothing. |
+| R89 | B104 | Close yesterday; the next morning bank yesterday's takings, then bank some of today's. | Dashboard "Banked today" = Day & banking today (yesterday's slip not in it). |
+| R90 | B105 | Change the phone of a customer on a running instalment plan. | The plan shows the new phone; search finds them. |
+| R91 | B106 | Open a shift, THEN pick a lane. | Day & banking's Lane column names that lane. |
+| R92 | B107 | New quotation dated in the past (type it). | The date box will not take it, or the sheet says why in words — never only "The given data was invalid." |
+| R93 | B108 | Add a cash expense / income as the owner with no shift, and as Accounts. | The sheet says it is recorded outside the till — no "comes out of your open drawer" promise. |
+| R94 | B109 | Filter Staff, Sales or Activity down to one row. | "1 person", "1 sale", "1 change". |
+| R95 | B110 | Stocktake: type the last line and do NOT leave the box; wait; then Apply. | The header counts it; Apply includes it. |
+| R96 | B111 | Ring a sale with a coupon (online); Settings → Devices & offline → Offline pricing checks. | Not a "priced differently"; counted under "Not compared". |
+| R97 | B112 | Settings → Point of Sale → Round cash bills to. | Each choice once, none dead. |
+| R98 | B113 | Sit on the POS 30 s with the network panel open, one lane trading, nothing held. | No /pos/held every 10 s; no /products on open for the trade-in box. |
+| R99 | B114 | Open a gated screen as the FIRST navigation of a fresh session (bookmark / pasted URL). Keep a trace if it bounces. | The screen asked for opens — never the Dashboard. |
+| R100 | B115 | Filter Products and the POS by a PARENT category (also offline). | Its sub-categories' items are listed; a child category stays exact. |
+| R101 | B116 | Pay sheet: default tender is a button, others in "Pay another way"; trade-in folded; khata asks whose; Enter completes; cash box ready to type. | All as said; Enter on Cancel cancels. |
+| R102 | B117 | Shop asks "who served". A cashier (no permission) and a Shift supervisor each ring a sale. | The cashier sees only their own name and cannot send another (refused); the supervisor and owner may name anybody. |
 
 ### 5b. What no pass has reached yet
 

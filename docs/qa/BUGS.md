@@ -8,7 +8,7 @@ Testing and fixing are split (the user's call, 2026-10-14):
   runs the five gates, pushes, and updates the Status column below.
 
 IDs are never reused. The tester continues from the next free number
-(**next bug: B89 · next question: Q24**). `L…` = found by the fixer while fixing.
+(**next bug: B118 · next question: Q24**). `L…` = found by the fixer while fixing.
 
 Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left is said) ·
 **OWNER** (waits for a decision) · **TO BUILD** (decided, not built yet).
@@ -139,6 +139,25 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B96 | P1 | Day & banking / exchange | Day "Rung up" counted an exchange's replacement whole: 8,131.50 against Reports' 5,791.50 (full re-test #8) | FIXED `2e6f888` — Day (drawers and "not at a counter") counts what was taken, as Reports do |
 | B97 | P1 | Shift close / count | Counting by note could not reach the paisa: 53,708.50 expected, "0.5" in the 1s box became 5 (full re-test #9) | FIXED `2e6f888` `e072410` — a "Loose cash" box beside the notes, added server-side (online and offline sync); the Z-read shows it |
 | B98 | P1 | Banking | A deposit made after the day was closed saved against no day: Banking "—", Past days banked 0 (full re-test #10) | FIXED `2e6f888` — it belongs to the day last closed at that place, and that day's banked figure goes up |
+| B99 | P1 | Advances | Cancelling a cash advance with no shift open "refunded" money that left no drawer (retail #8, 2026-10-21) | FIXED — where the shop asks for shifts, cash handed back needs the giver's own shift of today (SHIFT_REQUIRED); card/bank need none |
+| B100 | P1 | Income | A forfeited advance was booked with no branch — invisible to everyone pinned to one (retail #10) | FIXED — carries the advance's branch; migration `2026_10_21_000001` backfills (run on dev) |
+| B101 | P1 | Stock value | Stock on the road was in no total: the valuation dropped while a transfer travelled; By place TOTAL left out its own On the road (retail #14) | FIXED — shop-wide valuation counts it and says how much (`on_the_road_cost`); a branch's own figure does not; by-place total includes it |
+| B102 | P2 | Till | The discount ceiling measured a line discount against the bill after it (10 % allowed 9.09 %) (retail #5) | FIXED — measured against the bill before any of it, sale and quotation alike |
+| B103 | P2 | Day & banking | "Still in the shop" was cash sales − banked and went to −10,982.67 (retail #11) | FIXED — the drawers (counted, or expected while trading) − banked |
+| B104 | P2 | Dashboard | "Banked today" counted slips by when they were typed (retail #6) | FIXED — by today's trading day, as Day & banking |
+| B105 | P2 | Instalments | A running plan kept the customer's old phone (retail #15) | FIXED — a running plan follows the customer's name and phone |
+| B106 | P2 | Till | A lane picked after "Open shift" never reached the shift (retail #3) | FIXED — the picker moves the open shift; says so when refused |
+| B107 | P2 | Quotes & Advances | A refused save said only "The given data was invalid." (retail #7) | FIXED — the server's field reason on every form of the module; the date box takes no past date |
+| B108 | P2 | Expenses / Income | "Cash comes out of your open drawer" shown to people with no drawer (retail #9) | FIXED — said only to someone whose own shift is open; otherwise "recorded as cash outside the till" |
+| B109 | P3 | Lists | "1 people", "1 sales" (retail #12) | FIXED — FilterBar and Pager say the one |
+| B110 | P2 | Stocktake | The last figure typed was not counted until the box lost focus (retail #13) | FIXED — kept after a pause in typing and before Apply asks |
+| B111 | P2 | Offline pricing | The gauge filed a coupon cart as a disagreement for ever (retail #16) | FIXED — coupon / points / bank offer / member price carts are "Not compared" |
+| B112 | P3 | Settings | "Nothing — exact to the paisa" listed twice, the first dead (retail #4) | FIXED |
+| B113 | P3 | Till | Held tickets and lanes polled every 10 s for ever; a trade-in catalogue search on every open (retail #2) | FIXED — held every 10 s only while another lane trades or one is held (else 60 s); lanes only while the picker is open or another lane exists; trade-in search only when typed. Idle POS 30 s: 6 requests → 1 |
+| B114 | P2 | Routing | The first screen of a session opened the Dashboard (retail #1) | NOT REPRODUCED — 3 tries (fresh sign-in, old state, expired token) each opened the screen asked for; re-test with a trace |
+| B115 | P2 | Catalogue / Till | A parent category's filter found nothing filed under its sub-categories (the user, 2026-10-21) | FIXED — Products, the till online and offline, the export and the storefront find the whole branch |
+| B116 | P2 | Till | Pay sheet (the user, 2026-10-21): five tender tabs, a trade-in section on every bill, Served by on Nobody, khata sent the cashier to another button, Enter did nothing | FIXED — default tender button + "Pay another way" list; trade-in folded until asked; Served by opens on the person at the till; khata asks whose on the sheet; Enter completes (not on a button or list) and the cash box opens selected |
+| B117 | P2 | Till / Staff | Any cashier could name any colleague as "Served by" — the name the staff report pays off (the user, 2026-10-21) | FIXED — new permission `sales.credit_others` (Shift supervisor, Manager; the owner always): without it the till offers only themselves and the server refuses another name (SERVED_BY_NOT_YOURS); migration `2026_10_21_000002` grants it to staff who may discount past the ceiling |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 
