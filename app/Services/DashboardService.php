@@ -936,10 +936,21 @@ class DashboardService
                 ->whereIn('business_day_id', $todayDays->pluck('id'))
                 ->where('status', 'open')
                 ->count(),
+            // Filed under today's trading day, as Day & banking counts it — not
+            // typed since five. Yesterday's takings carried to the bank at
+            // eleven are yesterday's banking; counted by the moment they were
+            // typed, the tile read 41,894.25 beside Day & banking's 947.68
+            // (retail #6). A slip filed under no day is still read by its moment.
             'banked_today' => round((float) BankDeposit::withoutTenancy()
                 ->where('tenant_id', $tenant->id)
                 ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
-                ->where('deposited_at', '>=', $todayStart)
+                ->where(fn ($q) => $q
+                    ->whereIn('business_day_id', BusinessDay::withoutTenancy()
+                        ->where('tenant_id', $tenant->id)
+                        ->when($branchId, fn ($d, $b) => $d->where('branch_id', $b))
+                        ->whereDate('trading_date', '>=', $today)
+                        ->select('id'))
+                    ->orWhere(fn ($loose) => $loose->whereNull('business_day_id')->where('deposited_at', '>=', $todayStart)))
                 ->sum('amount'), 2),
             // The OLDEST day still hanging open. Null is the healthy answer.
             'unclosed_day' => $unclosed->first()?->trading_date->toDateString(),

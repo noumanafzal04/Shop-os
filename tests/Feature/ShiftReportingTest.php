@@ -448,9 +448,9 @@ class ShiftReportingTest extends TestCase
             ->getJson('/api/v1/pos/day')->assertOk()->json('data');
 
         $this->assertEquals(3000, $view['banked']);
-        // Takings minus what went to the bank. The 5,000 float is not today's
-        // money and stays for tomorrow, so it is not in this number.
-        $this->assertEquals(2000, $view['unbanked']);
+        // What the drawer holds less what went to the bank: the 5,000 float and
+        // the 5,000 sale, 3,000 of it banked (retail #11).
+        $this->assertEquals(7000, $view['unbanked']);
         $this->assertCount(1, $view['deposits']);
     }
 

@@ -48,11 +48,15 @@ class Category extends BaseModel
      * whole tree in one read — a shop has dozens of categories, not
      * thousands — and walked here, so a loop in old data cannot hang it.
      *
+     * `$tenantId` is for a caller with no shop in context — the storefront —
+     * so the walk reads that shop's tree and nobody else's.
+     *
      * @return list<string>
      */
-    public static function selfAndBelow(string $categoryId): array
+    public static function selfAndBelow(string $categoryId, ?string $tenantId = null): array
     {
-        $childrenOf = static::query()->whereNotNull('parent_id')->get(['id', 'parent_id'])->groupBy('parent_id');
+        $childrenOf = ($tenantId === null ? static::query() : static::withoutTenancy()->where('tenant_id', $tenantId))
+            ->whereNotNull('parent_id')->get(['id', 'parent_id'])->groupBy('parent_id');
 
         $found = [$categoryId => true];
         $next = [$categoryId];

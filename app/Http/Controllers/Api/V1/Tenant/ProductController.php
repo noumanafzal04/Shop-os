@@ -17,6 +17,7 @@ use App\Models\Branch;
 use App\Models\BranchPrice;
 use App\Models\BranchSoldOut;
 use App\Models\BranchStock;
+use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Support\ApiResponse;
@@ -62,7 +63,8 @@ class ProductController extends Controller
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
             ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
             ->when($request->query('collection_id'), fn ($q, $cid) => $q->whereHas('collections', fn ($c) => $c->where('collections.id', $cid)))
-            ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
+            // A parent holds its items in its children: Men finds Men → Shirts.
+            ->when($request->query('category_id'), fn ($q, $id) => $q->whereIn('category_id', Category::selfAndBelow((string) $id)))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             // The till's search asks for what may be sold (B62).
             ->when($request->has('for_sale'), fn ($q) => $q->where('for_sale', $request->boolean('for_sale')))
@@ -306,7 +308,8 @@ class ProductController extends Controller
             })
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
             ->when($request->query('item_type'), fn ($q, $t) => $q->where('item_type', $t))
-            ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
+            // A parent holds its items in its children: Men finds Men → Shirts.
+            ->when($request->query('category_id'), fn ($q, $id) => $q->whereIn('category_id', Category::selfAndBelow((string) $id)))
             ->when($request->has('is_active'), fn ($q) => $q->where('is_active', $request->boolean('is_active')))
             // The till's search asks for what may be sold (B62).
             ->when($request->has('for_sale'), fn ($q) => $q->where('for_sale', $request->boolean('for_sale')))

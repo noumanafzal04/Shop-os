@@ -122,6 +122,9 @@ class BusinessDayController extends Controller
 
         $banked = round((float) BankDeposit::query()->where('business_day_id', $day->id)->sum('amount'), 2);
         $cashSales = $sum('cash_sales');
+        $held = round((float) $rows->sum(fn (array $r) => (float) (isset($r['live'])
+            ? $r['live']['expected_cash']
+            : ($r['counted_cash'] ?? $r['expected_cash'] ?? 0))), 2);
         // Sold today with no drawer — in "Rung up", never in the drawers (B14).
         $away = AwayFromDrawers::of($day);
 
@@ -152,9 +155,12 @@ class BusinessDayController extends Controller
                 'variance' => round((float) $sessions->sum(fn ($s) => (float) $s->variance), 2),
             ],
             'banked' => $banked,
-            // The day's takings that are still in the shop. Floats are excluded
-            // — they were never today's money and they stay for tomorrow.
-            'unbanked' => round($cashSales - $banked, 2),
+            // What is still in the shop: the cash the drawers hold — counted
+            // where a shift is closed, expected where it is still trading —
+            // less what went to the bank. It was cash SALES less banked, and a
+            // drawer banked whole (its khata, its other income, its float) read
+            // −10,982.67 beside "In the drawers 18,982.67" (retail #11).
+            'unbanked' => round($held - $banked, 2),
             'deposits' => BankDeposit::query()
                 ->with('depositedBy:id,name')
                 ->where('business_day_id', $day->id)

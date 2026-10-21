@@ -127,6 +127,17 @@ class GoodsGoHomeOnInstallmentsTest extends TestCase
      * nothing on screen said so. It now asks the server what the plan will
      * be, and the server refuses to write it at a bill nobody was told.
      */
+    public function test_a_running_plan_follows_the_customers_new_phone(): void
+    {
+        // Retail #15: the plan is found by the customer's phone, and it kept
+        // the old one after the customer's was changed — finding nobody.
+        $plan = $this->start();
+
+        $this->asOwner()->putJson('/api/v1/customers/'.$this->ali()->id, ['name' => 'Ali Raza', 'phone' => '03000124999'])->assertOk();
+
+        $this->assertSame('03000124999', InstallmentPlan::withoutTenancy()->findOrFail($plan['id'])->customer_phone);
+    }
+
     public function test_the_sheet_is_told_the_plan_that_will_be_written(): void
     {
         $this->shop->forceFill(['settings' => array_merge($this->shop->settings ?? [], ['default_tax_rate' => 17])])->save();

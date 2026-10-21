@@ -7,6 +7,7 @@ use App\Enums\SaleStatus;
 use App\Models\Branch;
 use App\Models\BranchStock;
 use App\Models\Product;
+use App\Models\StockTransfer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,21 @@ class StockReportService
     public function valuation(string $tenantId, ?string $branchId = null, ?int $limit = self::SCREEN_LINES): array
     {
         $rows = $this->onHand($tenantId, $branchId);
+
+        // STOCK ON THE ROAD IS STILL THE SHOP'S. A transfer takes the units off
+        // the sender at Send and puts them on the receiver at Receive; nothing
+        // held them in between, so the shop's stock value dropped by whatever
+        // was on the van for as long as it travelled (retail #14). It is
+        // neither place's, so a branch's own figure leaves it out — the
+        // shop-wide one counts it, and says how much of it is travelling.
+        $road = $branchId === null ? $this->onTheRoad($tenantId) : collect();
+        $roadUnits = 0.0;
+        $roadCost = 0.0;
+        foreach ($road as $moving) {
+            $roadUnits += (float) $moving->quantity;
+            $roadCost += (float) $moving->quantity * max(0.0, (float) ($moving->cost ?? 0));
+        }
+        $rows = $this->withRoad($rows, $road);
 
         $costValue = 0.0;
         $retailValue = 0.0;
@@ -107,6 +123,10 @@ class StockReportService
                 // however much they actually cost.
                 'uncosted_items' => $uncosted,
                 'uncosted_units' => round($uncostedUnits, 3),
+                // Already inside the figures above, named so the places and the
+                // road add up in front of the reader.
+                'on_the_road_units' => round($roadUnits, 3),
+                'on_the_road_cost' => round($roadCost, 2),
             ],
             'by_category' => collect($byCategory)
                 ->map(fn (array $c): array => [
@@ -309,6 +329,74 @@ class StockReportService
         }
 
         return $stock;
+    }
+
+    /**
+     * Sent and not yet counted in, by product and size, with what the
+     * valuation needs to price it.
+     *
+     * @return Collection<int, object>
+     */
+    private function onTheRoad(string $tenantId): Collection
+    {
+        return DB::table('stock_transfer_items as i')
+            ->join('stock_transfers as t', 't.id', '=', 'i.stock_transfer_id')
+            ->join('products', 'products.id', '=', 'i.product_id')
+            ->leftJoin('product_variants', 'product_variants.id', '=', 'i.variant_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+            ->where('t.tenant_id', $tenantId)
+            ->where('t.status', StockTransfer::IN_TRANSIT)
+            ->whereNull('t.deleted_at')
+            ->whereNull('products.deleted_at')
+            ->where('products.type', ItemType::Product->value)
+            ->where('products.track_inventory', true)
+            ->groupBy('i.product_id', 'i.variant_id', 'products.name', 'products.sku', 'product_variants.name',
+                'product_variants.sku', 'product_variants.cost', 'products.cost', 'product_variants.price',
+                'products.price', 'categories.name')
+            ->get([
+                'i.product_id as product_id',
+                'i.variant_id as variant_id',
+                DB::raw('SUM(i.quantity) as quantity'),
+                'products.name as product_name',
+                'products.sku as sku',
+                'product_variants.name as variant_name',
+                'product_variants.sku as variant_sku',
+                DB::raw('COALESCE(product_variants.cost, products.cost) as cost'),
+                DB::raw('COALESCE(product_variants.price, products.price) as price'),
+                'categories.name as category_name',
+            ]);
+    }
+
+    /**
+     * The shelves with the road added in: onto the product's own line when it
+     * has one, as a line of its own when every unit of it is travelling.
+     *
+     * @param  Collection<int, object>  $rows
+     * @param  Collection<int, object>  $road
+     * @return Collection<int, object>
+     */
+    private function withRoad(Collection $rows, Collection $road): Collection
+    {
+        if ($road->isEmpty()) {
+            return $rows;
+        }
+
+        $byKey = [];
+        foreach ($rows as $row) {
+            $byKey[$row->product_id.'|'.($row->variant_id ?? '')] = $row;
+        }
+
+        foreach ($road as $moving) {
+            $key = $moving->product_id.'|'.($moving->variant_id ?? '');
+            if (isset($byKey[$key])) {
+                $byKey[$key]->quantity = (float) $byKey[$key]->quantity + (float) $moving->quantity;
+            } else {
+                $rows->push($moving);
+                $byKey[$key] = $moving;
+            }
+        }
+
+        return $rows;
     }
 
     /**

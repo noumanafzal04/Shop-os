@@ -486,7 +486,8 @@ class CreateSaleDocumentAction
             throw DomainException::unprocessable('Discount cannot exceed the subtotal.', 'DISCOUNT_EXCEEDS_SUBTOTAL');
         }
 
-        $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, $subtotal);
+        // Against the bill before any of it, as the till measures it (retail #5).
+        $this->assertWithinDiscountCeiling($discount + $discretionaryLineDiscount, round($subtotal + $discretionaryLineDiscount, 2));
 
         // Members' discount from the customer's group — a standing price, not a
         // campaign, so it belongs on a quote the same way it belongs on a sale.

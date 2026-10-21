@@ -138,6 +138,17 @@ class Permissions
     public const SALES_REFUND = 'sales.refund';
 
     /**
+     * Naming somebody else as who served a sale.
+     *
+     * "Served by" is what the staff report pays commission off. A cashier who
+     * could pick any name could put their own sales on a friend's month, or a
+     * colleague's on theirs (the user, 2026-10-21: "jisko permission ni wo kisi
+     * or staff ko served by ni kr skta"). Without it, a sale names the person
+     * ringing it, or nobody.
+     */
+    public const SALES_CREDIT_OTHERS = 'sales.credit_others';
+
+    /**
      * Exceeding the shop's discount ceiling. discounts.apply lets you give the
      * everyday discount; this lets you go past the limit the owner set.
      */
@@ -369,6 +380,10 @@ class Permissions
             'hint' => 'Restores stock and reverses the money.',
         ],
         self::SALES_REFUND => ['label' => 'Refund a sale', 'hint' => 'Hand money back.'],
+        self::SALES_CREDIT_OTHERS => [
+            'label' => 'Credit a sale to someone else',
+            'hint' => 'Pick another staff member as Served by. Without it, only themselves.',
+        ],
         self::TABLES_SERVE_ANY => [
             'label' => 'Serve any table',
             'hint' => "Work and settle other waiters' tabs. Without it, their own tables only.",
@@ -422,6 +437,8 @@ class Permissions
         self::DISCOUNTS_OVERRIDE => ['pos', 'marketplace', 'dine_in'],
         self::SALES_VOID => ['pos', 'marketplace', 'dine_in'],
         self::SALES_REFUND => ['pos', 'marketplace', 'dine_in'],
+        // "Served by" is asked at the till only.
+        self::SALES_CREDIT_OTHERS => ['pos'],
         self::TABLES_SERVE_ANY => ['dine_in'],
         // The screens this opens: Coupons, Promotions, Bank offers. It was
         // keyed on "can sell at all", so six of nine trades were offered a
@@ -527,6 +544,7 @@ class Permissions
             self::DISCOUNTS_OVERRIDE,
             self::SALES_VOID,
             self::SALES_REFUND,
+            self::SALES_CREDIT_OTHERS,
             self::TABLES_SERVE_ANY,
             self::CUSTOMERS_MANAGE,
             self::COUPONS_MANAGE,

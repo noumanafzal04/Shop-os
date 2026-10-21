@@ -74,13 +74,15 @@ class StockByPlaceController extends Controller
                 'low_stock_threshold' => $p->low_stock_threshold === null ? null : (float) $p->low_stock_threshold,
                 'places' => (object) $perPlace,
                 'on_the_road' => round(array_sum($road), 3),
-                'total' => round(array_sum($perPlace), 3),
+                // The road is still the shop's: 7 on the shelves and 4 on the
+                // van is 11, not 7 (retail #14).
+                'total' => round(array_sum($perPlace) + array_sum($road), 3),
                 'sizes' => $p->variants->map(fn ($v): array => [
                     'id' => $v->id,
                     'name' => $v->name,
                     'places' => (object) ($mine[$v->id] ?? []),
                     'on_the_road' => round($road[$v->id] ?? 0, 3),
-                    'total' => round(array_sum($mine[$v->id] ?? []), 3),
+                    'total' => round(array_sum($mine[$v->id] ?? []) + ($road[$v->id] ?? 0), 3),
                 ])->values(),
             ];
         });

@@ -795,7 +795,7 @@ class MarketplaceController extends Controller
                 ->where('name', 'like', "%{$s}%")
                 ->orWhere('brand', 'like', "%{$s}%")
                 ->orWhere('generic_name', 'like', "%{$s}%")))
-            ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
+            ->when($request->query('category_id'), fn ($q, $id) => $q->whereIn('category_id', Category::selfAndBelow((string) $id, $tenant->id)))
             ->when($request->query('type'), fn ($q, $type) => $q->where('type', $type))
             /**
              * BY CATEGORY, THEN BY NAME.

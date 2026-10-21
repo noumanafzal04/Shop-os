@@ -263,6 +263,17 @@ class CustomerController extends Controller
         $customer = Customer::query()->findOrFail($id);
         $customer->update($request->validated());
 
+        // A running plan is chased by the customer's name and phone — the
+        // sheet says "the khata and every installment are found by it". It
+        // kept the old number, which then found nobody (retail #15). A plan
+        // that is paid off or closed keeps the number it was settled under.
+        if ($customer->wasChanged(['phone', 'name'])) {
+            InstallmentPlan::query()
+                ->where('customer_id', $customer->id)
+                ->where('status', InstallmentPlan::STATUS_RUNNING)
+                ->update(['customer_phone' => $customer->phone, 'customer_name' => $customer->name]);
+        }
+
         return ApiResponse::ok($customer, 'Customer updated');
     }
 

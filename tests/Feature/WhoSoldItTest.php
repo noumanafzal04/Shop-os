@@ -55,7 +55,10 @@ class WhoSoldItTest extends TestCase
 
         $this->owner = User::factory()->shopOwner($this->showroom)->create(['name' => 'Owner']);
         // The one at the counter, who types every sale in the shop.
-        $this->cashier = User::factory()->tenantStaff($this->showroom, ['sales.manage'])
+        // The counter of a showroom names the floor's salesmen, so the owner
+        // has given it `sales.credit_others` — without it a cashier can name
+        // only themselves (TheRetailFlowHoldsTest, the user 2026-10-21).
+        $this->cashier = User::factory()->tenantStaff($this->showroom, ['sales.manage', 'sales.credit_others'])
             ->create(['name' => 'Counter Sara']);
         // The one on the floor, who sold it.
         $this->salesman = User::factory()->tenantStaff($this->showroom, ['sales.manage'])

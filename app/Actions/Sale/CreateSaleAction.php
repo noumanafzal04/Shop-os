@@ -23,6 +23,7 @@ use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SaleItemSerial;
+use App\Models\User;
 use App\Services\BankOfferService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
@@ -33,6 +34,7 @@ use App\Support\BranchContext;
 use App\Support\CashRounding;
 use App\Support\DiscountCeiling;
 use App\Support\ModifierResolver;
+use App\Support\Permissions;
 use App\Support\RecipeCost;
 use App\Support\RecipeFor;
 use App\Support\RegisterContext;
@@ -169,6 +171,25 @@ class CreateSaleAction
                 // together would mean the only caller that has to be doubted on
                 // money is the one caller granted authority over it.
                 $trustedOffline = (bool) ($data['trusted_offline'] ?? false);
+
+                // ── WHO SERVED IT, SAID BY SOMEBODY ALLOWED TO ──────────
+                //
+                // Naming yourself, or nobody, is anybody's. Naming a colleague
+                // is `sales.credit_others` — the staff report pays off this
+                // column, and a cashier could put any sale on anybody's month
+                // (the user, 2026-10-21). An offline sale is judged as the
+                // person who rang it, not whoever's tablet synced it.
+                $servedBy = $data['served_by'] ?? null;
+                $ringer = $trustedOffline && ! empty($data['created_by'])
+                    ? User::query()->find($data['created_by'])
+                    : auth()->user();
+                if ($servedBy !== null && $ringer instanceof User && $servedBy !== $ringer->id
+                    && ! $ringer->hasPermission(Permissions::SALES_CREDIT_OTHERS)) {
+                    throw DomainException::forbidden(
+                        'You can only name yourself as who served this sale — crediting a colleague needs a manager.',
+                        'SERVED_BY_NOT_YOURS',
+                    );
+                }
 
                 // ── WHICH DRAWER DID THIS HAPPEN ON ─────────────────────
                 //
@@ -827,11 +848,17 @@ class CreateSaleAction
                 // Skipped on the trusted path: an online order or dine-in tab is
                 // replaying a total that was already settled, and re-adjudicating
                 // it here would refuse to complete a sale the customer has paid.
+                //
+                // Measured against the bill BEFORE it — the till's Sub Total. The
+                // lines are already net of their own discounts, so a line discount
+                // was measured against the bill minus itself: 10 % allowed 9.09 %,
+                // and the same money off refused on a line, taken on the bill
+                // (retail #5).
                 $discretionaryGiven = round($discount + $discretionaryLineDiscount, 2);
                 $discountApprover = $trusted ? null : DiscountCeiling::assert(
                     $this->context,
                     $discretionaryGiven,
-                    $subtotal,
+                    round($subtotal + $discretionaryLineDiscount, 2),
                     $data['discount_approval'] ?? null,
                 );
 

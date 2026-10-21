@@ -5,10 +5,13 @@ namespace App\Actions\SaleDocument;
 use App\Actions\Pos\RecordCashMovementAction;
 use App\Enums\ItemType;
 use App\Exceptions\DomainException;
+use App\Models\CashSession;
 use App\Models\Income;
 use App\Models\Product;
 use App\Models\SaleDocument;
+use App\Models\User;
 use App\Services\InventoryService;
+use App\Support\BooksDrawer;
 use App\Support\ShopDay;
 use Illuminate\Support\Facades\DB;
 
@@ -112,6 +115,22 @@ class CancelSaleDocumentAction
                 }
             }
 
+            $user = auth()->user();
+            $cashBack = $refund > 0 && ($data['refund_method'] ?? 'cash') === 'cash';
+
+            // Cash handed back leaves a drawer, so a shop that asks for shifts
+            // hands it back only from the giver's own shift of today — the
+            // rule the deposit coming in is held to. A manager with no shift
+            // used to hand it over into no drawer: the document said refunded
+            // and no count ever learnt the notes had gone (retail #8).
+            if ($cashBack && $user instanceof User) {
+                BooksDrawer::mustBeOpenToday(
+                    CashSession::query()->where('user_id', $user->id)->where('status', 'open')->value('id'),
+                    $doc->tenant,
+                    'handing an advance back in cash',
+                );
+            }
+
             // ── The goods go back ───────────────────────────────────
             if ($doc->stock_reserved) {
                 foreach ($doc->items as $item) {
@@ -140,9 +159,7 @@ class CancelSaleDocumentAction
             }
 
             // ── The money ───────────────────────────────────────────
-            $user = auth()->user();
-
-            if ($refund > 0 && ($data['refund_method'] ?? 'cash') === 'cash' && $user !== null) {
+            if ($cashBack && $user !== null) {
                 $this->cash->record($user, [
                     'type' => 'deposit_out',
                     'amount' => $refund,
@@ -155,6 +172,10 @@ class CancelSaleDocumentAction
             if ($forfeit > 0) {
                 Income::query()->create([
                     'tenant_id' => $doc->tenant_id,
+                    // The branch that held the advance kept the fee. With none
+                    // the row was invisible to everyone pinned to a branch —
+                    // their income was short by it and nothing said so (#10).
+                    'branch_id' => $doc->branch_id,
                     'description' => "Forfeited advance · {$doc->number}",
                     'amount' => $forfeit,
                     // The shop's business day: money kept at one in the morning

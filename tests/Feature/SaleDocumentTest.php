@@ -629,6 +629,60 @@ class SaleDocumentTest extends TestCase
         $this->assertSame(0, Sale::withoutTenancy()->count());
     }
 
+    public function test_cash_handed_back_with_no_shift_is_refused_where_the_shop_asks_for_shifts(): void
+    {
+        // Retail #8: the owner, with no shift, cancelled an advance the
+        // cashier took in cash. The document said 350 refunded; no drawer
+        // ever learnt the notes had gone, and the count came up short.
+        $this->shop->forceFill(['settings' => ['pos_require_shift' => true]])->save();
+        $session = $this->openShift(50000);
+        $doc = $this->layaway(30000);
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", ['forfeit_amount' => 5000])
+            ->assertStatus(409)
+            ->assertJsonPath('meta.error_code', 'SHIFT_REQUIRED');
+
+        $this->assertSame('layaway', SaleDocument::withoutTenancy()->findOrFail($doc['id'])->kind);
+        $this->assertTrue(SaleDocument::withoutTenancy()->findOrFail($doc['id'])->isOpen(), 'Refused, and still cancelled.');
+        $this->assertSame(0, Income::withoutTenancy()->count());
+        $this->assertEquals(3, $this->fridge->fresh()->stock_quantity, 'Refused, and the goods went back anyway.');
+
+        // A refund that needs no drawer is not held to one.
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", ['forfeit_amount' => 5000, 'refund_method' => 'card'])
+            ->assertOk();
+        $this->assertEquals(80000, DrawerMath::for(CashSession::withoutTenancy()->findOrFail($session['id']))['expected_cash']);
+    }
+
+    public function test_cash_handed_back_from_a_shift_leaves_that_drawer(): void
+    {
+        $this->shop->forceFill(['settings' => ['pos_require_shift' => true]])->save();
+        $this->openShift(50000);
+        $doc = $this->layaway(30000);
+        $mine = $this->openShift(10000, $this->owner);
+
+        $this->actingAsUser($this->owner)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", ['forfeit_amount' => 5000])
+            ->assertOk();
+
+        $this->assertEquals(-15000, DrawerMath::for(CashSession::withoutTenancy()->findOrFail($mine['id']))['expected_cash']);
+    }
+
+    public function test_a_kept_fee_is_income_of_the_branch_that_held_the_advance(): void
+    {
+        // Retail #10: booked with no branch, it was invisible to everyone
+        // pinned to one — their income and profit were short by it.
+        $this->openShift(50000, $this->manager);
+        $doc = $this->layaway(30000, actor: $this->manager);
+
+        $this->actingAsUser($this->manager)
+            ->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", ['forfeit_amount' => 5000])
+            ->assertOk();
+
+        $this->assertSame($this->branchId(), Income::withoutTenancy()->firstOrFail()->branch_id);
+    }
+
     public function test_the_refund_and_the_kept_amount_must_account_for_every_rupee(): void
     {
         $doc = $this->layaway(30000);

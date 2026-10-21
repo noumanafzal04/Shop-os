@@ -133,6 +133,37 @@ class StockIsSentThenReceivedTest extends TestCase
         $this->assertSame(0, $this->as($this->owner, $this->main)->getJson('/api/v1/inventory/transfers')->json('meta.waiting.to_receive'));
     }
 
+    public function test_stock_on_the_road_is_still_in_the_shops_stock_value(): void
+    {
+        // Retail #14: while 4 chairs travelled, Rs 5,800 of the shop's own
+        // stock was in no total, and Stock by place said 7 + 0 + 4 = 7.
+        $rice = $this->product(100);
+        $before = $this->as($this->owner)->getJson('/api/v1/reports/valuation')->assertOk()->json('data.totals');
+        $this->assertEqualsWithDelta(120000, $before['cost_value'], 0.001);
+
+        $sent = $this->send($rice, 30);
+
+        $moving = $this->as($this->owner)->getJson('/api/v1/reports/valuation')->assertOk()->json('data');
+        $this->assertEqualsWithDelta(120000, $moving['totals']['cost_value'], 0.001, 'A transfer changed what the shop owns.');
+        $this->assertEqualsWithDelta(100, $moving['totals']['units'], 0.001);
+        $this->assertEqualsWithDelta(36000, $moving['totals']['on_the_road_cost'], 0.001);
+        $this->assertEqualsWithDelta(30, $moving['totals']['on_the_road_units'], 0.001);
+        $this->assertEqualsWithDelta(100, collect($moving['items'])->firstWhere('product_id', $rice->id)['quantity'], 0.001);
+
+        // A place's own figure is its shelves: the van is neither place's.
+        $atGodown = $this->as($this->owner, $this->godown)->getJson('/api/v1/reports/valuation')->assertOk()->json('data.totals');
+        $this->assertEqualsWithDelta(84000, $atGodown['cost_value'], 0.001);
+        $this->assertEqualsWithDelta(0, $atGodown['on_the_road_cost'], 0.001);
+
+        $row = collect($this->as($this->owner)->getJson('/api/v1/inventory/by-place')->assertOk()->json('data'))->firstWhere('id', $rice->id);
+        $this->assertEqualsWithDelta(100, $row['total'], 0.001, 'The total left out its own On the road column.');
+
+        $this->as($this->owner)->postJson("/api/v1/inventory/transfers/{$sent['id']}/receive")->assertOk();
+        $after = $this->as($this->owner)->getJson('/api/v1/reports/valuation')->assertOk()->json('data.totals');
+        $this->assertEqualsWithDelta(120000, $after['cost_value'], 0.001);
+        $this->assertEqualsWithDelta(0, $after['on_the_road_cost'], 0.001);
+    }
+
     public function test_a_transfer_is_received_once(): void
     {
         $rice = $this->product(100);
