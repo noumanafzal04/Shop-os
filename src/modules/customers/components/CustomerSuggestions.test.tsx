@@ -43,16 +43,22 @@ describe("finding a customer already on file", () => {
     expect(screen.getByRole("button", { name: /No name yet/ })).toBeInTheDocument();
   });
 
-  it("searches by the number once it has four digits", async () => {
+  it("searches by the number once it has five digits — not on four, which is every Jazz number", async () => {
+    render(wrap(<CustomerSuggestions name="Ah" phone="0300" onPick={() => {}} />));
+    // Longer than the pause it waits for, so a request WOULD have gone.
+    await new Promise((r) => setTimeout(r, 700));
+    expect(asked).toEqual([]);
+
     render(wrap(<CustomerSuggestions name="Ah" phone="0300 12" onPick={() => {}} />));
-    await waitFor(() => expect(asked).toEqual(["0300 12"]));
+    await waitFor(() => expect(asked).toEqual(["0300 12"]), { timeout: 2000 });
   });
 
   it("asks nothing for two letters, or without the Customers module", async () => {
     render(wrap(<CustomerSuggestions name="Ah" phone="03" onPick={() => {}} />));
     withCustomers(false);
     render(wrap(<CustomerSuggestions name="Ahmed" phone="" onPick={() => {}} />));
-    await new Promise((r) => setTimeout(r, 400));
+    // Longer than the 500 ms pause, so a request would have gone by now.
+    await new Promise((r) => setTimeout(r, 700));
     expect(asked).toEqual([]);
     expect(screen.queryByTestId("customer-suggestions")).toBeNull();
   });

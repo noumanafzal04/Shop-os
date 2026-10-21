@@ -10,11 +10,13 @@ export interface SuggestedCustomer {
 }
 
 /**
- * What to search by: the number once it has four digits, else the name once
- * it has three letters, else nothing.
+ * What to search by: the number once it has five digits, else the name once
+ * it has three letters, else nothing. Five, not four: "0300" is every Jazz
+ * customer the shop has, and a list of all of them is not a look-up (the
+ * user, 2026-10-21: "after 5, 6 digits … not a request on every key").
  */
 function suggestionQuery(name: string, phone: string): string {
-  if (phone.replace(/\D/g, "").length >= 4) return phone.trim();
+  if (phone.replace(/\D/g, "").length >= 5) return phone.trim();
   const typed = name.trim();
 
   return typed.length >= 3 ? typed : "";
@@ -43,7 +45,8 @@ export function CustomerSuggestions({
   const hasCustomers = useAuthStore(
     (s) => (s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.customers === true,
   );
-  const q = useDebouncedValue(suggestionQuery(name, phone), 250);
+  // Asked once the typing pauses, not on every key.
+  const q = useDebouncedValue(suggestionQuery(name, phone), 500);
   const found = useQuery({
     queryKey: ["customer-suggestions", q],
     queryFn: async () => (await apiGet<SuggestedCustomer[]>("/customers-lookup", { params: { q } })).data ?? [],

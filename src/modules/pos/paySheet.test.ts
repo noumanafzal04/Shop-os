@@ -29,8 +29,14 @@ describe("the pay sheet", () => {
     expect(at("data-pay-extras")).toBeLessThan(at("Take goods in part-payment"));
   });
 
-  it("does not let khata through on a name alone — the server finds the account by phone", () => {
-    expect(code).toMatch(/const creditNeedsCustomer = \(method === "credit" \|\| splitHasCredit\) && customerPhone\.trim\(\) === "";/);
+  it("does not let khata through on a name alone, or on a number half typed", () => {
+    expect(code).toMatch(/const creditNeedsCustomer = \(method === "credit" \|\| splitHasCredit\) && customerPhone\.replace\(\/\\D\/g, ""\)\.length < 10;/);
+  });
+
+  it("keeps the khata boxes on screen while the number is typed", () => {
+    const khata = code.slice(code.indexOf('{method === "credit" && ('), code.indexOf("data-khata-who") + 80);
+    expect(khata).not.toMatch(/\{creditNeedsCustomer \? \(\s*<div data-khata-who/);
+    expect(khata).toMatch(/<div data-khata-who/);
   });
 
   it("folds the trade-in away until it is asked for, and opens each sheet folded", () => {
@@ -40,7 +46,7 @@ describe("the pay sheet", () => {
   });
 
   it("asks whose khata on the sheet itself", () => {
-    const khata = code.slice(code.indexOf("data-khata-who"), code.indexOf("data-khata-who") + 700);
+    const khata = code.slice(code.indexOf("data-khata-who"), code.indexOf("data-khata-who") + 900);
     expect(khata).toMatch(/aria-label="Customer name"[^>]*value=\{customer\}/);
     expect(khata).toMatch(/aria-label="Customer phone"[^>]*value=\{customerPhone\}/);
     expect(code).not.toContain("Attach a customer (Customer button)");
@@ -57,5 +63,10 @@ describe("the pay sheet", () => {
   it("opens with the cash box ready to type into", () => {
     expect(code).toMatch(/<Input id="tender-cash"/);
     expect(code).toMatch(/document\.getElementById\("tender-cash"\) as HTMLInputElement \| null\)\?\.select\(\)/);
+  });
+
+  it("looks the customer up once the typing pauses, not on every digit", () => {
+    expect(code).toMatch(/const pause = window\.setTimeout\(\(\) => apiGet<CustomerAtTill \| null>\("\/customers-lookup", \{ params: \{ phone \} \}\)/);
+    expect(code).toMatch(/\}\), 500\);\s*return \(\) => \{ alive = false; window\.clearTimeout\(pause\); \};/);
   });
 });

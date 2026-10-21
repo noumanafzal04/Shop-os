@@ -1243,7 +1243,9 @@ export default function PosPage() {
       return;
     }
     let alive = true;
-    apiGet<CustomerAtTill | null>("/customers-lookup", { params: { phone } })
+    // Asked once the typing pauses — it went to the server on every digit
+    // from the seventh (the user, 2026-10-21: "not a request on every key").
+    const pause = window.setTimeout(() => apiGet<CustomerAtTill | null>("/customers-lookup", { params: { phone } })
       .then(({ data }) => {
         if (!alive) return;
         setCustomerPoints(loyaltyOn ? data?.loyalty_points ?? 0 : null);
@@ -1268,8 +1270,8 @@ export default function PosPage() {
         setCustomerPoints(null);
         const cached = await memberGroupFor(phone);
         if (alive) setCustomerGroup(groupAtTill(cached));
-      });
-    return () => { alive = false; };
+      }), 500);
+    return () => { alive = false; window.clearTimeout(pause); };
   }, [customerPhone, loyaltyOn, hasKhata]);
 
   /**
@@ -2813,7 +2815,8 @@ export default function PosPage() {
   const splitHasCredit = method === "split" && tenders.some((t) => t.method === "credit" && Number(t.amount) > 0);
   // A khata is found by the customer's PHONE — the server refuses a name alone
   // ("add the customer's phone"), so the sheet asks for what the server needs.
-  const creditNeedsCustomer = (method === "credit" || splitHasCredit) && customerPhone.trim() === "";
+  // A whole number, not its first digit: at least ten of them.
+  const creditNeedsCustomer = (method === "credit" || splitHasCredit) && customerPhone.replace(/\D/g, "").length < 10;
   // The allowance can never exceed the bill: the shop would owe the customer
   // money for their scrap, which is buying stock, not selling any.
   const tradeInTooBig = tradeInTotal > total;
@@ -4945,18 +4948,21 @@ export default function PosPage() {
             )}
             {method === "credit" && (
               <div className={`rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
-                {creditNeedsCustomer ? (
-                  // Whose khata, asked here — not "go and find the Customer
-                  // button" behind the sheet the cashier is standing in.
-                  <div data-khata-who className="space-y-2">
-                    <p>Whose khata? The customer&rsquo;s phone finds their account.</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input aria-label="Customer phone" placeholder="03xx-xxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
-                      <Input aria-label="Customer name" placeholder="Name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
-                    </div>
+                {/* Whose khata, asked here — and the boxes STAY while it is
+                    typed. They were drawn only while the phone was empty, so
+                    the first digit hid them and the number could never be
+                    finished (the user, 2026-10-21). */}
+                <div data-khata-who className="space-y-2">
+                  <p>Whose khata? Type the customer&rsquo;s full phone number — it finds their account.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input aria-label="Customer phone" type="tel" placeholder="03xx-xxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+]/g, ""))} />
+                    <Input aria-label="Customer name" placeholder="Name (optional)" value={customer} onChange={(e) => setCustomer(e.target.value)} />
                   </div>
-                ) : <>Adds <span className="font-semibold">{money(payable)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
-                {method === "credit" && (customer.trim() !== "" || customerPhone.trim() !== "") && (
+                  {creditNeedsCustomer
+                    ? customerPhone.trim() !== "" && <p className="text-theme-xs">A phone number has at least 10 digits.</p>
+                    : <p>Adds <span className="font-semibold">{money(payable)}</span> to {customer.trim() || customerPhone}&rsquo;s khata (to pay later).</p>}
+                </div>
+                {(customer.trim() !== "" || customerPhone.trim() !== "") && (
                   <CustomerSuggestions name={customer} phone={customerPhone} onPick={(c) => { setCustomer(c.name ?? ""); setCustomerPhone(c.phone ?? ""); }} />
                 )}
               </div>
@@ -5148,7 +5154,7 @@ export default function PosPage() {
                 />
               </div>
             )}
-            {method === "split" && splitHasCredit && customerPhone.trim() === "" && <p className="mt-3 text-theme-xs text-error-500">Add the customer&rsquo;s phone (Customer button) to put part of this sale on khata.</p>}
+            {method === "split" && splitHasCredit && creditNeedsCustomer && <p className="mt-3 text-theme-xs text-error-500">Add the customer&rsquo;s phone (Customer button) to put part of this sale on khata.</p>}
             {reRingHeld && (
               <p data-re-ring-held className="mt-3 text-theme-xs text-error-500">
                 {reRingMoney?.blocked ?? `Re-ringing ${reRinging?.invoice_number ?? "a bill"} cancels it, so a supervisor approves it first — their PIN goes in on the re-ring note above the bill.`}
