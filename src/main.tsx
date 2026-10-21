@@ -12,6 +12,10 @@ import { ConfirmProvider } from "./components/ui/confirm";
 import { queryClient } from "./common/api/queryClient.ts";
 import { bootTheme } from "./common/theme/rememberedTheme.ts";
 
+// The app's script ran. `index.html` reads this mark: a page that loaded
+// without it holds a broken stored copy, and mends itself once.
+document.documentElement.dataset.booted = "1";
+
 // BEFORE the first paint: the shop's own colours and dark mode, as this
 // device last saw them. Without it every reload opened in the house blue and
 // changed a moment later, when the shop's settings arrived.

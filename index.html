@@ -48,5 +48,71 @@
   <body class="dark:bg-gray-900">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- ── A PAGE THAT NEVER STARTS MENDS ITSELF, ONCE ────────────────
+       ·
+       · `src/main.tsx` marks the page the moment it runs. A page that has
+       · loaded without the mark never ran the app: the offline copy on this
+       · device holds a broken file. It once held an EMPTY main script, and
+       · every load was white until a hard reload.
+       ·
+       · So, if the server answers, the stored copy is thrown away and the
+       · page loads once more from the server; the app stores a fresh copy as
+       · it starts. Nothing else is touched — unsent sales live in IndexedDB.
+       · Offline, nothing is thrown away: a broken copy is still the only one.
+       · Once per tab in five minutes, so a page broken for another reason is
+       · not reloaded in a loop. -->
+    <script>
+      (function (window) {
+        var KEY = "shopos-boot-mended";
+        window.addEventListener("load", function () {
+          window.setTimeout(function () {
+            if (window.document.documentElement.hasAttribute("data-booted")) return;
+            try {
+              var last = Number(window.sessionStorage.getItem(KEY) || 0);
+              if (Date.now() - last < 5 * 60 * 1000) return;
+              window.sessionStorage.setItem(KEY, String(Date.now()));
+            } catch (e) {
+              return;
+            }
+            // A query the stored copy does not hold, so the answer is the server's.
+            window
+              .fetch("/index.html?alive=" + Date.now(), { cache: "no-store" })
+              .then(function (response) {
+                if (!response.ok) return;
+                var jobs = [];
+                if (window.caches) {
+                  jobs.push(
+                    window.caches.keys().then(function (names) {
+                      return Promise.all(
+                        names
+                          .filter(function (name) { return name.indexOf("-precache-") !== -1; })
+                          .map(function (name) { return window.caches.delete(name); }),
+                      );
+                    }),
+                  );
+                }
+                if (window.navigator.serviceWorker) {
+                  jobs.push(
+                    window.navigator.serviceWorker.getRegistrations().then(function (all) {
+                      return Promise.all(
+                        all
+                          .filter(function (r) {
+                            var w = r.active || r.waiting || r.installing;
+                            return w && /\/sw\.js$/.test(new URL(w.scriptURL).pathname);
+                          })
+                          .map(function (r) { return r.unregister(); }),
+                      );
+                    }),
+                  );
+                }
+                return Promise.all(jobs).then(function () {
+                  window.location.reload();
+                });
+              })
+              .catch(function () {});
+          }, 2000);
+        });
+      })(window);
+    </script>
   </body>
 </html>

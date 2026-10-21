@@ -108,6 +108,9 @@ export default defineConfig({
         // response rather than as "no network".
         navigateFallbackDenylist: [/^\/api\//],
         cleanupOutdatedCaches: true,
+        // A stored copy holding an EMPTY script showed a white page on every
+        // load until a hard reload. The next worker mends it — `public/sw-heal.js`.
+        importScripts: ["sw-heal.js"],
         // API responses are NEVER cached here. What the till may use offline is
         // a deliberate projection kept in IndexedDB, decided per item type —
         // not whatever happened to be requested last.

@@ -93,6 +93,8 @@ describe("the name lives in one place", () => {
     "shopos-kept",
     // A CSS class the map library is told to use.
     "shopos-map-pin",
+    // When a page that never started last mended itself — index.html.
+    "shopos-boot-mended",
     // Dismissal flags and a walkthrough marker — browser keys, same rule.
     "cartze-old-browser-dismissed",
     "cartze-qa-walked",
