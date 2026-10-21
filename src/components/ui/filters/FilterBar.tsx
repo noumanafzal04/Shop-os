@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { CrossGlyph, FunnelGlyph, SearchGlyph } from "./FilterIcons";
+import { countedList } from "../../../common/format/counted";
 
 /** One filter currently in force, in the words it was chosen by. */
 export interface AppliedFilter {
@@ -129,7 +130,7 @@ export function FilterBar({
             <span className="ml-auto text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
               {results.loading || results.count === undefined
                 ? "Counting…"
-                : `${results.count.toLocaleString()} ${results.noun}`}
+                : countedList(results.count, results.noun)}
             </span>
           )}
         </div>

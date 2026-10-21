@@ -1049,7 +1049,7 @@ export default function ShopSettingsPage() {
                               { value: "5", label: "Nearest Rs 5" },
                               { value: "10", label: "Nearest Rs 10" },
                             ]}
-                            placeholder="Nothing — exact to the paisa"
+                            placeholder={null}
                             onChange={(v) => setP("cash_rounding", Number(v))}
                           />
                         </Field>

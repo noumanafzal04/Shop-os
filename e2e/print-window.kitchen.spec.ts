@@ -3,6 +3,7 @@ import type { APIRequestContext, Page } from "@playwright/test";
 import { API, foodAuth } from "./api";
 import { expect, expectTheAppStillAnswers, test, type PrintWindow } from "./printWindow";
 import { PLAIN_ITEM, openTill } from "./till";
+import { payBy } from "./payBy";
 
 /**
  * AFTER A PRINT, THE SHOP CARRIES ON — in a restaurant.
@@ -161,7 +162,7 @@ test("at the counter: a takeaway is paid, the kitchen's slip prints, then the re
   await ringDish(page, 0);
 
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
-  await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await payBy(page, "Cash");
   await page.getByRole("button", { name: /^Exact ·/ }).click();
   await page.getByRole("button", { name: /^Complete/ }).click();
 

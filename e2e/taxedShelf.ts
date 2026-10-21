@@ -1,6 +1,7 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 import { API, ownerAuth } from "./api";
 import { showPane } from "./till";
+import { payBy } from "./payBy";
 
 /**
  * A SHELF WITH TAX ON IT — the fixture the counter was never tested against.
@@ -219,10 +220,7 @@ export async function openTender(page: Page, method: Method): Promise<number> {
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   await expect(page.getByRole("heading", { name: "Tender / Pay" })).toBeVisible();
 
-  await page
-    .getByRole("group", { name: "Payment method" })
-    .getByRole("button", { name: new RegExp(`^${method}`) })
-    .click();
+  await payBy(page, method);
 
   const due = rupees(await page.getByTestId("tender-amount-due").innerText());
   expect(due, "the till showed no amount due").toBeGreaterThan(0);

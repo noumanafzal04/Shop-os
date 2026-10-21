@@ -62,6 +62,24 @@ export type ShadowOutcome =
   | { status: "skipped"; reason: string }
   | { status: "differed"; variance: PricingVariance };
 
+/**
+ * What on a sale the offline engine deliberately leaves to the server — see
+ * priceCart's allow-list — or null when there is nothing.
+ */
+export function onlineOnlyIn(sale: {
+  coupon_code?: string | null;
+  points_redeemed?: number | string | null;
+  bank_discount?: number | string | null;
+  customer_group_id?: string | null;
+}): string | null {
+  if (sale.coupon_code) return "a coupon";
+  if (Number(sale.points_redeemed ?? 0) > 0) return "points redeemed";
+  if (Number(sale.bank_discount ?? 0) > 0) return "a bank card offer";
+  if (sale.customer_group_id) return "a member's price";
+
+  return null;
+}
+
 /** Keep a bounded, useful window rather than an unbounded log. */
 export const MAX_VARIANCES = 200;
 
@@ -82,8 +100,14 @@ export async function runShadowCheck(
   lines: ShadowLine[],
   server: ServerTotals,
   cartDiscount: number,
+  onlineOnly: string | null = null,
 ): Promise<ShadowOutcome> {
-  const outcome = await evaluate(saleId, lines, server, cartDiscount);
+  // A cart carrying something the engine is built never to price is not a
+  // disagreement: a coupon sale sat in "priced differently" for ever and the
+  // sentence that gates offline selling could never come true (retail #16).
+  const outcome: ShadowOutcome = onlineOnly !== null
+    ? { status: "skipped", reason: `priced online only — ${onlineOnly}` }
+    : await evaluate(saleId, lines, server, cartDiscount);
 
   await bumpTally(outcome.status, outcome.status === "skipped" ? outcome.reason : undefined);
 

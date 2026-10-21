@@ -1,5 +1,6 @@
 import Button from "../button/Button";
 import type { Pagination } from "../../../common/types/api";
+import { countedList } from "../../../common/format/counted";
 
 /**
  * The one pager.
@@ -63,7 +64,7 @@ export default function Pager({ pagination, onPage, noun = "items" }: PagerProps
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-3 text-sm sm:px-6 dark:border-gray-800">
       <span className="text-gray-500 dark:text-gray-400">
-        {total} {noun} · page {page} of {last}
+        {countedList(total, noun)} · page {page} of {last}
       </span>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => onPage(page - 1)}>

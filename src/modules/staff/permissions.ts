@@ -44,6 +44,10 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
   "discounts.override": { label: "Discount past the ceiling", hint: "Exceed the shop's discount limit." },
   "sales.void": { label: "Void a completed sale", hint: "Restores stock and reverses the money." },
   "sales.refund": { label: "Refund a sale", hint: "Hand money back." },
+  "sales.credit_others": {
+    label: "Credit a sale to someone else",
+    hint: "Pick another staff member as Served by. Without it, only themselves.",
+  },
   "tables.serve_any": {
     label: "Serve any table",
     hint: "Work and settle other waiters' tabs. Without it, their own tables only.",

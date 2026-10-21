@@ -79,7 +79,7 @@ export function HoldQuoteModal({
           onClose();
           onHeld(held);
         },
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't hold the goods."),
+        onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Couldn't hold the goods."),
       },
     );
   };

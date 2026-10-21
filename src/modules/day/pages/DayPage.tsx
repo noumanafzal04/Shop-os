@@ -409,7 +409,7 @@ export default function DayPage() {
                     hint="What every till should hold now"
                   />
                   <Stat label="Banked" value={money(view.banked)} hint={`${(view.deposits ?? []).length} deposit${(view.deposits ?? []).length === 1 ? "" : "s"}`} />
-                  <Stat label="Still in the shop" value={money(view.unbanked)} hint="Takings not yet banked" />
+                  <Stat label="Still in the shop" value={money(view.unbanked)} hint="In the drawers, less what was banked" />
                   <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <p className="text-theme-xs uppercase tracking-wide text-gray-400">Counted so far</p>
                     <p className="mt-1 text-lg font-semibold">

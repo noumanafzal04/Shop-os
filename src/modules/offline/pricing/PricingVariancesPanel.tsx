@@ -90,7 +90,7 @@ export default function PricingVariancesPanel() {
         {[
           ["Carts checked", checks.checked.toLocaleString()],
           ["Matched exactly", checks.matched.toLocaleString()],
-          ["Couldn't be priced", checks.skipped.toLocaleString()],
+          ["Not compared", checks.skipped.toLocaleString()],
           ["Tills reporting", `${checks.reporting} of ${checks.tills}`],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">

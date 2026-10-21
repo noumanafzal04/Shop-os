@@ -126,10 +126,11 @@ export function useItemTypes() {
 
 // ── Products ──────────────────────────────────────────────────────
 
-export function useProducts(filters: ProductFilters) {
+export function useProducts(filters: ProductFilters, enabled = true) {
   return useQuery({
     queryKey: ["products", filters],
     queryFn: () => catalogService.products(filters),
+    enabled,
     placeholderData: keepPreviousData, // table doesn't flash while paging
   });
 }

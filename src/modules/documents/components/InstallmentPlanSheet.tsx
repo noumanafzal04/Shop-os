@@ -62,7 +62,7 @@ export default function InstallmentPlanSheet({ planId, onClose }: { planId: stri
       { id: p.id, amount: taking, method, reference: reference.trim() || undefined, idempotency_key: once.key },
       {
         onSuccess: () => { once.renew(); toast.success(`${money(taking)} taken on ${p.number}`); },
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "That installment was not recorded — nothing changed."),
+        onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "That installment was not recorded — nothing changed."),
       },
     );
   };

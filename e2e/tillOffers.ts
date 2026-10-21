@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { PLAIN_ITEM, showPane } from "./till";
+import { offers } from "./payBy";
 
 /**
  * THE TILL OFFERS ONLY WHAT THE SHOP HAS — walked, in a browser, as the shop.
@@ -86,7 +87,7 @@ export async function theTillOffersOnlyWhatTheShopHas(page: Page): Promise<void>
       const tender = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Tender / Pay" }) });
       await expect(tender).toBeVisible();
       // Khata writes a debt only the Customers screen can show or collect.
-      await expect(tender.getByRole("button", { name: /^Khata/ }), "Khata follows the Customers module").toHaveCount(features.customers ? 1 : 0);
+      await expect(offers(tender, "Khata"), "Khata follows the Customers module").toHaveCount(features.customers ? 1 : 0);
       await page.waitForTimeout(1200);
       await tender.getByRole("button", { name: "Close" }).click();
     }

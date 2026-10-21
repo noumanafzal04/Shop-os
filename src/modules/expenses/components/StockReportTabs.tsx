@@ -203,6 +203,13 @@ export function ValuationTab() {
         )}
       </div>
 
+      {data && (data.totals.on_the_road_units ?? 0) > 0 && (
+        <div data-on-the-road className="mb-6 rounded-xl border border-blue-light-200 bg-blue-light-50 p-3 text-theme-sm text-blue-light-700 dark:border-blue-light-500/25 dark:bg-blue-light-500/10 dark:text-blue-light-400">
+          Includes {money(data.totals.on_the_road_cost ?? 0)} on the road ({data.totals.on_the_road_units} units) — sent
+          between your places and not yet counted in. It is still yours.
+        </div>
+      )}
+
       {data && data.totals.uncosted_items > 0 && (
         <div className="mb-6 rounded-xl border border-warning-200 bg-warning-50 p-3 text-theme-sm text-warning-700 dark:border-warning-500/25 dark:bg-warning-500/10 dark:text-warning-400">
           {data.totals.uncosted_items} {data.totals.uncosted_items === 1 ? "item has" : "items have"} no cost

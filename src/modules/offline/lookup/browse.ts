@@ -195,6 +195,18 @@ export async function loadShelf(): Promise<Shelf> {
   };
 }
 
+/** The category and every one under it, to any depth; a loop in old data cannot hang it. */
+function categoryAndBelow(categories: CatalogCategory[], id: string): Set<string> {
+  const found = new Set([id]);
+  let next = [id];
+  while (next.length > 0) {
+    next = categories.filter((c) => c.parent_id !== null && next.includes(c.parent_id) && !found.has(c.id)).map((c) => c.id);
+    next.forEach((c) => found.add(c));
+  }
+
+  return found;
+}
+
 /**
  * What the pane shows, given what has been typed.
  *
@@ -209,8 +221,11 @@ export function shelfRows(
 ): CatalogProduct[] {
   if (shelf === undefined) return [];
 
-  const inCategory = categoryId
-    ? shelf.items.filter((i) => i.category_id === categoryId)
+  // A parent holds its items in its children — Men finds Men → Shirts, as the
+  // server's filter does.
+  const filed = categoryId ? categoryAndBelow(shelf.categories, categoryId) : null;
+  const inCategory = filed
+    ? shelf.items.filter((i) => i.category_id !== null && filed.has(i.category_id))
     : shelf.items;
 
   const needle = search.trim();

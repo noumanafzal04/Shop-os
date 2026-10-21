@@ -14,8 +14,11 @@ export function useRegisters() {
   });
 }
 
-/** Cashier lane picker: active lanes at this branch, with live busy status. */
-export function useLanes(enabled = true) {
+/**
+ * Cashier lane picker: active lanes at this branch, with live busy status.
+ * `live` — the picker is on screen, so who is on each lane must be current.
+ */
+export function useLanes(enabled = true, live = false) {
   return useQuery({
     queryKey: ["pos", "lanes"],
     queryFn: async () => (await registerService.lanes()).data,
@@ -27,7 +30,12 @@ export function useLanes(enabled = true) {
     // map from whenever the screen opened. A cashier then picked a lane that
     // was already taken and met REGISTER_BUSY, which reads as a bug rather
     // than as somebody else being on it.
-    refetchInterval: 10_000,
+    //
+    // Every ten seconds while the picker is open; every half minute where
+    // there is another lane to hear about; never where there is none. A shop
+    // with no lanes asked for an empty list every ten seconds for ever
+    // (retail #2).
+    refetchInterval: (query) => (live ? 10_000 : (query.state.data?.length ?? 0) > 1 ? 30_000 : false),
     refetchOnWindowFocus: true,
   });
 }

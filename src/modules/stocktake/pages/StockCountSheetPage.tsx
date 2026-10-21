@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
@@ -81,8 +81,15 @@ export default function StockCountSheetPage() {
     return line.counted_quantity === null ? "" : String(Number(line.counted_quantity));
   };
 
-  const commit = (line: StockCountLine) => {
-    const raw = draft[line.id];
+  // A figure is kept when the counter stops typing, not only when the box
+  // loses focus: the last shelf, typed and handed over, was "never reached" and
+  // applying the count skipped it (retail #13).
+  const typing = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  useEffect(() => () => Object.values(typing.current).forEach(clearTimeout), []);
+
+  const commit = (line: StockCountLine, raw: string | undefined = draft[line.id]) => {
+    clearTimeout(typing.current[line.id]);
+    delete typing.current[line.id];
     if (raw === undefined) return;
 
     const value = raw.trim() === "" ? null : Number(raw);
@@ -110,7 +117,9 @@ export default function StockCountSheetPage() {
     record.mutate([{ item_id: line.id, counted_quantity: value }], {
       onSuccess: () => {
         setCounted((c) => ({ ...c, [line.id]: value }));
+        // Only the figure that was saved: typing that went on meanwhile stays.
         setDraft((d) => {
+          if (d[line.id] !== raw) return d;
           const next = { ...d };
           delete next[line.id];
           return next;
@@ -193,7 +202,15 @@ export default function StockCountSheetPage() {
               </Button>
             )}
             {canApply && (
-              <Button size="sm" onClick={() => applyModal.openModal()} disabled={progress === 0}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  // What is still in a box is counted before the sheet asks.
+                  items.forEach((line) => { if (draft[line.id] !== undefined) commit(line); });
+                  applyModal.openModal();
+                }}
+                disabled={progress === 0}
+              >
                 Apply count
               </Button>
             )}
@@ -304,7 +321,12 @@ export default function StockCountSheetPage() {
                             inputMode="decimal"
                             disabled={!open}
                             value={valueOf(line)}
-                            onChange={(e) => setDraft((d) => ({ ...d, [line.id]: e.target.value }))}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setDraft((d) => ({ ...d, [line.id]: raw }));
+                              clearTimeout(typing.current[line.id]);
+                              typing.current[line.id] = setTimeout(() => commit(line, raw), 800);
+                            }}
                             onBlur={() => commit(line)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") (e.target as HTMLInputElement).blur();

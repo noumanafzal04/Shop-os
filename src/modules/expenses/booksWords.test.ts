@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { kindOfBusiness } from "../../common/tenant/kindOfBusiness";
 import { TRADE_FEATURES } from "../../test/tradeFeatures";
-import { booksWords, withCashCalled } from "./booksWords";
+import { booksWords, cashHint, withCashCalled } from "./booksWords";
 import { PAYMENT_METHODS } from "./services/expensesService";
 
 const office = booksWords(kindOfBusiness(TRADE_FEATURES.finance));
@@ -74,3 +74,17 @@ describe("the words on the money screens", () => {
     expect(listed.slice(1).map((m) => m.label)).toEqual(PAYMENT_METHODS.slice(1).map((m) => m.label));
   });
 });
+
+describe("the cash sentence on the expense and income sheets (retail #9)", () => {
+  it("promises the drawer only to somebody whose own shift is open", () => {
+    expect(cashHint(shop.cashPaidHint, "out", "open")).toBe(shop.cashPaidHint);
+    expect(cashHint(shop.cashPaidHint, "out", "none")).toMatch(/^No shift of yours is open, so no drawer moves — this is recorded as cash paid outside the till\.$/);
+    expect(cashHint(shop.cashReceivedHint, "in", "none")).toMatch(/cash taken outside the till\.$/);
+  });
+
+  it("says nothing while it is not known, and nothing where there is no till", () => {
+    expect(cashHint(shop.cashPaidHint, "out", null)).toBeNull();
+    expect(cashHint(null, "out", "none")).toBeNull();
+  });
+});
+

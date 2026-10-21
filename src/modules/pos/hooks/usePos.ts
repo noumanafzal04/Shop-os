@@ -69,10 +69,11 @@ async function currentSession() {
   }
 }
 
-export function useCurrentSession() {
+export function useCurrentSession(enabled = true) {
   return useQuery({
     queryKey: ["pos", "session"],
     queryFn: currentSession,
+    enabled,
   });
 }
 
@@ -314,7 +315,8 @@ export function useCashMovementMutation() {
   });
 }
 
-export function useHeldSales() {
+/** `shared` — another lane has a shift open, so a ticket can be parked there and claimed here. */
+export function useHeldSales(shared = false) {
   return useQuery({
     queryKey: ["pos", "held"],
     queryFn: async () => {
@@ -337,7 +339,11 @@ export function useHeldSales() {
     // keeps offering a ticket lane 3 already claimed, and the cashier who taps
     // it gets an error instead of a sale. Same seam as the kitchen and the
     // floor — two people, two browsers, neither able to invalidate the other.
-    refetchInterval: 10_000,
+    //
+    // Every ten seconds only where that can happen: another lane trading, or a
+    // ticket held. A one-till shop with nothing parked asked for an empty list
+    // 360 times an hour (retail #2) — it now checks once a minute, and on focus.
+    refetchInterval: (query) => (shared || (query.state.data?.length ?? 0) > 0 ? 10_000 : 60_000),
     refetchOnWindowFocus: true,
   });
 }

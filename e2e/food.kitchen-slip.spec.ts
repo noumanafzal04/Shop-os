@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { API, foodAuth } from "./api";
 import { PLAIN_ITEM, openTill } from "./till";
+import { payBy } from "./payBy";
 
 /**
  * WHICH PAPER IS WHICH, at a restaurant's counter.
@@ -142,7 +143,7 @@ test("the kitchen's slip is one slip, says whose it is, and the invoice is a but
   for (let i = 0; i < 3; i++) await ringDish(page, i);
 
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
-  await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await payBy(page, "Cash");
   await page.getByRole("button", { name: /^Exact ·/ }).click();
   await page.getByRole("button", { name: /^Complete/ }).click();
   await expect(page.getByRole("heading", { name: "Sale complete" })).toBeVisible({ timeout: 20_000 });
@@ -219,7 +220,7 @@ test("with auto-print on, the customer's receipt goes first and the kitchen's sl
 
   await ringDish(page, 0);
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
-  await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await payBy(page, "Cash");
   await page.getByRole("button", { name: /^Exact ·/ }).click();
   await page.getByRole("button", { name: /^Complete/ }).click();
   await expect(page.getByRole("heading", { name: "Sale complete" })).toBeVisible({ timeout: 20_000 });

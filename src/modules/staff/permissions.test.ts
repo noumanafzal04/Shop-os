@@ -44,6 +44,7 @@ const TENANT = [
   "discounts.override",
   "sales.void",
   "sales.refund",
+  "sales.credit_others",
   "tables.serve_any",
   "customers.manage",
   "coupons.manage",
@@ -57,7 +58,7 @@ const TENANT = [
 /**
  * The ones whose consequence is not obvious from four words. A hint on every
  * row is noise, and noise on a permission screen is how the wrong box gets
- * ticked — but these five each let somebody do something they would not guess
+ * ticked — but these six each let somebody do something they would not guess
  * from the label.
  */
 const MUST_EXPLAIN = [
@@ -65,6 +66,7 @@ const MUST_EXPLAIN = [
   "billing.view",
   "sales.void",
   "sales.refund",
+  "sales.credit_others",
   "tables.serve_any",
 ];
 

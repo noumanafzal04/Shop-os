@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 import { API, tradeAuth } from "./api";
+import { payBy } from "./payBy";
 
 /**
  * WORK TAKEN IN — a laundry's counter, lived every run.
@@ -136,7 +137,7 @@ async function takeAnAdvance(page: Page, amount: number): Promise<void> {
   await page.getByRole("button", { name: "Take an advance" }).click();
   const sheet = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Take an advance" }) });
   await sheet.getByLabel("Amount", { exact: true }).fill(String(amount));
-  await sheet.getByRole("button", { name: "Card", exact: true }).click();
+  await payBy(sheet, "Card");
   await sheet.getByRole("button", { name: "Record" }).click();
   await expect(sheet).toBeHidden({ timeout: 15_000 });
 }

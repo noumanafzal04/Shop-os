@@ -2514,7 +2514,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "keys", items: [
         ["Carts checked", "How many sales have actually been compared. This is the number that matters — zero disagreements means nothing if nothing was checked."],
         ["Matched exactly", "Both engines agreed to the paisa."],
-        ["Couldn't be priced", "The till could not price the cart, usually an item it had not downloaded yet. This is not agreement, and a large number here needs looking at."],
+        ["Not compared", "Carts left out of the comparison: one with a coupon, points, a member's price or a bank card offer — those are always priced online, never by a till alone — or one with an item the till had not downloaded yet. This is not agreement, and a large number here needs looking at."],
         ["Tills reporting", "How many of your devices have contributed. One busy till does not speak for four."],
       ]},
       { type: "warn", text: "A disagreement never means a customer was overcharged. They paid the server's price. It means the offline engine is not ready, and it is far better to find that here than on a day the internet is down." },

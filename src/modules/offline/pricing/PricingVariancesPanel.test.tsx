@@ -108,7 +108,7 @@ describe("the denominator", () => {
     // without the label and the number belonging to each other.
     const checked = (await screen.findByText("Carts checked")).parentElement;
     expect(checked).toHaveTextContent("1,284");
-    expect(screen.getByText("Couldn't be priced").parentElement).toHaveTextContent("4");
+    expect(screen.getByText("Not compared").parentElement).toHaveTextContent("4");
   });
 
   it("says how much of the fleet has actually been exercised", async () => {

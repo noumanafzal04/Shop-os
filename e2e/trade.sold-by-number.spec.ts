@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 
 import { API, tradeAuth } from "./api";
+import { payBy } from "./payBy";
 
 /**
  * A UNIT IS SOLD BY ITS NUMBER — AND COMES BACK BY IT.
@@ -126,7 +127,7 @@ async function ringByName(page: Page): Promise<void> {
 async function payCash(page: Page): Promise<string> {
   const sheet = tenderSheet(page);
   await expect(sheet).toBeVisible();
-  await sheet.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await payBy(sheet, "Cash");
   await sheet.getByRole("button", { name: /^Exact ·/ }).click();
   await sheet.getByRole("button", { name: /^Complete/ }).click();
   await expect(page.getByRole("heading", { name: "Sale complete" }), "the server refused the sale").toBeVisible({ timeout: 20_000 });

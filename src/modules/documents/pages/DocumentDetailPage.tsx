@@ -92,7 +92,7 @@ export default function DocumentDetailPage() {
   const heldAs = doc.status === "converted" ? doc.held_as ?? null : null;
   const holdsMoney = layaway || (job && Number(doc.deposit_paid) > 0);
   const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
-  const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "That could not be changed.");
+  const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "That could not be changed.");
 
   const print = (paper: string) => {
     paperModal.closeModal();
@@ -416,7 +416,7 @@ export default function DocumentDetailPage() {
               toast.success("Advance recorded");
               depositModal.closeModal();
             },
-            onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't record it."),
+            onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Couldn't record it."),
           })
         }
       />
@@ -459,7 +459,7 @@ export default function DocumentDetailPage() {
               // there and the sale, not the booking, is what they take home.
               void receiptService.printReceipt(res.data.sale.id);
             },
-            onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't bill it."),
+            onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Couldn't bill it."),
           })
         }
       />
@@ -483,7 +483,7 @@ export default function DocumentDetailPage() {
               toast.success(`${doc.number} cancelled`);
               navigate("/tenant/documents");
             },
-            onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't cancel it."),
+            onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Couldn't cancel it."),
           })
         }
       />

@@ -15,3 +15,30 @@ export function counted(n: number | string | null | undefined, one: string, many
 
   return `${formatQuantity(value)} ${value === 1 ? one : many}`;
 }
+
+const IRREGULAR: Record<string, string> = { people: "person", staff: "staff" };
+
+/**
+ * THE ONE OF A LIST'S PLURAL: "people" → "person", "entries" → "entry",
+ * "past orders" → "past order", "orders being worked" → "order being worked".
+ *
+ * A list's count is handed its noun in the plural, once, and printed "1 people",
+ * "1 sales", "1 changes" whenever a filter left one row (retail #12). The first
+ * word that is a plural is the one that changes.
+ */
+function oneOf(many: string): string {
+  const words = many.split(" ");
+  const at = words.findIndex((w) => IRREGULAR[w] !== undefined || (w.endsWith("s") && !w.endsWith("ss")));
+  if (at < 0) return many;
+
+  const w = words[at];
+  words[at] = IRREGULAR[w] ?? (w.endsWith("ies") ? `${w.slice(0, -3)}y` : w.slice(0, -1));
+
+  return words.join(" ");
+}
+
+/** A list's count in its own noun, given in the plural: "1 person", "12 people". */
+export function countedList(n: number, many: string): string {
+  return `${n.toLocaleString()} ${n === 1 ? oneOf(many) : many}`;
+}
+

@@ -5,7 +5,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { resetDbCache } from "../db/open";
 import { count, putMany, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
-import { MAX_VARIANCES, readVariances, runShadowCheck, type ShadowLine } from "./runShadowCheck";
+import { MAX_VARIANCES, onlineOnlyIn, readVariances, runShadowCheck, type ShadowLine } from "./runShadowCheck";
 import type { CatalogItem } from "../sync/catalogService";
 import { readTally } from "./shadowTally";
 
@@ -350,3 +350,27 @@ describe("counting what it did", () => {
     expect(await readTally()).toMatchObject({ checked: 1, skipped: 1 });
   });
 });
+
+describe("a cart the engine is built never to price (retail #16)", () => {
+  it("is left out of the comparison, not filed as a disagreement", async () => {
+    await seed([item({ id: "p1", price: 899.99 })]);
+
+    // The server took 200 off with a coupon; the engine never sees coupons.
+    const outcome = await runShadowCheck("INV-15", [line({ product_id: "p1", quantity: 2 })], {
+      subtotal: 1799.98, discount: 200, tax: 0, total: 1599.98,
+    }, 0, onlineOnlyIn({ coupon_code: "QA200" }));
+
+    expect(outcome).toEqual({ status: "skipped", reason: "priced online only — a coupon" });
+    expect(await readVariances()).toEqual([]);
+    expect(await readTally()).toMatchObject({ checked: 1, skipped: 1, differed: 0 });
+  });
+
+  it("names each thing the engine leaves to the server, and nothing else", () => {
+    expect(onlineOnlyIn({ coupon_code: "QA200" })).toBe("a coupon");
+    expect(onlineOnlyIn({ points_redeemed: "50" })).toBe("points redeemed");
+    expect(onlineOnlyIn({ bank_discount: "120.00" })).toBe("a bank card offer");
+    expect(onlineOnlyIn({ customer_group_id: "g1" })).toBe("a member's price");
+    expect(onlineOnlyIn({ coupon_code: null, points_redeemed: 0, bank_discount: "0.00", customer_group_id: null })).toBeNull();
+  });
+});
+

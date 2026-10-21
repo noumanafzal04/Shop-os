@@ -1,5 +1,6 @@
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import { ask, expect, rupees } from "./kit";
+import { payBy } from "../payBy";
 
 /**
  * THE TILL, as the journey uses it.
@@ -82,7 +83,7 @@ export async function tender(page: Page, method: Tender): Promise<number> {
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   const sheet = tenderSheet(page);
   await expect(sheet).toBeVisible();
-  await sheet.getByRole("group", { name: "Payment method" }).getByRole("button", { name: new RegExp(`^${method}`) }).click();
+  await payBy(sheet, method);
 
   return rupees(await page.getByTestId("tender-amount-due").innerText());
 }

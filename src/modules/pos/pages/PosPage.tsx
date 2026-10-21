@@ -17,7 +17,7 @@ import { useModal } from "../../../hooks/useModal";
 import StorageWarning from "../../offline/storage/StorageWarning";
 import { shiftBlocker } from "../../offline/storage/persist";
 import { syncDetail, syncLabel, useManualSync } from "../../offline/sync/useManualSync";
-import { runShadowCheck } from "../../offline/pricing/runShadowCheck";
+import { onlineOnlyIn, runShadowCheck } from "../../offline/pricing/runShadowCheck";
 import { effectiveTaxRate } from "../../offline/pricing/priceCart";
 import { round2 } from "../../offline/pricing/money";
 import { formatIn } from "../../../common/format/currency";
@@ -335,17 +335,20 @@ export default function PosPage() {
 
   const session = useCurrentSession();
   const shift = useShiftMutations();
-  const held = useHeldSales();
-  const heldMut = useHeldMutations();
 
   // ── Which lane is this terminal? ────────────────────────────────
   // A per-device choice (see terminalStore): the tablet bolted to lane 3 stays
   // lane 3 across shift changes and reboots. A shop with no lanes configured
   // never sees any of this — `lanes` comes back empty and the POS behaves
   // exactly as it did before registers existed.
-  const lanes = useLanes();
+  const laneModal = useModal();
+  const lanes = useLanes(true, laneModal.isOpen);
   const laneList = lanes.data ?? [];
   const usesLanes = laneList.length > 0;
+  // Somebody else is on a lane right now — the one time a ticket can be
+  // parked at another till and claimed here.
+  const held = useHeldSales(laneList.some((l) => !!l.open_session && l.open_session.user_id !== user?.id));
+  const heldMut = useHeldMutations();
   const terminalId = useTerminalStore((s) => s.activeRegisterId);
   const terminalName = useTerminalStore((s) => s.activeRegisterName);
   const setTerminal = useTerminalStore((s) => s.setTerminal);
@@ -353,7 +356,6 @@ export default function PosPage() {
   // about the hardware in front of you, not about who logged in.
   const showPad = useTerminalStore((s) => s.numPad);
   const setShowPad = useTerminalStore((s) => s.setNumPad);
-  const laneModal = useModal();
   // The lane of the shift actually running beats the stored choice — after a
   // handover the badge must show where the drawer really is.
   // `/pos/session` answers with my own drawer, the one I'm covering, or null.
@@ -810,11 +812,14 @@ export default function PosPage() {
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [odometer, setOdometer] = useState("");
   const [tradeInQuery, setTradeInQuery] = useState("");
+  const [tradeInOpen, setTradeInOpen] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => setTradeInQuery(tradeInSearch.trim()), 250);
     return () => clearTimeout(t);
   }, [tradeInSearch]);
-  const tradeInResults = useProducts({ search: tradeInQuery || undefined });
+  // Asked only once something is typed — the list is shown from two letters.
+  // It asked for the first page of the catalogue every time the till opened.
+  const tradeInResults = useProducts({ search: tradeInQuery || undefined }, tradeInQuery.length > 1);
   const vehicleResults = useVehicleLookup(vehicleSearch);
   const { quickCreate: quickCreateVehicle } = useVehicleMutations();
   // Only stock items can be taken in: an allowance backed by a service is
@@ -881,7 +886,7 @@ export default function PosPage() {
   // Keyboard-first POS: function keys drive the till so a cashier never
   // reaches for the mouse. actionsRef always holds the latest handlers so the
   // once-mounted listener stays in sync with current cart/shift state.
-  const actionsRef = useRef<{ focusSearch: () => void; hold: () => void; pay: () => void; openHeld: () => void; document: () => void; clearSearch: () => void } | undefined>(undefined);
+  const actionsRef = useRef<{ focusSearch: () => void; hold: () => void; pay: () => void; openHeld: () => void; document: () => void; clearSearch: () => void; complete: (target: EventTarget | null) => boolean } | undefined>(undefined);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const a = actionsRef.current;
@@ -899,6 +904,10 @@ export default function PosPage() {
         a[run]();
         return;
       }
+      // Enter on the pay sheet completes the sale, wherever the cursor is in
+      // it. It sat on the sheet's inner box, and the sheet opens with the
+      // focus on its own frame — so Enter did nothing until somebody clicked.
+      if (e.key === "Enter" && !e.isComposing && a.complete(e.target)) { e.preventDefault(); return; }
       if (e.key === "Escape") a.clearSearch();                    // clear the search box
     };
     window.addEventListener("keydown", onKey);
@@ -1767,6 +1776,7 @@ export default function PosPage() {
           total: Number(data.total),
         },
         Number(discountAtCheckout),
+        onlineOnlyIn(data),
       );
     },
   });
@@ -2228,8 +2238,12 @@ export default function PosPage() {
     }
     setSerialAsked(false);
     setMethod(defaultTender);
+    setTradeInOpen(false);
     setTendered((t) => t || String(payable));
     tenderModal.openModal();
+    // The cash box ready to type into, its figure selected: the sheet takes
+    // the focus for itself as it opens, so this waits a beat for it.
+    window.setTimeout(() => (document.getElementById("tender-cash") as HTMLInputElement | null)?.select(), 60);
   };
 
   /** The numbers sheet is closed. If Tender opened it, Tender is where the cashier was going. */
@@ -2864,6 +2878,15 @@ export default function PosPage() {
       else setPosNotice("Nothing to quote yet — add an item first.");
     },
     clearSearch: () => setSearch(""),
+    complete: (target) => {
+      if (!tenderModal.isOpen) return false;
+      // A button, a list or a link answers Enter itself — Cancel must cancel.
+      if (target instanceof HTMLElement && ["BUTTON", "SELECT", "TEXTAREA", "A"].includes(target.tagName)) return false;
+      if (!canCheckout || checkout.isPending) return false;
+      checkout.mutate();
+
+      return true;
+    },
   };
 
   return (
@@ -4756,7 +4779,7 @@ export default function PosPage() {
        * isn't; that unit has already cost this codebase the Appearance canvas's
        * Save button once. `-2rem` is the wrapper's own p-4. */}
       <Modal isOpen={tenderModal.isOpen} onClose={tenderModal.closeModal} showCloseButton={false} className="max-w-lg p-0">
-        <div className="flex max-h-[calc(100dvh-2rem)] flex-col" onKeyDown={(e) => { if (e.key === "Enter" && canCheckout && !checkout.isPending) { e.preventDefault(); checkout.mutate(); } }}>
+        <div className="flex max-h-[calc(100dvh-2rem)] flex-col">
           <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-gray-800">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Tender / Pay</h3>
             <button aria-label="Close" onClick={tenderModal.closeModal} className={MODAL_CLOSE}><CloseIcon className="h-5 w-5" /></button>
@@ -4843,7 +4866,14 @@ export default function PosPage() {
                 The dead battery on the counter. Recorded as a tender, so the
                 sale keeps its price and the scrap becomes stock the shop can
                 count — instead of a discount that loses both. */}
-            {has("inventory") && (
+            {/* Folded away until it is wanted: most sales take no goods back,
+                and a whole section for it stood over every bill. */}
+            {has("inventory") && !tradeInOpen && tradeIns.length === 0 && (
+              <button type="button" onClick={() => setTradeInOpen(true)} className="mb-4 flex items-center gap-1 text-theme-sm font-medium text-brand-600 hover:underline dark:text-brand-400">
+                <PlusIcon className="h-4 w-4" /> Take goods in part-payment
+              </button>
+            )}
+            {has("inventory") && (tradeInOpen || tradeIns.length > 0) && (
               <div className="mb-5 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-theme-sm font-medium text-gray-500 dark:text-gray-400">Take goods in part-payment</span>
@@ -4909,6 +4939,8 @@ export default function PosPage() {
                 shop has asked for it. */}
             <ServedByRow
               enabled={!!settings.data?.pos_ask_who_served}
+              me={user?.id ?? null}
+              anyone={user?.role === "shop_owner" || (user?.permissions?.includes("sales.credit_others") ?? false)}
               value={servedBy}
               onChange={setServedBy}
             />
@@ -4947,19 +4979,31 @@ export default function PosPage() {
                 including in high-contrast mode, where author backgrounds are
                 dropped and the selection used to vanish for sighted users too. */}
             <div id="tender-method-label" className="mb-2 text-theme-sm font-medium text-gray-500 dark:text-gray-400">Payment method</div>
-            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-5">
+            {/* The shop's own default is the one button; every other way to pay
+                is one choice away in the list beside it (the user, 2026-10-21:
+                five tabs for the one tender most sales use). */}
+            <div role="group" aria-labelledby="tender-method-label" className="mb-5 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setMethod(defaultTender)}
+                aria-pressed={method === defaultTender}
+                className={`flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-theme-sm font-medium transition ${method === defaultTender ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
+                <MethodIcon m={defaultTender} />
+                {METHOD_LABEL[defaultTender]}
+                <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>
+              </button>
               {/* Khata is the customers module's: the debt it writes can only
                   be seen and collected on the Customers screen. A shop without
                   that screen must not be able to lend into it. */}
-              {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).map((m) => (
-                <button key={m} type="button" onClick={() => setMethod(m)}
-                  aria-pressed={method === m}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl border-2 px-2 py-3 text-theme-sm font-medium transition ${method === m ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}>
-                  <MethodIcon m={m} />
-                  {METHOD_LABEL[m]}
-                  {m === defaultTender && <span className="text-[9px] font-bold uppercase text-gray-400">Default</span>}
-                </button>
-              ))}
+              <select
+                aria-label="Pay another way"
+                value={method === defaultTender ? "" : method}
+                onChange={(e) => setMethod(e.target.value === "" ? defaultTender : (e.target.value as PayMethod))}
+                className={`h-full min-h-12 w-full rounded-xl border-2 bg-white px-3 text-theme-sm font-medium transition focus:outline-hidden dark:bg-gray-900 ${method !== defaultTender ? "border-brand-500 text-brand-700 dark:text-brand-300" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"}`}
+              >
+                <option value="">Pay another way…</option>
+                {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).filter((m) => m !== defaultTender).map((m) => (
+                  <option key={m} value={m}>{METHOD_LABEL[m]}</option>
+                ))}
+              </select>
             </div>
             {hasBankOffers && <BankOfferRow
               cardAmount={
@@ -4999,7 +5043,7 @@ export default function PosPage() {
                     Keypad
                   </button>
                 </div>
-                <div className="mb-3"><Input type="number" min="0" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash tendered" /></div>
+                <div className="mb-3"><Input id="tender-cash" type="number" min="0" value={tendered} onChange={(e) => setTendered(e.target.value)} placeholder="Cash tendered" /></div>
                 <div className="mb-4 flex flex-wrap gap-2">
                   {quickTenders.map((v) => (
                     <button key={v} onClick={() => setTendered(String(v))}
@@ -5032,8 +5076,21 @@ export default function PosPage() {
               </div>
             )}
             {method === "credit" && (
-              <div className={`rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-error-200 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/10" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
-                {creditNeedsCustomer ? "Attach a customer (Customer button) to sell on credit — the balance is tracked against them." : <>Adds <span className="font-semibold">{money(payable)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
+              <div className={`rounded-lg border p-3 text-theme-sm ${creditNeedsCustomer ? "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400" : "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400"}`}>
+                {creditNeedsCustomer ? (
+                  // Whose khata, asked here — not "go and find the Customer
+                  // button" behind the sheet the cashier is standing in.
+                  <div data-khata-who className="space-y-2">
+                    <p>Whose khata? Type the customer&rsquo;s name or phone.</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input aria-label="Customer name" placeholder="Name" value={customer} onChange={(e) => setCustomer(e.target.value)} />
+                      <Input aria-label="Customer phone" placeholder="03xx-xxxxxxx" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                    </div>
+                  </div>
+                ) : <>Adds <span className="font-semibold">{money(payable)}</span> to {customer || customerPhone}'s khata (to pay later).</>}
+                {method === "credit" && (customer.trim() !== "" || customerPhone.trim() !== "") && (
+                  <CustomerSuggestions name={customer} phone={customerPhone} onPick={(c) => { setCustomer(c.name ?? ""); setCustomerPhone(c.phone ?? ""); }} />
+                )}
               </div>
             )}
             {method === "split" && (
@@ -5229,7 +5286,7 @@ export default function PosPage() {
       <Modal isOpen={laneModal.isOpen} onClose={laneModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">This register</h3>
         <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-          Which checkout is this device? Remembered on this device only.
+          Which checkout is this device? Remembered on this device, and your open shift moves with it.
         </p>
         <div className="space-y-2">
           {laneList.map((l) => {
@@ -5239,7 +5296,22 @@ export default function PosPage() {
               <button
                 key={l.id}
                 type="button"
-                onClick={() => { setTerminal(l.id, l.name); laneModal.closeModal(); }}
+                onClick={() => {
+                  setTerminal(l.id, l.name);
+                  // The shift goes with the lane. Picked after "Open shift" —
+                  // the order the till offers them — the lane was this
+                  // device's only, and Day & banking's Lane read "—" (retail #3).
+                  if (open && open.register_id !== l.id) {
+                    shift.move.mutate(l.id, {
+                      onError: (e) => setPosNotice(
+                        e instanceof ApiError
+                          ? `Your shift was NOT moved to ${l.name}: ${e.message}`
+                          : `Your shift was NOT moved to ${l.name}. Try again.`,
+                      ),
+                    });
+                  }
+                  laneModal.closeModal();
+                }}
                 className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition ${
                   l.id === terminalId
                     ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10"

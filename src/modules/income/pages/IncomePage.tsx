@@ -32,10 +32,11 @@ import type { Income } from "../services/incomeService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { useTabInUrl } from "../../../common/routing/tabInUrl";
-import { booksWords, withCashCalled } from "../../expenses/booksWords";
+import { booksWords, cashHint, withCashCalled } from "../../expenses/booksWords";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
 import { SavedNotice } from "../../expenses/components/SavedNotice";
 import { savedNotes } from "../../expenses/savedNotes";
+import { useOwnDrawer } from "../../expenses/useOwnDrawer";
 
 const today = () => shopToday();
 const wallToday = () => shopWallToday();
@@ -94,6 +95,7 @@ export default function IncomePage() {
   // What this screen IS depends on whether the business sells — see booksWords.
   const kind = useKindOfBusiness();
   const words = booksWords(kind);
+  const receivedHint = cashHint(words.cashReceivedHint, "in", useOwnDrawer());
   const methods = withCashCalled(INCOME_METHODS, words.cashReceived);
   // Counted server-side, so the badge never re-derives "due" from a
   // timezone the panel may not share with the shop.
@@ -430,8 +432,8 @@ export default function IncomePage() {
               <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Slip or invoice no." />
             </div>
           </div>
-          {method === "cash" && words.cashReceivedHint && (
-            <p className="text-theme-xs text-gray-400">{words.cashReceivedHint}</p>
+          {method === "cash" && receivedHint && (
+            <p className="text-theme-xs text-gray-400">{receivedHint}</p>
           )}
         </fieldset>
 

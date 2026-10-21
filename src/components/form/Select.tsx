@@ -9,7 +9,12 @@ interface Option {
 
 interface SelectProps {
   options: Option[];
-  placeholder?: string;
+  /**
+   * The disabled first line. Null for a field that always holds one of its
+   * options — "Round cash bills to" offered "Nothing — exact to the paisa"
+   * twice, the first one dead (retail #4).
+   */
+  placeholder?: string | null;
   onChange: (value: string) => void;
   className?: string;
   defaultValue?: string;
@@ -62,13 +67,15 @@ const Select: React.FC<SelectProps> = ({
       onChange={handleChange}
     >
       {/* Placeholder option */}
-      <option
-        value=""
-        disabled
-        className="text-gray-700 dark:bg-gray-900 dark:text-gray-400"
-      >
-        {placeholder}
-      </option>
+      {placeholder !== null && (
+        <option
+          value=""
+          disabled
+          className="text-gray-700 dark:bg-gray-900 dark:text-gray-400"
+        >
+          {placeholder}
+        </option>
+      )}
       {/* Map over options */}
       {options.map((option) => (
         <option

@@ -14,6 +14,7 @@ import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
+import { shopToday } from "../../../common/shopDay";
 
 interface Props {
   isOpen: boolean;
@@ -123,7 +124,7 @@ export default function ParkAsDocumentModal({
           onClose();
         },
         onError: (e) =>
-          toast.error(e instanceof ApiError ? e.message : "Couldn't save it."),
+          toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "Couldn't save it."),
       },
     );
   };
@@ -176,7 +177,9 @@ export default function ParkAsDocumentModal({
 
         <div>
           <Label>{layaway ? "Collect by" : "Valid until"}</Label>
-          <Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} />
+          {/* Not before today: the server refuses a past date, and it used to
+              say only "The given data was invalid." (retail #7). */}
+          <Input type="date" min={shopToday()} value={expires} onChange={(e) => setExpires(e.target.value)} />
           <p className="mt-1 text-theme-xs text-gray-400">
             Leave blank to use the shop's usual window.
           </p>

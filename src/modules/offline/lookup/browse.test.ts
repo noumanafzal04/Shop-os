@@ -97,6 +97,26 @@ describe("a kitchen with no barcodes", () => {
     expect(names(rows)).toEqual(["Cold Drink"]);
   });
 
+  it("finds a parent's items in its children, to any depth (as the server does)", () => {
+    const tree = [
+      category("men", "Men"),
+      { ...category("shirts", "Shirts"), parent_id: "men" },
+      { ...category("formal", "Formal"), parent_id: "shirts" },
+      category("women", "Women"),
+    ];
+    const goods = [
+      item({ id: "p1", name: "Belt", category_id: "men" }),
+      item({ id: "p2", name: "Polo", category_id: "shirts" }),
+      item({ id: "p3", name: "Oxford", category_id: "formal" }),
+      item({ id: "p4", name: "Lawn Suit", category_id: "women" }),
+      item({ id: "p5", name: "Unfiled", category_id: null }),
+    ];
+
+    expect(names(shelfRows(shelf(goods, tree), "", "men"))).toEqual(["Belt", "Oxford", "Polo"]);
+    expect(names(shelfRows(shelf(goods, tree), "", "shirts"))).toEqual(["Oxford", "Polo"]);
+    expect(names(shelfRows(shelf(goods, tree), "", "formal"))).toEqual(["Oxford"]);
+  });
+
   it("finds things by their category name, since that is what a cashier types", () => {
     // The reason `categoryIndex` exists — and it had no caller at all until
     // the pane started reading the cache.

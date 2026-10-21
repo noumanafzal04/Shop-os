@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import { openTill } from "./till";
 import { TAXED, list, openTender, ring, rupees, stockTaxedShelf, type Row } from "./taxedShelf";
+import { payBy } from "./payBy";
 
 /**
  * THE TILL CHARGES WHAT IT SHOWED — rung in a browser, against the server.
@@ -152,7 +153,7 @@ test("changing the cart drops a corrected figure rather than carrying it", async
   // tender is a different bill — cash rounds, card does not — so the
   // correction has to go, or the screen is showing the server's name on a
   // number the server never gave.
-  await page.getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Wallet/ }).click();
+  await payBy(page, "Wallet");
 
   await expect(page.getByTestId("tender-corrected")).toHaveCount(0);
 });

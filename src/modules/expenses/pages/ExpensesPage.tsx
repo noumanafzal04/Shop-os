@@ -27,7 +27,7 @@ import {
   useRecurringExpenses,
 } from "../hooks/useExpenses";
 import { PAYMENT_METHODS, type BudgetRow, type Expense, type RecurringExpense } from "../services/expensesService";
-import { booksWords, withCashCalled } from "../booksWords";
+import { booksWords, cashHint, withCashCalled } from "../booksWords";
 import { useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { useTabInUrl } from "../../../common/routing/tabInUrl";
 import { activeFilterCount, categoryOptions, toParams, type MoneyFilters, type MoneyTotals } from "../services/moneyFilters";
@@ -44,6 +44,7 @@ import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { shopToday, shopWallToday } from "../../../common/shopDay";
 import { SavedNotice } from "../components/SavedNotice";
 import { savedNotes } from "../savedNotes";
+import { useOwnDrawer } from "../useOwnDrawer";
 import { monthName, monthYear } from "../../../common/format/date";
 
 // The shop's business day for the date an entry opens on — tonight's gas
@@ -214,6 +215,7 @@ function MiniFilterBar({
 function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
   // What cash is called, and what there is to say about it — see booksWords.
   const words = booksWords(useKindOfBusiness());
+  const paidHint = cashHint(words.cashPaidHint, "out", useOwnDrawer());
   const branchCol = useBranchColumn();
   const [filters, setFilters] = useState<MoneyFilters>({ page: 1 });
   // Typing must not fire a request per keystroke, but every other filter is a
@@ -587,8 +589,8 @@ function ExpensesTab({ money, toast }: { money: Money; toast: Toast }) {
                 placeholder="Anything you'll want to remember when you read this back"
               />
             </div>
-            {form.method === "cash" && words.cashPaidHint && (
-              <p className="text-theme-xs text-gray-400">{words.cashPaidHint}</p>
+            {form.method === "cash" && paidHint && (
+              <p className="text-theme-xs text-gray-400">{paidHint}</p>
             )}
           </fieldset>
         </ModalForm>

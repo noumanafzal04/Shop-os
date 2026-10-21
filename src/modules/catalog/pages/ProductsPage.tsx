@@ -291,7 +291,7 @@ export default function ProductsPage() {
         onClearAll={clearAll}
         results={{
           count: pagination?.total ?? rows.length,
-          noun: (pagination?.total ?? rows.length) === 1 ? "item" : "items",
+          noun: "items",
           loading: products.isLoading,
         }}
       >

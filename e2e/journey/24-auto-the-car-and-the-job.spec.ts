@@ -209,6 +209,7 @@ test("M4 · a dead battery comes across the counter in part-payment — the bill
     expect(await tender(page, "Cash")).toBe(BATTERY.price);
 
     const sheet = tenderSheet(page);
+    await sheet.getByRole("button", { name: "Take goods in part-payment" }).click();
     await sheet.getByPlaceholder(/Search the item taken in/).fill(SCRAP.name);
     await sheet.getByRole("button", { name: SCRAP.name, exact: true }).click();
     await sheet.getByPlaceholder("Allowance").fill("3000");

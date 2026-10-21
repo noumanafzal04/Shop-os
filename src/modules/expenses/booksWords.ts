@@ -81,6 +81,26 @@ export function booksWords(kind: Kind): BooksWords {
   };
 }
 
+/** This person's own drawer: open, none (or none they can ever have), or not known yet. */
+export type OwnDrawer = "open" | "none" | null;
+
+/**
+ * THE CASH SENTENCE, SAID ONLY WHERE IT IS TRUE.
+ *
+ * "Cash comes out of your open drawer" was printed to everybody, and it was
+ * most often read by the people it was false for — the owner with no shift,
+ * and Accounts, who can never open a till (retail #9). The money was booked
+ * as cash outside any drawer, which is right; only the promise was wrong.
+ */
+export function cashHint(promise: string | null, way: "out" | "in", drawer: OwnDrawer): string | null {
+  if (promise === null || drawer === null) return null;
+  if (drawer === "open") return promise;
+
+  return way === "out"
+    ? "No shift of yours is open, so no drawer moves — this is recorded as cash paid outside the till."
+    : "No shift of yours is open, so no drawer moves — this is recorded as cash taken outside the till.";
+}
+
 /** A payment-method list with `cash` called what this business calls it. */
 export function withCashCalled<T extends { value: string; label: string }>(
   methods: readonly T[],

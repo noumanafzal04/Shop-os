@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { posService } from "../services/posService";
@@ -15,13 +16,12 @@ import { posService } from "../services/posService";
  * Nothing in a sale can tell you who walked the customer round the shop. It has
  * to be said, once, at the till.
  *
- * ── Nobody is the default, and stays the default ────────────────────────
+ * ── The person at the till is the default ────────────────────────────────
  *
- * It is never seeded with the signed-in cashier. Pre-filling would put the
- * cashier's name on a colleague's sale by default, which is the exact mistake
- * this control exists to stop — and it would do it while looking like the
- * cashier had chosen it. An unnamed sale is reported as unattributed, plainly,
- * and never folded into whoever was at the keyboard.
+ * The user, 2026-10-21: it opens on the signed-in person when they are one of
+ * the sellers — most sales are sold by whoever rings them — and stays
+ * changeable to a colleague or to Nobody. Un-naming is never re-seeded: once
+ * Nobody is picked on this sheet, Nobody is what is sent.
  *
  * ── Absent, not disabled ────────────────────────────────────────────────
  *
@@ -33,11 +33,20 @@ import { posService } from "../services/posService";
 interface Props {
   /** Has the shop asked for this? Comes from `pos_ask_who_served`. */
   enabled: boolean;
+  /** Who is signed in — the default when they are one of the sellers. */
+  me: string | null;
+  /**
+   * May they name a colleague (`sales.credit_others`)? Without it the list is
+   * themselves alone — the staff report pays off this name, and a cashier
+   * could put any sale on anybody's month (the user, 2026-10-21). The server
+   * refuses it too.
+   */
+  anyone: boolean;
   value: string | null;
   onChange: (id: string | null) => void;
 }
 
-export function ServedByRow({ enabled, value, onChange }: Props) {
+export function ServedByRow({ enabled, me, anyone, value, onChange }: Props) {
   const sellers = useQuery({
     queryKey: ["pos", "sellers"],
     queryFn: async () => (await posService.sellers()).data,
@@ -46,7 +55,17 @@ export function ServedByRow({ enabled, value, onChange }: Props) {
     staleTime: 30 * 60 * 1000,
   });
 
-  const people = sellers.data ?? [];
+  const everyone = sellers.data ?? [];
+  const people = anyone ? everyone : everyone.filter((p) => p.id === me);
+  const meSells = me !== null && people.some((p) => p.id === me);
+  // Seeded once per sheet, and only from nothing.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!enabled || seeded.current || !meSells) return;
+    seeded.current = true;
+    if (value === null) onChange(me);
+  }, [enabled, meSells, me, value, onChange]);
+
   if (!enabled || people.length === 0) return null;
 
   return (
@@ -56,18 +75,18 @@ export function ServedByRow({ enabled, value, onChange }: Props) {
       </div>
       <select
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+        onChange={(e) => { seeded.current = true; onChange(e.target.value === "" ? null : e.target.value); }}
         className="h-11 w-full rounded-xl border-2 border-gray-200 bg-white px-3 text-theme-sm text-gray-800 focus:border-brand-400 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
       >
         {/* Selectable, not a disabled placeholder: un-naming somebody has to
             stay possible after a name has been picked by mistake. */}
-        <option value="">Nobody</option>
+        {anyone && <option value="">Nobody</option>}
         {people.map((p) => (
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
       <p className="mt-1 text-[11px] text-gray-400">
-        Who sold it, not who is typing. Leave it on Nobody if it makes no difference here.
+        {anyone ? "Who sold it — you, unless a colleague walked the customer round." : "Your own sales only — naming a colleague needs a manager."}
       </p>
     </div>
   );

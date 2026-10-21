@@ -113,7 +113,7 @@ export default function StartInstallmentModal({
           onClose();
         },
         onError: (e) => {
-          toast.error(e instanceof ApiError ? e.message : "The plan was not started — nothing was sold.");
+          toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "The plan was not started — nothing was sold.");
           // The price moved: ask again, so the sheet reads out the plan as it now is.
           if (e instanceof ApiError && e.errorCode === "PLAN_PRICE_CHANGED") void worth.refetch();
         },

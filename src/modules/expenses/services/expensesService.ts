@@ -282,6 +282,9 @@ export interface ValuationReport {
     /** In the retail figure but not the cost one — the margin above is optimistic by this much. */
     uncosted_items: number;
     uncosted_units: number;
+    /** Sent and not yet counted in — already inside the figures above, shop-wide only. */
+    on_the_road_units?: number;
+    on_the_road_cost?: number;
   };
   by_category: Array<{ category: string; units: number; cost_value: number; retail_value: number }>;
   /** Rows actually sent. The totals above are over EVERY line, not just these. */

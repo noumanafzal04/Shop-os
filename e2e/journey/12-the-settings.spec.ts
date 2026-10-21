@@ -4,6 +4,7 @@ import { API } from "../api";
 import { OWNER_STATE, Watch, ask, expect, record, remember, session, settled, signIn, test } from "./kit";
 import { CASHIER, item } from "./shop";
 import { complete, discount, openTill, reopenToday, ring, tender, tenderSheet } from "./till";
+import { payBy } from "../payBy";
 
 /**
  * STAGE G — SETTINGS, AND WHETHER ANYTHING LISTENS TO THEM.
@@ -166,7 +167,7 @@ test("G1 · Default payment: the tender sheet opens on what the shop chose", asy
   await page.getByRole("button", { name: /Tender \/ Pay/i }).click();
   const methods = tenderSheet(page).getByRole("group", { name: "Payment method" });
   await expect(methods.getByRole("button", { name: /^Card/ }), "the till did not open on the shop's default").toHaveAttribute("aria-pressed", "true");
-  await expect(methods.getByRole("button", { name: /^Cash/ })).toHaveAttribute("aria-pressed", "false");
+  await expect(methods.getByRole("combobox", { name: "Pay another way" }), "Cash is one of the others now").toHaveValue("");
 
   await restore(request, { pos_default_payment: "cash" });
 });
@@ -182,7 +183,7 @@ test("G1 · Round cash bills: cash lands on the coin, a card does not, and the s
   await openTill(page);
   await ring(page, item("tea").name);
   expect(await tender(page, "Card"), "a card bill was rounded").toBe(1428.9);
-  await tenderSheet(page).getByRole("group", { name: "Payment method" }).getByRole("button", { name: /^Cash/ }).click();
+  await payBy(tenderSheet(page), "Cash");
   await expect(page.getByTestId("tender-amount-due")).toContainText("1,430");
   await tenderSheet(page).getByRole("button", { name: /^Exact ·/ }).click();
   const sale = await complete(page, request);

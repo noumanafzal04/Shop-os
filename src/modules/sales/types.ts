@@ -118,6 +118,11 @@ export interface Sale {
   tip_amount?: string | number | null;
   /** A cash bill settled to a coin: + the shop kept it, − it gave it up. */
   rounding_adjustment?: string | number | null;
+  /** What on the bill only the server prices — a till's shadow check leaves these out. */
+  coupon_code?: string | null;
+  points_redeemed?: string | number | null;
+  bank_discount?: string | number | null;
+  customer_group_id?: string | null;
   notes: string | null;
   sold_at: string;
   cancelled_at: string | null;
