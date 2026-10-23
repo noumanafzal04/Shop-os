@@ -59,6 +59,8 @@ interface InputProps {
   "aria-label"?: string;
   /** id of the element that already names this field, if one is on screen. */
   "aria-labelledby"?: string;
+  /** A date only: told while the box holds a day it will not give — see DateField. */
+  onInvalid?: (held: boolean) => void;
 }
 
 const Input: FC<InputProps> = ({
@@ -82,6 +84,7 @@ const Input: FC<InputProps> = ({
   hint,
   autoFocus = false,
   onKeyDown,
+  onInvalid,
 }) => {
   // Falls back to the <Label> already sitting above this field. Does nothing
   // when the field is named properly — see useFieldName for why.
@@ -126,6 +129,7 @@ const Input: FC<InputProps> = ({
           max={max}
           disabled={disabled}
           autoFocus={autoFocus}
+          onInvalid={onInvalid}
           className={inputClasses.replace("date-field", "appearance-none")}
         />
         {hint && (

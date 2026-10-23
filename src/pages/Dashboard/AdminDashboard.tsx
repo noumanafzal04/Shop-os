@@ -246,12 +246,13 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <RecentTenantsPanel tenants={data?.recent_tenants} loading={isLoading} />
+            {/* Absent for somebody who may not open Tenants — no empty panel (#27). */}
+            {(isLoading || data?.recent_tenants) && <RecentTenantsPanel tenants={data?.recent_tenants} loading={isLoading} />}
             {(isLoading || data?.recent_payments) && (
               <RecentPaymentsPanel payments={data?.recent_payments} loading={isLoading} />
             )}
           </div>
-          <ActivityPanel activity={data?.activity} loading={isLoading} />
+          {(isLoading || data?.activity) && <ActivityPanel activity={data?.activity} loading={isLoading} />}
         </div>
 
         {/* Carded like every band above it, rather than trailing off into

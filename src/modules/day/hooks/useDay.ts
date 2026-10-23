@@ -94,5 +94,13 @@ export function useDayMutations() {
       mutationFn: (payload: DepositInput) => dayService.recordDeposit(payload),
       onSuccess: invalidate,
     }),
+    correctDeposit: useMutation({
+      mutationFn: ({ id, payload }: { id: string; payload: DepositInput }) => dayService.correctDeposit(id, payload),
+      onSuccess: invalidate,
+    }),
+    removeDeposit: useMutation({
+      mutationFn: (id: string) => dayService.removeDeposit(id),
+      onSuccess: invalidate,
+    }),
   };
 }

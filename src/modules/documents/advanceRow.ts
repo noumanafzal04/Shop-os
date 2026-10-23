@@ -1,6 +1,6 @@
 import { isPastDate } from "../../common/shopDay";
 import { daysSince } from "../../common/format/since";
-import type { SaleDocument } from "./services/documentService";
+import { DEPOSIT_METHODS, type SaleDocument } from "./services/documentService";
 
 /** Nobody has paid into it for this long — the server's `SaleDocument::QUIET_DAYS`. */
 export const QUIET_DAYS = 30;
@@ -32,4 +32,18 @@ export function advanceRow(
   const quiet = (state === "open" || state === "overdue") && !!doc.last_paid_at && daysSince(doc.last_paid_at, now) > QUIET_DAYS;
 
   return { paid, left, share, state, quiet };
+}
+
+/**
+ * HOW AN ADVANCE GOES BACK, UNLESS SOMEBODY SAYS OTHERWISE (next rounds #18).
+ *
+ * The cancel sheet sent "cash" every time, and a manager with no shift of their
+ * own was refused — "Open a shift before handing an advance back in cash" —
+ * with no other way offered. It now asks, starting from the way the money came
+ * in: an advance paid by card goes back on the card.
+ */
+export function handedBackBy(payments: Array<{ method: string }> | undefined): string {
+  const first = payments?.[0]?.method;
+
+  return DEPOSIT_METHODS.some((m) => m.value === first) ? first! : "cash";
 }

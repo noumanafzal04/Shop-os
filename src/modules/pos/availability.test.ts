@@ -266,3 +266,10 @@ describe("what the stock screens show — where the person is looking (B16)", ()
     expect(sizeOnHand({ ...size({ name: "S", stock_quantity: 4 }), branch_stock: 3 } as ProductVariant)).toBe(3);
   });
 });
+
+describe("a medicine whose every lot has expired (next rounds #29)", () => {
+  it("is refused at the tile, saying the stock left has expired", () => {
+    const panadol = { id: "p", name: "QA Panadol 500mg", type: "product", track_inventory: true, sold_out: false, branch_stock: 0, stock_quantity: 5, expired_stock: 5 } as never;
+    expect(whyNotSellable(panadol, null)).toBe("QA Panadol 500mg: what is left has expired (5 in expired lots)");
+  });
+});

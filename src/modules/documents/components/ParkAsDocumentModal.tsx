@@ -59,6 +59,8 @@ export default function ParkAsDocumentModal({
   const [name, setName] = useState(customerName);
   const [phone, setPhone] = useState(customerPhone);
   const [expires, setExpires] = useState("");
+  // A day the box refused is held back from the form — so Save waits for it (#17).
+  const [expiresRefused, setExpiresRefused] = useState(false);
   const [deposit, setDeposit] = useState("");
   const [method, setMethod] = useState("cash");
 
@@ -179,7 +181,7 @@ export default function ParkAsDocumentModal({
           <Label>{layaway ? "Collect by" : "Valid until"}</Label>
           {/* Not before today: the server refuses a past date, and it used to
               say only "The given data was invalid." (retail #7). */}
-          <Input type="date" min={shopToday()} value={expires} onChange={(e) => setExpires(e.target.value)} />
+          <Input type="date" min={shopToday()} value={expires} onChange={(e) => setExpires(e.target.value)} onInvalid={setExpiresRefused} />
           <p className="mt-1 text-theme-xs text-gray-400">
             Leave blank to use the shop's usual window.
           </p>
@@ -231,7 +233,7 @@ export default function ParkAsDocumentModal({
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
         <Button
           size="sm"
-          disabled={create.isPending || lines.length === 0 || missingCustomer || !priced || worth.isFetching || belowMinimum || shiftWhy !== null}
+          disabled={create.isPending || lines.length === 0 || missingCustomer || !priced || worth.isFetching || belowMinimum || shiftWhy !== null || expiresRefused}
           onClick={submit}
         >
           {layaway ? "Hold the goods" : "Save quotation"}

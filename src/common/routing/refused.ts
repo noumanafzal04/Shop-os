@@ -32,9 +32,16 @@ function screenName(path: string): string {
   return words === "" ? "That screen" : words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** What the person is told: which screen, why, and what they can do about it. */
-export function refusedWords({ path, why }: Refused): { title: string; message: string } {
-  const name = screenName(path);
+/**
+ * What the person is told: which screen, why, and what they can do about it.
+ * `nameOf` is the menu's own name for the path (layout/screenNames) — the
+ * address is only the fallback for a path the menu does not hold (#23).
+ */
+export function refusedWords(
+  { path, why }: Refused,
+  nameOf: (path: string) => string | null = () => null,
+): { title: string; message: string } {
+  const name = nameOf(path) ?? screenName(path);
 
   return why === "module"
     ? { title: `${name} is not part of this shop`, message: "It is not switched on for this business. Ask the owner if you need it." }

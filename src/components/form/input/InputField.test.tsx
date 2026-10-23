@@ -141,6 +141,29 @@ describe("a date is the shop's own date field", () => {
     expect(screen.getByRole("alert").textContent).toContain("after 31 Dec 2026");
   });
 
+  /**
+   * Next rounds #17: 20 Oct typed into a "Valid until" that starts on 21 Oct
+   * gave the form nothing, said nothing until the box was left, and Save sent
+   * no date — so the quotation took the shop's default, 5 Nov.
+   */
+  it("says a day outside its range at once, and tells the form it is holding one back", () => {
+    const held = vi.fn();
+    inAnApp(<Input type="date" aria-label="Valid until" value="" onChange={() => {}} min="2026-10-21" onInvalid={held} />);
+    const field = screen.getByLabelText("Valid until") as HTMLInputElement;
+
+    fireEvent.change(field, { target: { value: "20/10/2026" } });
+    expect(screen.getByRole("alert").textContent).toContain("before 21 Oct 2026");
+    expect(held).toHaveBeenLastCalledWith(true);
+
+    // Left with the refusal still showing: still held — Save must still wait.
+    fireEvent.blur(field);
+    expect(held).toHaveBeenLastCalledWith(true);
+
+    fireEvent.change(field, { target: { value: "31/10/2026" } });
+    expect(held).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("opens a calendar on the month of its day, and a pressed day is the day", () => {
     const got = vi.fn();
     inAnApp(<Bill onDay={got} />);

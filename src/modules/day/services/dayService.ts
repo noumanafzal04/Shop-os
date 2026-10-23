@@ -1,5 +1,5 @@
 import type { KhataCollections } from "../../customers/components/CollectedOnKhata";
-import { api, apiGet, apiPost } from "../../../common/api/client";
+import { api, apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
 
 /**
  * A person on a record — who opened the day, who signed it off, who took the
@@ -113,7 +113,7 @@ export interface BankDeposit {
   deposited_by: Signer;
   notes: string | null;
   branch?: { id: string; name: string } | null;
-  business_day?: { id: string; trading_date: string } | null;
+  business_day?: { id: string; trading_date: string; status?: string } | null;
 }
 
 export interface DayView {
@@ -141,8 +141,10 @@ export interface DayView {
    * names a counter.
    */
   also_trading?: Array<{ id: string; name: string | null }>;
-  /** Today's takings still in the shop. Floats excluded — they stay. */
+  /** The cash the drawers hold less what was banked — never below nothing (#19). */
   unbanked: number;
+  /** Banked past what the drawers held — the safe, an earlier day, or a slip typed wrong. */
+  banked_beyond_drawers?: number;
   deposits?: BankDeposit[];
   /**
    * Paid against khata today, at this day's counter (L14). Null for somebody
@@ -201,4 +203,9 @@ export const dayService = {
     apiGet<BankDeposit[]>("/pos/deposits", { params }),
 
   recordDeposit: (payload: DepositInput) => apiPost<BankDeposit>("/pos/deposits", payload),
+
+  /** Put right a slip typed wrong — while its day is trading (#20). */
+  correctDeposit: (id: string, payload: DepositInput) => apiPut<BankDeposit>(`/pos/deposits/${id}`, payload),
+
+  removeDeposit: (id: string) => apiDelete<null>(`/pos/deposits/${id}`),
 };

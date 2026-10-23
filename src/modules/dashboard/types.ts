@@ -338,8 +338,10 @@ export interface AdminDashboard {
     reference?: string | null;
     paid_at?: string | null;
   }>;
-  activity: ActivityRow[];
-  recent_tenants: Array<{
+  /** Super admin only — the platform audit feed (#27). */
+  activity?: ActivityRow[];
+  /** Only for somebody who may open Tenants (#27). */
+  recent_tenants?: Array<{
     id: string;
     business_name: string;
     status: "active" | "suspended";

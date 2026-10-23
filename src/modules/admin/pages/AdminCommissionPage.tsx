@@ -29,6 +29,7 @@ import Pager from "../../../components/ui/pager";
 import { CheckLineIcon, DollarLineIcon, PieChartIcon, TimeIcon, UserCircleIcon } from "../../../icons";
 import { Card, Empty, PageHeader, Person, Pill, StatTile } from "../components/kit";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { outstandingHeading } from "../commissionWords";
 
 /**
  * THE PLATFORM'S CUT.
@@ -569,7 +570,7 @@ export default function AdminCommissionPage() {
           title={detail.data?.shop.business_name ?? "Commission"}
           description={
             detail.data
-              ? `${detail.data.shop.effective_rate}% · ${money(detail.data.outstanding.amount)} not yet billed across ${detail.data.outstanding.orders} order${detail.data.outstanding.orders === 1 ? "" : "s"}${unpaidHere > 0 ? ` · ${money(unpaidHere)} billed and unpaid` : ""}`
+              ? `${outstandingHeading(detail.data.shop.effective_rate, detail.data.outstanding, money)}${unpaidHere > 0 ? ` · ${money(unpaidHere)} billed and unpaid` : ""}`
               : undefined
           }
           footer={

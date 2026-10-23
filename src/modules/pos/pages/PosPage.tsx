@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { categoryMenu, menuLabel } from "../../catalog/categoryMenu";
+import { useCoolDown } from "../../../common/api/coolDown";
 import { BankOfferRow } from "../../banks/components/BankOfferRow";
 import { ServedByRow } from "../components/ServedByRow";
 import type { CardType } from "../../banks/services/banksService";
@@ -1768,6 +1770,8 @@ export default function PosPage() {
       );
     },
   });
+  // A throttled sale waits the time the server named, then may go again (#31).
+  const coolDown = useCoolDown(checkout.error);
 
   /**
    * A new line for the cart — the one shape every door builds, so a line rung
@@ -2807,9 +2811,8 @@ export default function PosPage() {
   // Same shelf, same tabs. A category list that empties itself the moment the
   // line drops is the difference between a kitchen that can sell and one that
   // cannot — a dish has no barcode to fall back on.
-  const catList = connected
-    ? (categories.data ?? [])
-    : (offlineShelf.data?.categories ?? []);
+  // One list online and off, each sub-category under its parent (#22).
+  const catList = categoryMenu(connected ? (categories.data ?? []) : (offlineShelf.data?.categories ?? []));
   // A credit (khata) sale — full or a split tender — needs a named customer.
   const cartHasRx = cart.some((l) => l.requires_prescription);
   const splitHasCredit = method === "split" && tenders.some((t) => t.method === "credit" && Number(t.amount) > 0);
@@ -2825,7 +2828,7 @@ export default function PosPage() {
   const reRingHeld = reRingMoney !== null && (reRingMoney.blocked !== null || !approvalReady(reRingApproval, needsReRingApproval));
   // …and a discount past the limit waits for the manager's PIN (#3).
   const discountHeld = discountAsk !== null && !approvalReady(discountApproval, true);
-  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && !discountHeld && (
+  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && !discountHeld && coolDown === 0 && (
     method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
       : method === "split" ? total > 0 && splitPaid >= payable
@@ -3352,7 +3355,7 @@ export default function PosPage() {
                       {catList.map((c) => (
                         <button key={c.id} type="button" onClick={() => { setCategoryId(c.id); setCatMenuOpen(false); }}
                           className={`flex w-full items-center gap-2 px-3 py-2.5 text-sm transition ${categoryId === c.id ? "bg-brand-50 font-medium text-brand-600 dark:bg-brand-500/10" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5"}`}>
-                          <span className="truncate">{c.name}</span>{categoryId === c.id && <CheckLineIcon className="ml-auto h-4 w-4 shrink-0" />}
+                          <span className="truncate">{menuLabel(c)}</span>{categoryId === c.id && <CheckLineIcon className="ml-auto h-4 w-4 shrink-0" />}
                         </button>
                       ))}
                     </div>
@@ -5166,6 +5169,8 @@ export default function PosPage() {
             <Button size="sm" className="flex-1" onClick={() => checkout.mutate()} disabled={!canCheckout || checkout.isPending}>
               {checkout.isPending
                 ? "Processing…"
+                : coolDown > 0
+                  ? `Wait ${coolDown}s, then try again`
                 : reRingMoney !== null && reRingMoney.back > 0
                   ? `Complete · hand back ${money(reRingMoney.back)}`
                   : method === "credit"

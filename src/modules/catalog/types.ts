@@ -68,6 +68,8 @@ export interface ProductVariant {
   branch_stock?: number | null;
   /** On the shelf where the person is looking: every place in the owner's all-places view (B16). */
   on_hand?: number | null;
+  /** Of that shelf, what sits in expired lots — on the shelf, not for sale (next rounds #29). */
+  expired_stock?: number | null;
   low_stock_threshold: number | null;
   is_active: boolean;
 }
@@ -152,6 +154,8 @@ export interface Product {
   branch_stock?: number | null;
   /** On the shelf where the person is looking — see ProductVariant.on_hand. */
   on_hand?: number | null;
+  /** Of that shelf, what sits in expired lots — see ProductVariant.expired_stock. */
+  expired_stock?: number | null;
   low_stock_threshold: number | null;
   track_inventory: boolean;
   /**

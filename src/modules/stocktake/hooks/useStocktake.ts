@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { stocktakeService, type StartCountInput } from "../services/stocktakeService";
 import { useAuthStore } from "../../../stores/authStore";
 
@@ -36,6 +36,25 @@ export function useCountSheet(id: string | undefined, params: { search?: string;
   });
 }
 
+/**
+ * The figures the Apply sheet asks a person to sign (next rounds #21), read
+ * from the server once the last typed figure has landed. The sheet's own query
+ * is never refetched while counting, so the sheet signed the totals as the page
+ * first loaded them — "Lines counted 0 · Net 0" over a count that then moved
+ * Rs 2,200 of stock.
+ */
+export function useApplyFigures(countId: string | undefined, open: boolean) {
+  const saving = useIsMutating({ mutationKey: ["stock-counts", "record", countId] });
+
+  return useQuery({
+    queryKey: ["stock-counts", "apply-figures", countId],
+    queryFn: async () => (await stocktakeService.sheet(countId!, {})).data.summary,
+    enabled: !!countId && open && saving === 0,
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
+
 export function useStocktakeMutations(countId?: string) {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -52,6 +71,8 @@ export function useStocktakeMutations(countId?: string) {
       onSuccess: invalidate,
     }),
     record: useMutation({
+      // Named, so the Apply sheet can wait until every typed figure has landed.
+      mutationKey: ["stock-counts", "record", countId],
       mutationFn: (lines: Array<{ item_id: string; counted_quantity: number | null }>) =>
         stocktakeService.record(countId!, lines),
       // Deliberately NOT invalidating the sheet: the input the counter is

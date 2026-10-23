@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { advanceRow } from "./advanceRow";
+import { advanceRow, handedBackBy } from "./advanceRow";
 
 const now = new Date("2026-10-15T10:00:00Z");
 const row = (over: Record<string, unknown>) =>
@@ -24,5 +24,16 @@ describe("one advance, as the counter reads it", () => {
   it("is collected or cancelled once it is no longer open", () => {
     expect(row({ status: "converted" }).state).toBe("collected");
     expect(row({ status: "cancelled", last_paid_at: "2026-01-01T00:00:00Z" })).toMatchObject({ state: "cancelled", quiet: false });
+  });
+});
+
+describe("how a cancelled advance goes back (next rounds #18)", () => {
+  it("starts from the way the money came in, and from cash when nothing says", () => {
+    expect(handedBackBy([{ method: "card" }, { method: "cash" }])).toBe("card");
+    expect(handedBackBy([{ method: "wallet" }])).toBe("wallet");
+    expect(handedBackBy([])).toBe("cash");
+    expect(handedBackBy(undefined)).toBe("cash");
+    // Not a way the counter hands money back: cash, not a guess.
+    expect(handedBackBy([{ method: "credit" }])).toBe("cash");
   });
 });

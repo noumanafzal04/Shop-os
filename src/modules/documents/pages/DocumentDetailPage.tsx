@@ -15,6 +15,7 @@ import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { receiptService } from "../../receipts/services/receiptService";
 import { useDocument, useDocumentMutations } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
+import { handedBackBy } from "../advanceRow";
 import { formatQuantity } from "../../../common/format/quantity";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords } from "../../workshop/words";
@@ -469,6 +470,7 @@ export default function DocumentDetailPage() {
         isOpen={cancelModal.isOpen}
         onClose={cancelModal.closeModal}
         paid={Number(doc.deposit_paid)}
+        paidBy={handedBackBy(doc.payments)}
         money={money}
         job={job}
         // The shop's usual fee, as a starting figure only. It is never applied
@@ -580,6 +582,7 @@ function CancelModal({
   isOpen,
   onClose,
   paid,
+  paidBy,
   money,
   job,
   feePercent,
@@ -589,6 +592,8 @@ function CancelModal({
   isOpen: boolean;
   onClose: () => void;
   paid: number;
+  /** How the advance came in — where the money goes back unless somebody says otherwise. */
+  paidBy: string;
   money: (n: string | number) => string;
   /** A job holds no goods, so nothing "goes back on the shelf". */
   job: boolean;
@@ -599,6 +604,7 @@ function CancelModal({
 }) {
   const [reason, setReason] = useState("");
   const [forfeit, setForfeit] = useState("");
+  const [refundBy, setRefundBy] = useState(paidBy);
 
   /**
    * The shop's usual fee, filled in for whoever is cancelling.
@@ -614,7 +620,8 @@ function CancelModal({
   // must not carry over onto a different customer's money.
   useEffect(() => {
     if (isOpen) setForfeit(suggested > 0 ? String(suggested) : "");
-  }, [isOpen, suggested]);
+    if (isOpen) setRefundBy(paidBy);
+  }, [isOpen, suggested, paidBy]);
 
   const kept = Math.min(Math.max(0, Number(forfeit) || 0), paid);
   const back = Math.max(0, paid - kept);
@@ -633,7 +640,7 @@ function CancelModal({
                 onSubmit({
                   reason: reason || undefined,
                   forfeit_amount: paid > 0 ? kept : undefined,
-                  refund_method: paid > 0 ? "cash" : undefined,
+                  refund_method: paid > 0 ? refundBy : undefined,
                 })
               }
             >
@@ -681,6 +688,33 @@ function CancelModal({
                   </div>
                 )}
               </div>
+              {back > 0 && (
+                <div role="group" aria-labelledby="refund-by-label">
+                  <p id="refund-by-label" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Handed back by</p>
+                  <div className="flex flex-wrap gap-2">
+                    {DEPOSIT_METHODS.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        aria-pressed={refundBy === m.value}
+                        onClick={() => setRefundBy(m.value)}
+                        className={`rounded-lg border px-3.5 py-2 text-theme-sm font-medium transition ${
+                          refundBy === m.value
+                            ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                            : "border-gray-300 text-gray-600 dark:border-gray-700 dark:text-gray-400"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {refundBy === "cash" && (
+                    <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                      Cash comes out of your own open drawer.
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

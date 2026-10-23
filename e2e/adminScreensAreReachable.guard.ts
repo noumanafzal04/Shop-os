@@ -26,7 +26,8 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 /** The paths actually on the admin rail, from the two real arrays. */
 function railPaths(): Set<string> {
-  const src = read("src/layout/AppSidebar.tsx");
+  // Moved out of AppSidebar so a refused screen's notice reads the same names (next rounds #23).
+  const src = read("src/layout/adminMenu.tsx");
   const out = new Set<string>();
 
   for (const name of ["adminMainItems", "adminPlatformItems"]) {

@@ -167,7 +167,8 @@ export function RequireAdminScreen({ path }: { path: string }) {
   const permissions = useAuthStore((s) => s.user?.permissions);
 
   if (!canVisitAdmin(path, role === "super_admin", permissions)) {
-    return <Navigate to="/admin" replace />;
+    // Said on the dashboard, as the shop side does — it bounced in silence (#26).
+    return <Navigate to="/admin" replace state={refusedState(path, "permission")} />;
   }
 
   return <Outlet />;

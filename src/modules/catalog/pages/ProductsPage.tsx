@@ -1,4 +1,5 @@
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
+import { categoryMenu, menuLabel } from "../categoryMenu";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useBranchStore } from "../../../stores/branchStore";
 import { useState } from "react";
@@ -103,10 +104,7 @@ export default function ProductsPage() {
 
   /** Parents and their children, flattened once — the picker and the pill that
    *  names the current choice must read the same list. */
-  const categoryOptions = (categories.data ?? []).flatMap((c) => [
-    { value: c.id, label: c.name },
-    ...(c.children ?? []).map((ch) => ({ value: ch.id, label: `— ${ch.name}` })),
-  ]);
+  const categoryOptions = categoryMenu(categories.data ?? []).map((c) => ({ value: c.id, label: menuLabel(c) }));
 
   const applied: AppliedFilter[] = [
     type && {
@@ -436,6 +434,10 @@ export default function ProductsPage() {
                           ) : (
                             onHand(p)
                           )}
+                        {/* On the shelf and not for sale: the till refuses it, so the list says it (#29). */}
+                        {p.track_inventory && Number(p.expired_stock ?? 0) > 0 && (
+                          <span className="ml-2 text-theme-xs text-error-600 dark:text-error-400">{Number(p.expired_stock)} expired</span>
+                        )}
                       </td>
                     )}
                     <td className="px-6 py-4">

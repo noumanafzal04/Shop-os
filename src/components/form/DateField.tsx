@@ -52,6 +52,13 @@ export interface DateFieldProps {
   format?: DateFormatCode;
   /** Given the <input>, for a caller that names it from a label nearby. */
   inputRef?: (el: HTMLInputElement | null) => void;
+  /**
+   * Told true while the box holds something it will not give the form — a day
+   * outside min/max, or words that are not a day — and false once it does not.
+   * A refused "Valid until" sent nothing, and the quotation was saved with a
+   * date nobody chose (next rounds #17): a form disables Save on this.
+   */
+  onInvalid?: (held: boolean) => void;
 }
 
 const WEEK = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
@@ -95,6 +102,7 @@ export default function DateField({
   autoFocus = false,
   format,
   inputRef,
+  onInvalid,
 }: DateFieldProps) {
   const shops = useDateFormat();
   const code = format ?? shops;
@@ -121,6 +129,18 @@ export default function DateField({
     if (day !== value) onChange(day);
   };
 
+  const outside = (day: string) =>
+    min && day < min
+      ? `That is before ${dateIn(code, min)}, the earliest day this takes.`
+      : `That is after ${dateIn(code, max)}, the latest day this takes.`;
+
+  // Held back from the form: refused, or typed words that are not yet a day it takes.
+  const typedDay = typing !== null && typing.trim() !== "" ? typedDayIn(code, typing) : undefined;
+  const held = refused !== null || (typedDay !== undefined && (typedDay === null || !allowed(typedDay)));
+  const tell = useRef(onInvalid);
+  tell.current = onInvalid;
+  useEffect(() => tell.current?.(held), [held]);
+
   const typed = (text: string) => {
     setTyping(text);
     setRefused(null);
@@ -131,8 +151,10 @@ export default function DateField({
     }
     const day = typedDayIn(code, text);
     // Given as soon as it IS a day — a form that is read before the box is
-    // left (a filter, a test) holds what is on the screen.
+    // left (a filter, a test) holds what is on the screen. A day it will not
+    // take is said at once, not when the box is left (#17).
     if (day !== null && allowed(day)) give(day);
+    else if (day !== null) setRefused(outside(day));
   };
 
   const left = () => {
@@ -143,13 +165,7 @@ export default function DateField({
 
     const day = typedDayIn(code, text);
     if (day === null) setRefused(`“${text}” is not a date. Type it like ${dateIn(code, today)}, or pick it from the calendar.`);
-    else if (!allowed(day)) {
-      setRefused(
-        min && day < min
-          ? `That is before ${dateIn(code, min)}, the earliest day this takes.`
-          : `That is after ${dateIn(code, max)}, the latest day this takes.`,
-      );
-    }
+    else if (!allowed(day)) setRefused(outside(day));
   };
 
   // ── The calendar ─────────────────────────────────────────────────────

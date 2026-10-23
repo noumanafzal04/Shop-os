@@ -103,6 +103,8 @@ export const catalogReader: StockReader = (product, variant) =>
 type Sellable = Pick<Product, "name" | "type" | "sold_out" | "track_inventory"> & {
   id: string;
   stock_quantity?: number | string | null;
+  /** On the shelf in expired lots — not for sale (next rounds #29). */
+  expired_stock?: number | string | null;
   variants?: ProductVariant[] | null;
 };
 
@@ -136,6 +138,10 @@ export function whyNotSellable(
 
   if (p.type === "product" && p.track_inventory === true) {
     if (stockOf(p, variant) <= 0) {
+      // What is left has expired: said, so the shelf's count is not read as a mistake (#29).
+      if (variant === null && Number(p.expired_stock ?? 0) > 0) {
+        return `${p.name}: what is left has expired (${Number(p.expired_stock)} in expired lots)`;
+      }
       return variant !== null
         ? `${p.name} — ${variant.name} is out of stock`
         : `${p.name} is out of stock`;

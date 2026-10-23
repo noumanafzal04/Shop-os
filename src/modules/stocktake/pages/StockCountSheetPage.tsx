@@ -15,7 +15,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { useMoney } from "../../shop/hooks/useShop";
-import { useCountSheet, useStocktakeMutations } from "../hooks/useStocktake";
+import { useApplyFigures, useCountSheet, useStocktakeMutations } from "../hooks/useStocktake";
 import type { StockCountLine } from "../services/stocktakeService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 
@@ -166,6 +166,8 @@ export default function StockCountSheetPage() {
   };
 
   const summary = sheet.data?.summary;
+  const figures = useApplyFigures(id, applyModal.isOpen);
+  const signed = figures.isFetching ? null : (figures.data ?? null);
 
   return (
     <>
@@ -380,23 +382,24 @@ export default function StockCountSheetPage() {
           kept. Shelves nobody reached are left alone.
         </p>
 
-        {summary && (
-          <div className="mb-4 space-y-1 rounded-xl bg-gray-50 p-3 text-theme-sm dark:bg-white/[0.03]">
+        {!signed && <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Adding up the count…</p>}
+        {signed && (
+          <div data-apply-figures className="mb-4 space-y-1 rounded-xl bg-gray-50 p-3 text-theme-sm dark:bg-white/[0.03]">
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Lines counted</span>
-              <span className="tabular-nums text-gray-800 dark:text-white/90">{summary.counted}</span>
+              <span className="tabular-nums text-gray-800 dark:text-white/90">{signed.counted}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Missing</span>
-              <span className="tabular-nums text-error-600 dark:text-error-400">{money(summary.short_value)}</span>
+              <span className="tabular-nums text-error-600 dark:text-error-400">{money(signed.short_value)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-gray-400">Extra found</span>
-              <span className="tabular-nums text-warning-600 dark:text-warning-400">{money(summary.over_value)}</span>
+              <span className="tabular-nums text-warning-600 dark:text-warning-400">{money(signed.over_value)}</span>
             </div>
             <div className="flex justify-between border-t border-gray-200 pt-1 font-medium dark:border-gray-700">
               <span className="text-gray-700 dark:text-gray-300">Net</span>
-              <span className="tabular-nums text-gray-800 dark:text-white/90">{money(summary.net_value)}</span>
+              <span className="tabular-nums text-gray-800 dark:text-white/90">{money(signed.net_value)}</span>
             </div>
           </div>
         )}
@@ -413,7 +416,7 @@ export default function StockCountSheetPage() {
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={applyModal.closeModal}>Not yet</Button>
-          <Button size="sm" onClick={submitApply} disabled={apply.isPending}>
+          <Button size="sm" onClick={submitApply} disabled={apply.isPending || !signed}>
             {apply.isPending ? "Applying…" : "Apply count"}
           </Button>
         </div>

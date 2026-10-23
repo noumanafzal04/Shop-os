@@ -6,6 +6,7 @@ import { useConnectionStore } from "../../stores/connectionStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 import { markServerContact } from "../../modules/offline/contact";
 import { heardShellStamp, SHELL_STAMP_HEADER } from "../kept/shellStamp";
+import { failureWords } from "./failureWords";
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -253,6 +254,11 @@ api.interceptors.response.use(
     // `meta` rides along. It is where the server puts a figure a screen can
     // ACT on — the amount a short tender has to reach, for one — and dropping
     // it here is what left the till with only a sentence to show.
+    // A server that broke, a throttle, a lapsed sign-in: said in the shop's
+    // words with what to do next, not as an HTTP reason phrase (#30, #31).
+    const plain = error.response ? failureWords(status, body, error.response.headers?.["retry-after"]) : null;
+    if (plain) throw new ApiError(plain.message, status, plain.code, body?.errors ?? {}, { ...(body?.meta ?? {}), ...plain.meta });
+
     throw new ApiError(body?.message ?? fallback, status, code, body?.errors ?? {}, body?.meta ?? {});
   },
 );

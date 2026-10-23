@@ -24,7 +24,9 @@ import {
   useDayMutations,
   useDeposits,
 } from "../hooks/useDay";
-import { dayService, signerName, type BusinessDay, type DayShift } from "../services/dayService";
+import { dayService, signerName, type BankDeposit, type BusinessDay, type DayShift } from "../services/dayService";
+import { bankedBeyondDrawers, depositCanBeCorrected } from "../banking";
+import { useConfirm } from "../../../components/ui/confirm";
 import ClosedTodayCard from "../components/ClosedTodayCard";
 import { shopToday, turnsAtLabel } from "../../../common/shopDay";
 import { useLanes, useShiftDay } from "../../registers/hooks/useRegisters";
@@ -125,7 +127,10 @@ export default function DayPage() {
   const activeBranchId = useBranchStore((st) => st.activeBranchId);
   const day = useCurrentDay();
   const closedToday = useClosedToday();
-  const { close, deposit, reopen } = useDayMutations();
+  const { close, deposit, reopen, correctDeposit, removeDeposit } = useDayMutations();
+  const confirm = useConfirm();
+  // Whoever the server lets record a deposit — and so correct one (#20).
+  const canBank = hasPermission("expenses.manage");
   const bankOnce = useOnceKey();
 
   const openAgain = (id: string, reason: string) =>
@@ -151,35 +156,99 @@ export default function DayPage() {
   const blankDeposit = { amount: "", bank_name: "", account_label: "", slip_number: "", notes: "" };
   const [depositForm, setDepositForm] = useState({ ...blankDeposit });
   const setD = (k: string, v: string) => setDepositForm((f) => ({ ...f, [k]: v }));
-  const depositError = deposit.error instanceof ApiError ? deposit.error : null;
+  // The deposit being put right, or null for a new one (#20).
+  const [correcting, setCorrecting] = useState<BankDeposit | null>(null);
+  const saving = correcting ? correctDeposit : deposit;
+  const depositError = saving.error instanceof ApiError ? saving.error : null;
 
-  const openDeposit = () => {
-    setDepositForm({ ...blankDeposit });
+  const openDeposit = (d: BankDeposit | null = null) => {
+    setCorrecting(d);
+    setDepositForm(
+      d
+        ? {
+            amount: String(Number(d.amount)),
+            bank_name: d.bank_name ?? "",
+            account_label: d.account_label ?? "",
+            slip_number: d.slip_number ?? "",
+            notes: d.notes ?? "",
+          }
+        : { ...blankDeposit },
+    );
     deposit.reset();
+    correctDeposit.reset();
     depositModal.openModal();
   };
 
-  const submitDeposit = () => {
+  const submitDeposit = async () => {
+    const amount = Number(depositForm.amount);
+    // More than the drawers hold is asked, not refused: it may be the safe (#19).
+    const beyond = bankedBeyondDrawers(amount, day.data, correcting);
+    if (
+      beyond > 0 &&
+      !(await confirm({
+        title: `Bank ${money(amount)}?`,
+        message: `The drawers hold ${money(Number(day.data?.unbanked ?? 0))} not yet banked — this is ${money(beyond)} more. Right if it came from the safe or an earlier day; otherwise check the amount.`,
+        confirmLabel: `Bank ${money(amount)}`,
+      }))
+    ) {
+      return;
+    }
     const text = (v: string) => v.trim() || null;
+    const payload = {
+      amount,
+      bank_name: text(depositForm.bank_name),
+      account_label: text(depositForm.account_label),
+      slip_number: text(depositForm.slip_number),
+      notes: text(depositForm.notes),
+    };
+    const done = () => depositModal.closeModal();
+    const failed = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Couldn't record it.");
+    if (correcting) {
+      correctDeposit.mutate(
+        { id: correcting.id, payload },
+        { onSuccess: () => (toast.success(`Deposit corrected to ${money(amount)}`), done()), onError: failed },
+      );
+      return;
+    }
     deposit.mutate(
-      {
-        amount: Number(depositForm.amount),
-        bank_name: text(depositForm.bank_name),
-        account_label: text(depositForm.account_label),
-        slip_number: text(depositForm.slip_number),
-        notes: text(depositForm.notes),
-        idempotency_key: bankOnce.key,
-      },
+      { ...payload, idempotency_key: bankOnce.key },
       {
         onSuccess: () => {
           bankOnce.renew();
-          toast.success(`${money(Number(depositForm.amount))} recorded as banked`);
-          depositModal.closeModal();
+          toast.success(`${money(amount)} recorded as banked`);
+          done();
         },
-        onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't record it."),
+        onError: failed,
       },
     );
   };
+
+  const takeOffDeposit = async (d: BankDeposit) => {
+    const ok = await confirm({
+      title: `Remove the ${money(d.amount)} deposit?`,
+      message: "For a deposit that never happened. It comes off the day's Banked figure; the activity log keeps who removed it.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
+    removeDeposit.mutate(d.id, {
+      onSuccess: () => toast.success("Deposit removed"),
+      onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't remove it."),
+    });
+  };
+
+  /** Edit and Remove on a deposit row — only while its day is trading. */
+  const depositActions = (d: BankDeposit, dayStatus?: string | null) =>
+    canBank && depositCanBeCorrected(d, dayStatus) ? (
+      <span className="ml-3 inline-flex gap-2 text-theme-xs font-normal">
+        <button type="button" className="text-brand-500 hover:underline" onClick={() => openDeposit(d)}>
+          Edit
+        </button>
+        <button type="button" className="text-error-500 hover:underline" onClick={() => void takeOffDeposit(d)}>
+          Remove
+        </button>
+      </span>
+    ) : null;
 
   // ── Closing the day off ──────────────────────────────────────────
   const shopSettings = useShopSettings();
@@ -268,8 +337,8 @@ export default function DayPage() {
             What the shop took today, across every drawer — and how much of it went to the bank.
           </p>
         </div>
-        {canManage && (
-          <Button size="sm" variant="outline" onClick={openDeposit}>
+        {canBank && (
+          <Button size="sm" variant="outline" onClick={() => openDeposit()}>
             Record a deposit
           </Button>
         )}
@@ -409,7 +478,15 @@ export default function DayPage() {
                     hint="What every till should hold now"
                   />
                   <Stat label="Banked" value={money(view.banked)} hint={`${(view.deposits ?? []).length} deposit${(view.deposits ?? []).length === 1 ? "" : "s"}`} />
-                  <Stat label="Still in the shop" value={money(view.unbanked)} hint="In the drawers, less what was banked" />
+                  <Stat
+                    label="Still in the shop"
+                    value={money(view.unbanked)}
+                    hint={
+                      (view.banked_beyond_drawers ?? 0) > 0
+                        ? `${money(view.banked_beyond_drawers!)} more banked than the drawers held`
+                        : "In the drawers, less what was banked"
+                    }
+                  />
                   <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
                     <p className="text-theme-xs uppercase tracking-wide text-gray-400">Counted so far</p>
                     <p className="mt-1 text-lg font-semibold">
@@ -537,6 +614,7 @@ export default function DayPage() {
                             {clock(d.deposited_at)}
                             {signerName(d.deposited_by) && ` · ${signerName(d.deposited_by)}`}
                           </span>
+                          {depositActions(d, view.day.status)}
                         </span>
                       </li>
                     ))}
@@ -808,6 +886,7 @@ export default function DayPage() {
                     <th className="px-5 py-3">Trading day</th>
                     <th className="px-5 py-3">Taken by</th>
                     <th className="px-5 py-3 text-right">Amount</th>
+                    {canBank && <th className="px-5 py-3"><span className="sr-only">Correct</span></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -833,6 +912,7 @@ export default function DayPage() {
                       <td className="px-5 py-3 text-right font-semibold tabular-nums text-gray-800 dark:text-white/90">
                         {money(d.amount)}
                       </td>
+                      {canBank && <td className="whitespace-nowrap px-5 py-3 text-right">{depositActions(d)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -852,7 +932,9 @@ export default function DayPage() {
 
       {/* Record a deposit ───────────────────────────────────────────── */}
       <Modal isOpen={depositModal.isOpen} onClose={depositModal.closeModal} className="max-w-md p-6">
-        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Record a deposit</h3>
+        <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">
+          {correcting ? "Correct a deposit" : "Record a deposit"}
+        </h3>
         <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
           Cash physically taken to the bank. No drawer moves — that money left the till hours ago.
         </p>
@@ -870,6 +952,12 @@ export default function DayPage() {
             />
             {depositError?.errors.amount?.[0] && (
               <p className="mt-1 text-theme-xs text-error-500">{depositError.errors.amount[0]}</p>
+            )}
+            {bankedBeyondDrawers(Number(depositForm.amount), day.data, correcting) > 0 && (
+              <p data-beyond-drawers className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                More than the {money(Number(day.data?.unbanked ?? 0))} the drawers hold — by{" "}
+                {money(bankedBeyondDrawers(Number(depositForm.amount), day.data, correcting))}.
+              </p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -901,8 +989,8 @@ export default function DayPage() {
 
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={depositModal.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={submitDeposit} disabled={deposit.isPending || !(Number(depositForm.amount) > 0)}>
-            {deposit.isPending ? "Recording…" : "Record deposit"}
+          <Button size="sm" onClick={() => void submitDeposit()} disabled={saving.isPending || !(Number(depositForm.amount) > 0)}>
+            {saving.isPending ? "Saving…" : correcting ? "Save correction" : "Record deposit"}
           </Button>
         </div>
       </Modal>
