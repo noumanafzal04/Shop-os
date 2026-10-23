@@ -153,6 +153,22 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R100 | B115 | Filter Products and the POS by a PARENT category (also offline). | Its sub-categories' items are listed; a child category stays exact. |
 | R101 | B116 | Pay sheet: default tender is a button, others in "Pay another way"; trade-in folded; khata asks whose; Enter completes; cash box ready to type. | All as said; Enter on Cancel cancels. |
 | R102 | B117 | Shop asks "who served". A cashier (no permission) and a Shift supervisor each ring a sale. | The cashier sees only their own name and cannot send another (refused); the supervisor and owner may name anybody. |
+| R103 | B120 | New quotation, Valid until: type a day before today, then press Save. | The box says why at once; Save stays disabled until a good day (or none) is in. |
+| R104 | B121 | Cancel a layaway with an advance as a manager with no shift; keep a fee smaller than the advance. | "Handed back by" offered (starts on how it was paid); Card cancels with no drawer; Cash still needs your own shift. |
+| R105 | B122 | Day & banking: record a deposit bigger than "Still in the shop". | The sheet warns and asks; after banking, the tile reads 0 and says how much more was banked than the drawers held. |
+| R106 | B123 | Correct a deposit (16,000 → 1,600) and remove another; then try after closing the day. | Banked and Still-in-the-shop follow; activity log has both; after the close it is refused "Open the day again…". |
+| R107 | B124 | Stocktake: type every line (one short, one over), press Apply count straight away. | The sheet shows the real lines / missing / extra / net; Apply waits until they are in. |
+| R108 | B125 | POS online and offline: open the category menu with a nested sub-category. | Same list both times, the child under its parent; picking it is exact. |
+| R109 | B126 | Paste /tenant/pos and /tenant/documents as a kitchen-only person. | "POS is not open to you", "Quotes & Advances …" — the menu's names. |
+| R110 | B127 | Two tills sell the last piece offline, both sync; Reports → Offline. | Both slips named in the recount list; an older sale from before a restock is not. |
+| R111 | B128 | Banners-only platform staff pastes /admin/tenants. | Lands on the dashboard with "Tenants is not open to you". |
+| R112 | B129 | Same staff opens the admin dashboard. | No Recent tenants panel, no Activity panel; the super admin still has both. |
+| R113 | B130 | Commission → a shop whose charges were raised at an older rate. | Heading says new orders' rate and the rate the waiting charges were raised at. |
+| R114 | B131 | Pharmacy: a medicine whose only lot expired. | Products shows "N expired"; the till tile reads 0 and says what is left has expired. |
+| R115 | B132 B133 | At the till, make the server answer 500/503 and 429 (Retry-After 30). | Plain words (nothing saved, cart kept); 429 counts down and Complete waits. |
+| R116 | B134 | Import 501 rows, then 500 rows. | 501 refused with "up to 500 … sending twice is safe"; 500 imports inside the time. |
+| R117 | B135 | Start an installment plan between 00:00 and 05:00. | The markup income is on the same business day as the sale (Reports for that day show both). |
+| R118 | B119 | Open panel.cartze.shop normally after a deploy, on a device that showed a white page. | It mends itself (one reload at most) — no hard reload needed. |
 
 ### 5b. What no pass has reached yet
 
