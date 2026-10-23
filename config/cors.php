@@ -50,7 +50,8 @@ return [
     // knows when to ask again for what it keeps (StampTheShell). Hidden, the
     // panel still works — it falls back to trusting kept answers for a few
     // minutes — but a change made elsewhere then takes those minutes to show.
-    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper', 'Content-Disposition', 'X-Shell-Stamp'],
+    // Retry-After: how long a throttled till waits before Complete is pressable again (next rounds #31).
+    'exposed_headers' => ['X-Receipt-Print-Id', 'X-Receipt-Kind', 'X-Receipt-Paper', 'Content-Disposition', 'X-Shell-Stamp', 'Retry-After'],
 
     'max_age' => 0,
 

@@ -97,6 +97,28 @@ class PharmacyEdgeCasesTest extends TestCase
         $this->assertEquals(10, $panadol->fresh()->stock_quantity);
     }
 
+    /**
+     * Next rounds #29: a medicine whose only lot had expired read "stock 5" on
+     * Products and on the till, and was refused only when Pay was pressed. The
+     * shelf count stays; what may be sold, and what is expired, are said.
+     */
+    public function test_the_till_and_the_products_list_say_what_of_the_shelf_may_be_sold(): void
+    {
+        [$tenant, $owner] = $this->shop();
+        $panadol = $this->medicine($tenant, ['name' => 'QA Panadol 500mg']);
+        $this->addLot($owner, $panadol, ['batch_number' => 'PAN-OK', 'expiry_date' => now()->addMonth()->toDateString(), 'quantity' => 3]);
+        $this->addLot($owner, $panadol, ['batch_number' => 'PAN-EXP', 'expiry_date' => now()->subDay()->toDateString(), 'quantity' => 5]);
+
+        $row = collect($this->actingAsUser($owner)->getJson('/api/v1/products?search=Panadol')->assertOk()->json('data'))->firstWhere('id', $panadol->id);
+        $this->assertEquals(8, $row['on_hand']);
+        $this->assertEquals(5, $row['expired_stock']);
+        $this->assertEquals(3, $row['branch_stock']);
+
+        $tile = collect($this->actingAsUser($owner)->getJson('/api/v1/pos/catalog')->assertOk()->json('data.products.items'))->firstWhere('id', $panadol->id);
+        $this->assertEquals(3, $tile['stock']);
+        $this->assertEquals(5, $tile['expired_stock']);
+    }
+
     public function test_pack_sale_cannot_dip_into_expired_stock(): void
     {
         [$tenant, $owner] = $this->shop();

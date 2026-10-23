@@ -28,10 +28,24 @@ class DashboardController extends Controller
         // `from` and `to` name the period asked about — see DashboardPeriod.
         $asked = $request->validate(DashboardPeriod::rules());
 
-        return ApiResponse::ok($service->forPlatform(
-            withRevenue: $request->user()->hasPermission(Permissions::BILLING_VIEW),
+        $user = $request->user();
+        $data = $service->forPlatform(
+            withRevenue: $user->hasPermission(Permissions::BILLING_VIEW),
             from: $asked['from'] ?? null,
             to: $asked['to'] ?? null,
-        ));
+        );
+
+        // The same rule for what is not money (next rounds #27): five shops by
+        // name went to a banners-only hand who is 403 on /admin/tenants, and the
+        // platform audit feed to one who may not open /admin/audit-logs. Absent,
+        // as the revenue is — the screen draws no panel for what never arrived.
+        if (! $user->hasPermission(Permissions::TENANTS_VIEW)) {
+            unset($data['recent_tenants']);
+        }
+        if (! $user->isSuperAdmin()) {
+            unset($data['activity']);
+        }
+
+        return ApiResponse::ok($data);
     }
 }

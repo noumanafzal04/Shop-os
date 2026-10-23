@@ -174,20 +174,29 @@ class ProductController extends Controller
         // Additive: `branch_stock` alongside the untouched rollup. Same shape
         // as `branch_price` directly above.
         $here = PosProjection::stockAt($branchId, $ids);
+        // In expired lots — at the till's branch, and where the person is looking (#29).
+        // `branch_stock` is what the till may SELL; `on_hand` stays the shelf
+        // count, with `expired_stock` beside it saying how much of it is not for sale.
+        $expiredHere = PosProjection::expiredAt($branchId, $ids);
+        $expiredSeen = $scopeId === null ? PosProjection::expiredAt(null, $ids) : $expiredHere;
 
         foreach ($products as $p) {
             $sizes = $p->relationLoaded('variants') ? $p->variants : collect();
             foreach ($sizes as $v) {
-                $v->branch_stock = (float) ($here["{$p->id}:{$v->id}"] ?? 0);
-                $v->on_hand = $scopeId === null ? (float) $v->stock_quantity : $v->branch_stock;
+                $key = "{$p->id}:{$v->id}";
+                $v->on_hand = $scopeId === null ? (float) $v->stock_quantity : (float) ($here[$key] ?? 0);
+                $v->branch_stock = max(0, (float) ($here[$key] ?? 0) - (float) ($expiredHere[$key] ?? 0));
+                $v->expired_stock = (float) ($expiredSeen[$key] ?? 0);
             }
 
             if ($sizes->isEmpty()) {
-                $p->branch_stock = (float) ($here[$p->id] ?? 0);
-                $p->on_hand = $scopeId === null ? (float) $p->stock_quantity : $p->branch_stock;
+                $p->on_hand = $scopeId === null ? (float) $p->stock_quantity : (float) ($here[$p->id] ?? 0);
+                $p->branch_stock = max(0, (float) ($here[$p->id] ?? 0) - (float) ($expiredHere[$p->id] ?? 0));
+                $p->expired_stock = (float) ($expiredSeen[$p->id] ?? 0);
             } else {
                 // A product sold in sizes holds no stock of its own (Product::effectiveStock).
                 $p->on_hand = (float) $sizes->sum('on_hand');
+                $p->expired_stock = (float) $sizes->sum('expired_stock');
             }
         }
     }
@@ -239,6 +248,14 @@ class ProductController extends Controller
             if (is_string($heading) && (is_string($field) || $field === null)) {
                 $mapping[$heading] = (string) $field;
             }
+        }
+
+        // Room for a slow machine: a file cut off part-way leaves part of it in
+        // the shop and the person told nothing (next rounds #32). Only ever
+        // RAISED — 0 is no limit at all, and must stay that way.
+        $limit = (int) ini_get('max_execution_time');
+        if ($limit > 0 && $limit < 120) {
+            set_time_limit(120);
         }
 
         $summary = $action->execute($request->file('file')->get(), [

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\BranchStock;
+use App\Models\ProductBatch;
 use App\Models\Product;
 use Illuminate\Support\Collection;
 
@@ -70,9 +71,10 @@ class PosProjection
      * on-hand quantity AT THIS BRANCH — passed in rather than queried per row,
      * because a catalog of 20,000 items would otherwise be 20,000 queries.
      */
-    public static function item(Product $product, array $stockByTarget = [], ?string $branchId = null): array
+    public static function item(Product $product, array $stockByTarget = [], ?string $branchId = null, array $expiredByTarget = []): array
     {
-        $stock = static fn (string $key): float => (float) ($stockByTarget[$key] ?? 0);
+        // What may be SOLD: an expired lot is on the shelf and not for sale (#29).
+        $stock = static fn (string $key): float => max(0, (float) ($stockByTarget[$key] ?? 0) - (float) ($expiredByTarget[$key] ?? 0));
 
         return [
             'id' => $product->id,
@@ -119,6 +121,10 @@ class PosProjection
             'stock' => $product->relationLoaded('variants') && $product->variants->isNotEmpty()
                 ? $product->variants->sum(fn ($v): float => (float) $stock("{$product->id}:{$v->id}"))
                 : $stock($product->id),
+            // Of the shelf, what sits in expired lots — said, so the tile can say why it reads 0.
+            'expired_stock' => (float) collect($expiredByTarget)
+                ->filter(fn ($q, string $key): bool => $key === $product->id || str_starts_with($key, "{$product->id}:"))
+                ->sum(),
             'low_stock_threshold' => $product->low_stock_threshold === null ? null : (float) $product->low_stock_threshold,
 
             // Menu hours, so a breakfast item cannot be rung at dinner.
@@ -279,6 +285,43 @@ class PosProjection
                 $row->variant_id === null
                     ? $row->product_id
                     : "{$row->product_id}:{$row->variant_id}" => (float) $row->quantity,
+            ])
+            ->all();
+    }
+
+    /**
+     * What sits in EXPIRED lots, keyed as `stockAt()` keys its answer — or
+     * every place's when no branch is named (next rounds #29).
+     *
+     * A medicine whose only lot had expired read "stock 5" on Products and on
+     * the till tile, and was refused only on the pay press ("Only 0 sellable —
+     * 5 is in expired batches"). The shelf count stays the shelf count; the
+     * till is told what of it may be sold. The same date as the fence that
+     * refuses the sale: the shop's wall (InventoryService).
+     *
+     * @param  iterable<string>  $productIds
+     * @return array<string, float>
+     */
+    public static function expiredAt(?string $branchId, iterable $productIds): array
+    {
+        $ids = collect($productIds)->all();
+        if ($ids === []) {
+            return [];
+        }
+
+        return ProductBatch::query()
+            ->when($branchId, fn ($q, $b) => $q->where('branch_id', $b))
+            ->whereIn('product_id', $ids)
+            ->where('quantity', '>', 0)
+            ->whereNotNull('expiry_date')
+            ->whereDate('expiry_date', '<', ShopDay::calendarToday())
+            ->groupBy('product_id', 'variant_id')
+            ->selectRaw('product_id, variant_id, sum(quantity) as expired')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [
+                $row->variant_id === null
+                    ? $row->product_id
+                    : "{$row->product_id}:{$row->variant_id}" => (float) $row->expired,
             ])
             ->all();
     }

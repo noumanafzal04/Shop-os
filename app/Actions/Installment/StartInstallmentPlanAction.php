@@ -122,7 +122,10 @@ class StartInstallmentPlanAction
                     'amount' => $markup,
                     'payment_method' => 'other',
                     'reference' => $number,
-                    'income_date' => ShopDay::calendarToday(),
+                    // The business day the sale is on — not the wall date. At
+                    // 1 am the fridge was sold on yesterday's books and its
+                    // markup filed under today's, so neither day added up.
+                    'income_date' => ShopDay::today(),
                     'notes' => "{$markupPercent}% on a cash price of ".number_format($cashPrice, 2).' — charged on the customer\'s khata and collected with the installments.',
                 ]);
             }

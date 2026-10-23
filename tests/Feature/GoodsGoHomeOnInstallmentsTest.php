@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -116,6 +117,24 @@ class GoodsGoHomeOnInstallmentsTest extends TestCase
         $ledger = $this->asOwner()->getJson("/api/v1/customers/{$this->ali()->id}")->assertOk()->json('data.ledger');
         $this->assertEqualsCanonicalizing(['INS-000001', 'INS-000001'], array_column($ledger, 'plan'));
         $this->assertEqualsCanonicalizing([44000, 6000], array_map('floatval', array_column($ledger, 'amount')));
+    }
+
+    /**
+     * Found by the suite itself at 01:35 on 24 Oct: the markup was filed under
+     * the WALL date while the sale went on the business day, which turns at
+     * 05:00 — so a plan started after midnight put the fridge on one day's
+     * books and its markup on the next, and neither day added up.
+     */
+    public function test_a_plan_started_after_midnight_files_its_markup_on_the_sales_day(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-24 01:30:00', 'Asia/Karachi'));
+        $this->start();
+
+        $income = Income::withoutTenancy()->where('reference', 'INS-000001')->firstOrFail();
+        $this->assertSame('2026-10-23', $income->income_date->toDateString());
+        $report = $this->asOwner()->getJson('/api/v1/reports/summary?period=custom&from=2026-10-23&to=2026-10-23')->json('data.totals');
+        $this->assertEquals(60000, $report['revenue']);
+        $this->assertEquals(6000, $report['other_income']);
     }
 
     /**

@@ -277,9 +277,10 @@ class PosCatalogController extends Controller
         $live = $page['rows']->filter($sells);
         // Stock for the whole page in one query rather than one per row.
         $stock = PosProjection::stockAt($this->branch->id(), $live->pluck('id'));
+        $expired = PosProjection::expiredAt($this->branch->id(), $live->pluck('id'));
 
         return $this->shape($page, fn (Product $p): ?array => $sells($p)
-            ? PosProjection::item($p, $stock, $this->branch->id())
+            ? PosProjection::item($p, $stock, $this->branch->id(), $expired)
             : null);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Tenant;
 
 use App\Actions\Pos\CloseBusinessDayAction;
 use App\Actions\Pos\ReopenBusinessDayAction;
+use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Models\BankDeposit;
 use App\Models\BusinessDay;
@@ -160,7 +161,12 @@ class BusinessDayController extends Controller
             // less what went to the bank. It was cash SALES less banked, and a
             // drawer banked whole (its khata, its other income, its float) read
             // −10,982.67 beside "In the drawers 18,982.67" (retail #11).
-            'unbanked' => round($held - $banked, 2),
+            //
+            // Never below nothing (next rounds #19): a drawer cannot hold minus
+            // money. Banking more than the drawers hold is real — yesterday's
+            // takings from the safe — so the extra is said on its own line.
+            'unbanked' => round(max(0, $held - $banked), 2),
+            'banked_beyond_drawers' => round(max(0, $banked - $held), 2),
             'deposits' => BankDeposit::query()
                 ->with('depositedBy:id,name')
                 ->where('business_day_id', $day->id)
@@ -310,7 +316,7 @@ class BusinessDayController extends Controller
     public function deposits(Request $request): JsonResponse
     {
         $deposits = BankDeposit::query()
-            ->with(['depositedBy:id,name', 'branch:id,name', 'businessDay:id,trading_date'])
+            ->with(['depositedBy:id,name', 'branch:id,name', 'businessDay:id,trading_date,status'])
             ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
             ->tap(fn ($q) => ShopDay::between($q, 'deposited_at', $request->date('from'), $request->date('to')))
             ->tap(fn (Builder $q) => Retention::fence($q, 'deposited_at'))
@@ -384,5 +390,61 @@ class BusinessDayController extends Controller
         });
 
         return ApiResponse::created($deposit->load('depositedBy:id,name'), 'Deposit recorded');
+    }
+
+    /**
+     * Put right a slip typed wrong (next rounds #20). A deposit could only be
+     * added: Rs 16,000 typed for Rs 1,600 stayed on the day's Banked and
+     * Still-in-the-shop for good, and nothing short of a database edit took it
+     * off. The change is kept in the activity log (Auditable).
+     */
+    public function updateDeposit(Request $request, string $id): JsonResponse
+    {
+        $deposit = $this->depositToCorrect($request, $id);
+
+        $data = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0', 'max:99999999'],
+            'bank_name' => ['nullable', 'string', 'max:120'],
+            'account_label' => ['nullable', 'string', 'max:120'],
+            'slip_number' => ['nullable', 'string', 'max:64'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $deposit->update([...$data, 'amount' => round((float) $data['amount'], 2)]);
+
+        return ApiResponse::ok($deposit->load('depositedBy:id,name'), 'Deposit corrected');
+    }
+
+    /** Take off a deposit that never happened. Kept in the activity log. */
+    public function destroyDeposit(Request $request, string $id): JsonResponse
+    {
+        $this->depositToCorrect($request, $id)->delete();
+
+        return ApiResponse::ok(null, 'Deposit removed');
+    }
+
+    /**
+     * Who may correct a deposit is who may record one, and only while its day
+     * is still trading: a closed day froze its Banked figure on its own row,
+     * and Open again re-reads it from the deposits (CloseBusinessDayAction).
+     */
+    private function depositToCorrect(Request $request, string $id): BankDeposit
+    {
+        abort_unless($request->user()->hasPermission(Permissions::EXPENSES_MANAGE), 403);
+
+        $deposit = BankDeposit::query()
+            ->with('businessDay:id,status')
+            ->when($this->branch->scopeId(), fn ($q, $b) => $q->where('branch_id', $b))
+            ->findOrFail($id);
+
+        if ($deposit->businessDay?->status === BusinessDay::STATUS_CLOSED) {
+            throw new DomainException(
+                'That day has been closed off, so its banking is frozen. Open the day again to correct this deposit.',
+                409,
+                'DAY_IS_CLOSED',
+            );
+        }
+
+        return $deposit;
     }
 }

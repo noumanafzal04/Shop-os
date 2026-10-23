@@ -269,8 +269,42 @@ class OfflineReportTest extends TestCase
         $row = $this->report()['oversold'][0];
 
         $this->assertSame('QA Last Piece', $row['product']);
-        // The sale that left it at nought sold what was there; the one after it did not.
-        $this->assertSame(['OFF-TILL-VBLY-000001'], $row['sold_on']);
+        // Both slips since the shelf last held a piece (next rounds #24): the
+        // sale that took it 1 → 0 is as likely to hold the customer who went
+        // home without one as the sale that took it 0 → −1.
+        $this->assertEqualsCanonicalizing(['OFF-TILL-YUJU-000003', 'OFF-TILL-VBLY-000001'], $row['sold_on']);
+    }
+
+    /** Next rounds #24: a sale that emptied the shelf BEFORE it was restocked is not one of them. */
+    public function test_the_recount_names_only_the_sales_since_the_shelf_last_held_a_piece(): void
+    {
+        $main = Branch::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'name' => 'Main', 'is_default' => true]);
+        $lamp = Product::query()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product',
+            'item_type' => 'physical_product', 'name' => 'QA Offline Lamp', 'price' => 1000,
+        ]);
+        BranchStock::withoutTenancy()->create(['tenant_id' => $this->tenant->id, 'branch_id' => $main->id, 'product_id' => $lamp->id, 'quantity' => -1]);
+
+        $lastWeek = $this->sale(['offline_number' => 'OFF-TILL-OLD0-000001']);
+        $one = $this->sale(['offline_number' => 'OFF-TILL-NY4R-000001']);
+        $two = $this->sale(['offline_number' => 'OFF-TILL-K8DP-000001']);
+        $moves = [
+            // Emptied last week, then restocked with one.
+            [$lastWeek, 'sale', 0, now()->subDays(7)],
+            [null, 'stock_in', 1, now()->subDays(6)],
+            // Today two tills each sold it.
+            [$one, 'sale', 0, now()->subMinutes(10)],
+            [$two, 'sale', -1, now()->subMinutes(5)],
+        ];
+        foreach ($moves as [$sale, $kind, $after, $at]) {
+            StockMovement::withoutTenancy()->create([
+                'tenant_id' => $this->tenant->id, 'branch_id' => $main->id, 'product_id' => $lamp->id,
+                'type' => $kind === 'sale' ? 'out' : 'in', 'quantity_change' => $kind === 'sale' ? -1 : 1, 'quantity_after' => $after,
+                'reason' => $kind, 'reference_type' => $kind === 'sale' ? 'sale' : null, 'reference_id' => $sale?->id,
+            ])->forceFill(['created_at' => $at])->save();
+        }
+
+        $this->assertEqualsCanonicalizing(['OFF-TILL-NY4R-000001', 'OFF-TILL-K8DP-000001'], $this->report()['oversold'][0]['sold_on']);
     }
 
     public function test_stock_that_is_merely_low_is_not_a_recount(): void

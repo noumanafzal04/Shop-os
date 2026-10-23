@@ -610,6 +610,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::post('/days/{day}/reopen', [BusinessDayController::class, 'reopen']);
                     Route::get('/deposits', [BusinessDayController::class, 'deposits']);
                     Route::post('/deposits', [BusinessDayController::class, 'storeDeposit'])->middleware('once');
+                    // A slip typed wrong is put right while its day is trading (next rounds #20).
+                    Route::put('/deposits/{id}', [BusinessDayController::class, 'updateDeposit']);
+                    Route::delete('/deposits/{id}', [BusinessDayController::class, 'destroyDeposit']);
 
                     // Reading how the drawers counted out is supervision, not
                     // configuration — a manager holds 16 of 18 permissions and

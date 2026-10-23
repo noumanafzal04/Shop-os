@@ -65,7 +65,13 @@ use Illuminate\Support\Facades\Validator;
  */
 class ImportProductsAction
 {
-    public const MAX_ROWS = 2000;
+    /**
+     * MEASURED, not chosen (next rounds #32). It was 2,000, and a 1,500-row
+     * file the refusal itself had asked for died on PHP's 30-second clock —
+     * about 33 rows a second, each row its own transaction — leaving 2,126
+     * products in the shop and no count. 500 rows is about 15 seconds.
+     */
+    public const MAX_ROWS = 500;
 
     private const MONEY = ['price', 'cost', 'discount_price', 'wholesale_price'];
 
@@ -143,7 +149,7 @@ class ImportProductsAction
         }
         if (count($sheet['rows']) > self::MAX_ROWS) {
             throw DomainException::unprocessable(
-                'This file has more than '.number_format(self::MAX_ROWS).' rows. Split it into files of up to '.number_format(self::MAX_ROWS).' — each one is checked and brought in on its own.',
+                'This file has more than '.number_format(self::MAX_ROWS).' rows. Split it into files of up to '.number_format(self::MAX_ROWS).' — each one is checked and brought in on its own. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.',
                 'IMPORT_TOO_LARGE',
             );
         }

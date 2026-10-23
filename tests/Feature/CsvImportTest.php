@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Catalog\ImportProductsAction;
 use App\Models\Category;
 use App\Models\City;
 use App\Models\Product;
@@ -76,6 +77,21 @@ class CsvImportTest extends TestCase
             Product::withoutTenancy()->where('tenant_id', $this->shop->id)->pluck('sku')->all());
         $this->assertSame(2, ProductBarcode::withoutTenancy()
             ->whereIn('barcode', ['111', '222'])->count());
+    }
+
+    /**
+     * Next rounds #32: the refusal said "split it into files of up to 2,000",
+     * and a 1,500-row file died on PHP's 30-second clock. The limit is now a
+     * size that finishes, and the refusal says sending twice is safe.
+     */
+    public function test_a_file_past_what_finishes_in_time_is_refused_and_says_resending_is_safe(): void
+    {
+        $rows = collect(range(1, ImportProductsAction::MAX_ROWS + 1))->map(fn (int $i): string => "Item {$i},10,SKU-{$i}")->implode("\n");
+
+        $this->upload("name,price,sku\n{$rows}")
+            ->assertStatus(422)
+            ->assertJsonPath('meta.error_code', 'IMPORT_TOO_LARGE')
+            ->assertJsonPath('message', 'This file has more than 500 rows. Split it into files of up to 500 — each one is checked and brought in on its own. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.');
     }
 
     public function test_import_upserts_by_sku(): void

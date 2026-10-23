@@ -314,12 +314,29 @@ class OfflineReportController extends Controller
         // nothing led from the shelf to the two slips — so the owner, told
         // "flagged 0", never heard of it. The sales are still not wrong; they
         // are named so somebody can ask the cashier which customer has it.
+        //
+        // Every sale since the shelf last held a piece — not only those that
+        // LANDED below nought (next rounds #24). Two tills, one lamp: the sale
+        // that took it 1 → 0 and the one that took it 0 → −1 are equally likely
+        // to hold the customer who went home without one, and the list named
+        // only the second.
+        $products = $rows->pluck('product_id')->unique()->all();
+        $key = fn ($m): string => "{$m->product_id}|{$m->branch_id}|{$m->variant_id}";
+        $lastHeld = StockMovement::query()
+            ->whereIn('product_id', $products)
+            ->where('quantity_after', '>', 0)
+            ->groupBy('product_id', 'branch_id', 'variant_id')
+            ->selectRaw('product_id, branch_id, variant_id, max(created_at) as held_at')
+            ->get()
+            ->mapWithKeys(fn ($m): array => [$key($m) => (string) $m->held_at]);
         $took = StockMovement::query()
-            ->whereIn('product_id', $rows->pluck('product_id')->unique()->all())
+            ->whereIn('product_id', $products)
             ->where('reference_type', 'sale')
-            ->where('quantity_after', '<', 0)
+            ->where('quantity_after', '<=', 0)
             ->orderByDesc('created_at')
-            ->get(['product_id', 'variant_id', 'branch_id', 'reference_id']);
+            ->get(['product_id', 'variant_id', 'branch_id', 'reference_id', 'created_at'])
+            ->filter(fn (StockMovement $m): bool => ($held = $lastHeld->get($key($m))) === null
+                || $m->created_at->greaterThanOrEqualTo($held));
         $sales = Sale::query()
             ->whereIn('id', $took->pluck('reference_id')->unique()->all())
             ->get(['id', 'invoice_number', 'offline_number'])

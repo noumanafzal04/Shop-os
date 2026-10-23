@@ -127,6 +127,21 @@ class PlatformStaffPrivilegeTest extends TestCase
         }
     }
 
+    /**
+     * Next rounds #27: a banners-only hand, 403 on /admin/tenants and on the
+     * audit log, was handed five shops by name and the platform audit feed.
+     */
+    public function test_the_dashboard_withholds_the_shop_list_and_the_audit_feed_too(): void
+    {
+        $data = $this->asUser($this->bannerStaff())->getJson('/api/v1/admin/dashboard')->assertOk()->json('data');
+        $this->assertArrayNotHasKey('recent_tenants', $data);
+        $this->assertArrayNotHasKey('activity', $data);
+
+        $all = $this->asUser($this->superAdmin)->getJson('/api/v1/admin/dashboard')->assertOk()->json('data');
+        $this->assertArrayHasKey('recent_tenants', $all);
+        $this->assertArrayHasKey('activity', $all);
+    }
+
     public function test_the_dashboard_still_loads_for_them(): void
     {
         // /admin lands here. A home page that 403s is not a permission model,
