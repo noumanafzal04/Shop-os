@@ -392,7 +392,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
   // Hydrate the form when editing — once per item (useFillOnce): a refetch
   // re-ran this and undid what the shop had just changed (L10). Until it has,
-  // the boxes hold a new item's defaults ("Still selling this" ON for a retired
+  // the boxes hold a new item's defaults ("Active item" ON for a retired
   // item), so they are covered and Save is shut — a press in that gap was
   // undone the moment the item arrived.
   const [filled, setFilled] = useState(false);
@@ -763,7 +763,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               {refusedOn.has(key) && (
                 <span
                   data-testid={`tab-refused-${key}`}
-                  title="Something here stopped the save"
+                  title="Not saved — check the boxes marked in red"
                   className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-error-500 align-middle"
                 />
               )}
@@ -1085,8 +1085,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   placeholder="e.g. Paracetamol 500mg"
                 />
                 <p className="mt-1 text-theme-xs text-gray-400">
-                  Buyers can find this medicine by its salt as well as its brand name — and the till uses it to
-                  offer an equivalent when this brand runs out.
+                  Customers can find this medicine by its salt as well as its brand name, and the POS uses it to
+                  suggest another brand with the same salt when this one runs out.
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1149,7 +1149,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   onChange={(e) => setTrackSerial(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
                 />
-                Capture a serial / IMEI for each unit sold (phones, electronics, batteries)
+                Ask for a serial / IMEI number for each unit sold (phones, electronics, batteries)
               </label>
               {trackSerial && (
                 <div>
@@ -1162,7 +1162,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     placeholder="e.g. 12"
                   />
                   <p className="mt-1 text-theme-xs text-gray-400">
-                    Applied to each unit at the till (the cashier can override per sale). Leave blank for no warranty.
+                    Added to each unit sold (the cashier can change it on a sale). Leave blank for no warranty.
                   </p>
                 </div>
               )}
@@ -1174,7 +1174,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         {isCombo && (
           <Section
             title="Bundle contents *"
-            hint="The deal sells at the Price above; picking it at the POS deducts stock for each item below. E.g. Burger ×1, Fries ×1, Drink ×1."
+            hint="The deal is sold at the price above. When it is sold, stock is taken off for each item below. E.g. Burger ×1, Fries ×1, Drink ×1."
           >
             <div className="mb-2 flex justify-end">
               <button
@@ -1256,7 +1256,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         {isFood && inventoryEnabled && (
           <Section
             title="Recipe / ingredients"
-            hint="Optional. List the raw ingredients one portion uses — selling the dish deducts each from stock. The dish itself needn't track stock. E.g. Bun ×2, Patty ×1. An ingredient that isn't stock-tracked yet is switched on when you save."
+            hint="Optional. List what one plate uses — each sale takes these off your stock. The dish itself does not need stock. E.g. Bun ×2, Patty ×1. An ingredient without stock tracking gets it turned on when you save."
           >
             <div className="mb-2 flex justify-end">
               <button
@@ -1268,7 +1268,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               </button>
             </div>
             {recipeRows.length === 0 ? (
-              <p className="text-theme-xs text-gray-400">No ingredients — the dish sells without depleting stock.</p>
+              <p className="text-theme-xs text-gray-400">No ingredients — selling this dish does not reduce any stock.</p>
             ) : (
               recipeRows.map((row, i) => (
                 <div key={i} className="mb-2 flex items-center gap-2">
@@ -1329,7 +1329,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         {isFood && (
           <Section
             title="Made at"
-            hint="Which station cooks this. A fired order splits into one ticket per station, so the bar never gets the biryani. Leave empty for the single kitchen printer."
+            hint="Which station makes this. Each order is split into one ticket per station, so the bar never gets the biryani. Leave empty for one kitchen printer."
           >
             <Select
               className="max-w-xs"
@@ -1417,7 +1417,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   />
                   {isEdit && (
                     <p className="mt-1 text-theme-xs text-gray-400">
-                      Stock changes go through inventory adjustments.
+                      To change stock, use the Inventory screen — not this form.
                     </p>
                   )}
                   {/* Which shelf, said before the press — only where there is
@@ -1489,8 +1489,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         <Toggle
           checked={isActive}
           onChange={setIsActive}
-          title="Still selling this"
-          hint="Turn off to retire the item — it leaves the till and your online shop but keeps its sales history, unlike deleting it. Turn it back on any time."
+          title="Active item"
+          hint="Turn off to stop selling this item. It is hidden from the POS and your online shop, but its past sales are kept. Turn it on again any time."
         />
 
         {/* A packet (flour) or something the kitchen makes for its own dishes
@@ -1499,8 +1499,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           <Toggle
             checked={forSale}
             onChange={setForSale}
-            title="Sold to customers"
-            hint="Turn off for something you keep and use but never sell — flour for the parathas, oil for the kitchen. It stays counted and is used up by recipes, but it is never on the till, the menu or your online shop."
+            title="Sell to customers"
+            hint="Turn off for things you use in the shop but never sell, like flour or cooking oil. Stock is still counted and used in recipes, but it never shows on the POS, the menu or your online shop."
           />
         )}
 
@@ -1524,7 +1524,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         />
 
         {visibleOnline && (
-          <Section title="What customers will find" hint="A listing reads well with both. They are filled in on Details.">
+          <Section title="What customers will find" hint="An item looks best online with both. Add them on the Details tab.">
             <ul data-testid="online-ready" className="space-y-2">
               {[
                 { have: hasPhoto, yes: "A photo", no: "No photo yet" },
@@ -1590,7 +1590,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           <div className="max-w-xs">
             <Label>Minimum order quantity (online)</Label>
             <Input type="number" min="0" step={0.001} value={minOrderQty} onChange={(e) => setMinOrderQty(e.target.value)} placeholder="e.g. 12" />
-            <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity are rejected. The till is not restricted.</p>
+            <p className="mt-1 text-theme-xs text-gray-400">Online orders below this quantity cannot be placed. The POS has no limit.</p>
           </div>
         )}
             </div>
@@ -1607,7 +1607,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
         {showVariants && (
           <Section
             title="Sizes, colours and options"
-            hint="One item, several things on the shelf — each with its own price and its own stock."
+            hint="One item in different sizes, colours or options — each with its own price and its own stock."
           >
             <VariantMatrixEditor
               axes={axes}
@@ -1625,7 +1625,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
         {/* Modifiers & add-ons — food items, edit only (needs a saved item) */}
         {supportsModifiers && isEdit && (
-          <Section title="Modifiers & add-ons" hint="Choices (crust, size) and paid extras (toppings, drinks).">
+          <Section title="Choices & extras" hint="Choices (crust, size) and paid extras (toppings, drinks).">
             <div className="mb-3 flex justify-end">
               <Button
                 size="sm"
@@ -1736,7 +1736,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                           {wholesalePrice && Number(wholesalePrice) >= Number(price || 0) && (
                             <p className="mt-1 text-theme-xs text-warning-500">Wholesale should be below the retail price.</p>
                           )}
-                          <p className="mt-1 text-theme-xs text-gray-400">Cashiers can switch a POS line to this rate via the price-level dropdown.</p>
+                          <p className="mt-1 text-theme-xs text-gray-400">At the POS, a cashier can pick this price for a line from the price level menu.</p>
                         </div>
                       )}
                       <div>
@@ -1786,7 +1786,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       <Label>Scale PLU code</Label>
                       <Input value={pluCode} onChange={(e) => setPluCode(e.target.value.replace(/\D/g, ""))} placeholder="e.g. 21" />
                       {err("plu_code") && <p className="mt-1 text-theme-xs text-error-500">{err("plu_code")}</p>}
-                      <p className="mt-1 text-theme-xs text-gray-400">The number programmed into your weighing scale. (Enable scale barcodes in Settings.)</p>
+                      <p className="mt-1 text-theme-xs text-gray-400">The item number saved in your weighing scale. (Turn on scale barcodes in Settings.)</p>
                     </div>
                   )}
                 </div>
@@ -1799,7 +1799,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                       // It said "e.g. a different supplier's pack of the same
                       // item" — which is exactly the code that must NOT go
                       // here: every one of these rings a single piece.
-                      hint="Other codes printed on ONE of this item — an old label, a second supplier's. A code on a carton or a box goes on that pack, under Pack sizes."
+                      hint="Other barcodes on a single piece of this item — like an old label or another supplier's code. A carton or box barcode goes under Pack sizes."
                       action={
                         <button type="button" className={ROW_ACTION} onClick={() => setExtraBarcodes((b) => [...b, ""])}>
                           + Add barcode
@@ -1831,7 +1831,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     {/* Pack sizes (pack-breaking) */}
                     <Section
                       title="Pack sizes"
-                      hint={`Sell in bigger packs while stock stays counted in ${unit.trim() || "the base unit"}. A pharmacy can sell a Strip (=10 tablets) or Box (=100). Leave price blank to use base price × pack size.`}
+                      hint={`Sell in bigger packs while stock is still counted in ${unit.trim() || "the base unit"}. For example, a pharmacy sells a Strip (10 tablets) or a Box (100). Leave the price blank to use base price × pack size.`}
                       action={
                         <button type="button" className={ROW_ACTION} onClick={() => setUnits((u) => [...u, blankPack()])}>
                           + Add pack
@@ -1910,8 +1910,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     Online tab, with the rest of what is about selling online. */}
                 {isGood && (
                   <Section
-                    title="Bulk pricing (quantity breaks)"
-                    hint="Buy more, pay less — e.g. 10+ at Rs 90, 50+ at Rs 80. The cheapest tier the quantity reaches is charged, and never more than the normal price."
+                    title="Bulk pricing (buy more, pay less)"
+                    hint="Buy more, pay less — e.g. 10 or more at Rs 90, 50 or more at Rs 80. The customer gets the lowest price their quantity reaches, never more than the normal price."
                     action={
                       <button type="button" className={ROW_ACTION} onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}>
                         + Add tier
@@ -1951,7 +1951,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             </Button>
             {needsExpiry && (
               <span className="text-theme-xs text-error-500">
-                Set the opening batch expiry (Details tab) — required for medicine stock.
+                Add the expiry date of the opening stock (Details tab) — medicines need it.
               </span>
             )}
           </div>

@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
  * An edit form copied the record into its boxes whenever the query handed back
  * a new object, and a query hands back a new object on every refetch. On the
  * item form the till's catalogue sync refetches the product a few seconds after
- * the form opens: a grocer switched "Still selling this" off, pressed Save,
+ * the form opens: a grocer switched "Active item" off, pressed Save,
  * and the item was saved ON — the refetch had put the old value back under
  * their hand (2026-10-15 review, L10). Filled when the record first arrives,
  * and again only when a DIFFERENT record is opened.

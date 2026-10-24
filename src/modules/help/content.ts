@@ -464,7 +464,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
         ],
       },
       { type: "h", text: "Stopping an item without losing its history" },
-      { type: "p", text: "Details → turn OFF 'Still selling this', at the foot of the tab. It works for a service the same as for a product. The item leaves the till and your online shop, but stays in your product list marked Inactive, and every past sale still points at it. Turn it back on whenever you stock it again." },
+      { type: "p", text: "Details → turn OFF 'Active item', at the foot of the tab. It works for a service the same as for a product. The item leaves the till and your online shop, but stays in your product list marked Inactive, and every past sale still points at it. Turn it back on whenever you stock it again." },
       {
         type: "note",
         text: "Use that rather than Delete for anything you have ever sold. Deleting removes the item its old receipts and reports refer to; switching it off keeps the record and simply stops it being sold.",
@@ -509,7 +509,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "note", text: "This is also what your Margins report uses, so fixing an ingredient's cost corrects every report that dish appears in. The figure on the form refreshes when you save and reopen." },
       { type: "note", text: "The ingredient list — and the item list on a deal — offers ALL your products, not the first screenful. Start typing while the dropdown is open and it jumps to what you want." },
       { type: "h", text: "Something you use but never sell" },
-      { type: "p", text: "Flour for the parathas, oil for the kitchen: open the item and turn OFF 'Sold to customers' on Details. It stays counted, you still buy it on a purchase order, and every dish that uses it takes it off the shelf \u2014 but it is never on the till, a table's menu, Take order or your online shop, and a sale that names it is refused. Your products list marks it 'Not sold \u2014 ingredient'." },
+      { type: "p", text: "Flour for the parathas, oil for the kitchen: open the item and turn OFF 'Sell to customers' on Details. It stays counted, you still buy it on a purchase order, and every dish that uses it takes it off the shelf \u2014 but it is never on the till, a table's menu, Take order or your online shop, and a sale that names it is refused. Your products list marks it 'Not sold \u2014 ingredient'." },
       { type: "h", text: "If you have more than one branch" },
       { type: "p", text: "Sold out is about ONE kitchen. Marking something off at Gulberg leaves DHA selling it, because DHA still has a tray of it — a branch runs out, a chain does not. The sheet names the branch you are marking so there is no doubt which evening you are describing." },
       { type: "note", text: "Putting it back is the same: one press puts it back where you pressed it, and nowhere else. Each branch's kitchen keeps its own list." },

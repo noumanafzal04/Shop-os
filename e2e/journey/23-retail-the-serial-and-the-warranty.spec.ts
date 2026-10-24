@@ -111,7 +111,7 @@ test("L1 Â· a phone is carded to be sold by its number, with a year's warranty â
 
     // The warranty is not asked for until the item is one that is sold by number.
     await expect(form.getByLabel("Default warranty (months)", { exact: true })).toHaveCount(0);
-    await form.getByLabel(/Capture a serial \/ IMEI for each unit sold/).check();
+    await form.getByLabel(/Ask for a serial \/ IMEI number for each unit sold/).check();
     await form.getByLabel("Default warranty (months)", { exact: true }).fill(String(PHONE.warranty));
 
     const create = form.getByRole("button", { name: "Create item" });

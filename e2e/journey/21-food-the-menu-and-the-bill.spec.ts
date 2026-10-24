@@ -198,7 +198,7 @@ test("J3 · what a biryani is made of — and what one costs to put on a plate",
   const held = await ask<Row & { recipe_items?: Row[] }>(request, "owner", `/products/${String(biryani.id)}`);
   if ((held.recipe_items ?? []).length === 0) {
     const form = await edit(page, String(biryani.id));
-    await expect(form.getByText("No ingredients — the dish sells without depleting stock.")).toBeVisible();
+    await expect(form.getByText("No ingredients — selling this dish does not reduce any stock.")).toBeVisible();
 
     for (const [n, raw] of INGREDIENTS.entries()) {
       await form.getByRole("button", { name: "+ Add ingredient" }).click();

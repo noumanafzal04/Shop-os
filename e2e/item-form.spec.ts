@@ -62,7 +62,7 @@ test("the picture is beside the name, and a refusal on another tab is said where
   await expect(form.getByTestId("item-photo"), "the picture is not on Details").toBeVisible();
   await expect(form.getByTestId("item-photo")).toContainText("+ Add photo");
   // The switch that retires an item is on the tab every item has.
-  await expect(form.getByRole("button", { name: /^Still selling this/ })).toBeVisible();
+  await expect(form.getByRole("button", { name: /^Active item/ })).toBeVisible();
 
   // ── a refusal nobody is looking at ────────────────────────────────
   await form.getByLabel("Name *", { exact: true }).fill(SECOND);
@@ -116,7 +116,7 @@ test("a service can be retired from its own form, and not only deleted", async (
   // A service has no codes and no packs, and so no such tab…
   await expect(form.getByRole("button", { name: "Codes & packs", exact: true })).toHaveCount(0);
   // …and the switch is here all the same.
-  const selling = form.getByRole("button", { name: /^Still selling this/ });
+  const selling = form.getByRole("button", { name: /^Active item/ });
   await expect(selling, "a service has nowhere to be retired from").toBeVisible();
   await expect(selling).toHaveAttribute("aria-pressed", "true");
   await selling.click();
