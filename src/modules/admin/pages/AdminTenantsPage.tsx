@@ -16,7 +16,8 @@ import {
   type AppliedFilter,
 } from "../../../components/ui/filters";
 import Pager from "../../../components/ui/pager";
-import { useBusinessTypes, useCities } from "../../shop/hooks/useShop";
+import { useBusinessTypes } from "../../shop/hooks/useShop";
+import { useCities } from "../../../common/geo/places";
 import { useAdminTenants, usePlans } from "../hooks/useAdmin";
 import type { OriginCounts, PaymentCounts, TenantOrigin } from "../services/adminService";
 import type { PaymentStatus, Tenant } from "../../auth/types";

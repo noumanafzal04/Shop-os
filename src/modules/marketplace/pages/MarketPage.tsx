@@ -1,7 +1,7 @@
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
-import { useCities } from "../../shop/hooks/useShop";
+import { useCities } from "../../../common/geo/places";
 import { ProductCard, ProductCardSkeleton } from "../components/ProductCard";
 import { ChevronRightIcon, PinIcon, StarIcon, StoreIcon, TruckIcon } from "../components/MarketIcons";
 import { tradeLabel } from "../components/format";

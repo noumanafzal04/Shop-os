@@ -9,7 +9,9 @@ import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import MapPicker, { type PickedLocation } from "../../../components/maps/MapPicker";
 import { ApiError } from "../../../common/types/api";
-import { useBusinessTypes, useCities, useCompleteSetup, useShopCurrencies } from "../hooks/useShop";
+import { useBusinessTypes, useCompleteSetup, useShopCurrencies } from "../hooks/useShop";
+import { cityForPin, useCities } from "../../../common/geo/places";
+import { CityPicker } from "../../../common/geo/CityPicker";
 import { useCapabilities } from "../../dashboard/components/shop/capabilities";
 import { useAuthStore } from "../../../stores/authStore";
 
@@ -72,14 +74,11 @@ export default function ShopSetupPage() {
     setCoords({ lat, lng });
     if (!place) return;
     if (place.formatted && !address) setAddress(place.formatted);
-    if (place.city) {
-      setDetectedCity(place.city);
-      const name = place.city.toLowerCase();
-      const match = (cities.data ?? []).find(
-        (c) => c.name.toLowerCase() === name || name.includes(c.name.toLowerCase()),
-      );
-      if (match) setCityId(match.id);
-    }
+    if (place.city) setDetectedCity(place.city);
+    // The exact name, or the nearest city to the pin — never a short name
+    // found inside a long one. See cityForPin.
+    const match = cityForPin(cities.data ?? [], place.city, { lat, lng });
+    if (match) setCityId(match.id);
   };
 
   const fieldErrors = setup.error instanceof ApiError ? setup.error.errors : {};
@@ -150,21 +149,13 @@ export default function ShopSetupPage() {
               </div>
             )}
 
-            <div>
-              <Label>
-                City <span className="text-error-500">*</span>
-              </Label>
-              <Select
-                aria-label="City"
-                value={cityId}
-                options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                placeholder={cities.isLoading ? "Loading cities…" : "Choose your city"}
-                onChange={setCityId}
-              />
-              {fieldErrors.city_id && (
-                <p className="mt-1 text-theme-xs text-error-500">{fieldErrors.city_id[0]}</p>
-              )}
-            </div>
+            <CityPicker
+              value={cityId}
+              onChange={(id) => setCityId(id)}
+              required
+              placeholder="Choose your city"
+              error={fieldErrors.city_id?.[0]}
+            />
 
             {currencies.data && !currencies.data.locked && (
               <div>

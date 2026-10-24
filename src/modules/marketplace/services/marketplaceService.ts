@@ -293,6 +293,14 @@ export const aisleParams = (f: AisleFilters): Record<string, string | number | u
 
 export const marketplaceService = {
   /**
+   * The cities with a shop in them — what the header's city switch offers.
+   * Every town in the country is on file now, and a switch listing 458 of
+   * them, most with nothing to buy, is a list nobody can use.
+   */
+  cities: () =>
+    apiGet<Array<{ id: string; name: string; shops_count: number }>>("/marketplace/cities"),
+
+  /**
    * THE SHOP LIST — and it asked for three things out of ten.
    *
    * It sent `city_id`, `search` and `page`. The endpoint has always accepted

@@ -14,6 +14,15 @@ import {
   type ShopListParams,
 } from "../services/marketplaceService";
 
+/** The cities with shops in them — the header's switch. */
+export function useMarketCities() {
+  return useQuery({
+    queryKey: ["market", "cities"],
+    queryFn: async () => (await marketplaceService.cities()).data,
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
 export function useBanners() {
   return useQuery({
     queryKey: ["market-banners"],

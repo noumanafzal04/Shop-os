@@ -10,7 +10,8 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useCurrencies, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
+import { useCurrencies, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
+import { CityPicker } from "../../../common/geo/CityPicker";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { ModulePicker } from "../components/ModulePicker";
 import { settle } from "../components/moduleRules";
@@ -68,7 +69,6 @@ function FormCard({ title, description, children, className = "" }: {
 
 export default function AdminTenantCreatePage() {
   const navigate = useNavigate();
-  const cities = useAdminCities();
   const currencies = useCurrencies();
   const plans = usePlans();
   const businessTypes = useBusinessTypes();
@@ -293,15 +293,7 @@ export default function AdminTenantCreatePage() {
                 <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
                 {errorFor("phone") && <p className="mt-1 text-theme-xs text-error-500">{errorFor("phone")}</p>}
               </div>
-              <div>
-                <Label>City</Label>
-                <Select
-                  value={form.city_id}
-                  options={[{ value: "", label: "—" }, ...(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))]}
-                  placeholder="—"
-                  onChange={(v) => set("city_id", v)}
-                />
-              </div>
+              <CityPicker value={form.city_id} onChange={(id) => set("city_id", id)} placeholder="—" />
               <div>
                 <Label>Currency</Label>
                 <Select

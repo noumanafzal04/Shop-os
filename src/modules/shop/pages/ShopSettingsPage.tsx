@@ -14,7 +14,9 @@ import { useToast } from "../../../components/ui/toast";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
-import { useCities, useCurrency, useShopCurrencies, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { useCurrency, useShopCurrencies, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { cityForPin, useCities } from "../../../common/geo/places";
+import { CityPicker } from "../../../common/geo/CityPicker";
 import { formatIn } from "../../../common/format/currency";
 import { DATE_FORMAT_CODES, dateFormatOf, dateIn, dateTimeIn, type DateFormatCode } from "../../../common/format/date";
 import { POS_SUBTABS, posSubTabsFor, settingsTabsFor, type SettingsTab } from "../settingsTabs";
@@ -390,7 +392,6 @@ export default function ShopSettingsPage() {
   const online = shop.data?.online_shop_enabled;
   const kind = useKindOfBusiness();
   const words = settingsWords(kind);
-  const cityOptions = [{ value: "", label: "— Select city —" }, ...(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))];
 
   // Every preferences tab edits the one `prefs` object and shares this bar —
   // saving from any tab persists all preferences (no cross-tab data loss), which
@@ -705,9 +706,7 @@ export default function ShopSettingsPage() {
               right={
                 <SectionCard icon={<PinGlyph />} title="Location" description={words.location}>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <Field label="City" error={errorFor("city_id")}>
-                      <Select value={form.city_id} options={cityOptions} placeholder="— Select city —" onChange={(v) => set("city_id", v)} />
-                    </Field>
+                    <CityPicker value={form.city_id} onChange={(id) => set("city_id", id)} placeholder="— Select city —" error={errorFor("city_id")} />
                     <Field label="Address">
                       <Input value={form.address} onChange={(e) => set("address", e.target.value)} placeholder={`${capital(kind.noun)} street address`} />
                     </Field>
@@ -719,11 +718,9 @@ export default function ShopSettingsPage() {
                       set("latitude", String(lat));
                       set("longitude", String(lng));
                       if (place?.formatted && !form.address) set("address", place.formatted);
-                      if (place?.city) {
-                        const name = place.city.toLowerCase();
-                        const match = (cities.data ?? []).find((c) => c.name.toLowerCase() === name || name.includes(c.name.toLowerCase()));
-                        if (match) set("city_id", match.id);
-                      }
+                      // The exact name, or the nearest city to the pin — see cityForPin.
+                      const match = cityForPin(cities.data ?? [], place?.city, { lat, lng });
+                      if (match) set("city_id", match.id);
                     }}
                   />
                   {form.latitude && form.longitude && (

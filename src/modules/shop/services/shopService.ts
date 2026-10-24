@@ -303,7 +303,6 @@ export interface ShopModule {
 export const shopService = {
   show: () => apiGet<Tenant>("/shop"),
   setup: (payload: SetupPayload) => apiPut<Tenant>("/shop/setup", payload),
-  cities: () => apiGet<City[]>("/cities"),
   businessTypes: () => apiGet<BusinessType[]>("/business-types"),
   subscription: () => apiGet<SubscriptionInfo>("/shop/subscription"),
   settings: () => apiGet<ShopSettings>("/shop/settings"),

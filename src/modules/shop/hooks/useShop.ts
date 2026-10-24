@@ -245,14 +245,6 @@ export function useGalleryMutations() {
   return { upload, remove };
 }
 
-export function useCities() {
-  return useQuery({
-    queryKey: ["cities"],
-    queryFn: async () => (await shopService.cities()).data,
-    staleTime: 10 * 60 * 1000, // cities barely change
-  });
-}
-
 export function useBusinessTypes() {
   return useQuery({
     queryKey: ["business-types"],

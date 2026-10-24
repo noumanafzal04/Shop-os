@@ -281,14 +281,6 @@ export function useCurrencies() {
   });
 }
 
-export function useAdminCities() {
-  return useQuery({
-    queryKey: ["cities"],
-    queryFn: async () => (await adminService.cities()).data,
-    staleTime: 30 * 60 * 1000,
-  });
-}
-
 export function usePlanMutations() {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });

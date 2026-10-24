@@ -8,7 +8,8 @@ import { useAuthStore } from "../../../stores/authStore";
 import { useCartStore } from "../../../stores/cartStore";
 import { useSavedStore } from "../../../stores/savedStore";
 import { useLogout } from "../../auth/hooks/useAuth";
-import { useCities } from "../../shop/hooks/useShop";
+import { useCities } from "../../../common/geo/places";
+import { useMarketCities } from "../hooks/useMarketplace";
 import { CartIcon, ChevronDownIcon, HeartIcon, PinIcon, SearchIcon } from "./MarketIcons";
 import { PRODUCT } from "../../../common/brand";
 
@@ -42,7 +43,10 @@ export function MarketHeader({ onOpenCart }: { onOpenCart?: () => void }) {
   const count = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
   const savedCount = useSavedStore((s) => s.ids.length);
 
+  // Names from the whole list, so any city a link carries reads by name; the
+  // switch offers only the cities with shops.
   const cities = useCities();
+  const withShops = useMarketCities();
   const cityId = params.get("city_id") ?? "";
   const cityName = cities.data?.find((c) => c.id === cityId)?.name ?? "All cities";
 
@@ -121,7 +125,7 @@ export function MarketHeader({ onOpenCart }: { onOpenCart?: () => void }) {
               >
                 All cities
               </button>
-              {(cities.data ?? []).map((c) => (
+              {(withShops.data ?? []).map((c) => (
                 <button
                   key={c.id}
                   type="button"

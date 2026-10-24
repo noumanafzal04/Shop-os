@@ -11,8 +11,20 @@ import { useAuthStore } from "../../../stores/authStore";
  * nothing, and /tenant/setup opened again after setup was done — on a second
  * device, it stayed open.
  */
+// Cities come from the shared country → province → city lists now.
+vi.mock("../../../common/geo/places", async (actual) => ({
+  ...(await actual<typeof import("../../../common/geo/places")>()),
+  useCities: () => ({
+    data: [
+      { id: "khi", name: "Karachi", province_id: 3175, country_id: 167, latitude: null, longitude: null },
+      { id: "lhr", name: "Lahore", province_id: 3176, country_id: 167, latitude: null, longitude: null },
+    ],
+    isLoading: false,
+  }),
+  useProvinces: () => ({ data: [{ id: 3175, country_id: 167, name: "Sindh", type: null }, { id: 3176, country_id: 167, name: "Punjab", type: null }] }),
+  useCountries: () => ({ data: [{ id: 167, name: "Pakistan", iso2: "PK", phone_code: "92", currency: "PKR" }] }),
+}));
 vi.mock("../hooks/useShop", () => ({
-  useCities: () => ({ data: [{ id: "khi", name: "Karachi" }, { id: "lhr", name: "Lahore" }], isLoading: false }),
   useBusinessTypes: () => ({ data: [] }),
   useCompleteSetup: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useShopCurrencies: () => ({ data: undefined }),

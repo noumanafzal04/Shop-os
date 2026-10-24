@@ -19,7 +19,8 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
-import { useAdminCities, useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, usePlanWindow, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, usePlanWindow, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
+import { CityPicker } from "../../../common/geo/CityPicker";
 import type { Entitlement, Plan, PlanChangePreview, TenantPackage } from "../services/adminService";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
 import { useEffect } from "react";
@@ -1178,7 +1179,6 @@ export default function AdminTenantDetailPage() {
   const payments = usePayments({ tenant_id: id });
   const { update, suspend, activate, remove, restore, assignPlan } = useTenantMutations();
   const resetPassword = useResetOwnerPassword();
-  const cities = useAdminCities();
   const businessTypes = useBusinessTypes();
 
   const planModal = useModal();
@@ -1620,15 +1620,7 @@ export default function AdminTenantDetailPage() {
                 onChange={(v) => setForm((f) => ({ ...f, business_category: v }))}
               />
             </div>
-            <div>
-              <Label>City</Label>
-              <Select
-                value={form.city_id}
-                options={(cities.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                placeholder="Choose city"
-                onChange={(v) => setForm((f) => ({ ...f, city_id: v }))}
-              />
-            </div>
+            <CityPicker value={form.city_id} onChange={(id) => setForm((f) => ({ ...f, city_id: id }))} placeholder="Choose city" />
           </div>
         </ModalForm>
       </Modal>

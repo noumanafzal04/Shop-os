@@ -506,7 +506,6 @@ export const adminService = {
   createPlan: (payload: PlanInput) => apiPost<Plan>("/admin/plans", payload),
   updatePlan: (id: string, payload: Partial<PlanInput>) => apiPut<Plan>(`/admin/plans/${id}`, payload),
   deletePlan: (id: string) => apiDelete<null>(`/admin/plans/${id}`),
-  cities: () => apiGet<Array<{ id: string; name: string }>>("/cities"),
   /** The currencies a business can be put on. */
   currencies: () => apiGet<CurrencyFormat[]>("/currencies"),
 
