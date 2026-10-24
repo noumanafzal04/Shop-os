@@ -176,7 +176,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B133 | P2 | Every failed write | #31: a 429 ignored Retry-After and Complete was pressable at once | FIXED backend `045748d` (CORS exposes Retry-After), panel `c33ec39` — the wait is said and counted down; Complete held until it ends |
 | B134 | P2 | Products → Import | #32: a 1,500-row file (inside the 2,000 limit) died on PHP's 30 s clock, partial import unreported | FIXED backend `045748d`, panel `c33ec39` — limit measured at 500 rows (~15 s); the refusal says resending is safe; the time limit is only ever raised |
 | B135 | P2 | Installments | Found by the suite at 01:35: a plan started after midnight filed its markup under the wall date, the sale under the business day | FIXED backend `045748d` — income_date = ShopDay::today(); pinned-clock test |
-| B136 | P2 | Admin | #25: a shop created by POST /admin/tenants with no `modules` gets its trade's whole set whatever its plan | OPEN — conflicts with the decided rule "a business type proposes modules when the admin names none" (PlansAndModulesTest, TenantManagementTest); awaiting the user |
+| B136 | P2 | Admin | #25: a shop created by POST /admin/tenants with no `modules` got its trade's whole set whatever its plan | FIXED backend `6356ddc` — the user chose A (2026-10-24): with none named, the plan decides (ModulePackages::propose, what the create screen sends); named modules still win |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 

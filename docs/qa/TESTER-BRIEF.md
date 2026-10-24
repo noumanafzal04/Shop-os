@@ -169,6 +169,7 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R116 | B134 | Import 501 rows, then 500 rows. | 501 refused with "up to 500 … sending twice is safe"; 500 imports inside the time. |
 | R117 | B135 | Start an installment plan between 00:00 and 05:00. | The markup income is on the same business day as the sale (Reports for that day show both). |
 | R118 | B119 | Open panel.cartze.shop normally after a deploy, on a device that showed a white page. | It mends itself (one reload at most) — no hard reload needed. |
+| R119 | B136 | `POST /admin/tenants` for a Basic retail shop with no `modules` key; then one naming `customers`. | The first gets exactly what `GET /admin/modules/offer` includes (no marketplace, delivery, reservations); the second has customers too. |
 
 ### 5b. What no pass has reached yet
 
