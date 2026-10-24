@@ -9719,3 +9719,22 @@ built; they wait for the owner's yes.**
   job sheet (`workshop/components/JobSheet`). Deferred: service reminders (needs the SMS
   decision).
 
+
+## 2026-10-24 (night) — tyre shop and petrol pump rounds fixed
+
+- Tyre report (`docs/qa/TESTER-REPORT-2026-10-25-tyre-shop.md`, untracked) and petrol report
+  (`…-petrol-pump.md`, untracked): #37–#39 and #P1 logged as **B141–B144**, the tester's
+  workshop-words suggestion and the user's back button as **B145**. Re-test rows R128–R132.
+- Backend `3653aab`: odometer edit through `recordOdometer`; projection `vehicles` on
+  `/pos/bootstrap` + `/pos/catalog`; forecourt close counts fuel rung while no shift was
+  open (`between_litres`/`between_value`, migration `2026_10_24_000001`, additive) and takes
+  it off unbilled; the fuel report adds `between_*`, `waiting_*`, `sold_unmetered_*`;
+  `GET /fuel/shifts/open-now` (sales.manage) for the till's prompt.
+- Panel `5f040bd`: `tyre_size` sent; IndexedDB v7 `vehicles` store + `offline/lookup/vehicles`;
+  fuel report / shift page / till prompt (`fuel/components/ForecourtClosedStrip`); workshop
+  words; `common/ui/BackButton`.
+- #P1, the model chosen: a shift opens on the readings the last one closed on, so fuel pumped
+  between shifts lands in the next shift's meters — the till's half (sales since the last
+  close) now sits beside it. A tank short by exactly what the till over-rang is one event
+  described twice: "sold, not lost", shown apart from the leak. Never a gate at the till.
+- Deploy: backend first (one additive migration), then the panel.

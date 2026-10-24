@@ -178,6 +178,11 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R125 | tyre shop | Vehicles: "Take in" and "Bill" on a car's row. | Workshop opens Book in with the car and owner filled; the till opens with the car and owner on it. |
 | R126 | tyre shop | Vehicles → a plate's history after a sale and a job card. | Jobs and quotations listed with their stage; every odometer reading, newest first; the bills below. |
 | R127 | tyre shop | Workshop with jobs in each stage, one past its promised time; tap a plate. | Four tallies (Late counts only unfinished work); the phone on the card dials; the job sheet shows lines, total, last visit, stage moves. |
+| R128 | tyre shop | Vehicles → edit a car reading 84,500: type 70,000, then 86,200. (B141) | 70,000 refused: "The odometer only goes forward…"; 86,200 saved and listed in the history as "Typed on the car". |
+| R129 | tyre shop | POS online, a car with tyre size 195/65 R15: "Tyres that fit". (B142, re-test R124) | Only the matching tyres, online as offline; the request carries `tyre_size`. |
+| R130 | tyre shop | Sync once online, then offline: type a plate on file, then a new plate. (B143) | The car is found with its owner; a new plate says adding a car needs internet — no "+ Register". |
+| R131 | petrol pump | No shift open: ring fuel. Read Reports → Fuel; open a shift, move the meters by those litres as a real pump would, dip, close. Then once more without moving the meters. (B144) | Till shows "No forecourt shift is open" and still sells. Before the close: "Waiting to be counted". After: unbilled 0, tank 0, "Sold with no shift open" row, "rung at the till" includes it. Meters unmoved: "Not counted as missing … sold, not lost"; the leak figure excludes it. |
+| R132 | tyre shop | Workshop and a job card. (B145) | Take a car in · Waiting · Work in progress · Ready; "checking charges" on the take-in sheet; a "← Back" button on the Workshop and "← Workshop" button on the job card. |
 
 ### 5b. What no pass has reached yet
 
