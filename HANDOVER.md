@@ -9702,3 +9702,20 @@ version; an "ingredient — not sold" kind: yes; duplicate columns: two now;
 dealer rates before challans; godown stock at the till: not yet) — **none is
 built; they wait for the owner's yes.**
 
+## 2026-10-24 — next rounds closed; the tyre shop's car and board
+
+- Next rounds #17–#33 and the live offline-shell round (#34–#36) logged as **B119–B140**
+  in `docs/qa/BUGS.md`; all fixed except **B140** (nginx: manifest MIME, cache headers —
+  lines in `docs/decisions/shopos-live-check-oct11.md`, the user's server). Re-test rows
+  R103–R122.
+- #25 decided by the user: with no `modules` named, `POST /admin/tenants` applies the plan's
+  package (`ModulePackages::propose`) — what the create screen sends.
+- Tyre shop (backend `3ba21d8`, panel `f78fc41`, re-test rows R123–R127): a plate brings its
+  owner at the till (`vehicles/ownerOf`); "Tyres that fit" filters by the car's tyre size
+  online (`?tyre_size=`, `CustomerVehicle::tyreSizeLike`) and offline (`vehicles/tyreFits`,
+  same rule); Vehicles rows start a Take in / Bill (`tillAsk.forVehicle`, workshop
+  `state.takeIn`); a vehicle's history adds jobs and every odometer reading; the Workshop
+  board gains four tallies, a dialable phone on each card, inner-scrolling columns and a
+  job sheet (`workshop/components/JobSheet`). Deferred: service reminders (needs the SMS
+  decision).
+

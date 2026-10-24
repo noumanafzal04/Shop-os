@@ -173,6 +173,11 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R120 | B137 | Sell 10 L and 7.273 L of a fuel at 280 (cost 255); read the day on Reports and on the Dashboard. | One profit on both, to the paisa (431.82). |
 | R121 | B138 | Fresh browser on live: sign in, poll the worker until `activated`. | Activated in seconds, not 80–90 s; ~240 precache entries, none under images/carousel, cards, user, brand, country. |
 | R122 | B139 | Signed in, cut the line, open a list never visited (Stocktake). | "This device is offline — check its wifi or mobile data…", not "It may be down". |
+| R123 | tyre shop | POS: pick a plate whose owner is on file, boxes empty; then pick it again after typing another name. | Owner's name and phone fill the empty boxes; a typed name is never overwritten. |
+| R124 | tyre shop | POS with a car that has a tyre size: press "Tyres that fit · 195/65 R15", online and offline. | Only tyres of that size, however the name writes it (195/65R15, 195 65 15); press again to show everything. |
+| R125 | tyre shop | Vehicles: "Take in" and "Bill" on a car's row. | Workshop opens Book in with the car and owner filled; the till opens with the car and owner on it. |
+| R126 | tyre shop | Vehicles → a plate's history after a sale and a job card. | Jobs and quotations listed with their stage; every odometer reading, newest first; the bills below. |
+| R127 | tyre shop | Workshop with jobs in each stage, one past its promised time; tap a plate. | Four tallies (Late counts only unfinished work); the phone on the card dials; the job sheet shows lines, total, last visit, stage moves. |
 
 ### 5b. What no pass has reached yet
 
