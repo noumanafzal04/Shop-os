@@ -177,6 +177,7 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B134 | P2 | Products → Import | #32: a 1,500-row file (inside the 2,000 limit) died on PHP's 30 s clock, partial import unreported | FIXED backend `045748d`, panel `c33ec39` — limit measured at 500 rows (~15 s); the refusal says resending is safe; the time limit is only ever raised |
 | B135 | P2 | Installments | Found by the suite at 01:35: a plan started after midnight filed its markup under the wall date, the sale under the business day | FIXED backend `045748d` — income_date = ShopDay::today(); pinned-clock test |
 | B136 | P2 | Admin | #25: a shop created by POST /admin/tenants with no `modules` got its trade's whole set whatever its plan | FIXED backend `6356ddc` — the user chose A (2026-10-24): with none named, the plan decides (ModulePackages::propose, what the create screen sends); named modules still win |
+| B137 | P2 | Dashboard vs Reports | #33: a cost with a half paisa (7.273 L × 255) gave Reports 345.38 and the Dashboard 345.39 for one day | FIXED backend `02dc2b9` — the dashboard rounds each part to the paisa before adding up, as the report does |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 

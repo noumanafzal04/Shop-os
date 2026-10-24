@@ -170,6 +170,7 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R117 | B135 | Start an installment plan between 00:00 and 05:00. | The markup income is on the same business day as the sale (Reports for that day show both). |
 | R118 | B119 | Open panel.cartze.shop normally after a deploy, on a device that showed a white page. | It mends itself (one reload at most) — no hard reload needed. |
 | R119 | B136 | `POST /admin/tenants` for a Basic retail shop with no `modules` key; then one naming `customers`. | The first gets exactly what `GET /admin/modules/offer` includes (no marketplace, delivery, reservations); the second has customers too. |
+| R120 | B137 | Sell 10 L and 7.273 L of a fuel at 280 (cost 255); read the day on Reports and on the Dashboard. | One profit on both, to the paisa (431.82). |
 
 ### 5b. What no pass has reached yet
 
