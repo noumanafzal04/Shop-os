@@ -36,11 +36,17 @@ describe("who runs a board of work taken in", () => {
 });
 
 describe("the words change, the board does not", () => {
-  it("a workshop talks about cars and the bay", () => {
+  it("a workshop talks about cars, in the words a workshop here uses", () => {
     const w = boardWords("automotive");
 
     expect(w.unit).toBe("car");
-    expect(w.stages[0]).toBe("In the bay");
+    expect(w.stages[0]).toBe("Waiting");
+    expect(w.takeIn).toBe("Take a car in");
+    // Nobody in a Pakistani workshop says these.
+    const said = [w.takeIn, ...w.stages, ...w.hints, w.opensWith, w.confirm].join(" ").toLowerCase();
+    for (const foreign of ["bay", "book", "diagnostic", "ramp"]) {
+      expect(said, `a workshop was spoken to as "${foreign}"`).not.toContain(foreign);
+    }
     // The plate IS the job here, and it carries the car's whole history.
     expect(w.tracksVehicle).toBe(true);
   });

@@ -39,6 +39,7 @@ const STORE_FOR: Record<Projection, StoreName> = {
   tax_groups: STORE.TAX_CONFIG,
   customer_groups: STORE.CUSTOMER_GROUPS,
   customers: STORE.CUSTOMERS,
+  vehicles: STORE.VEHICLES,
 };
 
 /** Where the till is up to, per projection. */
@@ -114,6 +115,12 @@ export async function applyPull(pull: CatalogPull): Promise<{
 
   for (const projection of PROJECTIONS) {
     const page = pull[projection];
+    // A server too old to send a projection sent nothing about it — not an
+    // empty page. Its rows and its cursor stay exactly as they are.
+    if (page === undefined) {
+      applied[projection] = 0;
+      continue;
+    }
     applied[projection] = page.items.length;
     hasMore = hasMore || page.has_more;
 
@@ -172,7 +179,7 @@ export async function applyPull(pull: CatalogPull): Promise<{
 }
 
 /** Write one projection's page: tombstones removed, everything else upserted. */
-async function applyRows(projection: Projection, items: CatalogPull[Projection]["items"]): Promise<void> {
+async function applyRows(projection: Projection, items: NonNullable<CatalogPull[Projection]>["items"]): Promise<void> {
   const store = STORE_FOR[projection];
   const gone = items.filter(isTombstone);
   const live = items.filter((row) => !isTombstone(row));

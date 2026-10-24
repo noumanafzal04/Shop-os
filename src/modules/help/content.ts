@@ -2272,12 +2272,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
       { type: "warn", text: "Ready, not billed is finished work nobody has charged for yet. A car handed back without turning its job card into an invoice is work you will not be paid for, and that total is the only place it shows up." },
 
       { type: "h", text: "Booking a car in" },
-      { type: "p", text: "Press 'Book a car in' when it arrives. It asks for four things and none of them is a price — nobody knows the price yet, and that is exactly why this is a job card and not a quotation." },
+      { type: "p", text: "Press 'Take a car in' when it arrives. It asks for four things and none of them is a price — nobody knows the price yet, and that is exactly why this is a job card and not a quotation." },
       { type: "keys", items: [
         ["The registration", "Start typing and pick the car if you have seen it before. That is what keeps its history together — 'what did we do last time' is only answerable if the same car is one record. A new plate is registered for you."],
         ["What is wrong", "In the customer's words. 'Noise from front left when braking' — not your diagnosis. It is the first thing the mechanic reads and the thing most likely to get lost."],
         ["Promised back", "When you told them to come and collect. The board turns the card amber once that time has passed, which is the one thing on it worth a colour. This is the ONLY date on a job card — a job does not go out of date the way a quoted price does, so it will never show as expired or turn up on the list of documents you are chasing."],
-        ["One opening item", "The diagnostic hour, or the part you already know it needs — and how many of it. Everything else goes on afterwards."],
+        ["One opening item", "Checking charges, or the part you already know it needs — and how many of it. Everything else goes on afterwards."],
       ]},
 
       { type: "h", text: "Taking work in (a laundry, tailor or repair counter)" },

@@ -22,6 +22,7 @@ import { shopShortDateTime } from "../../../common/format/date";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { JobSheet } from "../components/JobSheet";
 import { boardTally, callLink, isOverdue } from "../board";
+import { BackButton } from "../../../common/ui/BackButton";
 
 /**
  * What is in the shop right now.
@@ -158,7 +159,9 @@ export default function WorkshopPage() {
     <div>
       <PageMeta title={`${words.board}`} description="Work taken in, and what stage each piece is at" />
 
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+      <BackButton label="Back" />
+
+      <div className="mb-6 mt-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">{words.board}</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">

@@ -168,7 +168,23 @@ export interface CatalogCustomer {
 }
 
 /**
- * The six projections, by the name they are both requested and returned under.
+ * A car, as the till needs it with no line: the plate, what it is and what it
+ * takes. The owner is an id into the customers already on the device (#39).
+ */
+export interface CatalogVehicle {
+  id: string;
+  registration: string;
+  customer_id: string | null;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+  colour: string | null;
+  tyre_size: string | null;
+  odometer: number | null;
+}
+
+/**
+ * The projections, by the name they are both requested and returned under.
  *
  * One list, so a projection cannot be pulled but never stored, or stored but
  * never asked for — which is precisely how a category rename would arrive
@@ -181,6 +197,9 @@ export const PROJECTIONS = [
   "tax_groups",
   "customer_groups",
   "customers",
+  // A tyre shop's regular is a plate. With the line down, a van on file came
+  // back "not found" and the till offered to register it again (#39).
+  "vehicles",
 ] as const;
 
 export type Projection = (typeof PROJECTIONS)[number];
@@ -192,6 +211,11 @@ export interface CatalogPull {
   tax_groups: Page<CatalogTaxGroup>;
   customer_groups: Page<CatalogCustomerGroup>;
   customers: Page<CatalogCustomer>;
+  /**
+   * Optional: a server older than the plates sends none, and the till must
+   * then keep what it holds rather than read a missing page as an empty one.
+   */
+  vehicles?: Page<CatalogVehicle>;
   settings: Record<string, unknown>;
   offline_days: number | null;
   /**

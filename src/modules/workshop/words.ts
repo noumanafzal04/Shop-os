@@ -70,17 +70,19 @@ const WORKSHOP: BoardWords = {
   board: "Workshop",
   unit: "car",
   units: "cars",
-  takeIn: "Book a car in",
-  stages: ["In the bay", "Being worked on", "Ready"],
-  hints: ["Booked in, not started", "On the ramp", "Waiting to be collected"],
+  // Plain words a Pakistani workshop uses (tester, 2026-10-25): nobody here
+  // says "the bay", "book a car in" or "diagnostic hour".
+  takeIn: "Take a car in",
+  stages: ["Waiting", "Work in progress", "Ready"],
+  hints: ["Taken in, work not started", "A mechanic is on it", "Customer can collect it"],
   tracksVehicle: true,
   asks: "What is wrong, in the customer\u2019s words",
   said: "What the customer said",
   goesOn: "Parts and labour",
   findItem: "Search a part or a labour item",
   addLine: "Add a part or labour",
-  opensWith: "the diagnostic hour, or the part you already know it needs",
-  confirm: "Book in",
+  opensWith: "checking charges, or the part you already know it needs",
+  confirm: "Take it in",
   find: "Find a car — plate, name, phone or job number",
 };
 
@@ -89,8 +91,8 @@ const JOBS: BoardWords = {
   unit: "job",
   units: "jobs",
   takeIn: "Take work in",
-  stages: ["Taken in", "Being worked on", "Ready"],
-  hints: ["Received, not started", "In progress", "Waiting to be collected"],
+  stages: ["Taken in", "Work in progress", "Ready"],
+  hints: ["Received, not started", "Being done", "Customer can collect it"],
   tracksVehicle: false,
   // Nothing is "wrong" with eight shirts or two metres of cloth.
   asks: "What they want done",

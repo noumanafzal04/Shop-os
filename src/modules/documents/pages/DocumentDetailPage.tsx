@@ -26,6 +26,7 @@ import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { PrintPaperModal } from "../components/PrintPaperModal";
 import { HoldQuoteModal } from "../components/HoldQuoteModal";
 import { CollectModal } from "../components/CollectModal";
+import { BackButton } from "../../../common/ui/BackButton";
 
 
 /**
@@ -107,10 +108,8 @@ export default function DocumentDetailPage() {
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to={job ? "/tenant/workshop" : "/tenant/documents"} className="text-theme-xs text-gray-500 hover:text-brand-500">
-            ← {job ? words.board : "Quotations & advances"}
-          </Link>
-          <h1 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-800 dark:text-white/90">
+          <BackButton to={job ? "/tenant/workshop" : "/tenant/documents"} label={job ? words.board : "Quotations & advances"} />
+          <h1 className="mt-3 flex flex-wrap items-center gap-2 text-xl font-semibold text-gray-800 dark:text-white/90">
             {doc.number}
             <Badge size="sm" color={layaway || job ? "primary" : "light"}>
               {job ? "Job card" : layaway ? "On advance" : "Quotation"}

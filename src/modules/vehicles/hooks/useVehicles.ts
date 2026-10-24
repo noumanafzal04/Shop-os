@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vehiclesService, type VehicleInput } from "../services/vehiclesService";
+import { vehiclesOnDevice } from "../../offline/lookup/vehicles";
 
 export function useVehicles(params: { search?: string; customer_id?: string; page?: number } = {}, enabled = true) {
   return useQuery({
@@ -12,11 +13,16 @@ export function useVehicles(params: { search?: string; customer_id?: string; pag
   });
 }
 
-/** The till's lookup. Only fires once there's enough of a plate to match on. */
-export function useVehicleLookup(search: string) {
+/**
+ * The till's lookup. Only fires once there's enough of a plate to match on.
+ *
+ * With no line it reads the cars kept on the device (#39) — asking the server
+ * found nothing, and "nothing" offered to register a car already on file.
+ */
+export function useVehicleLookup(search: string, connected = true) {
   return useQuery({
-    queryKey: ["vehicles", "lookup", search],
-    queryFn: async () => (await vehiclesService.lookup(search)).data,
+    queryKey: ["vehicles", "lookup", search, connected],
+    queryFn: async () => (connected ? (await vehiclesService.lookup(search)).data : vehiclesOnDevice(search)),
     enabled: search.trim().length >= 2,
   });
 }

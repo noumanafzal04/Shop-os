@@ -143,14 +143,14 @@ export function BayPanel({
 
   return (
     <SectionCard
-      title="In the bay"
+      title="Workshop"
       subtitle={inShop === 1 ? "1 car in the shop" : `${inShop} cars in the shop`}
       icon={<DocsIcon className="size-5" />}
       to={canVisit ? "/tenant/workshop" : undefined}
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Booked in" value={bay.received.cars.toLocaleString()} tone="gray" />
-        <Stat label="Being worked on" value={bay.in_progress.cars.toLocaleString()} tone="brand" />
+        <Stat label="Waiting" value={bay.received.cars.toLocaleString()} tone="gray" />
+        <Stat label="Work in progress" value={bay.in_progress.cars.toLocaleString()} tone="brand" />
         {/* Finished, and nobody has charged for it. */}
         <Stat
           label="Ready, not billed"

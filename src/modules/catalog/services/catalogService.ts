@@ -45,6 +45,11 @@ export const catalogService = {
     apiGet<Product[]>("/products", {
       params: {
         search: filters.search || undefined,
+        // Named one by one, so a filter the type has and this list does not
+        // never leaves the browser: "Tyres that fit" relabelled itself and
+        // filtered nothing, online only (#38). The test below lists every
+        // filter, so the next one cannot be dropped the same way.
+        tyre_size: filters.tyre_size || undefined,
         type: filters.type || undefined,
         category_id: filters.category_id || undefined,
         low_stock: filters.low_stock ? 1 : undefined,

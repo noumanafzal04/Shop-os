@@ -124,6 +124,17 @@ export interface ForecourtShift {
   fuel_value: string;
   pos_fuel_litres: string;
   pos_fuel_value: string;
+  /**
+   * Rung while no shift was open — after the last close, before this one
+   * opened — and counted here, because this shift's meters carried it (#P1).
+   */
+  between_litres?: string;
+  between_value?: string;
+  /**
+   * Of the tank variance, what the till RANG and no meter counted: sold, not
+   * lost. Worked out by the server from the two recorded figures.
+   */
+  sold_unmetered_litres?: number;
   /** Meters minus till: fuel that left a nozzle and was never billed. */
   unbilled_litres: string;
   unbilled_value: string;
@@ -214,6 +225,15 @@ export interface FuelReport {
     fuel_value: number;
     pos_fuel_litres: number;
     pos_fuel_value: number;
+    /** Rung while no shift was open, counted by the next close (#P1). */
+    between_litres: number;
+    between_value: number;
+    /** Rung since the last close with no shift open — counted by nobody yet. */
+    waiting_litres: number;
+    waiting_value: number;
+    /** Of the tank variance, what the till rang and no meter counted: sold, not lost. */
+    sold_unmetered_litres: number;
+    sold_unmetered_value: number;
     unbilled_litres: number;
     unbilled_value: number;
     tank_variance_litres: number;
@@ -235,6 +255,8 @@ export interface FuelReport {
     unbilled_value: number;
     tank_variance_litres: number;
     tank_variance_value: number;
+    between_litres: number;
+    sold_unmetered_litres: number;
     price_changed_during: boolean;
   }>;
   range: { from: string; to: string };
@@ -257,6 +279,8 @@ export const fuelService = {
   deleteNozzle: (pumpId: string, id: string) => apiDelete<null>(`/fuel/pumps/${pumpId}/nozzles/${id}`),
 
   currentShift: () => apiGet<ForecourtShift | null>("/fuel/shifts/current"),
+  /** For the till's prompt: is a shift open here? A cashier may ask; the shift itself needs the stock permission. */
+  openNow: () => apiGet<{ forecourt: boolean; open: boolean; number: string | null }>("/fuel/shifts/open-now"),
   shifts: (params: { page?: number; status?: string }) => apiGet<ForecourtShift[]>("/fuel/shifts", { params }),
   shift: (id: string) => apiGet<ForecourtShift>(`/fuel/shifts/${id}`),
   openShift: (body: Record<string, unknown> = {}) => apiPost<ForecourtShift>("/fuel/shifts", body),

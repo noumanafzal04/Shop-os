@@ -38,8 +38,10 @@ export const DB_NAME = "shopos-till";
  *   4  the shadow tally — how many carts were CHECKED, not only how many
  *      disagreed. Zero findings means nothing without it
  *   5  the offline receipt counter, so a till can number a slip with no server
+ *   6  the shift queue — drawer events rung with no server
+ *   7  vehicles, so a plate on file is found with no line (#39)
  */
-export const DB_VERSION = 6;
+export const DB_VERSION = 7;
 
 /** Every object store, by the name used to open a transaction on it. */
 export const STORE = {
@@ -59,6 +61,8 @@ export const STORE = {
   PROMOTIONS: "promotions",
   /** id, name, phone, customer_group_id — and nothing else. Key: customer id. */
   CUSTOMERS: "customers",
+  /** Plate, make, model, tyre size, owner id — what the counter reads off a car. Key: vehicle id. */
+  VEHICLES: "vehicles",
   /**
    * Sales rung with no server. APPEND-ONLY, never destructively migrated, and
    * never cleared on sync — a row moves to `acked` and is pruned much later.
@@ -131,6 +135,7 @@ export const CACHE_STORES: readonly StoreName[] = [
   STORE.SETTINGS,
   STORE.PROMOTIONS,
   STORE.CUSTOMERS,
+  STORE.VEHICLES,
   STORE.PRICING_VARIANCES,
   // Disposable on purpose, and the handover case is why. A till passed to a
   // different shop that KEPT its tally would tell the new shop that 1,284 carts
@@ -210,5 +215,10 @@ export function upgrade(db: IDBDatabase, oldVersion: number): void {
     const queue = db.createObjectStore(STORE.SHIFT_QUEUE, { keyPath: "op" });
     queue.createIndex("by_status", "status");
     queue.createIndex("by_created", "createdAt");
+  }
+
+  if (oldVersion < 7) {
+    // A cache like the customers beside it, pulled afresh on the next sync.
+    db.createObjectStore(STORE.VEHICLES, { keyPath: "id" });
   }
 }

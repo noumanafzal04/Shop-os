@@ -37,11 +37,13 @@ const day = (iso: string | null) => (iso === null ? "—" : shopDate(iso));
  * amber and a surplus is not green, because fuel that appeared is as much a
  * measurement problem as fuel that vanished.
  */
-function Variance({ title, hint, amount, value }: {
+function Variance({ title, hint, amount, value, note }: {
   title: string;
   hint: string;
   amount: number;
   value: number;
+  /** Said under the hint when the figure needs a reading the hint cannot give. */
+  note?: string | null;
 }) {
   const money = useMoney();
   const off = Math.abs(amount) > 0.0005;
@@ -60,6 +62,7 @@ function Variance({ title, hint, amount, value }: {
       </p>
       <p className="mt-0.5 text-theme-sm tabular-nums text-gray-600 dark:text-gray-300">{money(value)}</p>
       <p className="mt-2 text-theme-xs leading-snug text-gray-500 dark:text-gray-400">{hint}</p>
+      {note && <p className="mt-2 text-theme-xs font-medium leading-snug text-gray-700 dark:text-gray-200">{note}</p>}
     </div>
   );
 }
@@ -96,6 +99,16 @@ export function FuelReportTab({ range }: { range: { from: string; to: string } }
   }
 
   const t = data.totals;
+  // Every litre the till rang is in "rung at the till" — including fuel sold
+  // while no shift was open, which the next close counted (#P1). Leaving it
+  // out told an owner he sold 59 L on a day he sold 468.
+  const rungLitres = t.pos_fuel_litres + (t.between_litres ?? 0);
+  const rungValue = t.pos_fuel_value + (t.between_value ?? 0);
+  // Fuel the till sold that no meter counted is not a leak. The server works
+  // the overlap out from the recorded figures; this only takes it off.
+  const soldUnmetered = t.sold_unmetered_litres ?? 0;
+  const missingLitres = t.tank_variance_litres - soldUnmetered;
+  const missingValue = t.tank_variance_value - (t.sold_unmetered_value ?? 0);
 
   return (
     <div className="space-y-5">
@@ -103,7 +116,13 @@ export function FuelReportTab({ range }: { range: { from: string; to: string } }
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
           { label: "Metered", value: litres(t.litres_sold), sub: money(t.fuel_value) },
-          { label: "Rung at the till", value: litres(t.pos_fuel_litres), sub: money(t.pos_fuel_value) },
+          {
+            label: "Rung at the till",
+            value: litres(rungLitres),
+            sub: (t.between_litres ?? 0) > 0.0005
+              ? `${money(rungValue)} · ${litres(t.between_litres)} with no shift open`
+              : money(rungValue),
+          },
           { label: "Test litres", value: litres(t.test_litres), sub: "back in the tank" },
           {
             label: "Shifts",
@@ -125,14 +144,39 @@ export function FuelReportTab({ range }: { range: { from: string; to: string } }
           amount={t.unbilled_litres}
           value={t.unbilled_value}
           hint="Metered litres the till never rang. This is about people, not plumbing — and it is a station figure, which is why it is not broken down per attendant below."
+          note={t.unbilled_litres < -0.0005 ? "Below zero: the till rang more fuel than the meters counted." : null}
         />
         <Variance
           title="Missing from the ground"
-          amount={t.tank_variance_litres}
-          value={t.tank_variance_value}
+          amount={missingLitres}
+          value={missingValue}
           hint="Book stock against the closing dip. Fuel that left without crossing a meter at all — a leak, or a tanker that arrived short."
+          note={soldUnmetered > 0.0005
+            ? `Not counted as missing: ${litres(soldUnmetered)} (${money(t.sold_unmetered_value)}) that the till sold and no meter counted. Sold, not lost — check every meter was read, and that none is reading short.`
+            : null}
         />
       </div>
+
+      {/* Fuel sold while no shift was open. Counted by the next shift to
+          close; until one does it is waiting, and said to be — the same
+          reason an open shift is counted rather than left out (#P1). */}
+      {((t.between_litres ?? 0) > 0.0005 || (t.waiting_litres ?? 0) > 0.0005) && (
+        <div data-fuel-no-shift className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-theme-xs leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
+          {(t.between_litres ?? 0) > 0.0005 && (
+            <p>
+              <span className="font-semibold">Sold with no shift open: {litres(t.between_litres)} · {money(t.between_value)}.</span>{" "}
+              Paid sales, counted by the next shift to close — its meters carried them.
+            </p>
+          )}
+          {(t.waiting_litres ?? 0) > 0.0005 && (
+            <p className={(t.between_litres ?? 0) > 0.0005 ? "mt-1" : ""}>
+              <span className="font-semibold">Waiting to be counted: {litres(t.waiting_litres)} · {money(t.waiting_value)}</span>{" "}
+              sold since the last shift closed. It is counted when the next shift closes.
+            </p>
+          )}
+          <p className="mt-1">Open a shift before selling fuel, so the meters and the till are read together.</p>
+        </div>
+      )}
 
       {t.shifts_repriced > 0 && (
         <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-theme-xs text-gray-600 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-300">
@@ -237,7 +281,9 @@ export function FuelReportTab({ range }: { range: { from: string; to: string } }
                   </td>
                   <td className="px-5 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{litres(s.litres_sold)}</td>
                   <td className="px-5 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{litres(s.unbilled_litres)}</td>
-                  <td className="px-5 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">{litres(s.tank_variance_litres)}</td>
+                  <td className="px-5 py-2.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                    {litres(s.tank_variance_litres - (s.sold_unmetered_litres ?? 0))}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -50,13 +50,17 @@ export default function ForecourtShiftPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Litres sold" value={litres(s.litres_sold)} sub={`${litres(s.test_litres)} tested`} />
-        <Stat label="Fuel value" value={money(s.fuel_value)} sub={`Till rang ${money(s.pos_fuel_value)}`} />
+        <Stat
+          label="Fuel value"
+          value={money(s.fuel_value)}
+          sub={`Till rang ${money(Number(s.pos_fuel_value) + Number(s.between_value ?? 0))}`}
+        />
         <Stat
           label="Unbilled"
           value={litres(s.unbilled_litres)}
           sub={money(s.unbilled_value)}
           tone={Math.abs(Number(s.unbilled_litres)) > 0.001 ? "bad" : "good"}
-          hint="Left a nozzle, never rung up"
+          hint={Number(s.unbilled_litres) < -0.001 ? "The till rang more than the meters counted" : "Left a nozzle, never rung up"}
         />
         <Stat
           label="Tank variance"
@@ -66,6 +70,27 @@ export default function ForecourtShiftPage() {
           hint="Left the tank, crossed no meter"
         />
       </div>
+
+      {/* #P1 — fuel the till rang while no shift was open, which this shift's
+          meters carried; and, when the till rang more than the meters moved
+          and the tank came up short by it, the one event both figures
+          describe: sold, not lost. */}
+      {(Number(s.between_litres ?? 0) > 0.0005 || (s.sold_unmetered_litres ?? 0) > 0.0005) && (
+        <div data-shift-no-shift-sales className="mt-4 space-y-1 rounded-lg bg-gray-50 px-3 py-2 text-theme-xs text-gray-600 dark:bg-white/[0.03] dark:text-gray-300">
+          {Number(s.between_litres ?? 0) > 0.0005 && (
+            <p>
+              {litres(s.between_litres ?? 0)} ({money(s.between_value ?? 0)}) was sold before this shift opened, while no
+              shift was open. It is counted here, because this shift&rsquo;s meters carried it.
+            </p>
+          )}
+          {(s.sold_unmetered_litres ?? 0) > 0.0005 && (
+            <p>
+              {litres(s.sold_unmetered_litres ?? 0)} of the tank variance was sold at the till but no meter counted it — sold,
+              not lost. Check every meter was read, and that none is reading short.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Handover ───────────────────────────────────────────────────
           Above the meters because it is the part somebody acts on tonight.

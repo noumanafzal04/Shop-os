@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiGet } from "../../../common/api/client";
 import { catalogService } from "./catalogService";
+import type { ProductFilters } from "../types";
 
 vi.mock("../../../common/api/client", () => ({ apiGet: vi.fn(), apiPost: vi.fn(), apiPut: vi.fn(), apiDelete: vi.fn() }));
 
@@ -51,5 +52,41 @@ describe("asking the stock screen's question", () => {
 
     await catalogService.products({});
     expect(lastParams().track_inventory).toBeUndefined();
+  });
+});
+
+/**
+ * EVERY FILTER REACHES THE WIRE.
+ *
+ * The params are named one by one, and `tyre_size` was in the type and not in
+ * the list: the till's "Tyres that fit" said it was filtering and sent nothing
+ * (#38). `Required<ProductFilters>` makes this test fail to compile when a new
+ * filter is added and not listed here — and then fail to pass until the
+ * service sends it.
+ */
+describe("every filter the screens can set is sent", () => {
+  beforeEach(() => vi.mocked(apiGet).mockResolvedValue({ data: [] } as never));
+
+  it("drops none of them", async () => {
+    const every: Required<ProductFilters> = {
+      search: "dunlop",
+      tyre_size: "195/65 R15",
+      type: "product",
+      category_id: "c-1",
+      low_stock: true,
+      out_of_stock: true,
+      track_inventory: true,
+      for_sale: true,
+      page: 2,
+      per_page: 50,
+    };
+    await catalogService.products(every);
+
+    const calls = vi.mocked(apiGet).mock.calls;
+    const params = calls[calls.length - 1][1]?.params as Record<string, unknown>;
+    for (const key of Object.keys(every)) {
+      expect(params[key], `the ${key} filter never left the browser`).not.toBeUndefined();
+    }
+    expect(params.tyre_size).toBe("195/65 R15");
   });
 });

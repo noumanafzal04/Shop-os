@@ -293,9 +293,9 @@ test("O7 · it moves along the board, and back when a stain is found at the coun
     await expect(column(page, to).filter({ has: card(page, number) }), `the job did not move to ${to}`).toBeVisible({ timeout: 15_000 });
   };
 
-  if ((await doc(request, id)).work_status === "received") await move("Being worked on");
+  if ((await doc(request, id)).work_status === "received") await move("Work in progress");
   if ((await doc(request, id)).work_status === "in_progress") await move("Ready");
-  await move("Being worked on");
+  await move("Work in progress");
   expect((await doc(request, id)).work_status).toBe("in_progress");
   await move("Ready");
   expect((await doc(request, id)).work_status).toBe("ready");

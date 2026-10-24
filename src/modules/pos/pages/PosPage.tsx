@@ -99,6 +99,7 @@ import { onSale, sellingPrice, sizePrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { shopDate, shopDateTime } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
+import { ForecourtClosedStrip } from "../../fuel/components/ForecourtClosedStrip";
 
 /** What a cart line can be made from: a catalogue item, or the bare shape a shortcut tile carries. */
 type LineSource = CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] };
@@ -811,7 +812,7 @@ export default function PosPage() {
   // Asked only once something is typed — the list is shown from two letters.
   // It asked for the first page of the catalogue every time the till opened.
   const tradeInResults = useProducts({ search: tradeInQuery || undefined }, tradeInQuery.length > 1);
-  const vehicleResults = useVehicleLookup(vehicleSearch);
+  const vehicleResults = useVehicleLookup(vehicleSearch, connected);
   /**
    * A plate brings its owner, as booking a car in already did: the till asked
    * for the name and number again of a car whose owner was on file.
@@ -3341,6 +3342,8 @@ export default function PosPage() {
 
         {/* Under the pane switch, so a phone sees it whichever pane is open. */}
         {posNotice && <div className="bg-pos-ground px-3">{noticeStrip}</div>}
+        {/* A pump with no forecourt shift open: a prompt, never a gate (#P1). */}
+        {has("fuel") && connected && <div className="bg-pos-ground px-3"><ForecourtClosedStrip /></div>}
         {offlineRefused > 0 && <div className="bg-pos-ground px-3">{refusedStrip}</div>}
         {ringingAgain !== null && <div className="bg-pos-ground px-3">{ringAgainStrip}</div>}
         {addingTo !== null && <div className="bg-pos-ground px-3">{addingStrip}</div>}
@@ -4267,7 +4270,16 @@ export default function PosPage() {
                           ))}
                           {/* A plate nobody has seen before is the normal case,
                               not an error — register it without leaving the sale. */}
-                          {(vehicleResults.data ?? []).length === 0 && !vehicleResults.isLoading && (
+                          {/* With no line a new plate cannot be registered —
+                              the server is where a plate is checked against
+                              the ones on file — so the till says so, rather
+                              than offering what would make a second record. */}
+                          {(vehicleResults.data ?? []).length === 0 && !vehicleResults.isLoading && !connected && (
+                            <p data-vehicle-offline className="px-2 py-2 text-theme-xs text-gray-500 dark:text-gray-400">
+                              No car with this plate on this device. Adding a new car needs internet — the sale can go on without one.
+                            </p>
+                          )}
+                          {(vehicleResults.data ?? []).length === 0 && !vehicleResults.isLoading && connected && (
                             <button type="button"
                               disabled={quickCreateVehicle.isPending}
                               onClick={() =>

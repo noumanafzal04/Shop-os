@@ -237,14 +237,14 @@ test("M4 · a dead battery comes across the counter in part-payment — the bill
 
 // ── the workshop ─────────────────────────────────────────────────────
 
-const bookIn = (page: Page): Locator => page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Book a car in" }) });
+const bookIn = (page: Page): Locator => page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Take a car in" }) });
 
 test("M5 · a car is booked into the bay: the plate finds the car and its owner, and five o'clock is five o'clock", async ({ page, request }) => {
   if (!(await jobOf(request, CAR.plate))) {
     await board(page);
-    await page.getByRole("button", { name: "Book a car in" }).first().click();
+    await page.getByRole("button", { name: "Take a car in" }).first().click();
     const form = bookIn(page);
-    const book = form.getByRole("button", { name: "Book in" });
+    const book = form.getByRole("button", { name: "Take it in" });
 
     // Typed with the dash. The car is already on record — found, not typed twice.
     await form.getByPlaceholder("LEA-4291").fill(CAR.typed);
@@ -280,7 +280,7 @@ test("M5 · a car is booked into the bay: the plate finds the car and its owner,
   await board(page);
   const onBoard = card(page, CAR.plate);
   if (job.status === "open" && job.work_status === "received") {
-    await expect(column(page, "In the bay").filter({ has: onBoard })).toBeVisible({ timeout: 15_000 });
+    await expect(column(page, "Waiting").filter({ has: onBoard })).toBeVisible({ timeout: 15_000 });
   }
   if (job.status === "open") {
     await expect(onBoard).toContainText(`${CAR.make} ${CAR.model} · ${CAR.owner}`);
@@ -292,7 +292,7 @@ test("M5 · a car is booked into the bay: the plate finds the car and its owner,
 test("M5 · a plate nobody has seen is registered as it is booked in — and belongs to whoever brought it", async ({ page, request }) => {
   if (!(await jobOf(request, SECOND.plate))) {
     await board(page);
-    await page.getByRole("button", { name: "Book a car in" }).first().click();
+    await page.getByRole("button", { name: "Take a car in" }).first().click();
     const form = bookIn(page);
     await form.getByPlaceholder("LEA-4291").fill(SECOND.typed);
     await expect(form.getByText("New plate. It will be registered when you book the car in.")).toBeVisible({ timeout: 15_000 });
@@ -302,7 +302,7 @@ test("M5 · a plate nobody has seen is registered as it is booked in — and bel
     // No reading taken: the keys were in somebody's hand.
     await form.getByPlaceholder("Search a part or a labour item").fill("QA Diagnostic");
     await form.getByRole("button", { name: CHECK.name, exact: true }).click();
-    await form.getByRole("button", { name: "Book in" }).click();
+    await form.getByRole("button", { name: "Take it in" }).click();
     await expect(form).toBeHidden({ timeout: 15_000 });
   }
 
@@ -327,7 +327,7 @@ test("M6 · parts and labour go on the job as the work is done — and the job c
     await expect(facts).toContainText(CAR.plate);
     await expect(facts).toContainText(COMPLAINT);
     await expect(facts).toContainText("84,500 km");
-    await expect(facts).toContainText("In the bay");
+    await expect(facts).toContainText("Waiting");
     expect(await jobTotal(page)).toBe(1500);
 
     const add = page.getByLabel("Add a part or labour to this job");
@@ -386,15 +386,15 @@ test("M7 · the car moves along the board — and back, when the road test fails
     await expect(column(page, to).filter({ has: card(page, CAR.plate) }), `the car did not move to ${to}`).toBeVisible({ timeout: 15_000 });
   };
 
-  if ((await doc(request, id)).work_status === "received") await move("Being worked on");
+  if ((await doc(request, id)).work_status === "received") await move("Work in progress");
   if ((await doc(request, id)).work_status === "in_progress") await move("Ready");
   expect((await doc(request, id)).work_status).toBe("ready");
 
   // Ready fails its road test: back on the ramp, then ready again.
-  await move("Being worked on");
+  await move("Work in progress");
   expect((await doc(request, id)).work_status).toBe("in_progress");
   // The stage it is NOT in is the one offered; the one it is in is not.
-  await expect(card(page, CAR.plate).getByRole("button", { name: "→ Being worked on" })).toHaveCount(0);
+  await expect(card(page, CAR.plate).getByRole("button", { name: "→ Work in progress" })).toHaveCount(0);
   await move("Ready");
   expect((await doc(request, id)).work_status).toBe("ready");
 });

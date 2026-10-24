@@ -98,8 +98,8 @@ test("a car is booked in, the job grows as it is worked on, and it is billed for
 
   // ── booked in ──────────────────────────────────────────────────────
   await page.goto("/tenant/workshop");
-  await page.getByRole("button", { name: "Book a car in" }).first().click();
-  const form = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Book a car in" }) });
+  await page.getByRole("button", { name: "Take a car in" }).first().click();
+  const form = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Take a car in" }) });
   await form.getByPlaceholder("LEA-4291").fill(CAR.typed);
   await form.getByRole("button", { name: new RegExp(`^${CAR.plate}`) }).click();
   await form.getByPlaceholder("Noise from front left when braking").fill("Rattle over bumps");
@@ -108,7 +108,7 @@ test("a car is booked in, the job grows as it is worked on, and it is billed for
   await form.getByLabel("Promised back", { exact: true }).fill(promised);
   await form.getByPlaceholder("Search a part or a labour item").fill(CHECK.name);
   await form.getByRole("button", { name: CHECK.name, exact: true }).click();
-  await form.getByRole("button", { name: "Book in" }).click();
+  await form.getByRole("button", { name: "Take it in" }).click();
   await expect(form).toBeHidden({ timeout: 15_000 });
 
   const [job] = await openJobs(request);
