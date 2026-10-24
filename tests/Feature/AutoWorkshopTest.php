@@ -188,6 +188,40 @@ class AutoWorkshopTest extends TestCase
         $this->assertEquals(48200, CustomerVehicle::withoutTenancy()->findOrFail($vehicle['id'])->odometer);
     }
 
+    public function test_editing_the_car_cannot_wind_its_odometer_back(): void
+    {
+        // #37: the rule held where a reading came WITH a sale and was absent
+        // on the screen built for typing one — where the typo happens.
+        $vehicle = $this->createVehicle(['registration' => 'LEA-4291', 'odometer' => 84500]);
+
+        $this->login($this->owner)->putJson("/api/v1/vehicles/{$vehicle['id']}", ['odometer' => 70000])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('odometer');
+        $this->assertEquals(84500, CustomerVehicle::withoutTenancy()->findOrFail($vehicle['id'])->odometer);
+
+        // Forward is a reading like any other.
+        $this->login($this->owner)->putJson("/api/v1/vehicles/{$vehicle['id']}", ['odometer' => 86200])->assertOk();
+        $this->assertEquals(86200, CustomerVehicle::withoutTenancy()->findOrFail($vehicle['id'])->odometer);
+
+        // The rest of an edit is unaffected by a reading it does not carry.
+        $this->login($this->owner)->putJson("/api/v1/vehicles/{$vehicle['id']}", ['colour' => 'White'])->assertOk();
+        $this->assertEquals(86200, CustomerVehicle::withoutTenancy()->findOrFail($vehicle['id'])->odometer);
+    }
+
+    public function test_a_reading_typed_on_the_car_is_in_its_history(): void
+    {
+        // It came from no bill, and the shop could not see where it came from.
+        $vehicle = $this->createVehicle(['registration' => 'LEA-4291']);
+        $this->fitTyres($vehicle['id'], odometer: 48200);
+        $this->login($this->owner)->putJson("/api/v1/vehicles/{$vehicle['id']}", ['odometer' => 50100])->assertOk();
+
+        $readings = $this->login($this->owner)->getJson("/api/v1/vehicles/{$vehicle['id']}/history")
+            ->assertOk()->json('data.readings');
+
+        $this->assertSame([50100, 48200], array_column($readings, 'km'));
+        $this->assertSame('Typed on the car', $readings[0]['on']);
+    }
+
     public function test_a_sale_with_no_vehicle_is_completely_unaffected(): void
     {
         $sale = $this->login($this->owner)->postJson('/api/v1/sales', [

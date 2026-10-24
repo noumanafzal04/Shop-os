@@ -8,10 +8,12 @@ use App\Models\CustomerVehicle;
 use App\Models\Sale;
 use App\Models\SaleDocument;
 use App\Support\ApiResponse;
+use App\Support\ShopDay;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The vehicles a shop works on.
@@ -52,7 +54,13 @@ class VehicleController extends Controller
     public function store(Request $request): JsonResponse
     {
         // Already normalised by validated(): one plate, one spelling, one car.
-        $vehicle = CustomerVehicle::query()->create($this->validated($request));
+        $data = $this->validated($request);
+        // A first reading is a reading: dated, so a service interval has a
+        // day to count from.
+        if (($data['odometer'] ?? null) !== null) {
+            $data['odometer_at'] = ShopDay::calendarToday();
+        }
+        $vehicle = CustomerVehicle::query()->create($data);
 
         return ApiResponse::created($vehicle->load('customer:id,name,phone'), 'Vehicle added');
     }
@@ -69,7 +77,28 @@ class VehicleController extends Controller
         /** @var CustomerVehicle $vehicle */
         $vehicle = CustomerVehicle::query()->findOrFail($id);
 
-        $vehicle->update($this->validated($request, $id));
+        $data = $this->validated($request, $id);
+
+        // THE ODOMETER ONLY GOES FORWARD, HERE AS AT THE TILL.
+        //
+        // The rule lived in recordOdometer() and was kept by the two paths a
+        // reading arrives WITH a sale. This screen — the one built for typing
+        // a reading, where the typo actually happens — wrote the column
+        // straight: 84,500 became 70,000 and every service interval counted
+        // from the wrong number. A lower figure is refused by name; a higher
+        // one goes through the same rule, dated.
+        $reading = array_key_exists('odometer', $data) ? $data['odometer'] : null;
+        unset($data['odometer']);
+
+        if ($reading !== null && $vehicle->odometer !== null && $reading < $vehicle->odometer) {
+            throw ValidationException::withMessages([
+                'odometer' => 'The odometer only goes forward. This car last read '
+                    .number_format($vehicle->odometer).' km — enter that or higher.',
+            ]);
+        }
+
+        $vehicle->update($data);
+        $vehicle->recordOdometer($reading);
 
         return ApiResponse::ok($vehicle->fresh()->load('customer:id,name,phone'), 'Vehicle updated');
     }
@@ -116,6 +145,18 @@ class VehicleController extends Controller
             ->merge($jobs->filter(fn ($j) => $j->odometer_in !== null)->map(fn ($j) => ['at' => $j->created_at?->toIso8601String(), 'km' => (int) $j->odometer_in, 'on' => $j->number]))
             ->sortByDesc('at')
             ->values();
+
+        // A reading typed on the car's own record came from no bill, and was
+        // in no list — the shop could not see where a number had come from.
+        // The car's last reading is said here when no bill or job carries it —
+        // first, because it only ever moves forward, so it is the newest.
+        if ($vehicle->odometer !== null && ! $readings->contains(fn (array $r): bool => $r['km'] === $vehicle->odometer)) {
+            $readings->prepend([
+                'at' => $vehicle->odometer_at?->toDateString(),
+                'km' => $vehicle->odometer,
+                'on' => 'Typed on the car',
+            ]);
+        }
 
         return ApiResponse::ok([
             'vehicle' => $vehicle,

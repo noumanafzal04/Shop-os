@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\City;
+use App\Models\ForecourtShift;
 use App\Models\FuelNozzle;
 use App\Models\FuelPump;
 use App\Models\FuelTank;
@@ -192,6 +193,116 @@ class FuelReportTest extends TestCase
         $this->assertSame(400.0, (float) $rows['Bashir']['litres']);
     }
 
+    // ── Fuel sold while no shift was open (#P1) ─────────────────────
+
+    public function test_fuel_rung_between_shifts_is_counted_by_the_next_close_and_is_not_unbilled(): void
+    {
+        // The meters were left where the last shift closed, so fuel pumped in
+        // between lands in the next shift's metered litres. Without the till's
+        // half beside it, every such litre read as unbilled — the attendants
+        // on duty accused of fuel sold before they arrived.
+        $this->runShift(closingA: 100600, closingB: 50400, dip: 9000, ringLitres: 1000);
+        $this->travel(5)->minutes();
+        $this->ringUpFuel(50);
+        $this->travel(5)->minutes();
+
+        $shift = $this->openShift();
+        $this->close($shift, 100650, 50400, 8950);
+
+        $closed = $this->shiftRow($shift['id']);
+        $this->assertSame(50.0, (float) $closed['between_litres']);
+        $this->assertSame(10000.0, (float) $closed['between_value']);
+        $this->assertSame(0.0, (float) $closed['unbilled_litres']);
+        $this->assertSame(0.0, (float) $closed['tank_variance_litres']);
+
+        $totals = $this->report()['totals'];
+        $this->assertSame(50.0, (float) $totals['between_litres']);
+        $this->assertSame(0.0, (float) $totals['waiting_litres']);
+    }
+
+    public function test_fuel_rung_after_the_last_close_is_said_to_be_waiting_not_left_out(): void
+    {
+        // A figure "not counted yet" must not read as "nothing happened" —
+        // the reason `shifts_open` exists.
+        $this->runShift(closingA: 100600, closingB: 50400, dip: 9000, ringLitres: 1000);
+        $this->travel(5)->minutes();
+        $this->ringUpFuel(20);
+
+        $totals = $this->report()['totals'];
+        $this->assertSame(20.0, (float) $totals['waiting_litres']);
+        $this->assertSame(4000.0, (float) $totals['waiting_value']);
+
+        // Still waiting once the next shift opens: it was sold before it.
+        $this->travel(5)->minutes();
+        $shift = $this->openShift();
+        $this->travel(1)->minutes();
+        // Fuel rung INSIDE the open shift is that shift's, not waiting.
+        $this->ringUpFuel(30);
+        $this->assertSame(20.0, (float) $this->report()['totals']['waiting_litres']);
+
+        $this->close($shift, 100650, 50400, 8950);
+        $totals = $this->report()['totals'];
+        $this->assertSame(0.0, (float) $totals['waiting_litres']);
+        $this->assertSame(20.0, (float) $totals['between_litres']);
+    }
+
+    public function test_fuel_the_till_sold_that_no_meter_counted_is_not_called_a_leak(): void
+    {
+        // The tester's night: three paid sales with no shift open, then a
+        // shift whose meters never moved and whose dip was lower by exactly
+        // those litres. The till rang more than the meters counted and the
+        // ground came up short — one event described twice. Sold, not lost.
+        $this->runShift(closingA: 100600, closingB: 50400, dip: 9000, ringLitres: 1000);
+        $this->travel(5)->minutes();
+        $this->ringUpFuel(50);
+        $this->travel(5)->minutes();
+
+        $shift = $this->openShift();
+        $this->close($shift, 100600, 50400, 8950);
+
+        $totals = $this->report()['totals'];
+        $this->assertSame(50.0, (float) $totals['tank_variance_litres']);
+        $this->assertSame(50.0, (float) $totals['sold_unmetered_litres']);
+        $this->assertSame(10000.0, (float) $totals['sold_unmetered_value']);
+
+        $row = collect($this->report()['shifts'])->firstWhere('id', $shift['id']);
+        $this->assertSame(50.0, (float) $row['sold_unmetered_litres']);
+
+        // And on the shift's own screen.
+        $this->assertSame(50.0, (float) $this->actingAsUser($this->manager)
+            ->getJson("/api/v1/fuel/shifts/{$shift['id']}")->assertOk()->json('data.sold_unmetered_litres'));
+    }
+
+    public function test_a_real_shortfall_is_still_a_shortfall(): void
+    {
+        // The overlap is only fuel the till RANG. A tank short with nothing
+        // over-rung is still missing from the ground.
+        $this->runShift(closingA: 100600, closingB: 50400, dip: 8950, ringLitres: 1000);
+
+        $totals = $this->report()['totals'];
+        $this->assertSame(50.0, (float) $totals['tank_variance_litres']);
+        $this->assertSame(0.0, (float) $totals['sold_unmetered_litres']);
+    }
+
+    public function test_the_till_can_ask_whether_a_shift_is_open_without_the_stock_permission(): void
+    {
+        // A prompt for the cashier, who holds sales.manage and nothing else.
+        $cashier = User::factory()->tenantStaff($this->station, ['sales.manage'])->create();
+
+        $this->actingAsUser($cashier)->getJson('/api/v1/fuel/shifts/open-now')->assertOk()
+            ->assertJsonPath('data.forecourt', true)
+            ->assertJsonPath('data.open', false);
+
+        $shift = $this->openShift();
+
+        $this->actingAsUser($cashier)->getJson('/api/v1/fuel/shifts/open-now')->assertOk()
+            ->assertJsonPath('data.open', true)
+            ->assertJsonPath('data.number', $shift['number']);
+
+        // The shift itself stays behind the stock permission.
+        $this->actingAsUser($cashier)->getJson('/api/v1/fuel/shifts/current')->assertForbidden();
+    }
+
     // ── It reports what was recorded ────────────────────────────────
 
     public function test_a_rate_that_changed_since_does_not_rewrite_a_signed_off_month(): void
@@ -309,6 +420,12 @@ class FuelReportTest extends TestCase
                 ],
                 'dips' => [['fuel_tank_id' => $this->tank->id, 'closing_dip' => $dip]],
             ])->assertOk();
+    }
+
+    /** @return array<string, mixed> */
+    private function shiftRow(string $id): array
+    {
+        return ForecourtShift::withoutTenancy()->findOrFail($id)->toArray();
     }
 
     private function ringUpFuel(float $litres): void

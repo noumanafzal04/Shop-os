@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\ForecourtReading;
 use App\Models\ForecourtShift;
+use App\Models\FuelTank;
+use App\Models\SaleItem;
 use App\Support\ShopDay;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -89,11 +91,21 @@ class FuelReportService
                 'fuel_value' => $this->sum($shifts, 'fuel_value', 2),
                 'pos_fuel_litres' => $this->sum($shifts, 'pos_fuel_litres', 3),
                 'pos_fuel_value' => $this->sum($shifts, 'pos_fuel_value', 2),
+                // Rung while no shift was open, counted by the next close.
+                // Paid sales, and part of what the till rang — a figure of its
+                // own so "rung at the till" is the whole of it.
+                'between_litres' => $this->sum($shifts, 'between_litres', 3),
+                'between_value' => $this->sum($shifts, 'between_value', 2),
                 'unbilled_litres' => $this->sum($shifts, 'unbilled_litres', 3),
                 'unbilled_value' => $this->sum($shifts, 'unbilled_value', 2),
                 'tank_variance_litres' => $this->sum($shifts, 'tank_variance_litres', 3),
                 'tank_variance_value' => $this->sum($shifts, 'tank_variance_value', 2),
-            ],
+                // Of the fuel missing from the ground, what the till RANG and no
+                // meter counted: sold, not lost — a meter not read, or reading
+                // short. See soldUnmetered().
+                'sold_unmetered_litres' => round((float) $shifts->sum(fn (ForecourtShift $s): float => $s->soldUnmetered()[0]), 3),
+                'sold_unmetered_value' => round((float) $shifts->sum(fn (ForecourtShift $s): float => $s->soldUnmetered()[1]), 2),
+            ] + $this->waiting($from, $to, $branchId),
 
             // Which fuel. Read off the READINGS' own snapshot of the product
             // name, so a product renamed or retired since still appears under
@@ -142,6 +154,8 @@ class FuelReportService
                 'unbilled_value' => (float) $s->unbilled_value,
                 'tank_variance_litres' => (float) $s->tank_variance_litres,
                 'tank_variance_value' => (float) $s->tank_variance_value,
+                'between_litres' => (float) $s->between_litres,
+                'sold_unmetered_litres' => $s->soldUnmetered()[0],
                 'price_changed_during' => (bool) $s->price_changed_during,
             ])->all(),
 
@@ -150,6 +164,53 @@ class FuelReportService
                 'to' => Carbon::parse($to)->toDateString(),
             ],
         ];
+    }
+
+    /**
+     * Fuel rung since the last close at each forecourt while no shift was
+     * open — counted by nobody YET. The next close takes it; until then the
+     * report says it is waiting, for the reason `shifts_open` exists: a figure
+     * that is "not counted yet" must not read as "nothing happened".
+     *
+     * @return array{waiting_litres: float, waiting_value: float}
+     */
+    private function waiting(string $from, string $to, ?string $branchId): array
+    {
+        $litres = 0.0;
+        $value = 0.0;
+
+        $tanks = FuelTank::query()
+            ->where('is_active', true)
+            ->whereNotNull('product_id')
+            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->get(['branch_id', 'product_id', 'created_at']);
+
+        foreach ($tanks->groupBy(fn (FuelTank $t): string => (string) $t->branch_id) as $branch => $here) {
+            $branch = $branch === '' ? null : $branch;
+            $atBranch = fn ($q) => $branch === null ? $q->whereNull('branch_id') : $q->where('branch_id', $branch);
+
+            $since = ForecourtShift::query()->where('status', ForecourtShift::STATUS_CLOSED)
+                ->where($atBranch)->max('closed_at') ?? $here->min('created_at');
+            $openedAt = ForecourtShift::query()->where('status', ForecourtShift::STATUS_OPEN)
+                ->where($atBranch)->value('opened_at');
+
+            $row = SaleItem::query()
+                ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+                ->whereIn('sale_items.product_id', $here->pluck('product_id')->unique()->values())
+                ->where('sales.status', '!=', 'cancelled')
+                ->when($branch !== null, fn ($q) => $q->where('sales.branch_id', $branch))
+                ->where('sales.sold_at', '>', Carbon::parse($since))
+                ->when($openedAt !== null, fn ($q) => $q->where('sales.sold_at', '<', $openedAt))
+                ->tap(fn ($q) => ShopDay::between($q, 'sales.sold_at', $from, $to))
+                ->selectRaw('COALESCE(SUM(sale_items.quantity * COALESCE(sale_items.unit_factor, 1)), 0) as litres')
+                ->selectRaw('COALESCE(SUM(sale_items.line_total), 0) as value')
+                ->first();
+
+            $litres += (float) ($row->litres ?? 0);
+            $value += (float) ($row->value ?? 0);
+        }
+
+        return ['waiting_litres' => round($litres, 3), 'waiting_value' => round($value, 2)];
     }
 
     /** @param  Collection<int, ForecourtShift>  $shifts */

@@ -14,6 +14,8 @@ use App\Models\Product;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Services\InventoryService;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -157,6 +159,23 @@ class CloseForecourtShiftAction
 
             $posLitres = round((float) ($posRow->litres ?? 0), 3);
             $posValue = round((float) ($posRow->value ?? 0), 2);
+
+            // ── Fuel rung while no shift was open ───────────────────
+            //
+            // A station rings fuel before the morning shift is opened and after
+            // the night one is closed, and nothing stops it — nor should it: a
+            // pump must never stop selling over paperwork. Those sales were in
+            // no shift's window, so no shift counted them. The meters did:
+            // a shift opens on the readings the last one closed on, so fuel
+            // pumped in between lands in THIS shift's metered litres — and
+            // without the till's half beside it, every such litre read as
+            // "unbilled", an accusation against the attendants on duty for
+            // fuel sold and paid for before they arrived.
+            //
+            // So the next shift to close counts them, from the last close at
+            // this forecourt (or since its tanks were installed, for the first
+            // shift ever), and keeps them as a figure of their own.
+            [$betweenLitres, $betweenValue] = $this->soldWhileClosed($locked, $productIds, $dips);
 
             // ── The tanks ───────────────────────────────────────────
             /** @var array<string, float> $dipByProduct */
@@ -313,8 +332,10 @@ class CloseForecourtShiftAction
                 'fuel_value' => round($fuelValue, 2),
                 'pos_fuel_litres' => $posLitres,
                 'pos_fuel_value' => $posValue,
-                'unbilled_litres' => round($litresSold - $posLitres, 3),
-                'unbilled_value' => round($fuelValue - $posValue, 2),
+                'between_litres' => $betweenLitres,
+                'between_value' => $betweenValue,
+                'unbilled_litres' => round($litresSold - $posLitres - $betweenLitres, 3),
+                'unbilled_value' => round($fuelValue - $posValue - $betweenValue, 2),
                 'tank_variance_litres' => round($varianceLitres, 3),
                 'tank_variance_value' => round($varianceValue, 2),
                 'price_changed_during' => $pricedMidShift,
@@ -323,5 +344,48 @@ class CloseForecourtShiftAction
 
             return $locked->fresh(['readings', 'dips']);
         });
+    }
+
+    /**
+     * What the till rang for these fuels at this forecourt after the last
+     * shift here closed and before this one opened.
+     *
+     * @param  Collection<int, string>  $productIds
+     * @param  Collection<int, ForecourtDip>  $dips
+     * @return array{0: float, 1: float}
+     */
+    private function soldWhileClosed(ForecourtShift $shift, Collection $productIds, Collection $dips): array
+    {
+        $lastClose = ForecourtShift::query()
+            ->where('status', ForecourtShift::STATUS_CLOSED)
+            ->whereKeyNot($shift->id)
+            ->where(fn ($q) => $shift->branch_id === null
+                ? $q->whereNull('branch_id')
+                : $q->where('branch_id', $shift->branch_id))
+            ->where('closed_at', '<=', $shift->opened_at)
+            ->max('closed_at');
+
+        // The first shift ever: fuel sold since the tanks were put in, which
+        // is when the dip this shift opened on was written.
+        $since = $lastClose ?? FuelTank::query()
+            ->whereIn('id', $dips->pluck('fuel_tank_id'))
+            ->min('created_at');
+
+        if ($since === null || $productIds->isEmpty()) {
+            return [0.0, 0.0];
+        }
+
+        $row = SaleItem::query()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->whereIn('sale_items.product_id', $productIds)
+            ->where('sales.status', '!=', 'cancelled')
+            ->when($shift->branch_id !== null, fn ($q) => $q->where('sales.branch_id', $shift->branch_id))
+            ->where('sales.sold_at', '>', Carbon::parse($since))
+            ->where('sales.sold_at', '<', $shift->opened_at)
+            ->selectRaw('COALESCE(SUM(sale_items.quantity * COALESCE(sale_items.unit_factor, 1)), 0) as litres')
+            ->selectRaw('COALESCE(SUM(sale_items.line_total), 0) as value')
+            ->first();
+
+        return [round((float) ($row->litres ?? 0), 3), round((float) ($row->value ?? 0), 2)];
     }
 }

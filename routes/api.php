@@ -1180,6 +1180,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                     Route::delete('pumps/{pump}/nozzles/{nozzle}', [FuelSetupController::class, 'destroyNozzle']);
                 });
 
+                // Whether a shift is open, for the till's prompt (#P1). Before
+                // `shifts/{shift}`, which would otherwise take "open-now" as
+                // an id.
+                Route::get('shifts/open-now', [ForecourtShiftController::class, 'openNow'])
+                    ->middleware('permission:sales.manage');
+
                 // The shift. A stock reconciliation at heart — it ends by
                 // setting fuel stock to the dip — so it carries the same
                 // permission as every other stock correction.

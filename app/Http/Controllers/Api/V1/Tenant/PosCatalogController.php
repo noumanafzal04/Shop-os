@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerVehicle;
 use App\Models\OfflineRefusal;
 use App\Models\PosDevice;
 use App\Models\Product;
@@ -201,6 +202,7 @@ class PosCatalogController extends Controller
             'tax_groups' => $this->taxGroups($cursor('tax_groups')),
             'customer_groups' => $this->customerGroups($cursor('customer_groups')),
             'customers' => $this->customers($cursor('customers')),
+            'vehicles' => $this->vehicles($cursor('vehicles')),
 
             'settings' => collect($tenant?->allSettings() ?? [])->only(self::TILL_SETTINGS),
             // Who the till may name as the seller — cached with the catalog so
@@ -377,6 +379,38 @@ class PosCatalogController extends Controller
                 'name' => $c->name,
                 'phone' => $c->phone,
                 'customer_group_id' => $c->customer_group_id,
+            ]
+            : null);
+    }
+
+    /**
+     * THE PLATES, FOR A TILL WITH NO LINE.
+     *
+     * A tyre shop's regular is a plate, not a phone number. The customers were
+     * on the device and their cars were not, so with the line down a van the
+     * shop had serviced for a year came back "not found" and the till offered
+     * to register it again — a second record for one car, or a sale the sync
+     * would later refuse as a duplicate plate.
+     *
+     * What the counter reads off a plate and nothing more: the owner travels
+     * as an id, resolved against the customers already on the device, so no
+     * name or number is stored twice.
+     */
+    private function vehicles(?string $cursor): array
+    {
+        $page = PosDelta::page(CustomerVehicle::query()->withTrashed(), $cursor, self::PAGE);
+
+        return $this->shape($page, fn (CustomerVehicle $v): ?array => $this->alive($v)
+            ? [
+                'id' => $v->id,
+                'registration' => $v->registration,
+                'customer_id' => $v->customer_id,
+                'make' => $v->make,
+                'model' => $v->model,
+                'year' => $v->year,
+                'colour' => $v->colour,
+                'tyre_size' => $v->tyre_size,
+                'odometer' => $v->odometer,
             ]
             : null);
     }

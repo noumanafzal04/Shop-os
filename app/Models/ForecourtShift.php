@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -32,6 +33,9 @@ class ForecourtShift extends BaseModel
      */
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** @var list<string> */
+    protected $appends = ['sold_unmetered_litres'];
+
     protected function casts(): array
     {
         return [
@@ -43,12 +47,48 @@ class ForecourtShift extends BaseModel
             'fuel_value' => 'decimal:2',
             'pos_fuel_value' => 'decimal:2',
             'pos_fuel_litres' => 'decimal:3',
+            'between_litres' => 'decimal:3',
+            'between_value' => 'decimal:2',
             'unbilled_litres' => 'decimal:3',
             'unbilled_value' => 'decimal:2',
             'tank_variance_litres' => 'decimal:3',
             'tank_variance_value' => 'decimal:2',
             'price_changed_during' => 'boolean',
         ];
+    }
+
+    /**
+     * FUEL THE TILL SOLD THAT NO METER COUNTED IS NOT A LEAK.
+     *
+     * A shift whose till rang MORE than its meters moved, and whose tank came
+     * up short, is describing one event twice: fuel left the ground and was
+     * paid for, but no meter counted it — a meter nobody read, or one reading
+     * short. Called "missing from the ground" it reads as a leak, and an owner
+     * was shown Rs 116,627 lost on a day he lost nothing.
+     *
+     * The overlap of the two, from the figures the shift recorded — nothing is
+     * recomputed, so a signed-off night still reads the same.
+     *
+     * @return array{0: float, 1: float}
+     */
+    public function soldUnmetered(): array
+    {
+        $tank = (float) $this->tank_variance_litres;
+        $overRung = -(float) $this->unbilled_litres;
+
+        if ($tank <= 0 || $overRung <= 0) {
+            return [0.0, 0.0];
+        }
+
+        $litres = round(min($tank, $overRung), 3);
+
+        return [$litres, round((float) $this->tank_variance_value * $litres / $tank, 2)];
+    }
+
+    /** Said on the shift itself, so the shift screen reads the server's figure. */
+    protected function soldUnmeteredLitres(): Attribute
+    {
+        return Attribute::get(fn (): float => $this->soldUnmetered()[0]);
     }
 
     public function readings(): HasMany

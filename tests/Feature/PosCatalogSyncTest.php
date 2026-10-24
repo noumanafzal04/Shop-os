@@ -7,6 +7,7 @@ use App\Models\BranchStock;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerGroup;
+use App\Models\CustomerVehicle;
 use App\Models\Product;
 use App\Models\ProductBarcode;
 use App\Models\ProductUnit;
@@ -940,6 +941,42 @@ class PosCatalogSyncTest extends TestCase
         $this->assertArrayNotHasKey('address', $customer);
     }
 
+    public function test_a_tills_cars_are_on_it_so_a_plate_is_found_with_no_line(): void
+    {
+        // #39: the customers were on the device and their cars were not, so a
+        // van on file came back "not found" offline and the till offered to
+        // register it again.
+        $cursor = $this->bootstrap()['vehicles']['cursor'];
+
+        $this->travel(1)->second();
+        $owner = Customer::query()->create(['tenant_id' => $this->tenant->id, 'name' => 'Al-Rehman', 'phone' => '03001112222']);
+        CustomerVehicle::query()->create([
+            'tenant_id' => $this->tenant->id, 'registration' => 'JW0011', 'customer_id' => $owner->id,
+            'make' => 'Suzuki', 'tyre_size' => '165/80 R13', 'odometer' => 120500, 'notes' => 'Private note',
+        ]);
+
+        $van = $this->delta('vehicles', $cursor)['items'][0];
+
+        $this->assertSame('JW0011', $van['registration']);
+        $this->assertSame($owner->id, $van['customer_id']);
+        $this->assertSame('165/80 R13', $van['tyre_size']);
+        // The owner travels as an id — the name and number are already on the
+        // device as a customer, and nothing else about the car is needed.
+        $this->assertArrayNotHasKey('customer', $van);
+        $this->assertArrayNotHasKey('notes', $van);
+    }
+
+    public function test_a_car_removed_leaves_the_till(): void
+    {
+        $van = CustomerVehicle::query()->create(['tenant_id' => $this->tenant->id, 'registration' => 'JW0012']);
+        $cursor = $this->bootstrap()['vehicles']['cursor'];
+
+        $this->travel(1)->second();
+        $van->delete();
+
+        $this->assertSame([['id' => $van->id, 'deleted' => true]], $this->delta('vehicles', $cursor)['items']);
+    }
+
     public function test_settings_ride_on_every_delta_not_only_the_first_load(): void
     {
         // Withholding them until the next cold start is how a discount ceiling
@@ -959,7 +996,7 @@ class PosCatalogSyncTest extends TestCase
         // 20,000-item catalog's twenty requests.
         $data = $this->bootstrap();
 
-        foreach (['products', 'categories', 'promotions', 'tax_groups', 'customer_groups', 'customers'] as $type) {
+        foreach (['products', 'categories', 'promotions', 'tax_groups', 'customer_groups', 'customers', 'vehicles'] as $type) {
             $this->assertArrayHasKey('items', $data[$type], "{$type} is missing from the till's world.");
             $this->assertArrayHasKey('cursor', $data[$type], "{$type} cannot resume without a cursor.");
             $this->assertArrayHasKey('has_more', $data[$type]);

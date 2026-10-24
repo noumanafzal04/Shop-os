@@ -9,7 +9,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Fuel\CloseForecourtShiftRequest;
 use App\Http\Requests\Fuel\OpenForecourtShiftRequest;
 use App\Models\ForecourtShift;
+use App\Models\FuelTank;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,6 +44,31 @@ class ForecourtShiftController extends Controller
      * is what the close screen loads to show the attendant what to walk out and
      * read.
      */
+    /**
+     * IS A SHIFT OPEN HERE? — asked by the till (#P1).
+     *
+     * Fuel rung while no shift is open is still counted (by the next close),
+     * but the meters only line up with the till when a shift is running, so
+     * the till says so — a prompt, never a gate: a pump must not stop selling
+     * over paperwork. A cashier holds sales.manage and not the stock
+     * permission the shift screens need, so this answers a yes or no and a
+     * number, and nothing a cashier should not see.
+     */
+    public function openNow(): JsonResponse
+    {
+        $branch = app(BranchContext::class);
+        $here = fn ($q) => $branch->has() ? $q->where('branch_id', $branch->id()) : $q;
+
+        $shift = ForecourtShift::query()->where('status', ForecourtShift::STATUS_OPEN)->tap($here)->first(['id', 'number']);
+
+        return ApiResponse::ok([
+            // A branch with no tanks has no forecourt to open a shift on.
+            'forecourt' => FuelTank::query()->where('is_active', true)->tap($here)->exists(),
+            'open' => $shift !== null,
+            'number' => $shift?->number,
+        ]);
+    }
+
     public function current(Request $request): JsonResponse
     {
         /**
