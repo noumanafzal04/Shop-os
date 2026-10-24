@@ -9738,3 +9738,15 @@ built; they wait for the owner's yes.**
   close) now sits beside it. A tank short by exactly what the till over-rang is one event
   described twice: "sold, not lost", shown apart from the leak. Never a gate at the till.
 - Deploy: backend first (one additive migration), then the panel.
+
+## 2026-10-25 — country → province → city
+
+- The user asked for a country / province / city select from our own database, Pakistan only
+  for now, keeping the dataset's ids. Full note: `docs/decisions/shopos-country-province-city.md`.
+- Backend: migration `2026_10_25_000001` (additive), `countries` + `provinces` (dataset ids),
+  `cities.geo_id/province_id/country_id`; `php artisan shopos:geo PK` (+ `GeoSeeder`) — 7
+  provinces, 458 cities, the old eight joined with their UUIDs; `/countries`, `/provinces`,
+  `/cities?province_id=`; marketplace GPS prefers cities with shops; demo shops in launch cities.
+- Panel: `common/geo/CityPicker` on Admin new shop, Admin shop detail, Shop setup, Shop settings;
+  `cityForPin` for the map; the marketplace header lists cities with shops.
+- Deploy: backend → `php artisan migrate` → `php artisan shopos:geo PK` → panel. Dev DB done.
