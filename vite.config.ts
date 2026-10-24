@@ -94,8 +94,13 @@ export default defineConfig({
       },
 
       workbox: {
-        // The whole shell, so a cold start with no network still paints.
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // The whole shell, so a cold start with no network still paints — and
+        // ONLY the shell (next rounds #36). Every png and svg in the build was
+        // swept in: 287 files, 6.5 MB of them the template's demo artwork no
+        // shop screen shows (carousels, cards, avatars, flags), and a till on
+        // live took 80–90 s to be safe offline. Code, styles, fonts, the app's
+        // icons, and the three folders of art it draws — logo, error, shape.
+        globPatterns: ["**/*.{js,css,html,ico,woff2}", "*.png", "images/{logo,error,shape}/**/*.{png,svg}"],
         // The bundle is large (charts, maps). A cap below it would silently
         // leave the biggest chunk uncached and the till would still need a
         // network to open — the one thing this exists to prevent.

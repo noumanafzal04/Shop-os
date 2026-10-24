@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { failureWords } from "./failureWords";
+import { failureWords, noAnswerWords } from "./failureWords";
 
 /**
  * Next rounds #30 and #31, measured at the till: "Sale failed · Server Error",
@@ -41,5 +41,14 @@ describe("what a failed write tells a person", () => {
 
   it("says an answer it cannot read saved nothing — a gateway's HTML page", () => {
     expect(failureWords(404, "<html>…</html>" as never, null)?.code).toBe("UNREADABLE_ANSWER");
+  });
+});
+
+/** Next rounds #35: wifi off, and every list said "It may be down" — the server's fault. */
+describe("no answer at all", () => {
+  it("says the device is offline when it knows, and sends a person to their own line first when it does not", () => {
+    expect(noAnswerWords(false)).toBe("This device is offline — check its wifi or mobile data. Nothing is lost; try again once the line is back.");
+    expect(noAnswerWords(true)).toMatch(/^No answer from the server\. Check this device's internet first/);
+    expect(noAnswerWords(true)).not.toContain("It may be down");
   });
 });

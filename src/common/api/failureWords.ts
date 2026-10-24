@@ -64,3 +64,18 @@ function waitFor(header: string | null | undefined, now: number): number {
 
   return Number.isFinite(at) && at > now ? Math.ceil((at - now) / 1000) : 30;
 }
+
+/**
+ * NO ANSWER AT ALL — said device first (next rounds #35).
+ *
+ * With the device's own wifi off, every list said "Can't reach the server. It
+ * may be down." — pointing a shopkeeper at the software instead of the router,
+ * while the till two clicks away read "Offline". When the device knows it is
+ * offline it says so; when it does not know, it still sends them to their own
+ * line before the server, because that is the likelier of the two.
+ */
+export function noAnswerWords(deviceOnline: boolean): string {
+  return deviceOnline
+    ? "No answer from the server. Check this device's internet first — if it is working, the server may be down. Try again in a moment."
+    : "This device is offline — check its wifi or mobile data. Nothing is lost; try again once the line is back.";
+}

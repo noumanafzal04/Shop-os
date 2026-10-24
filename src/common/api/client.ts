@@ -6,7 +6,7 @@ import { useConnectionStore } from "../../stores/connectionStore";
 import { ApiError, type ApiEnvelope } from "../types/api";
 import { markServerContact } from "../../modules/offline/contact";
 import { heardShellStamp, SHELL_STAMP_HEADER } from "../kept/shellStamp";
-import { failureWords } from "./failureWords";
+import { failureWords, noAnswerWords } from "./failureWords";
 
 const BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
@@ -244,9 +244,7 @@ api.interceptors.response.use(
         fallback = "The server didn't answer in time. Try again.";
         code ??= "TIMEOUT";
       } else if (error.code === "ERR_NETWORK") {
-        fallback = navigator.onLine
-          ? "Can't reach the server. It may be down."
-          : "You're offline — check your connection.";
+        fallback = noAnswerWords(navigator.onLine && useConnectionStore.getState().online);
         code ??= "NETWORK";
       }
     }
