@@ -5,6 +5,7 @@ import { STORE } from "../db/schema";
 import type { CatalogCategory, CatalogItem, CatalogTaxGroup } from "../sync/catalogService";
 import { withLocalStock } from "../outbox/localStock";
 import { categoryIndex, searchCatalog } from "./search";
+import { fitsTyreSize } from "../../vehicles/tyreFits";
 
 /**
  * Browsing the till's own catalog when there is no line.
@@ -218,6 +219,8 @@ export function shelfRows(
   search: string,
   categoryId: string,
   limit = 200,
+  /** The car's tyre size — only what fits it, as the server's `tyre_size` filter. */
+  tyreSize = "",
 ): CatalogProduct[] {
   if (shelf === undefined) return [];
 
@@ -227,12 +230,13 @@ export function shelfRows(
   const inCategory = filed
     ? shelf.items.filter((i) => i.category_id !== null && filed.has(i.category_id))
     : shelf.items;
+  const fitting = tyreSize.trim() === "" ? inCategory : inCategory.filter((i) => fitsTyreSize(`${i.name} ${i.sku ?? ""}`, tyreSize));
 
   const needle = search.trim();
 
   const rows = needle
-    ? searchCatalog(inCategory, needle, { categories: shelf.categoryNames, limit })
-    : [...inCategory].sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
+    ? searchCatalog(fitting, needle, { categories: shelf.categoryNames, limit })
+    : [...fitting].sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
 
   // NOT `rows.map(asProduct)`. `map` passes the INDEX as a second argument,
   // and `asProduct`'s second parameter is the tax rates — so the point-free

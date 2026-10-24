@@ -229,3 +229,17 @@ describe("what the scanner and the shelf were never wired to", () => {
     expect(dish.track_inventory).toBe(false);
   });
 });
+
+describe("a tyre shop with no line", () => {
+  it("offers only what fits the car on the ramp, as the server's filter does", () => {
+    const tyres = [
+      item({ id: "t1", name: "Yokohama 195/65 R15" }),
+      item({ id: "t2", name: "Dunlop 195/65R15" }),
+      item({ id: "t3", name: "General 185/65 R15" }),
+      item({ id: "t4", name: "Wiper blade" }),
+    ];
+    expect(names(shelfRows(shelf(tyres), "", "", 200, "195/65 R15"))).toEqual(["Dunlop 195/65R15", "Yokohama 195/65 R15"]);
+    expect(names(shelfRows(shelf(tyres), "dunlop", "", 200, "195/65 R15"))).toEqual(["Dunlop 195/65R15"]);
+    expect(shelfRows(shelf(tyres), "", "")).toHaveLength(4);
+  });
+});

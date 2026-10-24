@@ -57,6 +57,20 @@ export interface VehicleHistory {
   }>;
   lifetime_value: number;
   last_visit: string | null;
+  /** The work on it, not only the bills: jobs in the bay, quotations, estimates. */
+  jobs?: Array<{
+    id: string;
+    number: string;
+    kind: string;
+    status: string;
+    work_status: string | null;
+    total: string;
+    complaint: string | null;
+    odometer_in: number | null;
+    created_at: string;
+  }>;
+  /** Every odometer reading the shop has taken, newest first. */
+  readings?: Array<{ at: string | null; km: number; on: string }>;
 }
 
 export const vehiclesService = {

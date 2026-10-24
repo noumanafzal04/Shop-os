@@ -373,6 +373,8 @@ export interface ProductInput {
 
 export interface ProductFilters {
   search?: string;
+  /** What fits a car: its tyre size, matched however the shop wrote it (vehicles/tyreFits). */
+  tyre_size?: string;
   type?: ItemType | "";
   category_id?: string;
   low_stock?: boolean;

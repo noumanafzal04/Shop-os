@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import PageMeta from "../../../components/common/PageMeta";
@@ -19,6 +19,9 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import { shopShortDateTime } from "../../../common/format/date";
+import type { Vehicle } from "../../vehicles/services/vehiclesService";
+import { JobSheet } from "../components/JobSheet";
+import { boardTally, callLink, isOverdue } from "../board";
 
 /**
  * What is in the shop right now.
@@ -55,12 +58,6 @@ import { shopShortDateTime } from "../../../common/format/date";
 const STAGE_KEYS: WorkStatus[] = ["received", "in_progress", "ready"];
 
 
-/** Overdue is the one thing on this board worth a colour. */
-function isOverdue(job: SaleDocument): boolean {
-  return job.promised_at !== null && job.promised_at !== undefined
-    && new Date(job.promised_at) < new Date();
-}
-
 function promised(job: SaleDocument): string | null {
   if (!job.promised_at) return null;
 
@@ -72,6 +69,18 @@ export default function WorkshopPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const [booking, setBooking] = useState(false);
+  // "Take in" on a car's row on Vehicles: the sheet opens with that car on it,
+  // read once and dropped from history so Back does not open it again.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [takingIn, setTakingIn] = useState<Vehicle | null>(null);
+  useEffect(() => {
+    const sent = (location.state as { takeIn?: Vehicle } | null)?.takeIn;
+    if (!sent?.id) return;
+    navigate(location.pathname, { replace: true, state: null });
+    setTakingIn(sent);
+    setBooking(true);
+  }, [location.state, location.pathname, navigate]);
   const words = boardWords(usePrimaryBusinessType());
   const STAGES = STAGE_KEYS.map((key, i) => ({
     key,
@@ -125,10 +134,16 @@ export default function WorkshopPage() {
     },
   });
 
+  // The car opened from its card — see JobSheet.
+  const [open, setOpen] = useState<SaleDocument | null>(null);
+
   const move = useMutation({
     mutationFn: ({ id, to }: { id: string; to: WorkStatus }) =>
       documentService.setWorkStatus(id, to),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workshop"] }),
+    onSuccess: () => {
+      setOpen(null);
+      queryClient.invalidateQueries({ queryKey: ["workshop"] });
+    },
     onError: (e) => toast.error(e instanceof Error ? e.message : "That could not be moved."),
   });
 
@@ -137,6 +152,7 @@ export default function WorkshopPage() {
   const missing = jobs.data?.missing ?? 0;
   const shown = findOnBoard(rows, find);
   const at = (stage: WorkStatus) => shown.filter((j) => j.work_status === stage);
+  const tally = boardTally(rows);
 
   return (
     <div>
@@ -146,7 +162,7 @@ export default function WorkshopPage() {
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">{words.board}</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            Every {words.unit} in the shop, and what stage it is at. Tap a card to move it.
+            Every {words.unit} in the shop, and what stage it is at. Tap a {words.tracksVehicle ? "plate" : "number"} to open it.
           </p>
         </div>
         <Button size="sm" onClick={() => setBooking(true)}>{words.takeIn}</Button>
@@ -172,6 +188,23 @@ export default function WorkshopPage() {
               No {words.unit} in the shop matches “{find.trim()}”.
             </p>
           )}
+        </div>
+      )}
+
+      {/* The board in four numbers, read before any card — the late ones are
+          what the phone calls are about. */}
+      {rows.length > 0 && (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" data-board-tally>
+          {STAGES.map((st) => (
+            <div key={st.key} className="rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-800">
+              <p className="text-theme-xs uppercase tracking-wide text-gray-400">{st.label}</p>
+              <p className="text-xl font-semibold tabular-nums text-gray-800 dark:text-white/90">{tally[st.key]}</p>
+            </div>
+          ))}
+          <div className={`rounded-xl border px-4 py-3 ${tally.overdue > 0 ? "border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10" : "border-gray-200 dark:border-gray-800"}`}>
+            <p className="text-theme-xs uppercase tracking-wide text-gray-400">Late</p>
+            <p className={`text-xl font-semibold tabular-nums ${tally.overdue > 0 ? "text-warning-700 dark:text-warning-400" : "text-gray-800 dark:text-white/90"}`}>{tally.overdue}</p>
+          </div>
         </div>
       )}
 
@@ -207,7 +240,9 @@ export default function WorkshopPage() {
                   <span className="text-theme-xs text-gray-400">{stage.hint}</span>
                 </div>
 
-                <div className="space-y-2">
+                {/* The column scrolls, the page does not — a work screen keeps
+                    its header and its other columns in view. */}
+                <div className="space-y-2 md:max-h-[calc(100dvh-20rem)] md:overflow-y-auto md:pr-1">
                   {cars.length === 0 && (
                     <p className="py-6 text-center text-theme-xs text-gray-400">Nothing here.</p>
                   )}
@@ -222,12 +257,13 @@ export default function WorkshopPage() {
                       }`}
                     >
                       <div className="flex items-baseline justify-between gap-2">
-                        <Link
-                          to={`/tenant/documents/${job.id}`}
-                          className="font-semibold text-gray-800 hover:text-brand-500 dark:text-white/90"
+                        <button
+                          type="button"
+                          onClick={() => setOpen(job)}
+                          className="text-left font-semibold text-gray-800 hover:text-brand-500 dark:text-white/90"
                         >
                           {(words.tracksVehicle ? job.vehicle?.registration : null) ?? job.number}
-                        </Link>
+                        </button>
                         <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
                           {money(job.total)}
                         </span>
@@ -236,6 +272,15 @@ export default function WorkshopPage() {
                       <p className="text-theme-xs text-gray-500 dark:text-gray-400">
                         {[job.vehicle?.make, job.vehicle?.model].filter(Boolean).join(" ")}
                         {job.customer_name ? ` · ${job.customer_name}` : ""}
+                        {/* "Is my car ready?" is a phone call — the number is on the card. */}
+                        {callLink(job.customer_phone) && (
+                          <>
+                            {" · "}
+                            <a href={callLink(job.customer_phone)!} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                              {job.customer_phone}
+                            </a>
+                          </>
+                        )}
                       </p>
 
                       {/* What the customer said is wrong. The first thing a
@@ -290,12 +335,25 @@ export default function WorkshopPage() {
         </div>
       )}
 
+      {open && (
+        <JobSheet
+          job={open}
+          stages={STAGES}
+          money={money}
+          moving={move.isPending}
+          onMove={(to) => move.mutate({ id: open.id, to })}
+          onClose={() => setOpen(null)}
+        />
+      )}
+
       {booking && (
         <BookInModal
-          onClose={() => setBooking(false)}
+          vehicle={takingIn}
+          onClose={() => { setBooking(false); setTakingIn(null); }}
           onBooked={(number) => {
             toast.success(`Job ${number} opened`);
             setBooking(false);
+            setTakingIn(null);
             queryClient.invalidateQueries({ queryKey: ["workshop"] });
           }}
         />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
@@ -15,6 +16,9 @@ import { useVehicleHistory, useVehicleMutations, useVehicles } from "../hooks/us
 import type { Vehicle } from "../services/vehiclesService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { shopDate } from "../../../common/format/date";
+import { useAuthStore } from "../../../stores/authStore";
+import { hasJobBoard } from "../../workshop/words";
+import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 
 const blank = {
   registration: "", make: "", model: "", year: "", colour: "",
@@ -39,6 +43,12 @@ export default function VehiclesPage() {
   const confirm = useConfirm();
   const editModal = useModal();
   const historyModal = useModal();
+  const navigate = useNavigate();
+  // Where a car's work starts: the board of cars in the bay, and the till.
+  const features = useAuthStore((st) => st.user?.tenant?.features);
+  const canBill = !!features?.pos;
+  const trade = usePrimaryBusinessType();
+  const canTakeIn = canBill && hasJobBoard(trade);
 
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -215,7 +225,14 @@ export default function VehiclesPage() {
                     <td className="px-4 py-3 text-right tabular-nums text-gray-600 dark:text-gray-400">
                       {v.odometer ? `${v.odometer.toLocaleString()} km` : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      {/* Start the work from the car — its owner comes with it. */}
+                      {canTakeIn && (
+                        <button onClick={() => navigate("/tenant/workshop", { state: { takeIn: v } })} className="mr-3 text-theme-xs font-medium text-brand-600 hover:text-brand-700">Take in</button>
+                      )}
+                      {canBill && (
+                        <button onClick={() => navigate("/tenant/pos", { state: { forVehicle: v.id } })} className="mr-3 text-theme-xs font-medium text-brand-600 hover:text-brand-700">Bill</button>
+                      )}
                       <button onClick={() => openEdit(v)} className="mr-3 text-theme-xs text-brand-500 hover:text-brand-600">Edit</button>
                       <button onClick={() => removeVehicle(v)} className="text-theme-xs text-error-500 hover:text-error-600">Remove</button>
                     </td>
@@ -298,9 +315,34 @@ export default function VehiclesPage() {
             : "Loading…"}
         </p>
 
+        {/* The work on it as well as the bills, and every reading taken. */}
+        {(history.data?.jobs ?? []).length > 0 && (
+          <div className="mb-4">
+            <p className="mb-1.5 text-theme-xs font-medium uppercase tracking-wide text-gray-400">Jobs and quotations</p>
+            <ul className="space-y-1">
+              {(history.data?.jobs ?? []).map((j) => (
+                <li key={j.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-theme-xs dark:border-gray-700">
+                  <Link to={`/tenant/documents/${j.id}`} className="font-mono font-medium text-brand-600 hover:underline dark:text-brand-400">{j.number}</Link>
+                  <span className="min-w-0 flex-1 truncate text-gray-500 dark:text-gray-400">
+                    {shopDate(j.created_at)}{j.complaint ? ` · ${j.complaint}` : ""}
+                  </span>
+                  <Badge size="sm" color="light">{j.status === "open" && j.work_status ? j.work_status.replace("_", " ") : j.status}</Badge>
+                  <span className="tabular-nums text-gray-700 dark:text-gray-300">{money(j.total)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {(history.data?.readings ?? []).length > 0 && (
+          <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
+            <span className="font-medium uppercase tracking-wide text-gray-400">Odometer · </span>
+            {(history.data?.readings ?? []).slice(0, 6).map((r) => `${r.km.toLocaleString()} km${r.at ? ` (${shopDate(r.at)})` : ""}`).join(" · ")}
+          </p>
+        )}
+
         {history.isLoading ? (
           <div className="h-24 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
-        ) : (history.data?.visits ?? []).length === 0 ? (
+        ) : (history.data?.visits ?? []).length === 0 && (history.data?.jobs ?? []).length === 0 ? (
           <ListEmpty from={history} what="this vehicle's visits">
             <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Nothing done to this vehicle yet.

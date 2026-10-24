@@ -54,7 +54,8 @@ import { NoAccess } from "../../../common/ui/NoAccess";
 import { CouldNotLoad } from "../../../common/ui/CouldNotLoad";
 import { deniedReason, loadFailure } from "../../../common/api/denied";
 import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useVehicles";
-import type { Vehicle } from "../../vehicles/services/vehiclesService";
+import { vehiclesService, type Vehicle } from "../../vehicles/services/vehiclesService";
+import { ownerOf } from "../../vehicles/ownerOf";
 import { catalogService } from "../../catalog/services/catalogService";
 import { catalogSizeStock, offersEquivalent, sizesOf, whyNotSellable as sellableRule } from "../availability";
 import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
@@ -596,7 +597,9 @@ export default function PosPage() {
   // 1366 laptop, so a cashier browsing by category usually finds the item
   // without paging at all.
   const POS_PAGE_SIZE = 20;
-  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE });
+  // Only what fits the car on the ramp, when the cashier asks for it.
+  const [tyreFilter, setTyreFilter] = useState("");
+  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE });
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   // Which question those tiles are the answer to — see shelfAnswer.
   const [tilesAnswer, setTilesAnswer] = useState<Asked>({ search: "", categoryId: "" });
@@ -646,8 +649,8 @@ export default function PosPage() {
   // the whole catalog is already here, so "load more" would be a button that
   // asks a server nobody can reach.
   const offlineRows = useMemo(
-    () => shelfRows(offlineShelf.data, search, categoryId),
-    [offlineShelf.data, search, categoryId],
+    () => shelfRows(offlineShelf.data, search, categoryId, undefined, tyreFilter),
+    [offlineShelf.data, search, categoryId, tyreFilter],
   );
   useEffect(() => {
     if (!connected) {
@@ -809,6 +812,17 @@ export default function PosPage() {
   // It asked for the first page of the catalogue every time the till opened.
   const tradeInResults = useProducts({ search: tradeInQuery || undefined }, tradeInQuery.length > 1);
   const vehicleResults = useVehicleLookup(vehicleSearch);
+  /**
+   * A plate brings its owner, as booking a car in already did: the till asked
+   * for the name and number again of a car whose owner was on file.
+   */
+  const pickVehicle = (v: Vehicle) => {
+    setVehicle(v);
+    setVehicleSearch("");
+    const owner = ownerOf(v, customer, customerPhone);
+    if (owner.name !== null) setCustomer(owner.name);
+    if (owner.phone !== null) setCustomerPhone(owner.phone);
+  };
   const { quickCreate: quickCreateVehicle } = useVehicleMutations();
   // Only stock items can be taken in: an allowance backed by a service is
   // backed by nothing you can put on a shelf.
@@ -2780,7 +2794,12 @@ export default function PosPage() {
     if (ask === null) return;
     navigate(location.pathname, { replace: true, state: null });
     if ("reRing" in ask) void startReRing({ id: ask.reRing } as Sale);
-    else void startAddingTo(ask.addTo);
+    else if ("forVehicle" in ask) {
+      vehiclesService.history(ask.forVehicle).then(
+        (r) => pickVehicle(r.data.vehicle),
+        () => setPosNotice("That vehicle could not be loaded — pick it from the vehicle box."),
+      );
+    } else void startAddingTo(ask.addTo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
@@ -4239,7 +4258,7 @@ export default function PosPage() {
                         <div className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
                           {(vehicleResults.data ?? []).map((v) => (
                             <button key={v.id} type="button"
-                              onClick={() => { setVehicle(v); setVehicleSearch(""); }}
+                              onClick={() => pickVehicle(v)}
                               className="block w-full px-2 py-1.5 text-left text-theme-sm text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-white/5">
                               <span className="font-mono font-medium">{v.registration}</span>
                               {(v.make || v.model) && <span className="text-gray-400"> · {[v.make, v.model].filter(Boolean).join(" ")}</span>}
@@ -4255,7 +4274,7 @@ export default function PosPage() {
                                 quickCreateVehicle.mutate(
                                   { registration: vehicleSearch.trim() },
                                   {
-                                    onSuccess: ({ data }) => { setVehicle(data); setVehicleSearch(""); },
+                                    onSuccess: ({ data }) => pickVehicle(data),
                                     onError: () => setPosNotice(
                                       "That plate was not added — the sale has no vehicle on it.",
                                     ),
@@ -4274,7 +4293,7 @@ export default function PosPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-semibold text-gray-800 dark:text-white/90">{vehicle.registration}</span>
-                          <button onClick={() => { setVehicle(null); setOdometer(""); }} className="text-gray-400 hover:text-error-500" aria-label="Remove vehicle">
+                          <button onClick={() => { setVehicle(null); setOdometer(""); setTyreFilter(""); }} className="text-gray-400 hover:text-error-500" aria-label="Remove vehicle">
                             <CloseIcon className="h-4 w-4" />
                           </button>
                         </div>
@@ -4283,6 +4302,22 @@ export default function PosPage() {
                           {vehicle.tyre_size ? ` · takes ${vehicle.tyre_size}` : ""}
                           {vehicle.odometer ? ` · last seen at ${vehicle.odometer.toLocaleString()} km` : ""}
                         </div>
+                        {/* What fits this car, at a press — the size is on file
+                            so nobody measures the wheel again. */}
+                        {vehicle.tyre_size && (
+                          <button
+                            type="button"
+                            aria-pressed={tyreFilter !== ""}
+                            onClick={() => { setTyreFilter((f) => (f === "" ? vehicle.tyre_size ?? "" : "")); setPage(1); }}
+                            className={`mt-1 rounded-full border px-2.5 py-0.5 text-theme-xs font-medium transition ${
+                              tyreFilter !== ""
+                                ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+                                : "border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            {tyreFilter !== "" ? `Showing tyres for ${vehicle.tyre_size} ×` : `Tyres that fit · ${vehicle.tyre_size}`}
+                          </button>
+                        )}
                       </div>
                       <input
                         type="number" min="0" value={odometer}

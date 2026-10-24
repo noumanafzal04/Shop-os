@@ -15,6 +15,7 @@ import { documentService } from "../../documents/services/documentService";
 import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { instantOf } from "../../../common/time/localInput";
+import type { Vehicle } from "../../vehicles/services/vehiclesService";
 
 /**
  * A car arriving, in the thirty seconds somebody has while holding its keys.
@@ -44,19 +45,21 @@ import { instantOf } from "../../../common/time/localInput";
 interface Props {
   onClose: () => void;
   onBooked: (number: string) => void;
+  /** A car already chosen — "Take in" from its row on Vehicles. Its owner comes with it. */
+  vehicle?: Pick<Vehicle, "id" | "registration" | "customer"> | null;
 }
 
-export function BookInModal({ onClose, onBooked }: Props) {
+export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
   const toast = useToast();
   // A dry cleaner has no registration plate. The rest of this form — what the
   // customer said is wrong, when it was promised, the opening line — is
   // identical for a car and for eight shirts.
   const words = boardWords(usePrimaryBusinessType());
 
-  const [plate, setPlate] = useState("");
-  const [vehicleId, setVehicleId] = useState<string | null>(null);
-  const [customer, setCustomer] = useState("");
-  const [phone, setPhone] = useState("");
+  const [plate, setPlate] = useState(vehicle?.registration ?? "");
+  const [vehicleId, setVehicleId] = useState<string | null>(vehicle?.id ?? null);
+  const [customer, setCustomer] = useState(vehicle?.customer?.name ?? "");
+  const [phone, setPhone] = useState(vehicle?.customer?.phone ?? "");
   const [complaint, setComplaint] = useState("");
   const [odometer, setOdometer] = useState("");
   const [promised, setPromised] = useState("");

@@ -12,6 +12,8 @@ describe("what the till is asked", () => {
   it("reads a re-ring or an addition, and nothing else", () => {
     expect(tillAskOf({ reRing: "s1" })).toEqual({ reRing: "s1" });
     expect(tillAskOf({ addTo: "s2" })).toEqual({ addTo: "s2" });
+    expect(tillAskOf({ forVehicle: "v1" })).toEqual({ forVehicle: "v1" });
+    expect(tillAskOf({ forVehicle: "" })).toBeNull();
     expect(tillAskOf({ reRing: "" })).toBeNull();
     expect(tillAskOf({ reRing: 7 })).toBeNull();
     expect(tillAskOf({ somethingElse: "s1" })).toBeNull();
