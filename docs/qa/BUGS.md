@@ -178,6 +178,9 @@ Status: **OPEN** · **FIXED `<commit>`** (re-test it) · **PART** (what is left 
 | B135 | P2 | Installments | Found by the suite at 01:35: a plan started after midnight filed its markup under the wall date, the sale under the business day | FIXED backend `045748d` — income_date = ShopDay::today(); pinned-clock test |
 | B136 | P2 | Admin | #25: a shop created by POST /admin/tenants with no `modules` got its trade's whole set whatever its plan | FIXED backend `6356ddc` — the user chose A (2026-10-24): with none named, the plan decides (ModulePackages::propose, what the create screen sends); named modules still win |
 | B137 | P2 | Dashboard vs Reports | #33: a cost with a half paisa (7.273 L × 255) gave Reports 345.38 and the Dashboard 345.39 for one day | FIXED backend `02dc2b9` — the dashboard rounds each part to the paisa before adding up, as the report does |
+| B138 | P2 | Offline shell | Live #36: the precache swept every png/svg — 287 files, 6.5 MB of template artwork — so a till took 80–90 s to be safe offline | FIXED panel `ee1a5e0` — shell only (code, styles, fonts, root icons, logo/error/shape): 240 entries, 10.7 → 4.2 MB. Live also sends JS uncompressed — nginx gzip lines in docs/decisions/shopos-live-check-oct11.md |
+| B139 | P3 | Every list, offline | Live #35: wifi off, and every list said "Can't reach the server. It may be down." | FIXED panel `ee1a5e0` — "This device is offline — check its wifi…" when it knows; device first when it does not |
+| B140 | P3 | Live server config | Live #34: manifest.webmanifest served as application/octet-stream; /sw.js has no Cache-Control | OPEN — nginx, the user's server: lines in docs/decisions/shopos-live-check-oct11.md (now with sw-heal.js) |
 
 Commits: backend `e14bf9e` (branch `offline/v1/backend`), panel `db44390` (branch `offline/v1/admin-panel`) — Phase 1 part 1, pushed 2026-10-14.
 

@@ -171,6 +171,8 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R118 | B119 | Open panel.cartze.shop normally after a deploy, on a device that showed a white page. | It mends itself (one reload at most) — no hard reload needed. |
 | R119 | B136 | `POST /admin/tenants` for a Basic retail shop with no `modules` key; then one naming `customers`. | The first gets exactly what `GET /admin/modules/offer` includes (no marketplace, delivery, reservations); the second has customers too. |
 | R120 | B137 | Sell 10 L and 7.273 L of a fuel at 280 (cost 255); read the day on Reports and on the Dashboard. | One profit on both, to the paisa (431.82). |
+| R121 | B138 | Fresh browser on live: sign in, poll the worker until `activated`. | Activated in seconds, not 80–90 s; ~240 precache entries, none under images/carousel, cards, user, brand, country. |
+| R122 | B139 | Signed in, cut the line, open a list never visited (Stocktake). | "This device is offline — check its wifi or mobile data…", not "It may be down". |
 
 ### 5b. What no pass has reached yet
 
