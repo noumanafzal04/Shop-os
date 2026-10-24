@@ -55,6 +55,21 @@ class CustomerVehicle extends BaseModel
         return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $registration) ?? '');
     }
 
+    /**
+     * A tyre size as a LIKE pattern that finds it however a shop wrote it.
+     *
+     * Products carry the size in their own name — "Yokohama 195/65 R15",
+     * "195/65R15 Dunlop", "Tyre 195 65 15" — so the numbers are matched in
+     * order with anything between them. Null for text with fewer than two
+     * numbers, which is not a size anybody could fit.
+     */
+    public static function tyreSizeLike(string $size): ?string
+    {
+        preg_match_all('/\d+/', $size, $numbers);
+
+        return count($numbers[0]) < 2 ? null : '%'.implode('%', $numbers[0]).'%';
+    }
+
     /** "Toyota Corolla GLi (2018)" — what the counter reads back. */
     public function describe(): string
     {

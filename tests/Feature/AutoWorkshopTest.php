@@ -121,6 +121,45 @@ class AutoWorkshopTest extends TestCase
         $this->assertEquals(31600, $history['lifetime_value']);
     }
 
+    /**
+     * The car's whole story, not only its bills: a job still in the bay and
+     * every odometer reading the shop has taken, newest first.
+     */
+    public function test_the_history_holds_the_jobs_and_every_reading(): void
+    {
+        $vehicle = $this->createVehicle(['registration' => 'LEA-1234']);
+        $this->fitTyres($vehicle['id'], odometer: 48200);
+        $this->travel(1)->days();
+        $job = $this->login($this->owner)->postJson('/api/v1/sale-documents', [
+            'kind' => 'job_card', 'vehicle_id' => $vehicle['id'], 'odometer_in' => 51900,
+            'complaint' => 'Pulls to the left', 'customer_name' => 'Ali',
+            'items' => [['product_id' => $this->tyre->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+
+        $history = $this->login($this->owner)->getJson("/api/v1/vehicles/{$vehicle['id']}/history")->assertOk()->json('data');
+
+        $this->assertSame([$job['number']], array_column($history['jobs'], 'number'));
+        $this->assertSame('Pulls to the left', $history['jobs'][0]['complaint']);
+        $this->assertSame([51900, 48200], array_column($history['readings'], 'km'));
+    }
+
+    /** What fits the car on the ramp, however the shop wrote the size. */
+    public function test_tyres_are_found_by_the_size_the_car_takes(): void
+    {
+        foreach (['Dunlop 195/65R15' => 'D-1', 'Tyre 195 65 15 Yokohama' => 'Y-1', 'General 185/65 R15' => 'G-2', 'Wiper blade' => 'W-1'] as $name => $sku) {
+            Product::withoutTenancy()->create([
+                'tenant_id' => $this->shop->id, 'type' => 'product', 'name' => $name, 'sku' => $sku,
+                'price' => 100, 'track_inventory' => false, 'is_active' => true,
+            ]);
+        }
+
+        $names = fn (string $size): array => collect($this->login($this->owner)->getJson('/api/v1/products?per_page=50&tyre_size='.urlencode($size))->assertOk()->json('data'))->pluck('name')->sort()->values()->all();
+
+        $this->assertSame(['Dunlop 195/65R15', 'General 195/65 R15', 'Tyre 195 65 15 Yokohama'], $names('195/65 R15'));
+        // Text with no size in it narrows nothing.
+        $this->assertCount(5, $names('any'));
+    }
+
     public function test_a_fleet_can_tell_its_vans_apart(): void
     {
         // Ten vans on one account. "What did we do to THIS van" has to survive

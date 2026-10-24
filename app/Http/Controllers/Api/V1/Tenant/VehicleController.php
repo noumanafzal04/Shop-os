@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Customer;
 use App\Models\CustomerVehicle;
 use App\Models\Sale;
+use App\Models\SaleDocument;
 use App\Support\ApiResponse;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -100,9 +101,27 @@ class VehicleController extends Controller
             ->limit(50)
             ->get(['id', 'invoice_number', 'status', 'total', 'odometer', 'sold_at']);
 
+        // The work on it, not only the bills: a job still in the bay, a
+        // quotation for a set of four, an estimate that was never taken up.
+        $jobs = SaleDocument::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->orderByDesc('created_at')
+            ->limit(50)
+            ->get(['id', 'number', 'kind', 'status', 'work_status', 'total', 'complaint', 'odometer_in', 'created_at']);
+
+        // Every reading the shop has taken, newest first — a service interval is
+        // a distance, and the vehicle row only keeps the last one.
+        $readings = collect()
+            ->merge($sales->filter(fn ($s) => $s->odometer !== null)->map(fn ($s) => ['at' => $s->sold_at?->toIso8601String(), 'km' => (int) $s->odometer, 'on' => $s->invoice_number]))
+            ->merge($jobs->filter(fn ($j) => $j->odometer_in !== null)->map(fn ($j) => ['at' => $j->created_at?->toIso8601String(), 'km' => (int) $j->odometer_in, 'on' => $j->number]))
+            ->sortByDesc('at')
+            ->values();
+
         return ApiResponse::ok([
             'vehicle' => $vehicle,
             'visits' => $sales,
+            'jobs' => $jobs,
+            'readings' => $readings,
             // A running total the owner actually asks for: what has this
             // vehicle been worth to the shop.
             'lifetime_value' => round((float) $sales->where('status', '!=', 'cancelled')->sum('total'), 2),
