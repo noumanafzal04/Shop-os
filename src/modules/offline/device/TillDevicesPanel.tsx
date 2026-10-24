@@ -61,28 +61,28 @@ export default function TillDevicesPanel() {
   const revoke = useMutation({
     mutationFn: (id: string) => deviceService.revoke(id),
     onSuccess: () => {
-      toast.success("Till signed out. It can't be used until you allow it again.");
+      toast.success("Device signed out. It can't be used until you allow it again.");
       invalidate();
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't sign that till out."),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't sign that device out."),
   });
 
   const restore = useMutation({
     mutationFn: (id: string) => deviceService.restore(id),
     onSuccess: () => {
-      toast.success("Till allowed again.");
+      toast.success("Device allowed again.");
       invalidate();
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't allow that till."),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't allow that device."),
   });
 
   const rename = useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => deviceService.rename(id, name),
     onSuccess: () => {
-      toast.success("Till renamed.");
+      toast.success("Device renamed.");
       invalidate();
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't rename that till."),
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't rename that device."),
   });
 
   // A prompt rather than an inline field, deliberately. This is a list an owner
@@ -91,11 +91,11 @@ export default function TillDevicesPanel() {
   // attention with the button that actually matters, which is Sign out.
   const askName = async (device: PosDevice): Promise<void> => {
     const next = await confirm({
-      title: "Name this till",
+      title: "Name this device",
       message: "Use the name the staff use — \"Counter tablet\", \"Lane 2\".",
       confirmLabel: "Save",
       input: {
-        label: "Till name",
+        label: "Device name",
         placeholder: "Counter tablet",
         initial: device.name ?? "",
         // Clearing the box and pressing Rename would put the row back to
@@ -110,13 +110,13 @@ export default function TillDevicesPanel() {
   };
 
   if (roster.isLoading) {
-    return <p className="text-theme-sm text-gray-400">Loading tills…</p>;
+    return <p className="text-theme-sm text-gray-400">Loading devices…</p>;
   }
 
   if (roster.isError) {
     return (
       <p className="text-theme-sm text-error-500">
-        {roster.error instanceof ApiError ? roster.error.message : "Couldn't load your tills."}
+        {roster.error instanceof ApiError ? roster.error.message : "Couldn't load your devices."}
       </p>
     );
   }
@@ -146,7 +146,7 @@ export default function TillDevicesPanel() {
 
     return (
       <p className="text-theme-sm text-gray-400">
-        No tills yet. Every device that opens {PRODUCT.name} signs itself in here.
+        No devices yet. Every device that opens {PRODUCT.name} signs itself in here.
       </p>
     );
   }
@@ -155,12 +155,12 @@ export default function TillDevicesPanel() {
     <div className="space-y-3">
       {windowDays !== null && (
         <p className="text-theme-xs text-gray-400">
-          A till in this shop may keep selling for up to{" "}
+          A device in this shop can keep selling without internet for up to{" "}
           <span className="font-medium text-gray-600 dark:text-gray-300">
             {windowDays} day{windowDays === 1 ? "" : "s"}
           </span>{" "}
-          without reaching us. Ask support to change it. Sales already rung are never lost — they
-          send themselves whenever the till next gets a connection, however long that takes.
+          Ask support to change this. Sales already made are never lost — they are sent as soon as
+          the device is back online, however long that takes.
         </p>
       )}
 
@@ -179,7 +179,7 @@ export default function TillDevicesPanel() {
                         : "text-gray-800 dark:text-white/90"
                     }`}
                   >
-                    {device.name ?? "Unnamed till"}
+                    {device.name ?? "Unnamed device"}
                   </span>
                   {/* Named, not decorated. The offline report puts this against
                       every late sale, because a fault on ONE tablet is a

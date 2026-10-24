@@ -14,7 +14,7 @@ import { tillService, type TillUser } from "../services/tillService";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 
 /**
- * Till PINs, managed where the owner already is.
+ * Staff PINs, managed where the owner already is.
  *
  * Setting your OWN PIN takes your password — that is what proves it's you.
  * Setting a cashier's takes owner authority alone, because an owner can

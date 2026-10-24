@@ -412,9 +412,8 @@ export default function ShopSettingsPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">{words.lede}</p>
       </div>
 
-      {/* Topics. The underline treatment is reserved for the second level of
-          tabs inside Point of Sale — two levels of navigation on one screen
-          must not read as the same control. */}
+      {/* Topics. The second level inside Point of Sale is a pill group — two
+          levels of navigation on one screen must not read as the same control. */}
       <FilterTabs tabs={settingsTabs} value={activeTab} onChange={setTab} sticky className="mb-5" />
 
       {/* Full width, two columns. The old single 3xl stack wasted half of a
@@ -549,7 +548,7 @@ export default function ShopSettingsPage() {
                               <p className="mt-1.5 rounded-lg bg-gray-50 px-3 py-2 text-theme-xs text-gray-600 dark:bg-white/5 dark:text-gray-300">{currencies.data.why}</p>
                             </div>
                           ) : (
-                            <Field label="Currency" hint="Choose it before you start trading. Nothing is converted — a price of 500 stays 500 — so it is fixed once there is a sale, an order or an expense on the books.">
+                            <Field label="Currency" hint="Pick this before your first sale. Prices are not converted (500 stays 500), so it is locked once you have a sale, an order or an expense.">
                               <Select
                                 aria-label="Currency"
                                 className="max-w-sm"
@@ -585,7 +584,7 @@ export default function ShopSettingsPage() {
 
                       return (
                         <>
-                          <Field label="Date format" hint="A date typed into a box is read the same way: with the day first, unless you choose the month first.">
+                          <Field label="Date format" hint="Dates you type are read in this order too — day first, unless you pick month first.">
                             <Select
                               aria-label="Date format"
                               className="max-w-sm"
@@ -609,7 +608,7 @@ export default function ShopSettingsPage() {
                   {/* Not offered to a business with nothing to list on it —
                       see settingsWords. */}
                   {words.offersOnlineShop && (
-                  <SectionCard icon={<GlobeGlyph />} title="Online shop" description="Your customer-facing storefront." badge={<Badge size="sm" color={online ? "success" : "light"}>{online ? "Enabled" : "Off"}</Badge>}>
+                  <SectionCard icon={<GlobeGlyph />} title="Online shop" description="Your online shop page, as customers see it." badge={<Badge size="sm" color={online ? "success" : "light"}>{online ? "Enabled" : "Off"}</Badge>}>
                     {online ? (
                       <>
                         {/*
@@ -759,8 +758,8 @@ export default function ShopSettingsPage() {
               <TwoCol
                 left={
                   <>
-                    <SectionCard icon={<PercentGlyph />} title="Tax" description="Default tax applied at checkout when a product has no rate of its own.">
-                      <Field label="Default tax %" hint="Set 0 for tax-exempt shops.">
+                    <SectionCard icon={<PercentGlyph />} title="Tax" description="Used at checkout when a product has no tax rate of its own.">
+                      <Field label="Default tax %" hint="Use 0 if your shop pays no tax.">
                         <Input type="number" min="0" max="100" className="max-w-xs" value={String(prefs.default_tax_rate)} onChange={(e) => setP("default_tax_rate", Number(e.target.value))} />
                       </Field>
                       <ToggleRow
@@ -778,10 +777,10 @@ export default function ShopSettingsPage() {
                         board all cut the day at one hour now, and this is it.
                         Here rather than under Point of Sale because a shop
                         that only sells online has a day too. */}
-                    <SectionCard icon={<ClockGlyph />} title="Your trading day" description="The hour your shop's day ends and the next one begins.">
+                    <SectionCard icon={<ClockGlyph />} title="Your business day" description="The hour your shop's day ends and the next day starts.">
                       <Field
                         label="A new day starts at"
-                        hint="Sales rung after midnight but before this hour count with the day before — on the dashboard, in reports, on the till's day and on the kitchen board. Receipts still print the real date and time."
+                        hint="Sales made after midnight but before this hour count in the day before — on the dashboard, in reports, at the counter and on the kitchen screen. Receipts still show the real date and time."
                       >
                         <Select
                           value={prefs.day_turns_at === null || prefs.day_turns_at === undefined ? "usual" : String(prefs.day_turns_at)}
@@ -792,12 +791,12 @@ export default function ShopSettingsPage() {
                       </Field>
                       {touched.current.has("day_turns_at") && (
                         <p data-testid="day-turn-consequence" className="rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-300">
-                          Changing this moves late-night sales from one day to the other on earlier reports as well. Days you have already closed off keep the figures they were signed with.
+                          Changing this also moves late-night sales between days in old reports. Days you have already closed keep their figures.
                         </p>
                       )}
                     </SectionCard>
 
-                    <SectionCard icon={<TruckGlyph />} title="Order fulfillment" description="How customers get their orders. They only see the options you enable.">
+                    <SectionCard icon={<TruckGlyph />} title="How orders reach customers" description="Customers only see the options you turn on.">
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {/* DELIVERY IS A MODULE. A shop without it was shown the
                             switch ON (the stored default), could turn Pickup off
@@ -893,7 +892,7 @@ export default function ShopSettingsPage() {
                           >
                             <Input type="number" min="0.5" step={0.5} value={prefs.delivery_radius_km != null ? String(prefs.delivery_radius_km) : ""} onChange={(e) => setP("delivery_radius_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="My whole city" />
                           </Field>
-                          <Field label="Prep time (min)" hint="Estimated preparation time shown to customers.">
+                          <Field label="Preparation time (minutes)" hint="Estimated preparation time shown to customers.">
                             <Input type="number" min="1" max="480" value={prefs.prep_time_minutes != null ? String(prefs.prep_time_minutes) : ""} onChange={(e) => setP("prep_time_minutes", e.target.value === "" ? null : Number(e.target.value))} placeholder="e.g. 25" />
                           </Field>
                           {/* With the rest of delivery, not under the shop's name
@@ -902,10 +901,10 @@ export default function ShopSettingsPage() {
                           <Field label={`Delivery fee (${sym})`} hint="Charged on delivery orders. 0 = free delivery." error={errorFor("delivery_fee")}>
                             <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} />
                           </Field>
-                          <Field label={`Minimum order (${sym})`} hint="Delivery orders below this are rejected.">
+                          <Field label={`Minimum order (${sym})`} hint="Delivery orders below this amount cannot be placed.">
                             <Input type="number" min="0" value={prefs.min_order_amount != null ? String(prefs.min_order_amount) : ""} onChange={(e) => setP("min_order_amount", e.target.value === "" ? null : Number(e.target.value))} placeholder="No minimum" />
                           </Field>
-                          <Field label={`Free delivery above (${sym})`} hint="Waive the delivery fee at/above this subtotal.">
+                          <Field label={`Free delivery above (${sym})`} hint="No delivery fee when the order is this much or more.">
                             <Input type="number" min="0" value={prefs.free_delivery_threshold != null ? String(prefs.free_delivery_threshold) : ""} onChange={(e) => setP("free_delivery_threshold", e.target.value === "" ? null : Number(e.target.value))} placeholder="Never" />
                           </Field>
                         </div>
@@ -943,7 +942,7 @@ export default function ShopSettingsPage() {
                     <Field label="Invoice footer">
                       <Input value={String(prefs.invoice_footer ?? "")} onChange={(e) => setP("invoice_footer", e.target.value)} placeholder="e.g. Thank you for shopping!" />
                     </Field>
-                    <Field label="Receipt size" hint="Thermal sizes print a narrow roll; Standard is a filed A4/Letter invoice with a signature line.">
+                    <Field label="Receipt size" hint="Thermal is the narrow roll printer. Standard is a full A4/Letter page with a signature line.">
                       <Select
                         className="max-w-xs"
                         value={String(prefs.receipt_width ?? "standard")}
@@ -952,7 +951,7 @@ export default function ShopSettingsPage() {
                         onChange={(v) => setP("receipt_width", v)}
                       />
                     </Field>
-                    <Field label="Quotations & advances print on" hint="Quotations, advance slips and job cards. The till prints them on this without asking; their own page asks, with this already picked.">
+                    <Field label="Quotations & advances print on" hint="For quotations, advance slips and job cards. The counter prints on this paper straight away; their own page lets you choose, with this already selected.">
                       <Select
                         className="max-w-xs"
                         value={String(prefs.document_paper ?? "standard")}
@@ -977,7 +976,7 @@ export default function ShopSettingsPage() {
                         <Input value={String(prefs.invoice_strn ?? "")} onChange={(e) => setP("invoice_strn", e.target.value)} placeholder="e.g. 03-04-8765-432-11" />
                       </Field>
                     </div>
-                    <Field label="FBR POS ID" hint={`Your FBR POS registration, if you're a Tier-1 retailer. ${PRODUCT.name} prints it — it does not transmit invoices to FBR.`}>
+                    <Field label="FBR POS ID" hint={`Your FBR POS number, if you are a Tier-1 retailer. ${PRODUCT.name} prints it on the receipt — it does not send invoices to FBR.`}>
                       <Input className="max-w-xs" value={String(prefs.invoice_fbr_pos_id ?? "")} onChange={(e) => setP("invoice_fbr_pos_id", e.target.value)} placeholder="e.g. 556677" />
                     </Field>
                   </SectionCard>
@@ -1001,29 +1000,40 @@ export default function ShopSettingsPage() {
 
             {activeTab === "pos" && (
               <>
-              <div className="mb-1 flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
-                {posSubTabs.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setPosTab(t.key)}
-                    className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-theme-sm font-medium transition ${activePosTab === t.key ? "border-brand-500 text-brand-500" : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
+              {/* The second level, as a segmented control: a pill group set
+                  apart from the topic tabs above, with room under it — the
+                  cards used to sit four pixels under an underline and read as
+                  part of the tab bar. */}
+              <div className="mb-5 overflow-x-auto">
+                <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-white/[0.05]">
+                  {posSubTabs.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      aria-pressed={activePosTab === t.key}
+                      onClick={() => setPosTab(t.key)}
+                      className={`whitespace-nowrap rounded-lg px-4 py-2 text-theme-sm font-medium transition ${
+                        activePosTab === t.key
+                          ? "bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
+                          : "text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {activePosTab === "till" && (
                 <div className="space-y-5">
                 <TwoCol
                   left={
-                    <SectionCard icon={<CartGlyph />} title="Point of sale" description="Defaults for the counter till.">
+                    <SectionCard icon={<CartGlyph />} title="Point of sale" description="Default settings for the counter.">
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field label="Default payment">
                           <Select value={String(prefs.pos_default_payment)} options={[{ value: "cash", label: "Cash" }, { value: "card", label: "Card" }, { value: "wallet", label: "Mobile wallet" }]} placeholder="Cash" onChange={(v) => setP("pos_default_payment", v)} />
                         </Field>
-                        <Field label="Lock the till when idle" hint="The next sale is stamped with whoever unlocks it.">
+                        <Field label="Lock the POS when not in use" hint="The next sale is saved under whoever unlocks it.">
                           <Select
                             value={String(prefs.pos_idle_lock_minutes ?? 0)}
                             options={[
@@ -1039,7 +1049,7 @@ export default function ShopSettingsPage() {
                         </Field>
                         <Field
                           label="Round cash bills to"
-                          hint="Cash only — a card or khata bill always settles to the exact figure. A bill of Rs 1,238.15 has no exact cash tender, and a tie is rounded in the customer's favour."
+                          hint="Cash bills only — card and khata bills are always exact. A bill of Rs 1,238.15 cannot be paid exactly in cash; a halfway amount rounds in the customer's favour."
                         >
                           <Select
                             value={String(prefs.cash_rounding ?? 0)}
@@ -1055,7 +1065,7 @@ export default function ShopSettingsPage() {
                         </Field>
                         <Field
                           label="Warn about expiry this many days ahead"
-                          hint="Blank uses your trade's own answer — 90 days for a medical store, 30 for everyone else. A distributor takes stock back for credit inside a window that closes months before the printed date, so set your own number if theirs is different."
+                          hint="Leave blank for the usual: 90 days for a medical store, 30 for everyone else. If your supplier takes stock back only until some time before expiry, enter your own number."
                         >
                           <Input
                             value={prefs.expiring_soon_days == null ? "" : String(prefs.expiring_soon_days)}
@@ -1080,7 +1090,7 @@ export default function ShopSettingsPage() {
                       <SectionCard
                         icon={<PercentGlyph />}
                         title="Discount limits"
-                        description="How much a cashier may take off without asking. Anyone holding “Override discount limit” can go past it; everyone else is stopped at the till."
+                        description="How much a cashier can discount without asking. Staff with the “Override discount limit” permission can go higher; everyone else is stopped at the counter."
                       >
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <Field label="Most they can discount" hint="As a share of the bill. Empty = no limit.">
@@ -1112,8 +1122,8 @@ export default function ShopSettingsPage() {
                           </Field>
                         </div>
                         <p className="text-theme-xs text-gray-400">
-                          Set both and whichever is hit first stops the sale. Leave both empty and any cashier can discount
-                          anything — which is the setting most shops discover they had after the fact.
+                          If you set both, whichever limit comes first stops the sale. If both are empty, any cashier can give
+                          any discount — most shops only find this out later.
                         </p>
                       </SectionCard>
 
@@ -1121,12 +1131,12 @@ export default function ShopSettingsPage() {
                           delivery service all take them, and burying this in the
                           Kitchen card meant a shop without dine-in could never turn
                           them on at all. */}
-                      <SectionCard icon={<GiftGlyph />} title="Tips" description="Not a restaurant feature — a salon, a workshop and a delivery service all take them.">
+                      <SectionCard icon={<GiftGlyph />} title="Tips" description="Not only for restaurants — salons, workshops and delivery services take tips too.">
                         <ToggleRow
                           checked={!!prefs.tips_enabled}
                           onChange={(v) => setP("tips_enabled", v)}
                           label="Ask for a tip at checkout"
-                          hint="The money is the staff’s. It never counts as a sale, and it is shown separately on the drawer count."
+                          hint="Tips belong to the staff. They never count as sales and are shown separately in the cash count."
                         />
                       </SectionCard>
                     </>
@@ -1136,7 +1146,7 @@ export default function ShopSettingsPage() {
                 <SectionCard
                   icon={<CartGlyph />}
                   title="How the counter behaves"
-                  description="Switches that change what the till does during a sale and at close."
+                  description="Settings that change how the counter works during a sale and at closing."
                 >
 
                   {/* SWITCHES, SEPARATELY FROM VALUES.
@@ -1151,7 +1161,7 @@ export default function ShopSettingsPage() {
                       checked={!!prefs.pos_require_shift}
                       onChange={(v) => setP("pos_require_shift", v)}
                       label="Require open shift"
-                      hint="Refuses a counter sale unless the cashier has TODAY's drawer open — at the till, New Sale, a settled tab, an exchange and a quotation billed — so every rupee belongs to a shift that gets counted. A shift left open from an earlier day must be closed first. Recommended once you have staff."
+                      hint="No counter sale without TODAY's shift open — on the POS, New Sale, tabs, exchanges and billed quotations — so every rupee belongs to a shift that gets counted. A shift left open from an earlier day must be closed first. Turn this on once you have staff."
                     />
                     <ToggleRow
                       checked={!!prefs.pos_auto_print}
@@ -1163,31 +1173,31 @@ export default function ShopSettingsPage() {
                       checked={!!prefs.pos_ask_who_served}
                       onChange={(v) => setP("pos_ask_who_served", v)}
                       label="Ask who served the customer"
-                      hint="For a shop where the salesman and the counter are different people. The till adds a 'Served by' box, and Reports → Staff then shows who SOLD each sale as well as who rang it. Leave it off if one person does both — that is most shops."
+                      hint="For shops where the salesman and the cashier are different people. The POS adds a 'Served by' box, and Reports → Staff shows who sold each sale and who billed it. Leave it off if one person does both — most shops."
                     />
                     <ToggleRow
                       checked={!!prefs.pos_drawer_kick}
                       onChange={(v) => setP("pos_drawer_kick", v)}
                       label="Open drawer on cash"
-                      hint="Only works where the drawer — or the printer it plugs into — is wired over a direct connection. Set that up under Hardware."
+                      hint="Works only when the cash drawer (or the printer it is plugged into) is connected directly. Set this up under Hardware."
                     />
                     <ToggleRow
                       checked={prefs.pos_denomination_count !== false}
                       onChange={(v) => setP("pos_denomination_count", v)}
                       label="Count by note & coin"
-                      hint="Adds the closing total up from the drawer itself, so a second person can re-check it."
+                      hint="Adds up the closing cash from the notes and coins counted, so someone else can check it again."
                     />
                     <ToggleRow
                       checked={!!prefs.pos_blind_close}
                       onChange={(v) => setP("pos_blind_close", v)}
-                      label="Blind close"
-                      hint="Hides expected cash until the count is submitted — a till that says it expects 47,320 tends to get a count of 47,320. Turn it on the day someone else counts your drawer."
+                      label="Hide expected cash at closing"
+                      hint="Hides the expected cash until the count is entered — if the screen says 47,320, people tend to count 47,320. Turn it on when someone else counts your drawer."
                     />
                     <ToggleRow
                       checked={!!prefs.pos_declare_tenders}
                       onChange={(v) => setP("pos_declare_tenders", v)}
-                      label="Declare card totals"
-                      hint="Asks for the card machine's own total at close, so a mis-keyed tender is caught the same day."
+                      label="Enter card machine total at closing"
+                      hint="At closing, asks for the total printed by the card machine, so a wrong card entry is caught the same day."
                     />
                   </div>
                 </SectionCard>
@@ -1199,13 +1209,13 @@ export default function ShopSettingsPage() {
                   left={
                     /* Lanes live with the till, not with hardware: a register is an
                         operating position, and the printer bound to it comes after. */
-                    <SectionCard icon={<CartGlyph />} title="Registers" description="Your checkout lanes. One counter needs none — add a lane each for a busy mart, and each drawer reconciles on its own.">
+                    <SectionCard icon={<CartGlyph />} title="Counters" description="Your checkout counters. One counter needs nothing here — add one for each counter in a busy shop, and each cash drawer is counted on its own.">
                       <RegistersPanel />
                     </SectionCard>
                   }
                   right={
                     <>
-                      <SectionCard icon={<UserGlyph />} title="Till PINs" description="A short PIN lets someone take the till in a second, so sales, voids and drawers belong to whoever actually made them. A PIN only works at a till already signed in — never to log in.">
+                      <SectionCard icon={<UserGlyph />} title="Staff PINs" description="A short PIN lets staff switch on the counter in a second, so every sale, cancel and cash drawer is under the right person. A PIN works only on a counter that is already signed in — not for logging in.">
                         <TillPinsPanel />
                       </SectionCard>
                     </>
@@ -1227,7 +1237,7 @@ export default function ShopSettingsPage() {
                       <SectionCard
                         icon={<CartGlyph />}
                         title="Selling without a connection"
-                        description="Each device keeps its own copy of your products and customers so it can carry on through an outage. This is what THIS device is holding right now."
+                        description="Each device keeps its own copy of your products and customers, so it can keep selling when the internet is down. This shows what THIS device has right now."
                       >
                         <OfflineReadyPanel />
                       </SectionCard>
@@ -1238,7 +1248,7 @@ export default function ShopSettingsPage() {
                       <SectionCard
                         icon={<CartGlyph />}
                         title="Offline pricing checks"
-                        description="Every sale is priced a second time by the offline engine and the two answers compared. Customers always pay the server's price — this is the evidence being gathered before a till is allowed to price on its own."
+                        description="Each sale is priced twice — by the server and by the offline engine — and the two are compared. Customers always pay the server's price; this is the proof collected before a counter may price on its own."
                       >
                         <PricingVariancesPanel />
                       </SectionCard>
@@ -1253,8 +1263,8 @@ export default function ShopSettingsPage() {
                           tablet" and "when did that tablet last reach us". */}
                       <SectionCard
                         icon={<CartGlyph />}
-                        title="Your tills"
-                        description="The devices this shop's POS runs on, and when each last reached us. Signing one out stops it being used without touching the sales it already sent."
+                        title="Your POS devices"
+                        description="The devices your POS runs on, and when each last connected. Signing one out stops it being used; the sales it already sent stay."
                       >
                         <TillDevicesPanel />
                       </SectionCard>
@@ -1262,7 +1272,7 @@ export default function ShopSettingsPage() {
                       <SectionCard
                         icon={<UserGlyph />}
                         title="Signed-in devices"
-                        description="Every browser and tablet currently signed in to your account. Lost one, or lent it out and never got it back? Sign that one out without throwing every working till off mid-queue."
+                        description="Every browser and tablet signed in to your account. Lost one, or lent it and never got it back? Sign out just that one, without stopping your other counters."
                       >
                         <DeviceSessionsPanel />
                       </SectionCard>
@@ -1340,7 +1350,7 @@ export default function ShopSettingsPage() {
                           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <Field
                               label="Minimum advance"
-                              hint="A token advance against an expensive fridge takes it off your floor for weeks and costs the customer nothing to walk away from. 20% is usual. 0 = any amount."
+                              hint="A tiny advance can keep an expensive item off your floor for weeks, and the customer loses nothing by walking away. 20% is usual. 0 = any amount."
                             >
                               <div className="relative">
                                 <Input
@@ -1354,7 +1364,7 @@ export default function ShopSettingsPage() {
                             </Field>
                             <Field
                               label="Collect within"
-                              hint="Before a booking shows as overdue. Nothing is voided — it's the list worth phoning down."
+                              hint="After this, a booking shows as overdue. Nothing is cancelled — it is your list of customers to call."
                             >
                               <div className="relative">
                                 <Input
@@ -1368,7 +1378,7 @@ export default function ShopSettingsPage() {
                             </Field>
                             <Field
                               label="Usual cancellation fee"
-                              hint="Fills in the fee box when a booking is cancelled — a starting figure, not a rule. Whoever cancels can change or waive it. 0 = suggest nothing."
+                              hint="Fills in the fee when a booking is cancelled — only a suggestion. Whoever cancels can change or remove it. 0 = no suggestion."
                             >
                               <div className="relative">
                                 <Input
@@ -1384,8 +1394,8 @@ export default function ShopSettingsPage() {
                             </Field>
                           </div>
                           <p className="text-theme-xs text-gray-400">
-                            Cancelling always puts the goods back on your shelf, and the advance goes back in full unless
-                            a fee is kept — nothing is deducted from a customer's money without someone choosing it.
+                            Cancelling always puts the goods back on your shelf, and the full advance is returned unless a fee
+                            is kept — nothing is taken from the customer's money unless someone chooses to.
                           </p>
                         </>
                       )}
@@ -1401,10 +1411,10 @@ export default function ShopSettingsPage() {
                       <SectionCard
                         icon={<BarcodeGlyph />}
                         title="Stock ageing"
-                        description="When goods dated by manufacture — tyres above all — start counting as old. Nothing is blocked from sale; the counter is told, and the decision stays with whoever is standing there."
+                        description="When goods with a manufacture date — mainly tyres — count as old. Nothing is blocked from sale; the counter is told, and the person selling decides."
                       >
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <Field label="Flag as ageing after" hint="Years from the DOT week.">
+                          <Field label="Mark as getting old after" hint="Years from the DOT week.">
                             <div className="relative">
                               <Input
                                 type="number"
@@ -1417,7 +1427,7 @@ export default function ShopSettingsPage() {
                               <Unit side="right">yrs</Unit>
                             </div>
                           </Field>
-                          <Field label="Flag as old after" hint="The stronger warning. Keep it above the first.">
+                          <Field label="Mark as old after" hint="The stronger warning. Keep it above the first.">
                             <div className="relative">
                               <Input
                                 type="number"
@@ -1441,10 +1451,10 @@ export default function ShopSettingsPage() {
                   separate module and not the question here. POS_SUBTABS gates it. */}
               {activePosTab === "kitchen" && (
                 <div className="max-w-3xl">
-                    <SectionCard icon={<ReceiptGlyph />} title="Kitchen" description="Where fired orders go, and whether they print.">
+                    <SectionCard icon={<ReceiptGlyph />} title="Kitchen" description="Where orders sent to the kitchen go, and whether they print.">
                       <Field
                         label="Stations"
-                        hint="One line each — Kitchen, Bar, Grill. A fired order splits into one ticket per station, so the bar never gets the biryani. Leave empty for a single kitchen printer."
+                        hint="One per line — Kitchen, Bar, Grill. Each order is split into one ticket per station, so the bar never gets the biryani. Leave empty for one kitchen printer."
                       >
                         <StationsField
                           className="dark:bg-dark-900 h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:text-white/90 dark:placeholder:text-white/30"
@@ -1457,7 +1467,7 @@ export default function ShopSettingsPage() {
                         checked={prefs.kot_auto_print !== false}
                         onChange={(v) => setP("kot_auto_print", v)}
                         label="Print kitchen tickets"
-                        hint="Turn this off only if the kitchen works from the Kitchen screen — a ticket that was never printed has not reached anyone."
+                        hint="Turn this off only if the kitchen works from the Kitchen screen — a ticket that never printed has reached nobody."
                       />
                     </SectionCard>
                 </div>
@@ -1477,7 +1487,7 @@ export default function ShopSettingsPage() {
                   checked={!!prefs.loyalty_enabled}
                   onChange={(v) => setP("loyalty_enabled", v)}
                   label="Enable loyalty points"
-                  hint="Points are tied to the customer's phone — add a customer at the till to earn or redeem."
+                  hint="Points are linked to the customer's phone — add the customer at the counter to earn or use points."
                 />
                 {!!prefs.loyalty_enabled && (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1526,14 +1536,14 @@ export default function ShopSettingsPage() {
                       checked={!!prefs.scale_barcode_enabled}
                       onChange={(v) => setP("scale_barcode_enabled", v)}
                       label="Read weighing-scale labels"
-                      hint="A label printed by the scale carries the weight or the price inside the barcode itself."
+                      hint="A label printed by the scale holds the weight or the price inside the barcode."
                     />
                     {!!prefs.scale_barcode_enabled && (
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field label="Prefix" hint="The leading digit(s) your scale uses — usually 2.">
                           <Input value={String(prefs.scale_barcode_prefix ?? "2")} onChange={(e) => setP("scale_barcode_prefix", e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="2" />
                         </Field>
-                        <Field label="Label encodes">
+                        <Field label="What the label holds">
                           <Select value={String(prefs.scale_barcode_mode ?? "weight")} options={[{ value: "weight", label: "Weight" }, { value: "price", label: "Price" }]} placeholder="Weight" onChange={(v) => setP("scale_barcode_mode", v)} />
                         </Field>
                         {/* Only a PRICE label has this question. Whole rupees

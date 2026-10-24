@@ -14,6 +14,8 @@ import {
 import { readinessLabel, readOfflineReadiness, type OfflineReadiness } from "./readiness";
 import { markTillHere } from "./device/tillHere";
 import { pullNow } from "./sync/pullNow";
+import { useQuery } from "@tanstack/react-query";
+import { deviceService } from "./device/deviceService";
 
 /**
  * "Save everything on this device", with an answer.
@@ -70,6 +72,16 @@ export default function OfflineReadyPanel() {
   };
 
   const ready = state?.ready === true;
+  // How long this shop may sell with no line — its plan's answer. The same
+  // query the device list below reads, so it costs nothing more.
+  const roster = useQuery({
+    queryKey: ["pos-devices"],
+    queryFn: () => deviceService.list().then((r) => r.data),
+  });
+  const offlineDays = roster.data?.offline_days ?? 0;
+  // A shop that may sell offline, on a device that cannot yet: the one thing on
+  // this tab worth a colour, so it is not missed until the line goes down.
+  const urgent = offlineDays > 0 && state !== null && !ready;
 
   // Said as two nouns rather than one total, because "4 items are stuck" tells
   // a shopkeeper nothing about whether to go looking for money or for a drawer
@@ -90,7 +102,16 @@ export default function OfflineReadyPanel() {
     + (held === 1 ? " is" : " are");
 
   return (
-    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+    <div
+      data-offline-ready={ready ? "ready" : urgent ? "needed" : "not-ready"}
+      className={`rounded-xl border p-4 ${
+        urgent
+          ? "border-brand-300 bg-brand-50 dark:border-brand-500/40 dark:bg-brand-500/10"
+          : ready
+            ? "border-success-200 bg-success-50/50 dark:border-success-500/30 dark:bg-success-500/5"
+            : "border-gray-200 dark:border-gray-800"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
@@ -103,6 +124,11 @@ export default function OfflineReadyPanel() {
           <p className="mt-1 text-theme-xs leading-relaxed text-gray-500 dark:text-gray-400">
             {state === null ? "Checking what is saved here…" : readinessLabel(state)}
           </p>
+          {urgent && (
+            <p className="mt-1 text-theme-xs font-medium text-brand-700 dark:text-brand-300">
+              Your plan lets this shop sell without internet for up to {offlineDays} day{offlineDays === 1 ? "" : "s"}. Save this device so it can.
+            </p>
+          )}
           {state?.lastPullAt && (
             <p className="mt-1 text-theme-xs text-gray-400">
               Last checked {formatEntryDate(state.lastPullAt)}
@@ -115,7 +141,7 @@ export default function OfflineReadyPanel() {
           )}
         </div>
 
-        <Button size="sm" variant="outline" onClick={save} disabled={saving}>
+        <Button size="sm" variant={ready ? "outline" : "primary"} onClick={save} disabled={saving}>
           {saving ? "Saving…" : "Save everything on this device"}
         </Button>
       </div>

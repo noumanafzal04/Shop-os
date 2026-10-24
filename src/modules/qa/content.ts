@@ -392,7 +392,7 @@ export const QA_SECTIONS: QaSection[] = [
           { do: "After midnight, with last night's day still OPEN, open a new shift.", expect: "It joins last night's day — one day, not two. The dashboard does not say yesterday was never closed until five in the morning has passed." },
           { do: "Close the day at 11:50 pm, then open a shift at 12:30 am and sell.", expect: "A NEW day starts, dated by the calendar. The closed day does not move, and the dashboard shows a day open." },
           { do: "At 1 am, with sales rung at 10 pm and at 12:30 am, read the dashboard, Reports → daily, the cashbook, the ledger and the sales list on Today.", expect: "All five show BOTH sales, under yesterday's date. After 5 am all five show none for the new day. Any screen that disagrees with the others is a bug." },
-          { do: "Settings → Tax & Delivery → Your trading day: choose Midnight, save, and repeat the 1 am check.", expect: "Every one of those screens now puts the 10 pm sale on yesterday and the 12:30 am sale on today. A screen that did not move is a bug. Put it back to The usual afterwards." },
+          { do: "Settings → Tax & Delivery → Your business day: choose Midnight, save, and repeat the 1 am check.", expect: "Every one of those screens now puts the 10 pm sale on yesterday and the 12:30 am sale on today. A screen that did not move is a bug. Put it back to The usual afterwards." },
         ],
         wrong: [
           "Two trading days open at one counter because a shift was opened after midnight.",

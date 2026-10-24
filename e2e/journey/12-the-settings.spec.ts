@@ -254,9 +254,9 @@ test("G1 · Auto-print: the receipt goes to the printer without being asked", as
 
 test("G1 · Lock when idle: a till nobody touches for three minutes locks itself", async ({ page, request }) => {
   await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
-    (p) => p.getByLabel("Lock the till when idle").selectOption({ label: "After 3 minutes" }),
+    (p) => p.getByLabel("Lock the POS when not in use").selectOption({ label: "After 3 minutes" }),
     { pos_idle_lock_minutes: 3 },
-    async (p) => { await expect(p.getByLabel("Lock the till when idle")).toHaveValue("3"); },
+    async (p) => { await expect(p.getByLabel("Lock the POS when not in use")).toHaveValue("3"); },
   );
 
   // IN REAL TIME. A faked clock was tried first and the till never locked
@@ -412,14 +412,14 @@ test("G2 · Closing a shift: blind, typed as one total, with the card machine's 
   await choose(page, request, { tab: "Point of Sale", sub: "Counter" },
     async (p) => {
       await setSwitch(p, "Count by note & coin", false);
-      await setSwitch(p, "Blind close", true);
-      await setSwitch(p, "Declare card totals", true);
+      await setSwitch(p, "Hide expected cash at closing", true);
+      await setSwitch(p, "Enter card machine total at closing", true);
     },
     { pos_denomination_count: false, pos_blind_close: true, pos_declare_tenders: true },
     async (p) => {
       await expect(toggle(p, "Count by note & coin")).toHaveAttribute("aria-checked", "false");
-      await expect(toggle(p, "Blind close")).toHaveAttribute("aria-checked", "true");
-      await expect(toggle(p, "Declare card totals")).toHaveAttribute("aria-checked", "true");
+      await expect(toggle(p, "Hide expected cash at closing")).toHaveAttribute("aria-checked", "true");
+      await expect(toggle(p, "Enter card machine total at closing")).toHaveAttribute("aria-checked", "true");
     },
   );
 
@@ -812,14 +812,14 @@ test("G8 · Delivery: the limits a shop sets are the limits a customer is shown"
   await choose(page, request, { tab: "Tax & Delivery" },
     async (p) => {
       await p.getByLabel("Delivery radius (km)").fill("7");
-      await p.getByLabel("Prep time (min)").fill("25");
+      await p.getByLabel("Preparation time (minutes)").fill("25");
       await p.getByLabel("Minimum order (Rs)").fill("500");
       await p.getByLabel("Free delivery above (Rs)").fill("2000");
     },
     { delivery_radius_km: 7, prep_time_minutes: 25, min_order_amount: 500, free_delivery_threshold: 2000 },
     async (p) => {
       await expect(p.getByLabel("Delivery radius (km)")).toHaveValue("7");
-      await expect(p.getByLabel("Prep time (min)")).toHaveValue("25");
+      await expect(p.getByLabel("Preparation time (minutes)")).toHaveValue("25");
       await expect(p.getByLabel("Minimum order (Rs)")).toHaveValue("500");
       await expect(p.getByLabel("Free delivery above (Rs)")).toHaveValue("2000");
     },
@@ -1028,7 +1028,7 @@ test("G12 · Scale barcodes: a label from the scale rings the item at the weight
   await setSwitch(page, "Read weighing-scale labels", true);
   await page.getByLabel("Prefix").fill("2");
   // By value: the box's greyed-out hint is also the word "Weight".
-  await page.getByLabel("Label encodes").selectOption("weight");
+  await page.getByLabel("What the label holds").selectOption("weight");
   await save(page);
   expect(await held(request)).toMatchObject({ scale_barcode_enabled: true, scale_barcode_prefix: "2", scale_barcode_mode: "weight" });
 
@@ -1233,7 +1233,7 @@ const LANE = { name: "QA Lane 2", code: "L2" } as const;
 
 test("G5 · A register is added, the till asks which lane it is, and remembers", async ({ page }) => {
   await openSettings(page, "Point of Sale", "Lanes & PINs");
-  await expect(page.getByRole("heading", { name: "Registers" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Counters" })).toBeVisible({ timeout: 20_000 });
   const lanes = page.locator("body");
   if ((await lanes.getByText(LANE.name, { exact: true }).count()) === 0) {
     await lanes.getByRole("button", { name: "+ Add register" }).click();
@@ -1263,7 +1263,7 @@ test("G5 · A register is added, the till asks which lane it is, and remembers",
 
 test("G5 · The register is removed, and the till stops asking", async ({ page }) => {
   await openSettings(page, "Point of Sale", "Lanes & PINs");
-  await expect(page.getByRole("heading", { name: "Registers" })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("heading", { name: "Counters" })).toBeVisible({ timeout: 20_000 });
   const lanes = page.locator("body");
   const row = lanes.getByRole("listitem").filter({ hasText: LANE.name });
   await expect(row).toBeVisible({ timeout: 20_000 });

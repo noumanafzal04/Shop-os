@@ -102,7 +102,7 @@ describe("the roster", () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/No tills yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No devices yet/)).toBeInTheDocument();
   });
 
   it("says so when the list cannot be loaded", async () => {
@@ -110,7 +110,7 @@ describe("the roster", () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/Couldn't load your tills/)).toBeInTheDocument();
+    expect(await screen.findByText(/Couldn't load your devices/)).toBeInTheDocument();
   });
 });
 
@@ -213,7 +213,7 @@ describe("naming a till", () => {
    */
   const openRenameAnd = async (typed: string | null): Promise<void> => {
     await userEvent.click(await screen.findByRole("button", { name: /rename|name it/i }));
-    const box = await screen.findByLabelText(/till name/i);
+    const box = await screen.findByLabelText(/device name/i);
 
     if (typed === null) {
       await userEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
@@ -276,7 +276,7 @@ describe("naming a till", () => {
 
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: /rename/i }));
-    await userEvent.clear(await screen.findByLabelText(/till name/i));
+    await userEvent.clear(await screen.findByLabelText(/device name/i));
 
     expect(screen.getByRole("button", { name: /^save$/i })).toBeDisabled();
     expect(rename).not.toHaveBeenCalled();
@@ -299,7 +299,7 @@ describe("a device the server turned away", () => {
     renderPanel();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/registered to another shop/);
-    expect(screen.queryByText(/No tills yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No devices yet/)).not.toBeInTheDocument();
   });
 
   it("still says 'no tills yet' when nothing was refused", async () => {
@@ -310,6 +310,6 @@ describe("a device the server turned away", () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/No tills yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No devices yet/)).toBeInTheDocument();
   });
 });

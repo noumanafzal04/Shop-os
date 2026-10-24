@@ -429,7 +429,7 @@ export default function DayPage() {
                       <p data-testid="day-ends-at" className="mt-1 text-theme-xs text-gray-400">
                         Your shop's day runs until {turnsAtLabel(turnsAt)}
                         {turnsAt > 0 ? " — a sale or a shift after midnight still belongs here." : "."}
-                        {canManage && " Change the hour under Settings → Tax & Delivery → Your trading day."}
+                        {canManage && " Change the hour under Settings → Tax & Delivery → Your business day."}
                       </p>
                     )}
                     {/* IT WAS CLOSED OFF ONCE TODAY. Said on the day itself,
