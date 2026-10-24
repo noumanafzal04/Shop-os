@@ -56,7 +56,8 @@ location /assets/ {
 
 # Never kept: these are how the app finds out there is a newer version.
 location = /sw.js                { add_header Cache-Control "no-cache"; }
-location = /manifest.webmanifest { default_type application/manifest+json; add_header Cache-Control "no-cache"; }
+location = /sw-heal.js           { add_header Cache-Control "no-cache"; }   # B119: mends a broken stored copy
+location = /manifest.webmanifest { default_type application/manifest+json; add_header Cache-Control "no-cache"; }   # next rounds #34
 location / {
     add_header Cache-Control "no-cache";
     try_files $uri $uri/ /index.html;
