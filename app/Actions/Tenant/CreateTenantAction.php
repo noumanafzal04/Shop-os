@@ -8,6 +8,7 @@ use App\Enums\UserStatus;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\ModulePackages;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -82,8 +83,17 @@ class CreateTenantAction
             }
 
             // ③ The admin's own decisions, last, so they win over both.
+            //
+            // Left unsaid, the PLAN decides — what the console's own offer
+            // proposes for this trade on this plan, which is what the create
+            // screen sends (next rounds #25; the user chose this, 2026-10-24).
+            // A script that named no modules gave a Basic retail shop fifteen,
+            // ten of them add-ons the platform sells, because the trade's whole
+            // set from ① stood and the plan was never asked.
             if (isset($data['modules'])) {
                 $tenant->applyModules($data['modules']);
+            } elseif (! empty($data['plan_id'])) {
+                $tenant->applyModules(ModulePackages::propose($data['business_type'] ?? null, $tenant->plan)['modules'], merge: false);
             }
 
             if (! empty($data['limits'])) {

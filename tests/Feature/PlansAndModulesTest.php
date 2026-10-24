@@ -7,6 +7,7 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\ModulePackages;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use Database\Seeders\PlanSeeder;
@@ -118,14 +119,24 @@ class PlansAndModulesTest extends TestCase
         $this->assertFalse($tenant->featureEnabled('expenses'));
     }
 
-    public function test_a_business_type_proposes_modules_when_the_admin_names_none(): void
+    /**
+     * CHANGED (next rounds #25, the user chose it 2026-10-24): with no modules
+     * named, the PLAN decides — what the console's own offer proposes for this
+     * trade on this plan, which is what the create screen sends. It used to be
+     * the trade's whole set, and a Basic shop got the add-ons for nothing.
+     */
+    public function test_the_plan_decides_the_modules_when_the_admin_names_none(): void
     {
+        $plan = Plan::query()->where('code', 'basic')->firstOrFail();
+        $offer = ModulePackages::propose('food', $plan)['included'];
+
         $id = $this->asAdmin()->postJson('/api/v1/admin/tenants', $this->payload(['business_type' => 'food']))
             ->assertCreated()->json('data.id');
+        $tenant = Tenant::query()->findOrFail($id);
 
-        // Kitchen tickets and tables, because it is a restaurant — not because
-        // of anything it pays.
-        $this->assertTrue(Tenant::query()->findOrFail($id)->featureEnabled('dine_in'));
+        foreach (Modules::keys() as $module) {
+            $this->assertSame(in_array($module, $offer, true), $tenant->featureEnabled($module), $module);
+        }
     }
 
     public function test_branches_and_staff_are_assigned_when_the_business_is_created(): void

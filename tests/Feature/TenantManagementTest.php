@@ -78,11 +78,11 @@ class TenantManagementTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.business_name', 'Karachi General Store')
-            // A mart's type proposes an online store, and online_shop_enabled
-            // now tracks that module instead of a flag on the plan — so ticking
-            // Online Store is the ONE thing that turns a shop's storefront on.
-            ->assertJsonPath('data.online_shop_enabled', true)
-            ->assertJsonPath('data.features.marketplace', true);
+            // online_shop_enabled tracks the Online Store module. Named nowhere,
+            // the plan decides (next rounds #25) — and Basic does not include
+            // it, so this mart has no storefront until somebody ticks it.
+            ->assertJsonPath('data.online_shop_enabled', false)
+            ->assertJsonPath('data.features.marketplace', false);
 
         $this->assertDatabaseHas('users', [
             'email' => 'ali@test.com',

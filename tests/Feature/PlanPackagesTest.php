@@ -78,6 +78,34 @@ class PlanPackagesTest extends TestCase
         $this->as($this->admin)->getJson('/api/v1/admin/modules/offer')->assertStatus(422);
     }
 
+    /**
+     * Next rounds #25: a Basic retail shop created through the API with no
+     * `modules` key landed on fifteen — the trade's whole set — where the
+     * offer proposes five. The plan now decides what nobody named.
+     */
+    public function test_a_shop_created_without_naming_modules_gets_what_its_plan_offers(): void
+    {
+        $basic = $this->plan('basic');
+        $offer = $this->as($this->admin)->getJson("/api/v1/admin/modules/offer?business_type=retail&plan_id={$basic->id}")->json('data');
+
+        $this->as($this->admin)->postJson('/api/v1/admin/tenants', [
+            'business_name' => 'Hisaab QA Plans', 'business_type' => 'retail', 'plan_id' => $basic->id,
+            'owner' => ['name' => 'Owner', 'email' => 'plans@shop.test', 'password' => 'a-strong-password'],
+        ])->assertCreated();
+
+        $shop = Tenant::query()->where('business_name', 'Hisaab QA Plans')->firstOrFail();
+        $this->assertEqualsCanonicalizing($offer['included'], $this->on($shop->features));
+        $this->assertNotContains('marketplace', $this->on($shop->features));
+
+        // Named modules still win — the console's screen always sends them.
+        $this->as($this->admin)->postJson('/api/v1/admin/tenants', [
+            'business_name' => 'Named Shop', 'business_type' => 'retail', 'plan_id' => $basic->id,
+            'modules' => ['customers' => true],
+            'owner' => ['name' => 'Owner', 'email' => 'named@shop.test', 'password' => 'a-strong-password'],
+        ])->assertCreated();
+        $this->assertContains('customers', $this->on(Tenant::query()->where('business_name', 'Named Shop')->firstOrFail()->features));
+    }
+
     // ── a plan's own list ─────────────────────────────────────────────
 
     public function test_a_plan_can_be_told_what_it_includes_and_put_back_on_its_rung(): void
