@@ -500,13 +500,23 @@ class DashboardService
         $refunds = $sum($byDay['refunds']);
         $expenses = $sum($byDay['expenses']);
 
+        // EACH PART TO THE PAISA, THEN ADDED UP — exactly as ReportService::summary
+        // does (next rounds #33). 7.273 L × 255 is a cost of 1,854.615: the
+        // report printed cost 4,404.62 and profit 345.38, and this rounded the
+        // profit once at the end to 345.39 — the same day, a paisa apart. The
+        // profit is now the figures a screen shows, added up.
+        $kept = round($revenue - $refunds, 2);
+        $tax = round($sum($byDay['tax']), 2);
+        $cogs = round($sum($byDay['cogs']), 2);
+        $rounding = round((float) array_sum(array_column($sales, 'rounding')), 2);
+
         return [
             'sales_count' => (int) array_sum(array_column($sales, 'sales_count')),
             'revenue' => $revenue,
             'other_income' => $income,
             'refunds' => $refunds,
             'expenses' => $expenses,
-            'profit' => $revenue - $refunds - $sum($byDay['tax']) + $income + (float) array_sum(array_column($sales, 'rounding')) - $sum($byDay['cogs']) - $expenses,
+            'profit' => $kept - $tax + round($income, 2) + $rounding - $cogs - round($expenses, 2),
         ];
     }
 

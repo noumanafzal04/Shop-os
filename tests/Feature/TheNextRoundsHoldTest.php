@@ -99,6 +99,34 @@ class TheNextRoundsHoldTest extends TestCase
         $this->assertContains('Retry-After', config('cors.exposed_headers'));
     }
 
+    /**
+     * #33: a cost that is not a whole number of paisa — 7.273 L at 255 is
+     * 1,854.615 — gave Reports 345.38 and the Dashboard 345.39 for one day.
+     */
+    public function test_the_dashboard_and_the_report_give_one_profit_to_the_paisa(): void
+    {
+        $diesel = $this->as($this->owner)->postJson('/api/v1/products', [
+            'name' => 'Diesel', 'item_type' => 'physical_product', 'sold_by' => 'weight', 'unit' => 'litre',
+            'price' => 280, 'cost' => 255, 'tax_rate' => 0, 'track_inventory' => false,
+        ])->assertCreated()->json('data.id');
+        $this->as($this->cashier)->postJson('/api/v1/pos/session/open', ['opening_float' => 0])->assertSuccessful();
+        foreach ([10, 7.273] as $litres) {
+            $this->as($this->cashier)->postJson('/api/v1/sales', [
+                'channel' => 'pos', 'payment_method' => 'card', 'amount_paid' => round($litres * 280, 2),
+                'items' => [['product_id' => $diesel, 'quantity' => $litres]],
+            ])->assertCreated();
+        }
+
+        $report = $this->as($this->owner)->getJson('/api/v1/reports/summary?period=custom&from=2026-10-22&to=2026-10-22')->assertOk()->json('data.totals');
+        $dashboard = $this->as($this->owner)->getJson('/api/v1/dashboard')->assertOk()->json('data.today');
+
+        // The cost has a half paisa in it (4,404.615): rounded at the end it
+        // was 431.83 on the Dashboard; the report's own rows add up to 431.82.
+        $this->assertEquals(4404.62, $report['cogs']);
+        $this->assertEquals(431.82, $report['net_profit']);
+        $this->assertEquals(431.82, $dashboard['profit']);
+    }
+
     /** A cashier's drawer holding exactly this much cash: a float of 5,000 and a cash sale for the rest. */
     private function aDrawerHolding(float $cash): void
     {
