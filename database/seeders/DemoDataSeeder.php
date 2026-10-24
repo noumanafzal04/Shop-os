@@ -107,7 +107,13 @@ class DemoDataSeeder extends Seeder
 {
     public function run(): void
     {
-        $cities = City::query()->where('is_active', true)->orderBy('name')->get();
+        // The launch cities, not every town the dataset knows: nine demo shops
+        // spread alphabetically over 458 cities would all land in places
+        // beginning with A.
+        $cities = City::query()->where('is_active', true)->whereIn('name', City::MAJOR)->orderBy('name')->get();
+        if ($cities->isEmpty()) {
+            $cities = City::query()->where('is_active', true)->orderBy('name')->get();
+        }
 
         // A bespoke deal, so the panel has one to show: a chain that wanted its
         // own ceiling and its own price instead of climbing a rung.

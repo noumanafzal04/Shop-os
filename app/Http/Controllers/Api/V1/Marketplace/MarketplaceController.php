@@ -31,6 +31,11 @@ class MarketplaceController extends Controller
     /**
      * GPS → market: resolve the caller's coordinates to the nearest active
      * city, so the app never needs a manual city picker.
+     *
+     * The nearest city WITH SHOPS, first. With eight cities the nearest one
+     * always had a market; with every town in the country it is often a
+     * village beside the city, with no shop in it, and the marketplace opened
+     * empty. Only a platform with no shop anywhere yet names the nearest town.
      */
     public function locate(Request $request): JsonResponse
     {
@@ -39,12 +44,15 @@ class MarketplaceController extends Controller
             'lng' => ['required', 'numeric', 'between:-180,180'],
         ]);
 
-        $city = City::query()
+        $nearest = fn (bool $withShops) => City::query()
             ->where('is_active', true)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
+            ->when($withShops, fn ($q) => $q->whereIn('id', Tenant::query()->marketplaceVisible()->select('city_id')))
             ->orderByRaw(Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']))
             ->first();
+
+        $city = $nearest(true) ?? $nearest(false);
 
         if ($city === null) {
             return ApiResponse::ok(['city' => null, 'in_service_area' => false]);

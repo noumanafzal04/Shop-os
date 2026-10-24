@@ -65,6 +65,19 @@ class GeoLocationTest extends TestCase
         $this->assertTrue($data['in_service_area']);
     }
 
+    public function test_locate_prefers_the_nearest_city_with_shops_over_a_nearer_town_with_none(): void
+    {
+        // With every town in the country on file, the nearest centre to a
+        // point on Lahore's edge is often a town with no shop at all — and the
+        // marketplace opened on it, empty.
+        City::query()->create(['name' => 'Muridke', 'latitude' => 31.8020, 'longitude' => 74.2550, 'is_active' => true]);
+        $this->makeShop('Lahore Mart', $this->lahore, 31.52, 74.35);
+
+        $data = $this->getJson('/api/v1/marketplace/locate?lat=31.78&lng=74.26')->assertOk()->json('data');
+
+        $this->assertSame('Lahore', $data['city']['name']);
+    }
+
     public function test_locate_flags_out_of_service_area(): void
     {
         // Middle of the Arabian Sea — far from every seeded city.

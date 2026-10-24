@@ -23,6 +23,8 @@ class DatabaseSeeder extends Seeder
         // ── Production bootstrap ─────────────────────────────────────────
         $this->call([
             CitySeeder::class,
+            // Country → province → city, joining the eight above.
+            GeoSeeder::class,
             PlanSeeder::class,
             SuperAdminSeeder::class,
         ]);

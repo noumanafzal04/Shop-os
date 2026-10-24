@@ -158,6 +158,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
     // ── Public lookups ───────────────────────────────────────────────
     Route::get('/cities', [CityController::class, 'index']);
+    Route::get('/countries', [CityController::class, 'countries']);
+    Route::get('/provinces', [CityController::class, 'provinces']);
     Route::get('/business-types', [BusinessTypeController::class, 'index']);
     // The currencies a business can be put on — a list, like the two above.
     Route::get('/currencies', fn () => ApiResponse::ok(Currencies::options()));

@@ -111,7 +111,9 @@ class CreateDemoShopAction
             $tenant = $this->createTenant->execute([
                 'business_name' => $name,
                 'business_type' => $businessType,
-                'city_id' => City::query()->where('is_active', true)->value('id'),
+                // A launch city, not whichever of 458 towns comes first.
+                'city_id' => City::query()->where('is_active', true)->whereIn('name', City::MAJOR)->value('id')
+                    ?? City::query()->where('is_active', true)->value('id'),
                 'owner' => [
                     'name' => 'Demo Owner',
                     'email' => 'demo-'.Str::lower(Str::random(12)).'@demo.cartze.shop',
