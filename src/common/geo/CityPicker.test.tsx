@@ -99,15 +99,40 @@ describe("choosing where a shop is", () => {
     expect(options("City")).toEqual(expect.arrayContaining(["Nasirabad (Sindh)", "Nasirabad (Balochistan)"]));
   });
 
-  it("asks for a country only once there is more than one", async () => {
+  it("shows the country even while Pakistan is the only one", async () => {
     countries = [{ id: 167, name: "Pakistan", iso2: "PK", phone_code: "92", currency: "PKR" }];
-    const one = show();
-    await screen.findByRole("option", { name: "Lahore" });
-    expect(screen.queryByLabelText("Country", { selector: "select" })).toBeNull();
-    one.unmount();
-
-    countries = [...countries, { id: 231, name: "United Arab Emirates", iso2: "AE", phone_code: "971", currency: "AED" }];
     show();
-    expect(await screen.findByLabelText("Country", { selector: "select" })).toBeInTheDocument();
+    await screen.findByRole("option", { name: "Lahore" });
+
+    expect((screen.getByLabelText("Country", { selector: "select" }) as HTMLSelectElement).value).toBe("167");
+  });
+
+  it("always shows the country, Pakistan by default", async () => {
+    // A country added later is one more line here, and nothing else moves.
+    countries = [
+      { id: 231, name: "United Arab Emirates", iso2: "AE", phone_code: "971", currency: "AED" },
+      { id: 167, name: "Pakistan", iso2: "PK", phone_code: "92", currency: "PKR" },
+    ];
+    show();
+    await screen.findByRole("option", { name: "Lahore" });
+
+    const country = screen.getByLabelText("Country", { selector: "select" }) as HTMLSelectElement;
+    expect(country.value).toBe("167");
+    expect(Array.from(country.options).map((o) => o.text)).toEqual(["United Arab Emirates", "Pakistan"]);
+  });
+
+  it("narrows to another country's provinces and drops a city from the last one", async () => {
+    countries = [
+      { id: 167, name: "Pakistan", iso2: "PK", phone_code: "92", currency: "PKR" },
+      { id: 231, name: "United Arab Emirates", iso2: "AE", phone_code: "971", currency: "AED" },
+    ];
+    show("lhr");
+    await screen.findByRole("option", { name: "Lahore" });
+
+    fireEvent.change(screen.getByLabelText("Country", { selector: "select" }), { target: { value: "231" } });
+
+    expect(screen.getByTestId("chosen").textContent).toBe("");
+    expect(options("Province")).toEqual(["All provinces"]);
+    expect(options("City")).not.toContain("Lahore");
   });
 });

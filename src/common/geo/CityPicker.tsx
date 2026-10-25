@@ -10,7 +10,8 @@ import { useCities, useCountries, useProvinces, type PlaceCity } from "./places"
  * Eight cities fitted one dropdown; 458 do not. A province narrows the list,
  * and choosing a city straight away fills its province in — a counter that
  * knows its city should not have to know its province first. The country is
- * asked only once there is more than one to choose from.
+ * always shown, Pakistan by default, so a country added later is one more
+ * line in this list and nothing else changes.
  *
  * The city is a native select labelled "City", as it always was, so every
  * screen, test and screen reader that found it there still does. Renders its
@@ -40,7 +41,8 @@ export function CityPicker({
   // while no city is chosen; narrowing elsewhere clears the city.
   const [pickedCountry, setCountry] = useState<number | null>(null);
   const [pickedProvince, setProvince] = useState<number | null>(null);
-  const countryId = chosen?.country_id ?? pickedCountry ?? (countries.data?.length === 1 ? countries.data[0].id : null);
+  const home = countries.data?.find((c) => c.iso2 === "PK") ?? countries.data?.[0] ?? null;
+  const countryId = chosen?.country_id ?? pickedCountry ?? home?.id ?? null;
   const provinceId = chosen ? chosen.province_id : pickedProvince;
 
   const provinceList = (provinces.data ?? []).filter((p) => countryId === null || p.country_id === countryId);
@@ -58,18 +60,19 @@ export function CityPicker({
 
   return (
     <>
-      {(countries.data?.length ?? 0) > 1 && (
+      {(countries.data?.length ?? 0) > 0 && (
         <div>
           <Label>Country</Label>
           <Select
             aria-label="Country"
             value={countryId === null ? "" : String(countryId)}
             options={(countries.data ?? []).map((c) => ({ value: String(c.id), label: c.name }))}
-            placeholder="Choose a country"
+            placeholder={null}
             onChange={(v) => {
-              setCountry(v === "" ? null : Number(v));
+              setCountry(Number(v));
               setProvince(null);
-              onChange("", null);
+              // A city in another country is no longer the answer.
+              if (chosen !== null && chosen.country_id !== Number(v)) onChange("", null);
             }}
           />
         </div>
