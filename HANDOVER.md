@@ -9750,3 +9750,18 @@ built; they wait for the owner's yes.**
 - Panel: `common/geo/CityPicker` on Admin new shop, Admin shop detail, Shop setup, Shop settings;
   `cityForPin` for the map; the marketplace header lists cities with shops.
 - Deploy: backend → `php artisan migrate` → `php artisan shopos:geo PK` → panel. Dev DB done.
+
+## 2026-10-25 — wholesale round fixed
+
+- Report `docs/qa/TESTER-REPORT-2026-10-25-wholesale.md` (untracked): 11 PASS, 1 FAIL, 7 bugs →
+  **B146–B152**, re-test rows R133–R139.
+- Part 1 — backend `cffa4bd`, panel `d8c0b06`: #W1 (P1) wholesale not switched onto the
+  marketplace by its plan (`ModulePackages::OPT_IN` — still included, never billed); #W2 the till
+  reads its place's stock; #W6 permission `sales.on_credit` (migration `2026_10_25_000002`
+  grants it to every sales.manage holder); #W7 a hand-picked wholesale price needs
+  discounts.apply.
+- Part 2 — backend `11d4dfe`, panel `ab30c24`: #W4 typed quantity + pack on the new-document
+  sheet; #W5 `GET /reports/customers` + Customers tab; #W3 khata dates are the trading day.
+- Not done: profit by pack, delivery challan, credit days and the rest of W12's suggestions.
+  Existing wholesale shops on live: an admin unticks Online Store.
+- Deploy: backend (two migrations today: `2026_10_25_000001`, `000002`) → `shopos:geo PK` → panel.

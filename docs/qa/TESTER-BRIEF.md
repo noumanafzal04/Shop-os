@@ -183,6 +183,13 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R130 | tyre shop | Sync once online, then offline: type a plate on file, then a new plate. (B143) | The car is found with its owner; a new plate says adding a car needs internet — no "+ Register". |
 | R131 | petrol pump | No shift open: ring fuel. Read Reports → Fuel; open a shift, move the meters by those litres as a real pump would, dip, close. Then once more without moving the meters. (B144) | Till shows "No forecourt shift is open" and still sells. Before the close: "Waiting to be counted". After: unbilled 0, tank 0, "Sold with no shift open" row, "rung at the till" includes it. Meters unmoved: "Not counted as missing … sold, not lost"; the leak figure excludes it. |
 | R132 | tyre shop | Workshop and a job card. (B145) | Take a car in · Waiting · Work in progress · Ready; "checking charges" on the take-in sheet; a "← Back" button on the Workshop and "← Workshop" button on the job card. |
+| R133 | wholesale | Make a wholesale shop on Pro without naming modules; read `/marketplace/shops` with no login. (B146) | Not listed; Online Store unticked but on offer, and ticking it adds nothing to the bill. |
+| R134 | wholesale | 480 in the godown, 120 moved to Main: read the till tile, try to ring 150. (B147) | Tile says 120; the cart will not take more than 120. |
+| R135 | wholesale | A khata sale at 03:04 (day turns 05:00): the customer's khata card vs Reports. (B148) | Both say the 24th. |
+| R136 | wholesale | New quotation: type 15, pick Carton 24. (B149) | 15 cartons on the quote, priced by the carton; no tapping. |
+| R137 | wholesale | Reports → Customers for October. (B150) | Each dealer: sales, bought, on khata in the period, owes now; walk-in on its own line; figures = Sales list. |
+| R138 | wholesale | Untick "Sell on khata" for the booker; he tries khata. (B151) | No Khata button; the API refuses KHATA_NOT_YOURS; balance unchanged. Everyone else still sells on khata. |
+| R139 | wholesale | The booker (no discount permission) looks for Retail/Wholesale on a line. (B152) | No menu; the API refuses PRICE_LEVEL_NOT_YOURS. A dealer in a wholesale group still gets the wholesale price. |
 
 ### 5b. What no pass has reached yet
 
