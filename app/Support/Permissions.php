@@ -149,6 +149,17 @@ class Permissions
     public const SALES_CREDIT_OTHERS = 'sales.credit_others';
 
     /**
+     * Putting a sale on a customer's khata.
+     *
+     * Selling on account is lending the shop's money. It was gated only by
+     * the shop's Customers module, so an order booker who could not even read
+     * a dealer's account put Rs 5,050 on it — and no permission existed for
+     * the owner to withhold (wholesale #W6). Everyone who could already do it
+     * was given it, so nothing that worked stopped; the owner can now untick it.
+     */
+    public const SALES_ON_CREDIT = 'sales.on_credit';
+
+    /**
      * Exceeding the shop's discount ceiling. discounts.apply lets you give the
      * everyday discount; this lets you go past the limit the owner set.
      */
@@ -384,6 +395,10 @@ class Permissions
             'label' => 'Credit a sale to someone else',
             'hint' => 'Pick another staff member as Served by. Without it, only themselves.',
         ],
+        self::SALES_ON_CREDIT => [
+            'label' => 'Sell on khata',
+            'hint' => "Put a sale on a customer's account. Without it: cash, card and the rest only.",
+        ],
         self::TABLES_SERVE_ANY => [
             'label' => 'Serve any table',
             'hint' => "Work and settle other waiters' tabs. Without it, their own tables only.",
@@ -439,6 +454,8 @@ class Permissions
         self::SALES_REFUND => ['pos', 'marketplace', 'dine_in'],
         // "Served by" is asked at the till only.
         self::SALES_CREDIT_OTHERS => ['pos'],
+        // A khata is a customer's account — the Customers & Khata module's.
+        self::SALES_ON_CREDIT => ['customers'],
         self::TABLES_SERVE_ANY => ['dine_in'],
         // The screens this opens: Coupons, Promotions, Bank offers. It was
         // keyed on "can sell at all", so six of nine trades were offered a
@@ -545,6 +562,7 @@ class Permissions
             self::SALES_VOID,
             self::SALES_REFUND,
             self::SALES_CREDIT_OTHERS,
+            self::SALES_ON_CREDIT,
             self::TABLES_SERVE_ANY,
             self::CUSTOMERS_MANAGE,
             self::COUPONS_MANAGE,

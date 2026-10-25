@@ -66,6 +66,7 @@ class StaffPresets
                     Permissions::SALES_MANAGE,
                     Permissions::DISCOUNTS_APPLY,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                     // The till settles what the floor opened. A cashier who
                     // cannot pick up a waiter's tab cannot take the payment.
                     Permissions::TABLES_SERVE_ANY,
@@ -81,6 +82,7 @@ class StaffPresets
                     Permissions::SALES_MANAGE,
                     Permissions::DISCOUNTS_APPLY,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                     Permissions::SALES_VOID,
                     Permissions::SALES_REFUND,
                     Permissions::DISCOUNTS_OVERRIDE,
@@ -102,6 +104,7 @@ class StaffPresets
                 'permissions' => [
                     Permissions::SALES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                 ],
                 'modules' => ['dine_in'],
                 'trades' => [],
@@ -195,6 +198,7 @@ class StaffPresets
                 'permissions' => [
                     Permissions::SALES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                     Permissions::INVENTORY_MANAGE,
                 ],
                 'modules' => ['fuel'],
@@ -208,6 +212,7 @@ class StaffPresets
                     Permissions::SALES_MANAGE,
                     Permissions::DISCOUNTS_APPLY,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                     Permissions::PRODUCTS_MANAGE,
                     Permissions::INVENTORY_MANAGE,
                 ],
@@ -239,6 +244,7 @@ class StaffPresets
                     Permissions::SUPPLIERS_MANAGE,
                     Permissions::PURCHASES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,
+                    Permissions::SALES_ON_CREDIT,
                     Permissions::COUPONS_MANAGE,
                     Permissions::EXPENSES_MANAGE,
                     Permissions::REPORTS_VIEW,

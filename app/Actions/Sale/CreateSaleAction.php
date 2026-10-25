@@ -546,6 +546,21 @@ class CreateSaleAction
                     $level = ($item['price_level'] ?? $groupPriceLevel) === 'wholesale' ? 'wholesale' : 'retail';
                     $override = $trusted ? null : $this->branchPrice($branchId, $product->id, $variant?->id);
 
+                    // THE CHEAPER LIST, PICKED BY HAND, IS A DISCOUNT.
+                    //
+                    // An order booker with no discount permission switched a
+                    // line from Retail to Wholesale and sold oil at 525 instead
+                    // of 545 (wholesale #W7). A customer whose group is on the
+                    // wholesale list gets it by right; a cashier choosing it for
+                    // anyone else is giving money away, which is discounts.apply.
+                    if ($level === 'wholesale' && $groupPriceLevel !== 'wholesale' && ! $trusted && ! $trustedOffline
+                        && $ringer instanceof User && ! $ringer->hasPermission(Permissions::DISCOUNTS_APPLY)) {
+                        throw DomainException::forbidden(
+                            'Choosing the wholesale price needs the discount permission — ask a manager, or put the customer in a wholesale group.',
+                            'PRICE_LEVEL_NOT_YOURS',
+                        );
+                    }
+
                     // ── MONEY IN, LITRES OUT ────────────────────────────
                     //
                     // Nobody at a petrol pump asks for 7.855 litres. They hand
@@ -1761,6 +1776,19 @@ class CreateSaleAction
                         throw DomainException::forbidden(
                             'Selling on credit needs Customers & Khata, which is switched off for this shop.',
                             'MODULE_DISABLED',
+                        );
+                    }
+                    // A PERSON, not only the shop: selling on account lends
+                    // the shop's money, and an order booker who could not read
+                    // a dealer's account put Rs 5,050 on it (wholesale #W6).
+                    // An installment plan is approved on its own path, and a
+                    // sale rung offline has already happened — it is recorded
+                    // and flagged, never refused, like every other queued sale.
+                    if (empty($data['installment_plan']) && ! $trustedOffline && $ringer instanceof User
+                        && ! $ringer->hasPermission(Permissions::SALES_ON_CREDIT)) {
+                        throw DomainException::forbidden(
+                            'Putting a sale on khata needs the "Sell on khata" permission — ask the owner.',
+                            'KHATA_NOT_YOURS',
                         );
                     }
                     if ($customer === null) {

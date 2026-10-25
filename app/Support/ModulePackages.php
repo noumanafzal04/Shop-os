@@ -77,6 +77,23 @@ final class ModulePackages
     ];
 
     /**
+     * What a trade CAN use but no plan switches on for it — a person ticks it.
+     *
+     * A distributor's dealer rates are the one number it guards from its own
+     * dealers. Pro includes the marketplace, the wholesale list allows it, and
+     * the intersection published a cash-and-carry distributor to the public —
+     * price breaks and all, with no login (wholesale #W1). The trade's own
+     * template has always said marketplace and delivery are off; "stay one
+     * tick away" now means exactly that: still INCLUDED in the plan (a
+     * distributor that ticks it pays nothing more), never switched ON by it.
+     *
+     * @var array<string, string[]>
+     */
+    private const OPT_IN = [
+        'wholesale' => ['marketplace', 'delivery'],
+    ];
+
+    /**
      * What a trade cannot open without — on any plan.
      *
      * @var array<string, string[]>
@@ -192,11 +209,16 @@ final class ModulePackages
         $settled = Modules::settle([], array_fill_keys($wanted, true));
         $included = self::inOrder(array_keys(array_filter($settled)));
 
+        // In the plan — so never billed as an add-on when a person ticks it —
+        // but not switched on by it. See OPT_IN.
+        $optIn = self::OPT_IN[self::trade($businessType)] ?? [];
+        $switchedOn = $optIn === [] ? $settled : Modules::settle($settled, array_fill_keys($optIn, false));
+
         return [
             'included' => $included,
             'addons' => array_values(array_diff($eligible, $included)),
             'other' => array_values(array_diff(Modules::keys(), $eligible, $included)),
-            'modules' => $settled,
+            'modules' => $switchedOn,
         ];
     }
 

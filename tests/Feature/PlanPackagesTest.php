@@ -106,6 +106,39 @@ class PlanPackagesTest extends TestCase
         $this->assertContains('customers', $this->on(Tenant::query()->where('business_name', 'Named Shop')->firstOrFail()->features));
     }
 
+    /**
+     * Wholesale #W1: a distributor made on Pro was published to the public
+     * marketplace — its dealer price breaks readable with no login. Pro
+     * includes the marketplace; the trade's own template says off. The trade
+     * narrows the plan here: offered, one tick away, never switched on.
+     */
+    public function test_a_distributor_on_pro_is_not_published_to_the_public(): void
+    {
+        $pro = $this->plan('pro');
+        $offer = $this->as($this->admin)->getJson("/api/v1/admin/modules/offer?business_type=wholesale&plan_id={$pro->id}")->json('data');
+
+        // Not switched on — what the create screen ticks, and what a shop
+        // made without naming modules gets…
+        $this->assertFalse($offer['modules']['marketplace']);
+        $this->assertFalse($offer['modules']['delivery']);
+        // …but still the plan's: a distributor that ticks it is billed nothing more.
+        $this->assertContains('marketplace', $offer['included']);
+        $this->assertNotContains('marketplace', $offer['addons']);
+
+        $this->as($this->admin)->postJson('/api/v1/admin/tenants', [
+            'business_name' => 'Hisaab QA Wholesale', 'business_type' => 'wholesale', 'plan_id' => $pro->id,
+            'owner' => ['name' => 'Owner', 'email' => 'whl@shop.test', 'password' => 'a-strong-password'],
+        ])->assertCreated();
+
+        $shop = Tenant::query()->where('business_name', 'Hisaab QA Wholesale')->firstOrFail();
+        $this->assertNotContains('marketplace', $this->on($shop->features));
+        $this->assertFalse((bool) $shop->online_shop_enabled);
+        $this->assertFalse(Tenant::query()->marketplaceVisible()->whereKey($shop->id)->exists());
+
+        // A retail shop on Pro still sells past its counter.
+        $this->assertContains('marketplace', ModulePackages::propose('retail', $pro)['included']);
+    }
+
     // ── a plan's own list ─────────────────────────────────────────────
 
     public function test_a_plan_can_be_told_what_it_includes_and_put_back_on_its_rung(): void
