@@ -35,8 +35,8 @@ shop in Sialkot could not say where it was. Four tables point at a city by UUID:
   often a town beside the city with nothing in it. Server-side, so the mobile app needs no change.
 - **Demo:** demo shops in the launch cities (`City::MAJOR`), not in whichever towns sort first.
 - **Panel:** `common/geo/places.ts` (hooks + `cityForPin`), `common/geo/CityPicker.tsx` — Province
-  narrows the City list; choosing a city fills its province; Country only once more than one is
-  active; the city is still a select labelled "City". On Admin new shop, Admin shop detail, Shop
+  narrows the City list; choosing a city fills its province; Country always shown, Pakistan by
+  default (panel `0e03784`); the city is still a select labelled "City". On Admin new shop, Admin shop detail, Shop
   setup, Shop settings. The marketplace header's switch lists only cities with shops.
 - **A map pin's city** (`cityForPin`): the exact name, written plainly; else the nearest city
   within 40 km; else nothing. The old "a city whose name is inside the map's answer" matched
@@ -50,5 +50,5 @@ migrate needed — existing shops keep their city.
 ## Later
 
 Another country: `python3 -I scripts/geo-extract.py ~/Desktop/geo-data/all.json AE`, then
-`php artisan shopos:geo AE`. The picker shows a Country select by itself once two are active.
+`php artisan shopos:geo AE`. It appears in the Country select by itself; nothing else changes.
 No admin screen for places yet; the mobile app's own city screens were not touched.
