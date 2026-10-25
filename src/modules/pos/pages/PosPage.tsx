@@ -57,7 +57,7 @@ import { useVehicleLookup, useVehicleMutations } from "../../vehicles/hooks/useV
 import { vehiclesService, type Vehicle } from "../../vehicles/services/vehiclesService";
 import { ownerOf } from "../../vehicles/ownerOf";
 import { catalogService } from "../../catalog/services/catalogService";
-import { catalogSizeStock, offersEquivalent, sizesOf, whyNotSellable as sellableRule } from "../availability";
+import { catalogSizeStock, catalogStock, offersEquivalent, sizesOf, whyNotSellable as sellableRule } from "../availability";
 import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
 // The till prints the kitchen's slip through the same call the dine-in tab's
 // Fire button uses — one renderer, so a counter docket and a floor docket
@@ -296,6 +296,10 @@ export default function PosPage() {
   const sellsQuotes = has("documents");
   const hasOffers = has("promotions");
   const hasKhata = has("customers");
+  // Offering khata is the PERSON's permission as well as the shop's module:
+  // an order booker who could not read a dealer's account put Rs 5,050 on it
+  // (wholesale #W6). The server refuses it too; this stops the button bouncing.
+  const canSellOnKhata = hasKhata && hasPermission("sales.on_credit");
   const hasBankOffers = has("bank_offers");
   // Whether this till serves food it has to COOK — which is a module question,
   // not a trade one. It read `businessType === "food"`, so a bakery counter, a
@@ -480,6 +484,7 @@ export default function PosPage() {
   const shownStock = (p: {
     id: string;
     stock_quantity?: number | string | null;
+    branch_stock?: number | string | null;
     variants?: ProductVariant[] | null;
   }) => {
     const sizes = sizesOf(p);
@@ -487,7 +492,11 @@ export default function PosPage() {
       return sizes.reduce((n, v) => n + sizeStock(p, v), 0);
     }
 
-    return onHand(Number(p.stock_quantity ?? 0), stockDeltas, p.id);
+    // What THIS place holds, never the shop-wide rollup. The tile said 480
+    // where the counter held 120 — 360 in a godown with no till — and the
+    // cart let 150 through to a refusal at Pay (wholesale #W2, the half of
+    // B16 left over). `catalogStock` reads `branch_stock` first.
+    return onHand(catalogStock(p), stockDeltas, p.id);
   };
 
   /** The till's stock reader, handed to the shared rule. */
@@ -4113,7 +4122,9 @@ export default function PosPage() {
                                       IMEI {serialCount(l)}/{unitsOn(l)}{owed(l) > 0 && l.unnumbered_ok ? " · without" : ""}
                                     </button>
                                   )}
-                                  {hasWholesale && (
+                                  {/* The cheaper list picked by hand is a discount (wholesale
+                                      #W7) — offered to who may discount; the server agrees. */}
+                                  {hasWholesale && canDiscount && (
                                     <select value={l.price_level ?? "retail"} onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
                                       className="h-6 rounded-md border border-gray-200 bg-transparent px-1 text-[11px] text-gray-600 dark:border-gray-700 dark:text-gray-300">
                                       <option value="retail">Retail</option>
@@ -4920,7 +4931,7 @@ export default function PosPage() {
                   onChange={(e) => setMethod(e.target.value as PayMethod)}
                   className="h-11 w-full rounded-xl border-2 border-brand-500 bg-white px-3 text-theme-sm font-semibold text-gray-800 focus:outline-hidden focus:ring-3 focus:ring-brand-500/20 dark:bg-gray-900 dark:text-white/90"
                 >
-                  {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || hasKhata).map((m) => (
+                  {(["cash", "card", "wallet", "credit", "split"] as const).filter((m) => m !== "credit" || canSellOnKhata).map((m) => (
                     <option key={m} value={m}>{METHOD_LABEL[m]}{m === defaultTender ? " (default)" : ""}</option>
                   ))}
                 </select>
@@ -5023,7 +5034,7 @@ export default function PosPage() {
                   <div key={i} className="flex items-center gap-2">
                     <select value={t.method} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, method: e.target.value as typeof x.method } : x)))}
                       className="h-11 rounded-lg border border-gray-200 bg-transparent px-2 text-theme-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                      <option value="cash">Cash</option><option value="card">Card</option><option value="wallet">Wallet</option><option value="bank_transfer">Transfer</option>{hasKhata && <option value="credit">Credit (khata)</option>}
+                      <option value="cash">Cash</option><option value="card">Card</option><option value="wallet">Wallet</option><option value="bank_transfer">Transfer</option>{canSellOnKhata && <option value="credit">Credit (khata)</option>}
                     </select>
                     <div className="flex-1"><Input type="number" min="0" value={t.amount} onChange={(e) => setTenders((ts) => ts.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))} placeholder="Amount" /></div>
                     {tenders.length > 1 && <button onClick={() => setTenders((ts) => ts.filter((_, j) => j !== i))} className="text-gray-400 hover:text-error-500" aria-label="Remove tender"><CloseIcon className="h-4 w-4" /></button>}
@@ -5815,7 +5826,7 @@ export default function PosPage() {
                   <select
                     className={selectCls}
                     value={l.price_level ?? "retail"}
-                    disabled={!hasWholesale}
+                    disabled={!hasWholesale || !canDiscount}
                     onChange={(e) => setLineLevel(l.key, e.target.value as "retail" | "wholesale")}
                   >
                     <option value="retail">Retail Price</option>

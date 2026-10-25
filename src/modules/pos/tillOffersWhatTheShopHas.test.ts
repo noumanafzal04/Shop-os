@@ -48,8 +48,11 @@ describe("each module the till can reach for is asked about first", () => {
 
   it("Customers & Khata: nobody is looked up, and nothing can be put on credit", () => {
     expect(code).toMatch(/if \(phone\.length < 7 \|\| !hasKhata\)/);
-    expect(code).toMatch(/\.filter\(\(m\) => m !== "credit" \|\| hasKhata\)/);
-    expect(code).toMatch(/\{hasKhata && <option value="credit">/);
+    // The tender asks the module AND the person (wholesale #W6) — the
+    // module is still the first half of it.
+    expect(code).toMatch(/const canSellOnKhata = hasKhata && hasPermission\("sales\.on_credit"\)/);
+    expect(code).toMatch(/\.filter\(\(m\) => m !== "credit" \|\| canSellOnKhata\)/);
+    expect(code).toMatch(/\{canSellOnKhata && <option value="credit">/);
     // Every `<option value="credit">` on the page is the gated one.
     expect((code.match(/<option value="credit">/g) ?? []).length).toBe(1);
   });
