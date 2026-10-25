@@ -9,7 +9,7 @@ import PageMeta from "../../../components/common/PageMeta";
 import Alert from "../../../components/ui/alert/Alert";
 import CollectedOnKhata from "../../customers/components/CollectedOnKhata";
 import { MetricCard, MetricCardSkeleton } from "../../../common/ui/MetricCard";
-import { usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
+import { useCustomersReport, usePurchasesReport, useReport, useStaffReport, useTaxReport } from "../hooks/useExpenses";
 import { ReprintReportTab } from "../../receipts/components/ReprintReportTab";
 import { OfflineReportTab } from "../../offline/report/OfflineReportTab";
 import { BankClaimsTab } from "../../banks/components/BankClaimsTab";
@@ -150,7 +150,7 @@ export default function ReportsPage() {
       {/* Every tab gets the SAME window object. They used to be handed a bare
           period name, so any tab that resolved its own dates could — and one
           did — report a different week than the header claimed. */}
-      {tab === "margins" ? <MarginsTab range={asked} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab range={asked} /> : tab === "staff" ? <StaffTab range={asked} /> : tab === "tax" ? <TaxTab range={asked} /> : tab === "receipts" ? <ReprintReportTab range={asked} /> : tab === "offline" ? <OfflineReportTab /> : tab === "bank-claims" ? <BankClaimsTab range={asked} /> : tab === "fuel" ? <FuelReportTab range={asked} /> : (
+      {tab === "margins" ? <MarginsTab range={asked} /> : tab === "valuation" ? <ValuationTab /> : tab === "dead-stock" ? <DeadStockTab /> : tab === "purchases" ? <PurchasesTab range={asked} /> : tab === "staff" ? <StaffTab range={asked} /> : tab === "customers" ? <CustomersTab range={asked} /> : tab === "tax" ? <TaxTab range={asked} /> : tab === "receipts" ? <ReprintReportTab range={asked} /> : tab === "offline" ? <OfflineReportTab /> : tab === "bank-claims" ? <BankClaimsTab range={asked} /> : tab === "fuel" ? <FuelReportTab range={asked} /> : (
       <>
       {/* Totals. A shop that sells nothing is shown what it actually has —
           money in, money out, and what that leaves — not four cards of Rs 0
@@ -394,6 +394,62 @@ function StaffRows({ rows }: { rows: Array<{ staff_id: string; name: string; sal
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * WHO BOUGHT WHAT (wholesale #W5).
+ *
+ * A distributor's every customer is an account, and "what did Chenab Traders
+ * buy from us in October" had no answer on any of ten tabs.
+ */
+function CustomersTab({ range }: { range: ReportRange }) {
+  const fmt = useMoney();
+  const q = useCustomersReport(range, true);
+  const d = q.data;
+  if (q.isLoading || !d) return <div className="h-40 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />;
+
+  return (
+    <Panel title="Sales by customer">
+      {d.customers.length === 0 ? (
+        <ListEmpty from={q} what="the customer report">
+          <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">No named customer bought anything in this period.</p>
+        </ListEmpty>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[36rem] text-left text-sm" data-customers-report>
+            <thead>
+              <tr className="text-theme-xs text-gray-500 dark:text-gray-400">
+                <th className="pb-2 font-medium">Customer</th>
+                <th className="pb-2 text-right font-medium">Sales</th>
+                <th className="pb-2 text-right font-medium">Bought</th>
+                <th className="pb-2 text-right font-medium">On khata</th>
+                <th className="pb-2 text-right font-medium">Owes now</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {d.customers.map((c) => (
+                <tr key={c.customer_id} className="text-gray-700 dark:text-gray-300">
+                  <td className="py-2">
+                    {c.name}
+                    {c.phone && <span className="ml-1 text-theme-xs text-gray-400">{c.phone}</span>}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{c.sales_count}</td>
+                  <td className="py-2 text-right tabular-nums font-medium">{fmt(c.revenue)}</td>
+                  <td className="py-2 text-right tabular-nums">{c.on_khata > 0 ? fmt(c.on_khata) : "—"}</td>
+                  <td className="py-2 text-right tabular-nums">{c.owes_now > 0 ? fmt(c.owes_now) : "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {d.walk_in && (
+        <p className="mt-3 border-t border-gray-100 pt-3 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+          Walk-in (no customer named): {d.walk_in.sales_count} sale{d.walk_in.sales_count === 1 ? "" : "s"} · {fmt(d.walk_in.revenue)}
+        </p>
+      )}
+    </Panel>
   );
 }
 

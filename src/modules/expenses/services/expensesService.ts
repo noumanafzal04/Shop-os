@@ -238,6 +238,8 @@ export const expensesService = {
     apiGet<PurchasesReport>("/reports/purchases", { params: rangeParams(range) }),
   staffReport: (range: ReportRange) =>
     apiGet<StaffReport>("/reports/staff", { params: rangeParams(range) }),
+  customersReport: (range: ReportRange) =>
+    apiGet<CustomersReport>("/reports/customers", { params: rangeParams(range) }),
   taxReport: (range: ReportRange) =>
     apiGet<TaxReport>("/reports/tax", { params: rangeParams(range) }),
 
@@ -354,6 +356,25 @@ export interface StaffReport {
   served: StaffRow[];
   /** What was rung while `served` was in use and nobody was named for it. */
   unattributed: { sales_count: number; revenue: number } | null;
+}
+
+/** What each customer bought in the period (wholesale #W5). */
+export interface CustomersReport {
+  period: { from: string; to: string };
+  customers: Array<{
+    customer_id: string;
+    name: string;
+    phone: string | null;
+    sales_count: number;
+    revenue: number;
+    /** What went on the customer's account in the period. */
+    on_khata: number;
+    /** The account's balance today. */
+    owes_now: number;
+    last_sale_at: string | null;
+  }>;
+  /** Sales with no customer named — one line, never spread across names. */
+  walk_in: { sales_count: number; revenue: number } | null;
 }
 
 export interface TaxReport {

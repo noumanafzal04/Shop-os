@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { setShopDayRule } from "../shopDay";
-import { daysSince, sinceWords } from "./since";
+import { daysSince, sinceWords, tradingDay } from "./since";
 
 describe("how long ago, in the shop's days", () => {
   afterEach(() => setShopDayRule(null));
@@ -22,5 +22,17 @@ describe("how long ago, in the shop's days", () => {
     const night = new Date("2026-10-14T20:30:00Z");
 
     expect(daysSince("2026-10-14T18:50:00Z", night)).toBe(0);
+  });
+});
+
+describe("the trading day a moment belongs to (wholesale #W3)", () => {
+  afterEach(() => setShopDayRule(null));
+
+  it("files a sale rung before the day turns under the day it belongs to", () => {
+    setShopDayRule({ zone: "Asia/Karachi", turnsAtMinutes: 5 * 60 });
+    // 03:04 on the 25th in Karachi — still the 24th's trading.
+    expect(tradingDay("2026-10-24T22:04:00Z")).toBe("24 Oct 2026");
+    // 06:00 on the 25th — the 25th.
+    expect(tradingDay("2026-10-25T01:00:00Z")).toBe("25 Oct 2026");
   });
 });

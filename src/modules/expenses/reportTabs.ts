@@ -41,6 +41,9 @@ export const REPORT_TABS = [
   // figure and raises no order — and /tenant/purchases would refuse it.
   { key: "purchases", label: "Purchases", needs: ["purchasing"] },
   { key: "staff", label: "Staff", needs: SELLS },
+  // Who bought what — a distributor's every customer is an account
+  // (wholesale #W5). Needs the customer book: no book, nobody to report on.
+  { key: "customers", label: "Customers", needs: ["customers"] },
   { key: "tax", label: "Tax", needs: SELLS },
   { key: "receipts", label: "Receipts", needs: SELLS },
   // Offered to every shop that sells, and NOT gated on having been offline.

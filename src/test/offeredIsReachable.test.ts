@@ -194,6 +194,9 @@ const TAB_SUBJECT: Record<string, string> = {
   // The forecourt report reads closed shifts, and its every row links back to
   // the shift it came from. A shop offered this tab must be able to open that.
   fuel: "/tenant/fuel",
+  // Sales by customer is about the customer book (wholesale #W5); a shop
+  // offered it must be able to open the book its rows name.
+  customers: "/tenant/customers",
 };
 
 describe("a report tab is offered only where its subject is", () => {

@@ -94,6 +94,14 @@ describe("the two tabs that used to ride on somebody else's module", () => {
     expect(tabs).not.toContain("purchases");
   });
 
+  it("Customers follows the customer book — a distributor's every customer is an account (wholesale #W5)", () => {
+    expect(keys(CASH_AND_CARRY)).not.toContain("customers");
+    const withBook = keys({ ...CASH_AND_CARRY, customers: true });
+    expect(withBook).toContain("customers");
+    // Beside the other people report.
+    expect(withBook.indexOf("customers")).toBe(withBook.indexOf("staff") + 1);
+  });
+
   it("Bank claims follows the bank-offers module, not merely selling", () => {
     expect(keys(CASH_AND_CARRY)).not.toContain("bank-claims");
     expect(keys({ ...CASH_AND_CARRY, promotions: true, bank_offers: true })).toContain("bank-claims");

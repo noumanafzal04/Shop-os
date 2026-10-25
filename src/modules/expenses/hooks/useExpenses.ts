@@ -186,6 +186,15 @@ export function usePurchasesReport(range: ReportRange, enabled: boolean) {
   });
 }
 
+export function useCustomersReport(range: ReportRange, enabled: boolean) {
+  return useQuery({
+    queryKey: ["reports", "customers", range],
+    queryFn: async () => (await expensesService.customersReport(range)).data,
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function useStaffReport(range: ReportRange, enabled: boolean) {
   return useQuery({
     queryKey: ["reports", "staff", range],

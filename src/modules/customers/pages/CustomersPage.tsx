@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { tradingDay } from "../../../common/format/since";
 import { useOnceKey } from "../../../common/onceKey";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link, useSearchParams } from "react-router";
@@ -456,7 +457,7 @@ export default function CustomersPage() {
                       const label = e.type === "earn" ? "Earned" : e.type === "redeem" ? "Redeemed" : e.type === "reverse_earn" ? "Reversed (return)" : "Refunded (return)";
                       return (
                         <div key={e.id} className="flex items-center justify-between text-theme-xs">
-                          <span className="text-gray-500 dark:text-gray-400">{shopDate(e.created_at)} · {label}</span>
+                          <span className="text-gray-500 dark:text-gray-400">{tradingDay(e.created_at)} · {label}</span>
                           <span className={positive ? "text-success-600 dark:text-success-400" : "text-gray-600 dark:text-gray-300"}>
                             {positive ? "+" : "−"}{e.points} pts
                           </span>

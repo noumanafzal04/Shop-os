@@ -1,4 +1,5 @@
 import { shopDateOf, shopToday } from "../shopDay";
+import { shopDate } from "./date";
 
 /**
  * HOW LONG AGO, IN THE SHOP'S DAYS — "today", "yesterday", "38 days ago".
@@ -24,4 +25,16 @@ export function sinceWords(moment: string | null | undefined, now: Date = new Da
   if (days === 1) return "yesterday";
 
   return `${days} days ago`;
+}
+
+/**
+ * The TRADING day a moment belongs to, written the shop's way.
+ *
+ * A khata charge rung at 03:04 on the 25th, in a shop whose day turns at
+ * 05:00, belongs to the 24th — the day every report files it under. Printed
+ * as a bare wall date it read "25 Oct", so a dealer's statement put the
+ * charge on a day the shop's own day-book showed no sale (wholesale #W3).
+ */
+export function tradingDay(moment: string): string {
+  return shopDate(shopDateOf(new Date(moment)));
 }

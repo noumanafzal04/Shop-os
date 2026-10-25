@@ -7,7 +7,8 @@ import Input from "../../../components/form/input/InputField";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { useProducts } from "../../catalog/hooks/useCatalog";
-import { changed, offersOf, taken, type Replacement } from "../../sales/replacements";
+import { changed, offersOf, taken } from "../../sales/replacements";
+import { allCounted, documentLines, inPack, typedQuantity, unitPriceOf, type SheetLine } from "../sheetLines";
 import { useMoney } from "../../shop/hooks/useShop";
 import type { DocumentKind } from "../services/documentService";
 import ParkAsDocumentModal from "./ParkAsDocumentModal";
@@ -45,12 +46,12 @@ export default function NewDocumentSheet({
   const installments = startAs === "installments";
   const money = useMoney();
   const [search, setSearch] = useState("");
-  const [lines, setLines] = useState<Replacement[]>([]);
+  const [lines, setLines] = useState<SheetLine[]>([]);
   const [saving, setSaving] = useState(false);
   const asked = useDebouncedValue(search.trim(), 250);
   const found = useProducts({ search: asked || undefined, for_sale: true, per_page: 8 });
 
-  const about = lines.reduce((sum, l) => sum + l.price * l.quantity, 0);
+  const about = lines.reduce((sum, l) => sum + unitPriceOf(l) * l.quantity, 0);
   const closeAll = () => {
     setSaving(false);
     setLines([]);
@@ -78,13 +79,22 @@ export default function NewDocumentSheet({
         )}
         {asked && !deniedReason(found.error) && (
           <div data-testid="document-offers" className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-800">
-            {(found.data?.data ?? []).flatMap((p) => offersOf(p)).map((offer) => (
+            {(found.data?.data ?? []).flatMap((p) => offersOf(p).map((offer) => ({ offer, units: p.units ?? [] }))).map(({ offer, units }) => (
               <button
                 key={offer.key}
                 type="button"
                 disabled={offer.whyNot !== null}
                 title={offer.whyNot ?? undefined}
-                onClick={() => { setLines((xs) => taken(xs, offer)); setSearch(""); }}
+                onClick={() => {
+                  setLines((xs) => {
+                    const known = xs.find((x) => x.key === offer.key);
+                    // Packs belong to the product, not to one of its sizes —
+                    // and an installment plan is counted in pieces.
+                    const packs = offer.variant_id === null && !installments ? units.filter((u) => u.id) : [];
+                    return taken(xs, offer).map((x) => (x.key === offer.key ? { ...x, units: known?.units ?? packs, unitId: known?.unitId ?? null } : x)) as SheetLine[];
+                  });
+                  setSearch("");
+                }}
                 className="flex w-full items-center justify-between gap-3 px-3 py-1.5 text-left text-theme-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent dark:hover:bg-white/5"
               >
                 <span className="truncate text-gray-700 dark:text-gray-300">{offer.name}</span>
@@ -110,10 +120,32 @@ export default function NewDocumentSheet({
               <div key={l.key} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-800">
                 <span className="min-w-0 flex-1 truncate text-theme-sm text-gray-800 dark:text-white/90">{l.name}</span>
                 <span className="flex items-center gap-2">
-                  <button type="button" aria-label={`One fewer ${l.name}`} className="h-7 w-7 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setLines((xs) => changed(xs, l.key, -1))}>−</button>
-                  <span className="w-6 text-center tabular-nums">{l.quantity}</span>
-                  <button type="button" aria-label={`One more ${l.name}`} className="h-7 w-7 rounded bg-brand-500 text-white" onClick={() => setLines((xs) => changed(xs, l.key, 1))}>+</button>
-                  <span className="w-24 text-right tabular-nums text-theme-sm text-gray-700 dark:text-gray-300">{money(l.price * l.quantity)}</span>
+                  <button type="button" aria-label={`One fewer ${l.name}`} className="h-7 w-7 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300" onClick={() => setLines((xs) => changed(xs, l.key, -1) as SheetLine[])}>−</button>
+                  {/* Typed, not only tapped: fifteen cartons is "15", not 359 taps (wholesale #W4). */}
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    aria-label={`Quantity of ${l.name}`}
+                    value={l.quantity === 0 ? "" : l.quantity}
+                    onChange={(e) => setLines((xs) => typedQuantity(xs, l.key, e.target.value))}
+                    className={`h-7 w-14 rounded border px-1 text-center tabular-nums text-theme-sm dark:bg-gray-900 ${l.quantity > 0 ? "border-gray-200 dark:border-gray-700" : "border-error-400"}`}
+                  />
+                  <button type="button" aria-label={`One more ${l.name}`} className="h-7 w-7 rounded bg-brand-500 text-white" onClick={() => setLines((xs) => changed(xs, l.key, 1) as SheetLine[])}>+</button>
+                  {l.units.length > 0 && (
+                    <select
+                      aria-label={`Pack for ${l.name}`}
+                      value={l.unitId ?? ""}
+                      onChange={(e) => setLines((xs) => inPack(xs, l.key, e.target.value === "" ? null : e.target.value))}
+                      className="h-7 rounded border border-gray-200 bg-transparent px-1 text-theme-xs text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                    >
+                      <option value="">Each</option>
+                      {l.units.map((u) => (
+                        <option key={u.id} value={u.id}>{u.name} (×{Number(u.factor)})</option>
+                      ))}
+                    </select>
+                  )}
+                  <span className="w-24 text-right tabular-nums text-theme-sm text-gray-700 dark:text-gray-300">{money(unitPriceOf(l) * l.quantity)}</span>
                 </span>
               </div>
             ))
@@ -126,7 +158,7 @@ export default function NewDocumentSheet({
           </span>
           <span className="flex gap-2">
             <Button size="sm" variant="outline" onClick={closeAll}>Cancel</Button>
-            <Button size="sm" disabled={lines.length === 0} onClick={() => setSaving(true)}>Next</Button>
+            <Button size="sm" disabled={!allCounted(lines)} onClick={() => setSaving(true)}>Next</Button>
           </span>
         </div>
       </Modal>
@@ -142,7 +174,7 @@ export default function NewDocumentSheet({
         isOpen={isOpen && saving && !installments}
         onClose={() => setSaving(false)}
         startAs={installments ? "layaway" : startAs}
-        lines={lines.map((l) => ({ product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity }))}
+        lines={documentLines(lines)}
         discount={0}
         customerName=""
         customerPhone=""

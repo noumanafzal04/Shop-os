@@ -1,8 +1,8 @@
 import { useState } from "react";
+import { tradingDay } from "../../../common/format/since";
 import { Link } from "react-router";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
-import { shopDate } from "../../../common/format/date";
 import { useMoney } from "../../shop/hooks/useShop";
 import type { Customer } from "../services/customersService";
 import { KHATA_METHODS, ledgerLine, overpaid, saleLink, standing, type KhataMethod } from "../khata";
@@ -183,7 +183,7 @@ export default function KhataBox({
           {customer.ledger!.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 text-theme-xs">
               <span className="text-gray-500 dark:text-gray-400">
-                {shopDate(e.created_at)} · {ledgerLine(e)}
+                {tradingDay(e.created_at)} · {ledgerLine(e)}
                 {e.type === "charge" && e.sale && (
                   <> · <Link to={saleLink(e.sale)} className="text-brand-500 hover:text-brand-600">{e.sale.invoice_number}</Link></>
                 )}
