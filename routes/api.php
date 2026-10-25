@@ -952,6 +952,10 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/reports/offline', [OfflineReportController::class, 'index']);
                 Route::get('/reports/purchases', [ReportController::class, 'purchases']);
                 Route::get('/reports/staff', [ReportController::class, 'staff']);
+                // Sales by customer — a distributor's every customer is an
+                // account (wholesale #W5). Behind the customer book's module:
+                // a shop with no customers has no one to report on.
+                Route::get('/reports/customers', [ReportController::class, 'customers'])->middleware('feature:customers');
                 Route::get('/reports/tax', [ReportController::class, 'tax']);
                 // What the banks owe. Rides the same reports permission as the
                 // rest — it is the shop's own money, seen by whoever reads the

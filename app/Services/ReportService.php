@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\PurchaseOrder;
@@ -35,6 +36,9 @@ use Illuminate\Support\Facades\DB;
  */
 class ReportService
 {
+    /** The most customers one report lists — the biggest first. */
+    private const CUSTOMERS_LISTED = 200;
+
     /**
      * @return array{from: string, to: string, granularity: string}
      */
@@ -664,6 +668,69 @@ class ReportService
             'unattributed' => $unattributed === null || (int) $unattributed->sales_count === 0 ? null : [
                 'sales_count' => (int) $unattributed->sales_count,
                 'revenue' => round((float) $unattributed->revenue, 2),
+            ],
+        ];
+    }
+
+    /**
+     * What each customer bought in the period — a distributor's headline report.
+     *
+     * Every customer of a distributor is an account, and "what did Chenab
+     * Traders buy from us in October" had no answer anywhere: ten report tabs,
+     * none by customer, and only a lifetime SPENT column with no dates
+     * (wholesale #W5). Counted sales, the shop's own days, as every report.
+     *
+     * `on_khata` is what went on the account in the period; `owes_now` is the
+     * account's balance today — the two questions a dealer statement answers.
+     * Walk-in sales are one line of their own, never spread across names.
+     */
+    public function customerSales(string $tenantId, ?string $branchId, string $from, string $to): array
+    {
+        [$fromStart, $toEnd] = ShopDay::span($from, $to, ShopDay::shop($tenantId));
+
+        $base = fn () => Sale::query()
+            ->where('sales.tenant_id', $tenantId)
+            ->whereIn('sales.status', Takings::COUNTED)
+            ->whereBetween('sales.sold_at', [$fromStart, $toEnd])
+            ->when($branchId, fn ($q) => $q->where('sales.branch_id', $branchId));
+
+        $rows = $base()
+            ->whereNotNull('sales.customer_id')
+            ->selectRaw('sales.customer_id, COUNT(*) as sales_count, SUM(sales.total) as revenue, MAX(sales.sold_at) as last_sale_at')
+            ->groupBy('sales.customer_id')
+            ->orderByDesc('revenue')
+            ->limit(self::CUSTOMERS_LISTED)
+            ->get();
+
+        $onKhata = DB::table('sale_payments')
+            ->join('sales', 'sales.id', '=', 'sale_payments.sale_id')
+            ->whereIn('sales.id', $base()->whereIn('sales.customer_id', $rows->pluck('customer_id'))->select('sales.id'))
+            ->where('sale_payments.method', 'credit')
+            ->groupBy('sales.customer_id')
+            ->selectRaw('sales.customer_id, SUM(sale_payments.amount) as amount')
+            ->pluck('amount', 'customer_id');
+
+        $people = Customer::query()->whereIn('id', $rows->pluck('customer_id'))
+            ->get(['id', 'name', 'phone', 'credit_balance'])->keyBy('id');
+
+        $walkIn = $base()->whereNull('sales.customer_id')
+            ->selectRaw('COUNT(*) as sales_count, SUM(sales.total) as revenue')->first();
+
+        return [
+            'period' => ['from' => $from, 'to' => $to],
+            'customers' => $rows->map(fn ($r) => [
+                'customer_id' => $r->customer_id,
+                'name' => $people[$r->customer_id]->name ?? 'Unknown',
+                'phone' => $people[$r->customer_id]->phone ?? null,
+                'sales_count' => (int) $r->sales_count,
+                'revenue' => round((float) $r->revenue, 2),
+                'on_khata' => round((float) ($onKhata[$r->customer_id] ?? 0), 2),
+                'owes_now' => round((float) ($people[$r->customer_id]->credit_balance ?? 0), 2),
+                'last_sale_at' => $r->last_sale_at === null ? null : CarbonImmutable::parse($r->last_sale_at)->toIso8601String(),
+            ])->all(),
+            'walk_in' => (int) ($walkIn->sales_count ?? 0) === 0 ? null : [
+                'sales_count' => (int) $walkIn->sales_count,
+                'revenue' => round((float) $walkIn->revenue, 2),
             ],
         ];
     }

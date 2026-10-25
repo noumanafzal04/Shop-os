@@ -59,6 +59,14 @@ class ReportController extends Controller
         return ApiResponse::ok($reports->staffPerformance($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
     }
 
+    /** What each customer bought in the period (wholesale #W5). */
+    public function customers(Request $request, ReportService $reports, TenantContext $context, BranchContext $branch): JsonResponse
+    {
+        $p = $this->period($request, $reports);
+
+        return ApiResponse::ok($reports->customerSales($context->id(), $branch->scopeId(), $p['from'], $p['to']), meta: $this->window($p));
+    }
+
     /**
      * What each bank owes this shop.
      *
