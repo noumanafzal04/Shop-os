@@ -621,6 +621,68 @@ describe("the shop's own ceiling on trading blind", () => {
   });
 });
 
+/**
+ * The user, 2026-10-27: offline only while the plan is paid or in grace — or
+ * a shop that stopped paying sells for free with the wifi off.
+ */
+describe("the shop's paid time", () => {
+  const until = async (when: string | null | undefined): Promise<void> => {
+    await putMany(STORE.CATALOG, [item({ id: "p1" })]);
+    await putSingleton(STORE.SETTINGS, {
+      default_tax_rate: 0,
+      tax_inclusive: false,
+      offline_selling: true,
+      offline_until: when,
+    });
+  };
+  const day = 86_400_000;
+
+  it("refuses a new sale once the plan's grace has ended", async () => {
+    await until(new Date(Date.now() - day).toISOString());
+
+    await expect(completeOffline(input())).rejects.toThrow(/plan has ended/);
+    expect(await allRows()).toEqual([]);
+  });
+
+  it("says the sales already on the device are kept, and what to do", async () => {
+    await until(new Date(Date.now() - day).toISOString());
+
+    await expect(completeOffline(input())).rejects.toThrow(/Renew the plan\. Every sale already on this device is kept/);
+  });
+
+  it("sells while the grace is still running", async () => {
+    await until(new Date(Date.now() + day).toISOString());
+
+    await expect(completeOffline(input())).resolves.toBeTruthy();
+  });
+
+  it("lets the cart already in the cashier's hand complete", async () => {
+    await until(new Date(Date.now() - 60_000).toISOString());
+
+    await expect(completeOffline(input({ cartStartedAt: Date.now() - 2 * 60_000 }))).resolves.toBeTruthy();
+  });
+
+  it("goes by the server's clock, not the tablet's", async () => {
+    // A tablet two days slow reads a deadline of yesterday as tomorrow. The
+    // drift measured at the last pull puts it right.
+    await until(new Date(Date.now() - day).toISOString());
+    await putSingleton(STORE.SYNC_META, { cursors: {}, clockSkewMs: 0, lastPullAt: null, tenantId: null });
+    await expect(completeOffline(input({ cartStartedAt: Date.now() - 2 * day }))).resolves.toBeTruthy();
+
+    await putSingleton(STORE.SYNC_META, { cursors: {}, clockSkewMs: 2 * day, lastPullAt: null, tenantId: null });
+    await expect(completeOffline(input({ cartStartedAt: Date.now() - 2 * day }))).rejects.toThrow(/plan has ended/);
+  });
+
+  it.each([
+    ["null — a plan with no end date", null],
+    ["undefined — a server too old to send it", undefined],
+  ])("sells when there is no deadline (%s)", async (_why, when) => {
+    await until(when);
+
+    await expect(completeOffline(input())).resolves.toBeTruthy();
+  });
+});
+
 describe("what the queued row carries about WHEN and WHO", () => {
   it("stamps the sale on the shop's clock and keeps the tablet's own reading", async () => {
     // `at` becomes `sold_at` — the trading day, the shift, the day-close check.

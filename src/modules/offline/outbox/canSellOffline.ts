@@ -169,6 +169,18 @@ export const OFFLINE_SELLING_OFF: Refusal = {
  * The fix names the actual fix. A cashier told only "no" will try again, and
  * again, with a queue of customers behind them.
  */
+/**
+ * The shop's plan has run out, grace and all (the user, 2026-10-27).
+ *
+ * Read-only online, and offline must not be the way round it. The sales
+ * already on the device are the shop's and are never thrown away — they wait
+ * for the renewal, which is why the fix says so.
+ */
+export const OFFLINE_PLAN_ENDED: Refusal = {
+  reason: "This shop's plan has ended, so the till can't sell offline.",
+  fix: "Renew the plan. Every sale already on this device is kept and sends once it is renewed.",
+};
+
 export const OFFLINE_TOO_LONG: Refusal = {
   reason: "This till has been without internet for longer than the shop allows, so it can't start a new sale.",
   fix: "Get this device back online for a moment — its queued sales will send and it can sell again straight away.",

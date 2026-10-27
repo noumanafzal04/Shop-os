@@ -174,6 +174,10 @@ export async function applyPull(pull: CatalogPull): Promise<{
     // opposite to the switch above, because this one refuses trade and a
     // ceiling invented by a missing field would close a counter for nothing.
     offline_hard_stop_days: pull.offline_hard_stop_days ?? null,
+    // The paid-up lease: past it the till stops selling offline even if it
+    // never pulls again. `?? null` reads a server too old to send it as no
+    // deadline, the same direction as the ceiling above.
+    offline_until: pull.offline_until ?? null,
     // Where the SERVER thinks this till's slip counter had got to. Stored
     // rather than applied here, because the counter is only ever advanced at
     // the moment a number is minted — see `nextSequence`. `?? null` so a

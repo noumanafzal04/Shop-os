@@ -249,6 +249,11 @@ export interface CatalogPull {
    */
   offline_hard_stop_days: number | null;
   /**
+   * The last moment this shop may sell offline — the end of its grace. Null
+   * for a plan with no end date; absent from a server older than this.
+   */
+  offline_until?: string | null;
+  /**
    * How far this device's own offline slip counter had got, as the server
    * knows it. Null for a device that has never sold offline.
    *

@@ -11,6 +11,7 @@ import { unsupportedPromotions } from "../pricing/bestPromotion";
 import { heldPromotions } from "../pricing/heldPromotions";
 import {
   canSellOffline,
+  OFFLINE_PLAN_ENDED,
   OFFLINE_SELLING_OFF,
   OFFLINE_TOO_LONG,
   PROMOTION_TOO_NEW,
@@ -177,6 +178,32 @@ export async function pastHardStop(cartStartedAt: number | null = null): Promise
     if (hours === null) return false;
 
     return hours > days * 24;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Is this shop past the end of its paid time, grace included?
+ *
+ * THE LEASE. The switch above goes off at the next pull once a shop lapses —
+ * but a till that never reconnects never hears it, and a shop could keep its
+ * wifi off and sell for nothing. So every pull also carries the last moment
+ * the shop may sell offline, and the till checks it on the SERVER's clock (its
+ * own plus the drift measured at the last pull), so a tablet's wrong date does
+ * not move it.
+ *
+ * Judged from when the cart was STARTED, like the ceiling below: a cart that
+ * was allowed to begin is allowed to finish. No deadline (a plan with no end
+ * date, a server too old to send one) is no deadline.
+ */
+export async function pastPaidTime(cartStartedAt: number | null = null): Promise<boolean> {
+  try {
+    const settings = await getSingleton<Record<string, unknown>>(STORE.SETTINGS);
+    const until = typeof settings?.offline_until === "string" ? Date.parse(settings.offline_until) : Number.NaN;
+    if (!Number.isFinite(until)) return false;
+
+    return (cartStartedAt ?? Date.now()) + (await driftMs()) > until;
   } catch {
     return false;
   }
@@ -424,6 +451,12 @@ export async function completeOffline(input: OfflineSaleInput): Promise<OfflineS
   // something no cart can fix.
   if (!(await offlineSellingAllowed())) {
     throw new OfflineRefused([`${OFFLINE_SELLING_OFF.reason} ${OFFLINE_SELLING_OFF.fix}`]);
+  }
+
+  // Past the plan's paid time, grace and all. A fact about the SHOP, like the
+  // switch — no cart can be rearranged to fix it.
+  if (await pastPaidTime(input.cartStartedAt)) {
+    throw new OfflineRefused([`${OFFLINE_PLAN_ENDED.reason} ${OFFLINE_PLAN_ENDED.fix}`]);
   }
 
   // A promotion the engine cannot evaluate is not a smaller discount — it is

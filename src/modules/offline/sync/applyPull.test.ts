@@ -242,6 +242,22 @@ describe("settings", () => {
 
     expect((await getSingleton<{ sellers: unknown[] }>(STORE.SETTINGS))?.sellers).toEqual([{ id: "u1", name: "Rukhsana" }]);
   });
+
+  it("carry the last moment the shop may sell offline, and no deadline from an older server", async () => {
+    await applyPull(pull({ offline_until: "2026-11-03T00:00:00Z" }));
+    expect((await getSingleton<{ offline_until: string | null }>(STORE.SETTINGS))?.offline_until).toBe("2026-11-03T00:00:00Z");
+
+    await applyPull(pull());
+    expect((await getSingleton<{ offline_until: string | null }>(STORE.SETTINGS))?.offline_until).toBeNull();
+  });
+
+  it("remember how much the server has, and keep it when an older server says nothing", async () => {
+    await applyPull(pull({ totals: { products: 50000, customers: 1250 } }));
+    expect((await readMeta()).serverTotals).toEqual({ products: 50000, customers: 1250 });
+
+    await applyPull(pull());
+    expect((await readMeta()).serverTotals).toEqual({ products: 50000, customers: 1250 });
+  });
 });
 
 describe("the barcode index", () => {
