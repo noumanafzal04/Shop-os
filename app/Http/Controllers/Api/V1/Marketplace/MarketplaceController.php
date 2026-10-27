@@ -1507,6 +1507,25 @@ class MarketplaceController extends Controller
      */
     private array $defaultBranch = [];
 
+    /** @var array<string, bool> */
+    private array $distributor = [];
+
+    /**
+     * A DISTRIBUTOR'S PRICE BREAKS ARE ITS DEALERS' TERMS.
+     *
+     * Wholesale #W1: "8,600 at ten, 8,450 at fifty" — the one number a
+     * distributor guards from its own dealers — was readable here with no
+     * login. Even a distributor that chooses to sell online shows the public
+     * its shelf price; the breaks stay with the dealers. A shop of any other
+     * trade keeps its "buy more, pay less" on show.
+     */
+    private function isDistributor(string $tenantId): bool
+    {
+        return $this->distributor[$tenantId] ??= BusinessTypes::primary(
+            (string) Tenant::withoutGlobalScopes()->whereKey($tenantId)->value('business_type'),
+        ) === 'wholesale';
+    }
+
     private function defaultBranchOf(string $tenantId): ?string
     {
         return $this->defaultBranch[$tenantId] ??= Branch::withoutTenancy()
@@ -1537,7 +1556,7 @@ class MarketplaceController extends Controller
             'requires_prescription' => (bool) $product->requires_prescription,
             'unit' => $product->unit,
             'sold_by' => $product->sold_by,
-            'price_tiers' => $product->price_tiers,
+            'price_tiers' => $this->isDistributor((string) $product->tenant_id) ? null : $product->price_tiers,
             'min_order_qty' => $product->min_order_qty !== null ? (float) $product->min_order_qty : null,
             'duration_minutes' => $product->duration_minutes,
             'category' => $product->category?->only(['id', 'name']),
