@@ -95,7 +95,7 @@ export interface SaleDocument {
   /** The quotation these goods were held from (B65) — on the advance. */
   source?: { id: string; number: string; kind: DocumentKind } | null;
   /** The advance this quotation became (B65) — on the quote. */
-  held_as?: { id: string; number: string; status?: DocumentStatus } | null;
+  held_as?: { id: string; number: string; kind?: DocumentKind; status?: DocumentStatus } | null;
   /** Server-derived — never recomputed here, so the rules live in one place. */
   balance?: number;
   /** What was taken when it was billed (B25) — null until then, or when the advances paid it all. */

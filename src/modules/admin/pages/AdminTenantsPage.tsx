@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { platformMoney } from "../../../common/format/currency";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { Link } from "react-router";
 
@@ -34,6 +35,9 @@ import { shopDate } from "../../../common/format/date";
 const BUCKETS: ReadonlyArray<{ value: PaymentStatus | ""; label: string }> = [
   { value: "", label: "All" },
   { value: "paid", label: "Paid" },
+  // Given a plan, inside its period, and no payment covers it. They were
+  // counted under Paid — 26 of 100 on dev (the user, 2026-10-27).
+  { value: "awaiting_payment", label: "Not paid yet" },
   { value: "grace", label: "In grace" },
   { value: "unpaid", label: "Unpaid" },
   // Not behind, and not paid either: on no plan, waiting to be given one.
@@ -446,9 +450,21 @@ export default function AdminTenantsPage() {
                     <td className="px-6 py-4">{t.city?.name ?? "—"}</td>
                     <td className="px-6 py-4">
                       {t.plan?.name ?? <span className="text-gray-400">no plan</span>}
-                      {t.plan?.price != null && (
+                      {/* What the shop is BILLED, add-ons and all — the plan's
+                          price alone said 4,999 for a shop billed 5,699 (the
+                          user, 2026-10-27). The detail page already said so. */}
+                      {t.package?.bill ? (
+                        <div className="text-theme-xs tabular-nums text-gray-400" data-plan-bill>
+                          {platformMoney(t.package.bill.total)}
+                          {t.package.bill.addons_monthly > 0 && (
+                            <span className="block">
+                              plan {platformMoney(t.package.bill.plan.price)} + add-ons {platformMoney(t.package.bill.addons_total)}
+                            </span>
+                          )}
+                        </div>
+                      ) : t.plan?.price != null && (
                         <div className="text-theme-xs tabular-nums text-gray-400">
-                          Rs {Number(t.plan.price).toLocaleString()}
+                          {platformMoney(t.plan.price)}
                         </div>
                       )}
                       {t.online_shop_enabled && (

@@ -36,6 +36,10 @@ describe("what a shop's row says about its money", () => {
     expect(paymentChip({ payment_status: "unpaid", plan: PLAN })).toEqual({ label: "unpaid", color: "error" });
   });
 
+  it("does not say paid for a shop given a plan whose period no payment covers (the user, 2026-10-27)", () => {
+    expect(paymentChip({ payment_status: "awaiting_payment", plan: { id: "p" } })).toEqual({ label: "not paid yet", color: "warning" });
+  });
+
   it("says suspended first — switched off is switched off, plan or no plan", () => {
     expect(paymentChip({ payment_status: "suspended", plan: null }).label).toBe("suspended");
     expect(paymentChip({ payment_status: "suspended", plan: PLAN }).label).toBe("suspended");

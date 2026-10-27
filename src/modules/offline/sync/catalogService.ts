@@ -217,6 +217,12 @@ export interface CatalogPull {
    */
   vehicles?: Page<CatalogVehicle>;
   settings: Record<string, unknown>;
+  /**
+   * Who the till may name as the seller — names only, and only once the shop
+   * asks who served. Kept so a salon's sale with no line still has its
+   * stylist (services #S5). Optional: a server too old to send it sends none.
+   */
+  sellers?: Array<{ id: string; name: string }>;
   offline_days: number | null;
   /**
    * The SHOP's calendar — not the server's and not the tablet's.

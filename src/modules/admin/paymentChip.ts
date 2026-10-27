@@ -17,6 +17,9 @@ export type ChipColor = "success" | "warning" | "error" | "light";
 
 const BY_STATUS: Record<PaymentStatus, { label: string; color: ChipColor }> = {
   paid: { label: "paid", color: "success" },
+  // Given a plan and a period, and no money has covered it — 26 of 100
+  // "paid" shops on dev (the user, 2026-10-27).
+  awaiting_payment: { label: "not paid yet", color: "warning" },
   grace: { label: "in grace", color: "warning" },
   unpaid: { label: "unpaid", color: "error" },
   no_plan: { label: "not priced yet", color: "warning" },

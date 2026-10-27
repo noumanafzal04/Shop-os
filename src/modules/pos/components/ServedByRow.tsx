@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { posService } from "../services/posService";
+import { sellersOnDevice } from "../../offline/tillSettings";
 
 /**
  * Who sold this, where the floor and the counter are two different jobs.
@@ -49,7 +50,18 @@ interface Props {
 export function ServedByRow({ enabled, me, anyone, value, onChange }: Props) {
   const sellers = useQuery({
     queryKey: ["pos", "sellers"],
-    queryFn: async () => (await posService.sellers()).data,
+    // The server's list, or — with no line — the one that came down with the
+    // catalogue. A box that vanished offline sent every salon sale with nobody
+    // named (services #S5).
+    queryFn: async () => {
+      try {
+        return (await posService.sellers()).data;
+      } catch (failed) {
+        const kept = await sellersOnDevice();
+        if (kept.length > 0) return kept;
+        throw failed;
+      }
+    },
     enabled,
     // Staff lists change on the day somebody is hired, not between customers.
     staleTime: 30 * 60 * 1000,

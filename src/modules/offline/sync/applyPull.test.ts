@@ -235,6 +235,13 @@ describe("settings", () => {
 
     expect((await getSingleton<{ offline_days: number }>(STORE.SETTINGS))?.offline_days).toBe(7);
   });
+
+  it("carry who may be named as having served — a salon with no line still names its stylist", async () => {
+    // Services #S5: the list rode down with the catalogue and nothing kept it.
+    await applyPull(pull({ sellers: [{ id: "u1", name: "Rukhsana" }] }));
+
+    expect((await getSingleton<{ sellers: unknown[] }>(STORE.SETTINGS))?.sellers).toEqual([{ id: "u1", name: "Rukhsana" }]);
+  });
 });
 
 describe("the barcode index", () => {

@@ -18,7 +18,7 @@ import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import { handedBackBy } from "../advanceRow";
 import { formatQuantity } from "../../../common/format/quantity";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
-import { boardWords } from "../../workshop/words";
+import { boardWords, hasJobBoard } from "../../workshop/words";
 import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
 import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
@@ -26,6 +26,7 @@ import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { PrintPaperModal } from "../components/PrintPaperModal";
 import { HoldQuoteModal } from "../components/HoldQuoteModal";
 import { CollectModal } from "../components/CollectModal";
+import { useAuthStore } from "../../../stores/authStore";
 import { BackButton } from "../../../common/ui/BackButton";
 
 
@@ -45,7 +46,13 @@ export default function DocumentDetailPage() {
   const doc = query.data;
   const mut = useDocumentMutations(id);
   const depositOnce = useOnceKey();
-  const words = boardWords(usePrimaryBusinessType());
+  const trade = usePrimaryBusinessType();
+  const words = boardWords(trade);
+  // The bill may go on the customer's account — the shop's customer book and
+  // this person's permission, as at the till (services #S3).
+  const canBillOnKhata = useAuthStore((s) =>
+    !!(s.user?.tenant as { features?: Record<string, boolean> } | null | undefined)?.features?.customers
+    && s.hasPermission("sales.on_credit"));
 
   const depositModal = useModal();
   const collectModal = useModal();
@@ -92,6 +99,10 @@ export default function DocumentDetailPage() {
    */
   const holdable = open && !layaway && !job && !doc.has_lapsed && settings.data?.layaway_enabled !== false;
   const heldAs = doc.status === "converted" ? doc.held_as ?? null : null;
+  // An accepted quote IS the job for a tailor, a printer, a laundry, a
+  // workshop (services #S4) — its lines and its price go with it.
+  const startable = open && !layaway && !job && !doc.has_lapsed && hasJobBoard(trade);
+  const becameJob = heldAs?.kind === "job_card";
   const holdsMoney = layaway || (job && Number(doc.deposit_paid) > 0);
   const linesBusy = mut.addItem.isPending || mut.setItemQuantity.isPending || mut.removeItem.isPending;
   const lineFailed = (e: unknown) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "That could not be changed.");
@@ -115,7 +126,7 @@ export default function DocumentDetailPage() {
               {job ? "Job card" : layaway ? "On advance" : "Quotation"}
             </Badge>
             {doc.status === "converted" && (heldAs
-              ? <Badge size="sm" color="primary">Held on advance</Badge>
+              ? <Badge size="sm" color="primary">{becameJob ? "Taken in as a job" : "Held on advance"}</Badge>
               : <Badge size="sm" color="success">Collected</Badge>)}
             {doc.status === "cancelled" && <Badge size="sm" color="light">Cancelled</Badge>}
             {doc.has_lapsed && <Badge size="sm" color="warning">{layaway || job ? "Overdue" : "Expired"}</Badge>}
@@ -152,6 +163,27 @@ export default function DocumentDetailPage() {
           )}
           {holdable && (
             <Button size="sm" variant="outline" onClick={holdModal.openModal}>Hold on advance</Button>
+          )}
+          {startable && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={mut.create.isPending}
+              onClick={() =>
+                mut.create.mutate(
+                  { kind: "job_card", from_document_id: doc.id },
+                  {
+                    onSuccess: (res) => {
+                      toast.success(`Work taken in · ${res.data.number}`);
+                      navigate(`/tenant/documents/${res.data.id}`);
+                    },
+                    onError: (e) => toast.error(e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "That could not be started."),
+                  },
+                )
+              }
+            >
+              Start the job
+            </Button>
           )}
           {open && <Button size="sm" onClick={collectModal.openModal}>Bill &amp; hand over</Button>}
           {open && (
@@ -210,8 +242,10 @@ export default function DocumentDetailPage() {
         <div className="mb-5" data-testid="held-as">
           <Alert
             variant="success"
-            title={`Held on advance as ${heldAs.number}`}
-            message="The customer put money down on this quotation. The goods are set aside at the price quoted here."
+            title={becameJob ? `Taken in as ${heldAs.number}` : `Held on advance as ${heldAs.number}`}
+            message={becameJob
+              ? "The customer accepted this quotation. The work is on the board at the price quoted here."
+              : "The customer put money down on this quotation. The goods are set aside at the price quoted here."}
             showLink
             linkHref={`/tenant/documents/${heldAs.id}`}
             linkText={`Open ${heldAs.number}`}
@@ -450,6 +484,7 @@ export default function DocumentDetailPage() {
         // taken at arrival. Skipped with the keys in hand, it could never be
         // written down for that visit at all.
         asksOdometer={job && !!doc.vehicle_id}
+        khata={canBillOnKhata && !!doc.customer_phone}
         onSubmit={(payload) =>
           mut.convert.mutate(payload, {
             onSuccess: (res) => {

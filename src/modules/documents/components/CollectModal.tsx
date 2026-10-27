@@ -10,6 +10,14 @@ import { useCounterShift } from "../../pos/hooks/useCounterShift";
 import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { DEPOSIT_METHODS } from "../services/documentService";
 
+/**
+ * How a bill can be settled. An ADVANCE can never be "on khata" — that list is
+ * DEPOSIT_METHODS — but the final bill can: a laundry bills a hostel monthly,
+ * a distributor a dealer. One list answered both questions and no job,
+ * quotation or advance could ever go on an account (services #S3).
+ */
+const ON_KHATA = { value: "credit", label: "Khata" } as const;
+
 /** Bill & hand over: the goods go out, the balance is taken. */
 export function CollectModal({
   isOpen,
@@ -19,6 +27,7 @@ export function CollectModal({
   pending,
   odometerIn,
   asksOdometer,
+  khata = false,
   onSubmit,
 }: {
   isOpen: boolean;
@@ -32,6 +41,12 @@ export function CollectModal({
    */
   odometerIn: number | null;
   asksOdometer: boolean;
+  /**
+   * May this bill go on the customer's account: the shop keeps a customer
+   * book, this person may sell on khata, and the document names a customer.
+   * The server holds every one of those again.
+   */
+  khata?: boolean;
   onSubmit: (p: {
     payment_method?: string;
     amount_paid?: number;
@@ -68,8 +83,10 @@ export function CollectModal({
   const money = useMoney();
 
   const due = Math.max(0, balance);
+  const onKhata = khata && method === ON_KHATA.value;
   const tendered = typed ?? (due > 0 ? String(Math.round(due * 100) / 100) : "");
-  const paid = Number(tendered) || 0;
+  // On khata the whole balance goes on the account — nothing is handed over.
+  const paid = onKhata ? due : Number(tendered) || 0;
   // Each opening starts from the balance again, not from what was typed last time.
   const close = () => { setTyped(null); onClose(); };
   const short = due > 0 && paid < due;
@@ -139,14 +156,20 @@ export function CollectModal({
         )}
         {due > 0 && (
           <div className="space-y-4">
-            <div>
-              <Label>Amount taken</Label>
-              <Input type="number" value={tendered} onChange={(e) => setTyped(e.target.value)} placeholder={String(due)} />
-            </div>
+            {onKhata ? (
+              <p data-bill-on-khata className="rounded-lg bg-gray-50 px-3 py-2 text-theme-sm text-gray-700 dark:bg-white/[0.03] dark:text-gray-300">
+                {money(due)} goes on the customer's khata. Nothing is taken now.
+              </p>
+            ) : (
+              <div>
+                <Label>Amount taken</Label>
+                <Input type="number" value={tendered} onChange={(e) => setTyped(e.target.value)} placeholder={String(due)} />
+              </div>
+            )}
             <div>
               <Label>Paid by</Label>
               <div className="flex flex-wrap gap-2">
-                {DEPOSIT_METHODS.map((m) => (
+                {[...DEPOSIT_METHODS, ...(khata ? [ON_KHATA] : [])].map((m) => (
                   <button
                     key={m.value}
                     type="button"

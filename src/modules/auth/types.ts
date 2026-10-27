@@ -79,7 +79,8 @@ export interface LimitUsage {
  * ever "suspended", whatever its dates say.
  */
 /** `no_plan`: on no plan and behind on nothing — it has been asked for nothing, so it has paid nothing. */
-export type PaymentStatus = "paid" | "grace" | "unpaid" | "no_plan" | "suspended";
+/** `awaiting_payment`: given a plan, inside its period, and no payment covers it yet (the user, 2026-10-27). */
+export type PaymentStatus = "paid" | "awaiting_payment" | "grace" | "unpaid" | "no_plan" | "suspended";
 
 export interface Tenant {
   /** The money this business trades in — its mark and how its amounts are written. */

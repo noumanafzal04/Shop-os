@@ -83,3 +83,17 @@ export function useTillCurrency(): CurrencyFormat {
   return currencyOf(settings.data?.currency_format ?? cached?.currency_format);
 }
 
+
+/**
+ * The sellers the till last received with its catalogue.
+ *
+ * With the line down, asking the server for them failed and the "Served by"
+ * box simply vanished — a salon's sale synced with nobody named, and the
+ * stylist's day came up short with nobody told (services #S5).
+ */
+export async function sellersOnDevice(): Promise<Array<{ id: string; name: string }>> {
+  const settings = await readTillSettings();
+  const kept = settings?.sellers;
+
+  return Array.isArray(kept) ? (kept as Array<{ id: string; name: string }>) : [];
+}

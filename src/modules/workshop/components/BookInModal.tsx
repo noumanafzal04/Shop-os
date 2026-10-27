@@ -16,6 +16,7 @@ import { boardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { instantOf } from "../../../common/time/localInput";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
+import { useConnectionStore } from "../../../stores/connectionStore";
 
 /**
  * A car arriving, in the thirty seconds somebody has while holding its keys.
@@ -55,6 +56,10 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
   // customer said is wrong, when it was promised, the opening line — is
   // identical for a car and for eight shirts.
   const words = boardWords(usePrimaryBusinessType());
+  // A job is kept on the server, not on this device. With the line down the
+  // form let a counter write out the whole slip, then found no item and greyed
+  // out the button with no word why (services #S6). Said first, now.
+  const connected = useConnectionStore((s) => s.online && s.reachable);
 
   const [plate, setPlate] = useState(vehicle?.registration ?? "");
   const [vehicleId, setVehicleId] = useState<string | null>(vehicle?.id ?? null);
@@ -131,6 +136,11 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
       <p className="mb-4 text-theme-xs text-gray-500 dark:text-gray-400">
         {words.goesOn} go on as you work. Nothing here is a price.
       </p>
+      {!connected && (
+        <p data-take-in-offline role="alert" className="mb-4 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+          This device is offline. Taking work in needs the internet — the job is kept on the server. Write the slip by hand and take it in here when the line is back.
+        </p>
+      )}
 
       <div className="max-h-[65dvh] space-y-4 overflow-y-auto pr-1">
         {words.tracksVehicle && (
@@ -261,14 +271,20 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
                   Change
                 </button>
               </div>
-              <Input
-                type="number"
-                min="0"
-                aria-label="How many"
-                value={howMany}
-                onChange={(e) => setHowMany(e.target.value)}
-                className="w-20 text-center"
-              />
+              {/* Said on screen, not only to a screen reader: the hint below
+                  promises "how many pieces", and a tester looking for the box
+                  did not find a nameless one (services #S2). */}
+              <label className="flex items-center gap-1.5 text-theme-xs font-medium text-gray-600 dark:text-gray-300">
+                How many
+                <Input
+                  type="number"
+                  min="0"
+                  aria-label="How many"
+                  value={howMany}
+                  onChange={(e) => setHowMany(e.target.value)}
+                  className="w-20 text-center"
+                />
+              </label>
             </div>
           )}
           <p className="mt-1 text-theme-xs text-gray-400">
@@ -279,7 +295,7 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
 
       <div className="mt-6 flex justify-end gap-2">
         <Button size="sm" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button size="sm" disabled={!ready || book.isPending} onClick={() => book.mutate()}>
+        <Button size="sm" disabled={!ready || !connected || book.isPending} onClick={() => book.mutate()}>
           {book.isPending ? "Saving…" : words.confirm}
         </Button>
       </div>
