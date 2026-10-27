@@ -13,6 +13,7 @@ use App\Support\BusinessTypes;
  *   - feature flags (matrix defaults)
  *   - default product/service categories
  *   - default expense categories
+ *   - the settings the trade starts with (BusinessTypes::defaultSettings)
  *
  * Idempotent: templates only seed into an EMPTY tenant — re-running setup
  * or switching type never duplicates or overwrites the owner's edits.
@@ -41,6 +42,15 @@ class ApplyBusinessTypeDefaultsAction
                 BusinessTypes::defaultFeatures($businessType, $tenant->business_category),
                 merge: false,
             );
+        }
+
+        // Settings the trade starts with (services #S1), into the ones the shop
+        // has not set — a choice somebody made is never overwritten.
+        // The shop's own on the LEFT of the union: what it set wins.
+        $settings = $tenant->settings ?? [];
+        $merged = $settings + BusinessTypes::defaultSettings($businessType);
+        if ($merged !== $settings) {
+            $tenant->forceFill(['settings' => $merged])->save();
         }
 
         if (! Category::query()->where('tenant_id', $tenant->id)->exists()) {

@@ -308,6 +308,41 @@ class SaleDocumentTest extends TestCase
         $this->assertEquals(8, $this->fan->fresh()->stock_quantity);
     }
 
+    /**
+     * Services #S4: a tailor's, printer's or laundry's quote, accepted, is the
+     * job — and there was no way to make it one. The work was taken in again
+     * from nothing, every line retyped, the quoted price lost.
+     */
+    public function test_an_accepted_quote_becomes_the_job_with_its_price(): void
+    {
+        $quote = $this->quote([['product_id' => $this->fan->id, 'quantity' => 2]], [
+            'customer_name' => 'Hotel Shalimar', 'customer_phone' => '03001234567',
+        ]);
+        // The shelf moves after the quote; the job keeps the quoted price.
+        $this->fan->forceFill(['price' => 9000])->save();
+
+        $start = fn () => $this->actingAsUser($this->cashier)->postJson('/api/v1/sale-documents', [
+            'kind' => 'job_card', 'from_document_id' => $quote['id'], 'complaint' => '1 suit + 10 shirts, starch',
+        ]);
+        $job = $start()->assertCreated()->json('data');
+
+        $this->assertStringStartsWith('JOB-', $job['number']);
+        $this->assertEquals(16000, $job['total']);
+        $this->assertEquals(8000, $job['items'][0]['unit_price']);
+        $this->assertSame('Hotel Shalimar', $job['customer_name']);
+        $this->assertSame('received', $job['work_status']);
+        $this->assertEquals(10, $this->fan->fresh()->stock_quantity, 'a job moves no stock until it is billed');
+
+        $closed = $this->actingAsUser($this->cashier)->getJson("/api/v1/sale-documents/{$quote['id']}")->assertOk()->json('data');
+        $this->assertSame('converted', $closed['status']);
+        $this->assertSame($job['number'], $closed['held_as']['number'] ?? null);
+        $this->assertSame('job_card', $closed['held_as']['kind'] ?? null, 'the quote cannot say it became a job');
+
+        // Taken up once.
+        $start()->assertStatus(409)->assertJsonPath('meta.error_code', 'DOCUMENT_NOT_OPEN');
+        $this->assertSame(1, SaleDocument::withoutTenancy()->where('kind', 'job_card')->count());
+    }
+
     public function test_a_quote_whose_price_has_run_out_or_names_nobody_is_not_held(): void
     {
         $anonymous = $this->quote([['product_id' => $this->fan->id, 'quantity' => 1]]);

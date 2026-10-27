@@ -308,10 +308,42 @@ class Tenant extends BaseModel
         }
 
         return match ($this->subscriptionState()) {
-            'active' => $this->plan_id === null ? 'no_plan' : 'paid',
+            'active' => match (true) {
+                $this->plan_id === null => 'no_plan',
+                $this->paidForNow() => 'paid',
+                default => 'awaiting_payment',
+            },
             'grace' => 'grace',
             default => 'unpaid',
         };
+    }
+
+    /**
+     * ── `awaiting_payment` is not `paid` either ──────────────────────────
+     *
+     * "Paid" meant "inside its period" and never looked at the money: give a
+     * shop a plan and a period, type no amount — AssignPlanAction rightly
+     * writes no payment row — and the list filed it under Paid. On dev, 26 of
+     * the 100 "Paid" shops had never paid at all (the user's question,
+     * 2026-10-27). The same mistake `no_plan` was split out for, the other
+     * half of it.
+     *
+     * Paid now means a payment covers today (its period runs to today or
+     * later), or the plan costs nothing.
+     */
+    public function paidForNow(): bool
+    {
+        if ($this->plan_id === null) {
+            return false;
+        }
+
+        return (float) ($this->plan?->price ?? 0) <= 0
+            || $this->subscriptionPayments()->whereDate('period_end', '>=', now()->toDateString())->exists();
+    }
+
+    public function subscriptionPayments(): HasMany
+    {
+        return $this->hasMany(SubscriptionPayment::class);
     }
 
     /**
@@ -343,18 +375,28 @@ class Tenant extends BaseModel
 
         $query->where('status', '!=', TenantStatus::Suspended);
 
-        if ($status === 'paid' || $status === 'no_plan') {
+        if (in_array($status, ['paid', 'awaiting_payment', 'no_plan'], true)) {
             // No end date = nothing is owed. A shop cannot be behind on a bill
             // it was never given.
             $query->where(fn ($q) => $q
                 ->whereNull('subscription_ends_at')
                 ->orWhere('subscription_ends_at', '>=', now()));
 
-            // …and of those, the ones on a plan have paid for it; the ones on
-            // none have been asked for nothing. See paymentStatus().
+            if ($status === 'no_plan') {
+                return $query->whereNull('plan_id');
+            }
+
+            // …and of those on a plan, the ones the money covers — or whose
+            // plan costs nothing — have paid. See paidForNow().
+            $covered = fn ($q) => $q
+                ->whereHas('plan', fn ($p) => $p->where('price', '<=', 0))
+                ->orWhereHas('subscriptionPayments', fn ($p) => $p->whereDate('period_end', '>=', now()->toDateString()));
+
+            $query->whereNotNull('plan_id');
+
             return $status === 'paid'
-                ? $query->whereNotNull('plan_id')
-                : $query->whereNull('plan_id');
+                ? $query->where($covered)
+                : $query->whereNot($covered);
         }
 
         // Both remaining buckets are past the end date; grace is what separates
@@ -380,8 +422,8 @@ class Tenant extends BaseModel
             });
     }
 
-    /** The four buckets, in the order an admin reads them. */
-    public const PAYMENT_STATUSES = ['paid', 'grace', 'unpaid', 'no_plan', 'suspended'];
+    /** The buckets, in the order an admin reads them. */
+    public const PAYMENT_STATUSES = ['paid', 'awaiting_payment', 'grace', 'unpaid', 'no_plan', 'suspended'];
 
     /**
      * Whether this tenant participates in the marketplace / online selling.

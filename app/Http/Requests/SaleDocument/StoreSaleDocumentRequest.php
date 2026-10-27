@@ -41,7 +41,9 @@ class StoreSaleDocumentRequest extends FormRequest
             // price on the paper — so a list sent beside it would be a second,
             // competing answer, and is refused rather than quietly ignored.
             'from_document_id' => [
-                'nullable', 'uuid', 'prohibited_unless:kind,'.SaleDocument::KIND_LAYAWAY, 'prohibits:items,discount',
+                // …or a quote ACCEPTED as work (services #S4): the tailor's,
+                // printer's or laundry's quote becomes the job, its price with it.
+                'nullable', 'uuid', 'prohibited_unless:kind,'.SaleDocument::KIND_LAYAWAY.','.SaleDocument::KIND_JOB_CARD, 'prohibits:items,discount',
                 Rule::exists('sale_documents', 'id')->where('tenant_id', $tenantId),
             ],
             'items' => ['required_without:from_document_id', 'array', 'min:1', 'max:200'],

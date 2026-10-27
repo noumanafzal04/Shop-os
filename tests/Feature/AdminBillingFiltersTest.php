@@ -10,6 +10,7 @@ use App\Models\User;
 use Database\Seeders\PlanSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 /**
@@ -66,14 +67,31 @@ class AdminBillingFiltersTest extends TestCase
         return array_column($response->json('data'), 'business_name');
     }
 
-    private function tenant(string $name, Plan $plan, ?string $endsAt, array $extra = []): Tenant
+    /**
+     * A shop on a plan that PAID for its period — "paid" means the money came
+     * in, not only that the window is open (the user, 2026-10-27). Pass
+     * `$paid: false` for one given a plan with no payment recorded.
+     */
+    private function tenant(string $name, Plan $plan, ?string $endsAt, array $extra = [], bool $paid = true): Tenant
     {
-        return Tenant::factory()->create([
+        $tenant = Tenant::factory()->create([
             'business_name' => $name,
             'plan_id' => $plan->id,
             'subscription_starts_at' => now()->subMonths(2),
             'subscription_ends_at' => $endsAt,
         ] + $extra);
+
+        if ($paid) {
+            SubscriptionPayment::query()->forceCreate([
+                'tenant_id' => $tenant->id, 'plan_id' => $plan->id, 'plan_name' => $plan->name,
+                'amount' => $plan->price, 'method' => 'cash',
+                'period_start' => now()->subMonths(2)->toDateString(),
+                'period_end' => ($endsAt === null ? now()->addYear() : Carbon::parse($endsAt))->toDateString(),
+                'paid_at' => now()->subMonths(2),
+            ]);
+        }
+
+        return $tenant;
     }
 
     // ── The four buckets ────────────────────────────────────────────
@@ -197,9 +215,11 @@ class AdminBillingFiltersTest extends TestCase
         ]);
         $this->tenant('E No Window', $this->basic, null);
         Tenant::factory()->create(['business_name' => 'F No Plan', 'plan_id' => null, 'subscription_ends_at' => null]);
+        $this->tenant('G Awaiting', $this->basic, now()->addDays(20)->toDateTimeString(), paid: false);
 
         $all = array_merge(
             $this->namesIn('paid'),
+            $this->namesIn('awaiting_payment'),
             $this->namesIn('grace'),
             $this->namesIn('unpaid'),
             $this->namesIn('no_plan'),
@@ -210,7 +230,40 @@ class AdminBillingFiltersTest extends TestCase
 
         // Six shops, six slots. Overlapping buckets cannot be counted, and
         // a shop in no bucket is a shop nobody ever chases.
-        $this->assertSame(['A Paid', 'B Grace', 'C Unpaid', 'D Suspended', 'E No Window', 'F No Plan'], $all);
+        $this->assertSame(['A Paid', 'B Grace', 'C Unpaid', 'D Suspended', 'E No Window', 'F No Plan', 'G Awaiting'], $all);
+    }
+
+    /**
+     * The user, 2026-10-27: 26 of the 100 "Paid" shops had never paid. A plan
+     * given with no amount writes no payment — rightly — and the bucket filed
+     * the shop under Paid anyway, beside the ones the money did cover.
+     */
+    public function test_a_shop_given_a_plan_and_no_money_is_not_paid(): void
+    {
+        $this->tenant('Paid Up', $this->basic, now()->addDays(20)->toDateTimeString());
+        $this->tenant('Never Paid', $this->basic, now()->addDays(20)->toDateTimeString(), paid: false);
+        // A payment for an earlier period does not cover this one.
+        $lapsed = $this->tenant('Paid Last Year', $this->basic, now()->addDays(20)->toDateTimeString(), paid: false);
+        SubscriptionPayment::query()->forceCreate([
+            'tenant_id' => $lapsed->id, 'plan_id' => $this->basic->id, 'plan_name' => $this->basic->name,
+            'amount' => $this->basic->price, 'method' => 'cash',
+            'period_start' => now()->subYear()->toDateString(), 'period_end' => now()->subMonths(11)->toDateString(),
+            'paid_at' => now()->subYear(),
+        ]);
+
+        $this->assertSame(['Paid Up'], $this->namesIn('paid'));
+        $this->assertEqualsCanonicalizing(['Never Paid', 'Paid Last Year'], $this->namesIn('awaiting_payment'));
+
+        $row = collect($this->asAdmin()->getJson('/api/v1/admin/tenants')->json('data'))->firstWhere('business_name', 'Never Paid');
+        $this->assertSame('awaiting_payment', $row['payment_status']);
+    }
+
+    public function test_a_free_plan_owes_nothing_and_is_paid(): void
+    {
+        $free = Plan::query()->create(['name' => 'Free', 'code' => 'free-test', 'price' => 0, 'billing_period_months' => 1, 'is_active' => true]);
+        $this->tenant('On Free', $free, now()->addDays(20)->toDateTimeString(), paid: false);
+
+        $this->assertSame(['On Free'], $this->namesIn('paid'));
     }
 
     public function test_the_counts_ride_along_on_every_response(): void

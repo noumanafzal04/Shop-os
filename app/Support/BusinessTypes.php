@@ -161,6 +161,21 @@ class BusinessTypes
      * mechanic wants the plate register and part-shaped units far more than a
      * public portfolio.
      */
+    /**
+     * The settings a trade starts with, where the shop-wide default is wrong
+     * for it.
+     *
+     * One global "ask who served: off" is right for a kiryana and backwards for
+     * a salon, a barber or a tailor, where who did the work IS the business —
+     * commission, tips, a stylist's own book (services #S1). Seeded once, at
+     * creation, into a shop that has not set them; never over a choice made.
+     *
+     * @var array<string, array<string, mixed>>
+     */
+    private const SETTINGS = [
+        'services' => ['pos_ask_who_served' => true, 'tips_enabled' => true],
+    ];
+
     private const LEGACY_PRIMARY = [
         'restaurant' => 'food', 'grocery' => 'mart', 'clinic' => 'pharmacy',
         'salon' => 'services', 'workshop' => 'automotive', 'service' => 'services',
@@ -780,6 +795,12 @@ class BusinessTypes
     /**
      * @param  string|null  $category  the tenant's `business_category`, when known
      */
+    /** @return array<string, mixed> the settings this trade starts with */
+    public static function defaultSettings(string $code): array
+    {
+        return self::SETTINGS[self::primary($code)] ?? [];
+    }
+
     public static function defaultFeatures(string $code, ?string $category = null): array
     {
         $features = self::get($code)['features'] ?? array_fill_keys(self::FEATURES, false);
