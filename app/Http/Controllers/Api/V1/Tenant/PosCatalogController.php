@@ -238,7 +238,21 @@ class PosCatalogController extends Controller
             //
             // Never a reason to reject a queued sale. Turning this off stops
             // NEW offline sales; anything already rung syncs exactly as before.
-            'offline_selling' => $tenant !== null && PlanLimits::limit($tenant, 'offline_selling') === 1,
+            //
+            // AND ONLY WHILE THE SHOP IS PAID UP. A shop past its grace is
+            // read-only online — every write refused — and offline was the way
+            // around that: a till holding this switch went on selling with the
+            // wifi off, for nothing, for as long as it liked (the user,
+            // 2026-10-27). So it reads off with the plan, at the next pull.
+            'offline_selling' => $tenant !== null
+                && $tenant->subscriptionState() !== 'read_only'
+                && PlanLimits::limit($tenant, 'offline_selling') === 1,
+            // …and a till that does not pull again before then must still
+            // stop: this is the last moment it may sell offline — the end of
+            // the shop's grace. Null when the plan has no end date. The lease
+            // every POS of this kind keeps; the till checks it against the
+            // server's clock, never its own.
+            'offline_until' => $tenant?->graceEndsAt()?->toIso8601String(),
             // The depth at which this shop would rather turn a customer away
             // than sell from a catalog nobody has updated in a week. Null for
             // almost everybody — a ceiling is opt-in, because in most of

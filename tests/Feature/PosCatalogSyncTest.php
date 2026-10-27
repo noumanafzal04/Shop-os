@@ -18,6 +18,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\InventoryService;
 use App\Support\BusinessTypes;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -520,6 +521,43 @@ class PosCatalogSyncTest extends TestCase
         $this->tenant->update(['limits' => ['offline_selling' => 0]]);
 
         $this->assertFalse($this->bootstrap()['offline_selling']);
+    }
+
+    public function test_a_shop_past_its_grace_cannot_sell_offline_for_free(): void
+    {
+        // Read-only online — and offline was the way round it: the till held
+        // the switch and sold with the wifi off for as long as it liked.
+        $this->tenant->update([
+            'limits' => ['offline_selling' => 1],
+            'subscription_ends_at' => now()->subDays($this->tenant->graceDays() + 1),
+        ]);
+        $this->assertSame('read_only', $this->tenant->fresh()->subscriptionState());
+
+        $this->assertFalse($this->bootstrap()['offline_selling']);
+    }
+
+    public function test_a_shop_in_grace_still_sells_offline_and_is_told_until_when(): void
+    {
+        // Grace is full access, offline included — with the date it stops, so
+        // a till that never pulls again still stops on time.
+        $ends = now()->subDay()->startOfSecond();
+        $this->tenant->update(['limits' => ['offline_selling' => 1], 'subscription_ends_at' => $ends]);
+        $this->assertSame('grace', $this->tenant->fresh()->subscriptionState());
+
+        $pull = $this->bootstrap();
+
+        $this->assertTrue($pull['offline_selling']);
+        $this->assertSame(
+            $ends->copy()->addDays($this->tenant->graceDays())->getTimestamp(),
+            Carbon::parse($pull['offline_until'])->getTimestamp(),
+        );
+    }
+
+    public function test_a_plan_with_no_end_date_has_no_offline_deadline(): void
+    {
+        $this->tenant->update(['limits' => ['offline_selling' => 1], 'subscription_ends_at' => null]);
+
+        $this->assertNull($this->bootstrap()['offline_until']);
     }
 
     public function test_the_shop_cannot_switch_it_on_from_its_own_settings(): void
