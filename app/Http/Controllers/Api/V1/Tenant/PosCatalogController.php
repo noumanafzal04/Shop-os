@@ -204,6 +204,20 @@ class PosCatalogController extends Controller
             'customers' => $this->customers($cursor('customers')),
             'vehicles' => $this->vehicles($cursor('vehicles')),
 
+            // HOW MUCH THERE IS IN ALL, so "Save everything on this device"
+            // can say "48,000 of 50,000 products saved" rather than only what
+            // the device holds. Counted by the rule the pages send rows by —
+            // live, switched on and sold for products; not deleted for
+            // customers — so a device that has everything reads the same
+            // number back.
+            'totals' => [
+                'products' => Product::query()
+                    ->where(fn ($q) => $q->where('is_active', true)->orWhereNull('is_active'))
+                    ->where(fn ($q) => $q->where('for_sale', true)->orWhereNull('for_sale'))
+                    ->count(),
+                'customers' => Customer::query()->count(),
+            ],
+
             'settings' => collect($tenant?->allSettings() ?? [])->only(self::TILL_SETTINGS),
             // Who the till may name as the seller — cached with the catalog so
             // a till that loses its connection can still attribute a sale.

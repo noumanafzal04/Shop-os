@@ -1073,6 +1073,40 @@ class PosCatalogSyncTest extends TestCase
         $this->assertSame($names, collect($this->delta('products', $old)['items'])->pluck('name')->all());
     }
 
+    // ── How much there is ───────────────────────────────────────────
+
+    public function test_it_says_how_many_products_and_customers_there_are_in_all(): void
+    {
+        // What a till is sent: two live items. Not an item switched off, one
+        // kept and not sold (a recipe's flour), one deleted — none of those
+        // ever lands on a device, so counting them would read "2 of 5 saved"
+        // on a device that has everything.
+        $this->product(['name' => 'Milk', 'sku' => 'M1']);
+        $this->product(['name' => 'Tea', 'sku' => 'T1']);
+        $this->product(['name' => 'Old', 'sku' => 'O1', 'is_active' => false]);
+        $this->product(['name' => 'Flour', 'sku' => 'F1', 'for_sale' => false]);
+        $this->product(['name' => 'Gone', 'sku' => 'G1'])->delete();
+        Customer::query()->create(['tenant_id' => $this->tenant->id, 'name' => 'Sana']);
+        Customer::query()->create(['tenant_id' => $this->tenant->id, 'name' => 'Ali']);
+        Customer::query()->create(['tenant_id' => $this->tenant->id, 'name' => 'Left'])->delete();
+        // Another shop's goods are not this shop's total.
+        $other = Tenant::factory()->create(['setup_completed' => true, 'business_type' => 'mart']);
+        Product::query()->create([
+            'tenant_id' => $other->id, 'type' => 'product', 'item_type' => 'physical_product',
+            'name' => 'Theirs', 'price' => 10, 'is_active' => true,
+        ]);
+
+        $first = $this->bootstrap();
+
+        $this->assertSame(['products' => 2, 'customers' => 2], $first['totals']);
+        $this->assertCount(2, collect($first['products']['items'])->filter(fn ($i) => ! isset($i['deleted'])));
+        // Every page carries it, so a till half-way through still knows the goal.
+        $this->assertSame(
+            ['products' => 2, 'customers' => 2],
+            $this->actingAsUser($this->cashier)->getJson('/api/v1/pos/catalog')->assertOk()->json('data.totals'),
+        );
+    }
+
     // ── Gating ──────────────────────────────────────────────────────
 
     public function test_it_needs_the_pos_module_and_the_permission_to_sell(): void
