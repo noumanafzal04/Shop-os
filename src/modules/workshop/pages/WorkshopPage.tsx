@@ -14,15 +14,15 @@ import {
 import Input from "../../../components/form/input/InputField";
 import { BookInModal } from "../components/BookInModal";
 import { findOnBoard } from "../find";
-import { boardWords } from "../words";
+import { boardWords, type BoardWords } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { useMoney } from "../../shop/hooks/useShop";
 import { shopShortDateTime } from "../../../common/format/date";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { JobSheet } from "../components/JobSheet";
-import { boardTally, callLink, isOverdue } from "../board";
-import { BackButton } from "../../../common/ui/BackButton";
+import { boardTally, callLink, cardMoves, isLate } from "../board";
+import { PlusIcon, TimeIcon } from "../../../icons";
 
 /**
  * What is in the shop right now.
@@ -58,11 +58,162 @@ import { BackButton } from "../../../common/ui/BackButton";
  */
 const STAGE_KEYS: WorkStatus[] = ["received", "in_progress", "ready"];
 
+/**
+ * One colour per stage, the same on the switch, the column and its count —
+ * and on the button that moves a card INTO that stage, so "Start work" and
+ * "Mark ready" never look alike (the user, 2026-10-27).
+ */
+const TONE: Record<WorkStatus, { dot: string; badge: string; press: string }> = {
+  received: {
+    dot: "bg-blue-light-500",
+    badge: "bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-500/15 dark:text-blue-light-400",
+    press: "bg-blue-light-600 hover:bg-blue-light-700",
+  },
+  in_progress: {
+    dot: "bg-brand-500",
+    badge: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-400",
+    press: "bg-brand-500 hover:bg-brand-600",
+  },
+  ready: {
+    dot: "bg-success-500",
+    badge: "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400",
+    press: "bg-success-600 hover:bg-success-700",
+  },
+};
 
-function promised(job: SaleDocument): string | null {
-  if (!job.promised_at) return null;
+type Stage = { key: WorkStatus; label: string; hint: string };
 
-  return shopShortDateTime(job.promised_at);
+/** What the shop calls this piece of work: the plate on a car, the slip number otherwise. */
+function nameOf(job: SaleDocument, tracksVehicle = true): string {
+  return (tracksVehicle ? job.vehicle?.registration : null) ?? job.number;
+}
+
+/**
+ * ONE CARD, ONE OBVIOUS NEXT PRESS.
+ *
+ * The card answers the counter's question first — whose, what is wrong, when
+ * it was promised — and then offers the next step as the one big button:
+ * start the work, mark it ready, or (when ready) bill it. The step back is a
+ * quiet link beside it; anything further is in the job's sheet.
+ */
+function JobCard({
+  job,
+  words,
+  stages,
+  money,
+  moving,
+  onOpen,
+  onMove,
+}: {
+  job: SaleDocument;
+  words: BoardWords;
+  stages: Stage[];
+  money: (n: string | number) => string;
+  moving: boolean;
+  onOpen: () => void;
+  onMove: (to: WorkStatus) => void;
+}) {
+  const stage = job.work_status ?? "received";
+  const { next, back } = cardMoves(stage);
+  const late = isLate(job);
+  const call = callLink(job.customer_phone);
+  const label = (key: WorkStatus) => stages.find((s) => s.key === key)?.label ?? key;
+  const vehicle = [job.vehicle?.make, job.vehicle?.model].filter(Boolean).join(" ");
+
+  return (
+    <div
+      className={`rounded-xl border bg-white p-3 shadow-theme-xs dark:bg-gray-900 ${
+        late ? "border-warning-300 dark:border-warning-500/40" : "border-gray-200 dark:border-gray-800"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          onClick={onOpen}
+          className={`text-left font-semibold text-gray-800 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400 ${
+            words.tracksVehicle && job.vehicle?.registration
+              ? "rounded-md border border-gray-300 bg-gray-50 px-2 py-0.5 font-mono tracking-wide dark:border-gray-700 dark:bg-white/5"
+              : ""
+          }`}
+        >
+          {nameOf(job, words.tracksVehicle)}
+        </button>
+        <span className="pt-0.5 text-theme-sm font-semibold tabular-nums text-gray-800 dark:text-white/90">
+          {money(job.total)}
+        </span>
+      </div>
+
+      {(vehicle || job.customer_name || call) && (
+        <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+          {vehicle}
+          {vehicle && job.customer_name ? " · " : ""}
+          {job.customer_name}
+          {/* "Is my car ready?" is a phone call — the number is on the card. */}
+          {call && (
+            <>
+              {vehicle || job.customer_name ? " · " : ""}
+              <a href={call} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+                {job.customer_phone}
+              </a>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* What the customer said is wrong. The first thing a mechanic reads,
+          so it is on the card and not behind a click. */}
+      {job.complaint && (
+        <p className="mt-2 line-clamp-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-theme-xs text-gray-700 dark:bg-white/5 dark:text-gray-300">
+          {job.complaint}
+        </p>
+      )}
+
+      {job.promised_at && (
+        <p
+          className={`mt-2 inline-flex items-center gap-1 text-theme-xs ${
+            late
+              ? "rounded-full bg-warning-50 px-2 py-0.5 font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400"
+              : "text-gray-500 dark:text-gray-400"
+          }`}
+        >
+          <TimeIcon aria-hidden className="size-3.5" />
+          {late ? "Late · was due " : "Due "}
+          {shopShortDateTime(job.promised_at)}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+        {next ? (
+          <button
+            type="button"
+            disabled={moving}
+            onClick={() => onMove(next)}
+            className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-theme-sm font-medium text-white disabled:opacity-50 ${TONE[next].press}`}
+          >
+            {words.moveOn[stage === "received" ? 0 : 1]}
+            <span aria-hidden>→</span>
+          </button>
+        ) : (
+          <Link
+            to={`/tenant/documents/${job.id}`}
+            className="inline-flex flex-1 items-center justify-center rounded-lg bg-orange-600 px-3 py-2 text-theme-sm font-medium text-white hover:bg-orange-700"
+          >
+            Bill it
+          </Link>
+        )}
+        {back && (
+          <button
+            type="button"
+            disabled={moving}
+            onClick={() => onMove(back)}
+            className="text-theme-xs text-gray-500 hover:text-gray-800 hover:underline disabled:opacity-50 dark:text-gray-400 dark:hover:text-white/90"
+          >
+            <span aria-hidden>↩ </span>Back to {label(back)}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function WorkshopPage() {
@@ -83,7 +234,7 @@ export default function WorkshopPage() {
     setBooking(true);
   }, [location.state, location.pathname, navigate]);
   const words = boardWords(usePrimaryBusinessType());
-  const STAGES = STAGE_KEYS.map((key, i) => ({
+  const STAGES: Stage[] = STAGE_KEYS.map((key, i) => ({
     key,
     label: words.stages[i],
     hint: words.hints[i],
@@ -139,36 +290,42 @@ export default function WorkshopPage() {
   const [open, setOpen] = useState<SaleDocument | null>(null);
 
   const move = useMutation({
-    mutationFn: ({ id, to }: { id: string; to: WorkStatus }) =>
+    mutationFn: ({ id, to }: { id: string; to: WorkStatus; name: string }) =>
       documentService.setWorkStatus(id, to),
-    onSuccess: () => {
+    onSuccess: (_, { to, name }) => {
       setOpen(null);
+      // On a phone the card leaves the column on screen, so say where it went.
+      toast.success(`${name} moved to ${STAGES.find((s) => s.key === to)?.label ?? to}`);
       queryClient.invalidateQueries({ queryKey: ["workshop"] });
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "That could not be moved."),
   });
 
   const [find, setFind] = useState("");
+  const [lateOnly, setLateOnly] = useState(false);
+  const [tab, setTab] = useState<WorkStatus | null>(null);
   const rows = jobs.data?.rows ?? [];
   const missing = jobs.data?.missing ?? 0;
-  const shown = findOnBoard(rows, find);
-  const at = (stage: WorkStatus) => shown.filter((j) => j.work_status === stage);
   const tally = boardTally(rows);
+  // Once nothing is late the switch is gone, so its filter goes with it.
+  const lateFilter = lateOnly && tally.overdue > 0;
+  const shown = findOnBoard(rows, find).filter((j) => !lateFilter || isLate(j));
+  const at = (stage: WorkStatus) => shown.filter((j) => j.work_status === stage);
+  // The stage a phone shows: the one picked, else the first with work in it.
+  const showing = tab ?? STAGE_KEYS.find((k) => at(k).length > 0) ?? "received";
 
   return (
     <div>
       <PageMeta title={`${words.board}`} description="Work taken in, and what stage each piece is at" />
 
-      <BackButton label="Back" />
-
-      <div className="mb-6 mt-3 flex flex-wrap items-start justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">{words.board}</h1>
           <p className="mt-1 text-theme-sm text-gray-500 dark:text-gray-400">
-            Every {words.unit} in the shop, and what stage it is at. Tap a {words.tracksVehicle ? "plate" : "number"} to open it.
+            Every {words.unit} in the shop, and what stage it is at. Tap a {words.tracksVehicle ? "plate" : "number"} to see the whole job.
           </p>
         </div>
-        <Button size="sm" onClick={() => setBooking(true)}>{words.takeIn}</Button>
+        <Button onClick={() => setBooking(true)} startIcon={<PlusIcon className="size-4" />}>{words.takeIn}</Button>
       </div>
 
       {/* NO SILENT CAPS. If the board genuinely could not fit, it says how many
@@ -184,30 +341,31 @@ export default function WorkshopPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="mb-4 max-w-md">
-          <Input aria-label={words.find} placeholder={words.find} value={find} onChange={(e) => setFind(e.target.value)} />
-          {find.trim() !== "" && shown.length === 0 && (
-            <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
-              No {words.unit} in the shop matches “{find.trim()}”.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* The board in four numbers, read before any card — the late ones are
-          what the phone calls are about. */}
-      {rows.length > 0 && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" data-board-tally>
-          {STAGES.map((st) => (
-            <div key={st.key} className="rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-800">
-              <p className="text-theme-xs uppercase tracking-wide text-gray-400">{st.label}</p>
-              <p className="text-xl font-semibold tabular-nums text-gray-800 dark:text-white/90">{tally[st.key]}</p>
-            </div>
-          ))}
-          <div className={`rounded-xl border px-4 py-3 ${tally.overdue > 0 ? "border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10" : "border-gray-200 dark:border-gray-800"}`}>
-            <p className="text-theme-xs uppercase tracking-wide text-gray-400">Late</p>
-            <p className={`text-xl font-semibold tabular-nums ${tally.overdue > 0 ? "text-warning-700 dark:text-warning-400" : "text-gray-800 dark:text-white/90"}`}>{tally.overdue}</p>
+        <div className="mb-4 flex flex-wrap items-start gap-3">
+          <div className="w-full max-w-md">
+            <Input aria-label={words.find} placeholder={words.find} value={find} onChange={(e) => setFind(e.target.value)} />
+            {find.trim() !== "" && shown.length === 0 && (
+              <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
+                No {words.unit} {lateFilter ? "that is late " : ""}matches “{find.trim()}”.
+              </p>
+            )}
           </div>
+          {/* The late ones are what the phone calls are about: one press shows
+              only them. */}
+          {tally.overdue > 0 && (
+            <button
+              type="button"
+              aria-pressed={lateFilter}
+              onClick={() => setLateOnly((v) => !v)}
+              className={`h-11 rounded-lg border px-4 text-theme-sm font-medium ${
+                lateFilter
+                  ? "border-warning-500 bg-warning-500 text-white hover:bg-warning-600"
+                  : "border-warning-300 bg-warning-50 text-warning-700 hover:bg-warning-100 dark:border-warning-500/40 dark:bg-warning-500/10 dark:text-warning-400"
+              }`}
+            >
+              {lateFilter ? `Show all ${words.units}` : `${tally.overdue} late — show only these`}
+            </button>
+          )}
         </div>
       )}
 
@@ -220,122 +378,87 @@ export default function WorkshopPage() {
       ) : rows.length === 0 ? (
         <ListEmpty from={jobs} what="the job cards">
           <div className="rounded-2xl border border-dashed border-gray-300 py-16 text-center dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400">No {words.units} in the shop.</p>
-            <p className="mx-auto mt-1 max-w-md text-theme-xs text-gray-400">
-              Take one in when it arrives — {words.goesOn.toLowerCase()} go on as you work, and the
-              whole job becomes an invoice when the customer collects.
+            <p className="font-medium text-gray-700 dark:text-gray-300">No {words.units} in the shop.</p>
+            <p className="mx-auto mt-1 max-w-md text-theme-sm text-gray-500 dark:text-gray-400">
+              Take one in when it arrives. {words.goesOn} go on as you work, and the
+              whole job becomes a bill when the customer collects.
             </p>
-            <Button size="sm" className="mt-3" onClick={() => setBooking(true)}>{words.takeIn}</Button>
+            <Button className="mt-4" onClick={() => setBooking(true)} startIcon={<PlusIcon className="size-4" />}>{words.takeIn}</Button>
           </div>
         </ListEmpty>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {STAGES.map((stage) => {
-            const cars = at(stage.key);
+        <>
+          {/* A phone has room for one column: the stages become a switch, each
+              with its count, and the board shows the one picked. */}
+          <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1 md:hidden dark:bg-white/5">
+            {STAGES.map((st) => (
+              <button
+                key={st.key}
+                type="button"
+                aria-pressed={showing === st.key}
+                onClick={() => setTab(st.key)}
+                className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-theme-xs font-medium ${
+                  showing === st.key
+                    ? "bg-white text-gray-800 shadow-theme-xs dark:bg-gray-800 dark:text-white/90"
+                    : "text-gray-500 dark:text-gray-400"
+                }`}
+              >
+                <span aria-hidden className={`size-2 shrink-0 rounded-full ${TONE[st.key].dot}`} />
+                {st.label}
+                <span className="tabular-nums">{at(st.key).length}</span>
+              </button>
+            ))}
+          </div>
 
-            return (
-              <div key={stage.key} className="rounded-2xl border border-gray-200 p-3 dark:border-gray-800">
-                <div className="mb-3 flex items-baseline justify-between">
-                  <h2 className="font-semibold text-gray-800 dark:text-white/90">
-                    {stage.label}{" "}
-                    <span className="text-theme-xs font-normal text-gray-400">({cars.length})</span>
-                  </h2>
-                  <span className="text-theme-xs text-gray-400">{stage.hint}</span>
-                </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {STAGES.map((stage) => {
+              const cars = at(stage.key);
 
-                {/* The column scrolls, the page does not — a work screen keeps
-                    its header and its other columns in view. */}
-                <div className="space-y-2 md:max-h-[calc(100dvh-20rem)] md:overflow-y-auto md:pr-1">
-                  {cars.length === 0 && (
-                    <p className="py-6 text-center text-theme-xs text-gray-400">Nothing here.</p>
-                  )}
-
-                  {cars.map((job) => (
-                    <div
-                      key={job.id}
-                      className={`rounded-xl border p-3 ${
-                        isOverdue(job)
-                          ? "border-warning-300 bg-warning-50 dark:border-warning-500/40 dark:bg-warning-500/10"
-                          : "border-gray-200 dark:border-gray-800"
-                      }`}
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setOpen(job)}
-                          className="text-left font-semibold text-gray-800 hover:text-brand-500 dark:text-white/90"
-                        >
-                          {(words.tracksVehicle ? job.vehicle?.registration : null) ?? job.number}
-                        </button>
-                        <span className="text-theme-xs tabular-nums text-gray-500 dark:text-gray-400">
-                          {money(job.total)}
-                        </span>
-                      </div>
-
-                      <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                        {[job.vehicle?.make, job.vehicle?.model].filter(Boolean).join(" ")}
-                        {job.customer_name ? ` · ${job.customer_name}` : ""}
-                        {/* "Is my car ready?" is a phone call — the number is on the card. */}
-                        {callLink(job.customer_phone) && (
-                          <>
-                            {" · "}
-                            <a href={callLink(job.customer_phone)!} className="font-medium text-brand-600 hover:underline dark:text-brand-400">
-                              {job.customer_phone}
-                            </a>
-                          </>
-                        )}
-                      </p>
-
-                      {/* What the customer said is wrong. The first thing a
-                          mechanic reads, so it is on the card and not behind a
-                          click. */}
-                      {job.complaint && (
-                        <p className="mt-1 line-clamp-2 text-theme-xs text-gray-600 dark:text-gray-300">
-                          {job.complaint}
-                        </p>
-                      )}
-
-                      {promised(job) !== null && (
-                        <p
-                          className={`mt-1 text-theme-xs ${
-                            isOverdue(job)
-                              ? "font-medium text-warning-700 dark:text-warning-400"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {isOverdue(job) ? "Promised " : "Due "}
-                          {promised(job)}
-                        </p>
-                      )}
-
-                      {/* Every other stage, reachable from here. Cars go
-                          backwards — a job marked ready fails its road test. */}
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {STAGES.filter((s) => s.key !== stage.key).map((s) => (
-                          <button
-                            key={s.key}
-                            type="button"
-                            disabled={move.isPending}
-                            onClick={() => move.mutate({ id: job.id, to: s.key })}
-                            className="rounded-lg border border-gray-300 px-2 py-1 text-theme-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-white/[0.03]"
-                          >
-                            → {s.label}
-                          </button>
-                        ))}
-                        <Link
-                          to={`/tenant/documents/${job.id}`}
-                          className="rounded-lg border border-brand-300 px-2 py-1 text-theme-xs text-brand-600 hover:bg-brand-50 dark:border-brand-500/40 dark:text-brand-400"
-                        >
-                          Bill it
-                        </Link>
-                      </div>
+              return (
+                <div
+                  key={stage.key}
+                  className={`${showing === stage.key ? "block" : "hidden"} rounded-2xl border border-gray-200 bg-gray-50 p-3 md:block dark:border-gray-800 dark:bg-white/[0.02]`}
+                >
+                  <div className="mb-3 px-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h2 className="flex items-center gap-2 font-semibold text-gray-800 dark:text-white/90">
+                        <span aria-hidden className={`size-2.5 rounded-full ${TONE[stage.key].dot}`} />
+                        {stage.label}
+                      </h2>
+                      <span className={`rounded-full px-2.5 py-0.5 text-theme-xs font-semibold tabular-nums ${TONE[stage.key].badge}`}>
+                        {cars.length}
+                      </span>
                     </div>
-                  ))}
+                    <p className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">{stage.hint}</p>
+                  </div>
+
+                  {/* The column scrolls, the page does not — a work screen keeps
+                      its header and its other columns in view. */}
+                  <div className="space-y-2.5 md:max-h-[calc(100dvh-19rem)] md:overflow-y-auto md:pr-1">
+                    {cars.length === 0 && (
+                      <p className="rounded-xl border border-dashed border-gray-300 py-8 text-center text-theme-xs text-gray-400 dark:border-gray-700">
+                        Nothing here.
+                      </p>
+                    )}
+
+                    {cars.map((job) => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        words={words}
+                        stages={STAGES}
+                        money={money}
+                        moving={move.isPending}
+                        onOpen={() => setOpen(job)}
+                        onMove={(to) => move.mutate({ id: job.id, to, name: nameOf(job, words.tracksVehicle) })}
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {open && (
@@ -344,7 +467,7 @@ export default function WorkshopPage() {
           stages={STAGES}
           money={money}
           moving={move.isPending}
-          onMove={(to) => move.mutate({ id: open.id, to })}
+          onMove={(to) => move.mutate({ id: open.id, to, name: nameOf(open, words.tracksVehicle) })}
           onClose={() => setOpen(null)}
         />
       )}

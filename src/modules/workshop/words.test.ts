@@ -43,7 +43,7 @@ describe("the words change, the board does not", () => {
     expect(w.stages[0]).toBe("Waiting");
     expect(w.takeIn).toBe("Take a car in");
     // Nobody in a Pakistani workshop says these.
-    const said = [w.takeIn, ...w.stages, ...w.hints, w.opensWith, w.confirm].join(" ").toLowerCase();
+    const said = [w.takeIn, ...w.stages, ...w.hints, ...w.moveOn, w.opensWith, w.confirm].join(" ").toLowerCase();
     for (const foreign of ["bay", "book", "diagnostic", "ramp"]) {
       expect(said, `a workshop was spoken to as "${foreign}"`).not.toContain(foreign);
     }

@@ -42,6 +42,8 @@ export interface BoardWords {
   stages: [string, string, string];
   /** Sub-labels under each stage. */
   hints: [string, string, string];
+  /** The card's one press forward from the first two stages; ready's is the bill. */
+  moveOn: [string, string];
   /**
    * Does this trade identify the work by a vehicle? Automotive does — the plate
    * IS the job, and it carries the car's whole history. Nobody else has one,
@@ -75,6 +77,7 @@ const WORKSHOP: BoardWords = {
   takeIn: "Take a car in",
   stages: ["Waiting", "Work in progress", "Ready"],
   hints: ["Taken in, work not started", "A mechanic is on it", "Customer can collect it"],
+  moveOn: ["Start work", "Mark ready"],
   tracksVehicle: true,
   asks: "What is wrong, in the customer\u2019s words",
   said: "What the customer said",
@@ -93,6 +96,7 @@ const JOBS: BoardWords = {
   takeIn: "Take work in",
   stages: ["Taken in", "Work in progress", "Ready"],
   hints: ["Received, not started", "Being done", "Customer can collect it"],
+  moveOn: ["Start work", "Mark ready"],
   tracksVehicle: false,
   // Nothing is "wrong" with eight shirts or two metres of cloth.
   asks: "What they want done",

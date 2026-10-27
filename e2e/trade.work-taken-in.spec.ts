@@ -79,7 +79,7 @@ async function counterClear(request: APIRequestContext): Promise<void> {
 }
 
 const card = (page: Page, number: string): Locator =>
-  page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: number, exact: true }) });
+  page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: number, exact: true }) });
 const figure = async (page: Page, label: string): Promise<number> =>
   Number((await page.getByText(label, { exact: true }).locator("xpath=following-sibling::*[1]").innerText()).replace(/[^0-9.]/g, ""));
 const tomorrowAt = (time: string): string => {
@@ -119,7 +119,7 @@ async function takeIn(page: Page, request: APIRequestContext, howMany: number): 
 /** Find it on the board the way the customer says it, and open it. */
 async function findAndOpen(page: Page, number: string): Promise<void> {
   await page.goto("/tenant/workshop");
-  const jobsOnBoard = page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: /^JOB-/ }) });
+  const jobsOnBoard = page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: /^JOB-/ }) });
   // The denominator: there is more than one job here to begin with.
   await expect.poll(() => jobsOnBoard.count(), { timeout: 15_000 }).toBeGreaterThan(1);
   const find = page.getByLabel("Find a job — slip number, name or phone", { exact: true });
@@ -128,7 +128,8 @@ async function findAndOpen(page: Page, number: string): Promise<void> {
   await expect(card(page, number), "the customer's phone, said with spaces, did not find their work").toBeVisible({ timeout: 15_000 });
   // Found means the rest of the board stood aside — not that this card was somewhere on it.
   await expect(jobsOnBoard).toHaveCount(1);
-  await card(page, number).getByRole("link", { name: number, exact: true }).click();
+  await card(page, number).getByRole("button", { name: number, exact: true }).click();
+  await page.locator("[data-job-sheet]").getByRole("link", { name: "Open the job card" }).click();
   await expect(page.getByTestId("job-details")).toBeVisible({ timeout: 15_000 });
 }
 

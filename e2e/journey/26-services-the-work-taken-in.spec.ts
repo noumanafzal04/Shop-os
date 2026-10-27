@@ -64,8 +64,8 @@ const dateIn = (days: number): string => {
 const column = (page: Page, stage: string): Locator =>
   page.locator("div.rounded-2xl").filter({ has: page.getByRole("heading", { name: new RegExp(`^${stage}`) }) });
 const card = (page: Page, number: string): Locator =>
-  page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: number, exact: true }) });
-const cards = (page: Page): Locator => page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: /^JOB-/ }) });
+  page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: number, exact: true }) });
+const cards = (page: Page): Locator => page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: /^JOB-/ }) });
 const takeIn = (page: Page): Locator => page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Take work in" }) });
 
 async function board(page: Page): Promise<void> {
@@ -76,7 +76,8 @@ async function board(page: Page): Promise<void> {
 
 async function openJob(page: Page, number: string): Promise<void> {
   await board(page);
-  await card(page, number).getByRole("link", { name: number, exact: true }).click();
+  await card(page, number).getByRole("button", { name: number, exact: true }).click();
+  await page.locator("[data-job-sheet]").getByRole("link", { name: "Open the job card" }).click();
   await expect(page.getByTestId("job-details")).toBeVisible({ timeout: 20_000 });
 }
 
@@ -197,7 +198,8 @@ test("O4 · the customer is found by the number they give, and leaves an advance
   await expect(cards(page)).toHaveCount(0);
   await expect(page.getByText("No job in the shop matches “QA Nobody Here”.")).toBeVisible();
   await find.fill(number);
-  await card(page, number).getByRole("link", { name: number, exact: true }).click();
+  await card(page, number).getByRole("button", { name: number, exact: true }).click();
+  await page.locator("[data-job-sheet]").getByRole("link", { name: "Open the job card" }).click();
 
   // Its own page: a job card, back to Jobs, the customer's instructions — no car.
   const facts = page.getByTestId("job-details");
@@ -288,16 +290,17 @@ test("O7 · it moves along the board, and back when a stain is found at the coun
   if ((await doc(request, id)).status !== "open") return;
 
   await board(page);
-  const move = async (to: string) => {
-    await card(page, number).getByRole("button", { name: `→ ${to}` }).click();
+  // The card's one press forward, or its quiet step back.
+  const move = async (press: string, to: string) => {
+    await card(page, number).getByRole("button", { name: press }).click();
     await expect(column(page, to).filter({ has: card(page, number) }), `the job did not move to ${to}`).toBeVisible({ timeout: 15_000 });
   };
 
-  if ((await doc(request, id)).work_status === "received") await move("Work in progress");
-  if ((await doc(request, id)).work_status === "in_progress") await move("Ready");
-  await move("Work in progress");
+  if ((await doc(request, id)).work_status === "received") await move("Start work", "Work in progress");
+  if ((await doc(request, id)).work_status === "in_progress") await move("Mark ready", "Ready");
+  await move("Back to Work in progress", "Work in progress");
   expect((await doc(request, id)).work_status).toBe("in_progress");
-  await move("Ready");
+  await move("Mark ready", "Ready");
   expect((await doc(request, id)).work_status).toBe("ready");
 });
 

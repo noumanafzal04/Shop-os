@@ -119,7 +119,7 @@ export function JobSheet({
         <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
           {stages.filter((s) => s.key !== job.work_status).map((s) => (
             <Button key={s.key} size="sm" variant="outline" disabled={moving} onClick={() => onMove(s.key)}>
-              → {s.label}
+              Move to {s.label}
             </Button>
           ))}
           <Link

@@ -81,7 +81,7 @@ async function carOutOfTheShop(request: APIRequestContext): Promise<Vehicle> {
   return car;
 }
 
-const card = (page: Page): Locator => page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: CAR.plate, exact: true }) });
+const card = (page: Page): Locator => page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: CAR.plate, exact: true }) });
 const total = async (page: Page): Promise<number> =>
   Number((await page.getByText("Total", { exact: true }).locator("xpath=following-sibling::*[1]").innerText()).replace(/[^0-9.]/g, ""));
 const tomorrowAt = (time: string): string => {
@@ -118,7 +118,8 @@ test("a car is booked in, the job grows as it is worked on, and it is billed for
   await expect(card(page), "the board does not show the hour that was promised").toContainText(/Due .* 5:00 PM/, { timeout: 15_000 });
 
   // ── its own page ───────────────────────────────────────────────────
-  await card(page).getByRole("link", { name: CAR.plate, exact: true }).click();
+  await card(page).getByRole("button", { name: CAR.plate, exact: true }).click();
+  await page.locator("[data-job-sheet]").getByRole("link", { name: "Open the job card" }).click();
   const facts = page.getByTestId("job-details");
   await expect(facts).toContainText(CAR.plate, { timeout: 15_000 });
   await expect(facts).toContainText("Rattle over bumps");

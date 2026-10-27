@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boardTally, callLink, isOverdue } from "./board";
+import { boardTally, callLink, cardMoves, isLate, isOverdue } from "./board";
 
 const now = new Date("2026-10-24T12:00:00Z");
 const job = (work_status: "received" | "in_progress" | "ready", promised_at: string | null = null) => ({ work_status, promised_at });
@@ -19,6 +19,20 @@ describe("the board in four numbers", () => {
     expect(isOverdue({ promised_at: null }, now)).toBe(false);
     expect(isOverdue({ promised_at: "2026-10-24T13:00:00Z" }, now)).toBe(false);
     expect(isOverdue({ promised_at: "2026-10-24T11:00:00Z" }, now)).toBe(true);
+  });
+
+  it("is late on the shop only while it is not ready", () => {
+    expect(isLate(job("in_progress", "2026-10-24T11:00:00Z"), now)).toBe(true);
+    expect(isLate(job("ready", "2026-10-24T11:00:00Z"), now)).toBe(false);
+    expect(isLate(job("received"), now)).toBe(false);
+  });
+});
+
+describe("what a card offers", () => {
+  it("one step forward and one back — ready's next step is the bill", () => {
+    expect(cardMoves("received")).toEqual({ next: "in_progress", back: null });
+    expect(cardMoves("in_progress")).toEqual({ next: "ready", back: "received" });
+    expect(cardMoves("ready")).toEqual({ next: null, back: "in_progress" });
   });
 });
 

@@ -73,7 +73,7 @@ const dateIn = (days: number): string => {
 const column = (page: Page, stage: string): Locator =>
   page.locator("div.rounded-2xl").filter({ has: page.getByRole("heading", { name: new RegExp(`^${stage}`) }) });
 const card = (page: Page, plate: string): Locator =>
-  page.locator("div.rounded-xl").filter({ has: page.getByRole("link", { name: plate, exact: true }) });
+  page.locator("div.rounded-xl").filter({ has: page.getByRole("button", { name: plate, exact: true }) });
 async function board(page: Page): Promise<void> {
   await page.goto("/tenant/workshop");
   await expect(page.getByRole("heading", { name: "Workshop", exact: true })).toBeVisible({ timeout: 20_000 });
@@ -83,7 +83,8 @@ async function board(page: Page): Promise<void> {
 /** The job card's own page, opened from its card on the board. */
 async function openJob(page: Page, plate: string): Promise<void> {
   await board(page);
-  await card(page, plate).getByRole("link", { name: plate, exact: true }).click();
+  await card(page, plate).getByRole("button", { name: plate, exact: true }).click();
+  await page.locator("[data-job-sheet]").getByRole("link", { name: "Open the job card" }).click();
   await expect(page.getByTestId("job-details")).toBeVisible({ timeout: 20_000 });
 }
 const jobTotal = async (page: Page): Promise<number> =>
@@ -381,21 +382,22 @@ test("M7 · the car moves along the board — and back, when the road test fails
   if ((await doc(request, id)).status !== "open") return;
 
   await board(page);
-  const move = async (to: string) => {
-    await card(page, CAR.plate).getByRole("button", { name: `→ ${to}` }).click();
+  // The card's one press forward, or its quiet step back.
+  const move = async (press: string, to: string) => {
+    await card(page, CAR.plate).getByRole("button", { name: press }).click();
     await expect(column(page, to).filter({ has: card(page, CAR.plate) }), `the car did not move to ${to}`).toBeVisible({ timeout: 15_000 });
   };
 
-  if ((await doc(request, id)).work_status === "received") await move("Work in progress");
-  if ((await doc(request, id)).work_status === "in_progress") await move("Ready");
+  if ((await doc(request, id)).work_status === "received") await move("Start work", "Work in progress");
+  if ((await doc(request, id)).work_status === "in_progress") await move("Mark ready", "Ready");
   expect((await doc(request, id)).work_status).toBe("ready");
 
   // Ready fails its road test: back on the ramp, then ready again.
-  await move("Work in progress");
+  await move("Back to Work in progress", "Work in progress");
   expect((await doc(request, id)).work_status).toBe("in_progress");
-  // The stage it is NOT in is the one offered; the one it is in is not.
-  await expect(card(page, CAR.plate).getByRole("button", { name: "→ Work in progress" })).toHaveCount(0);
-  await move("Ready");
+  // A car being worked on is not offered "Start work" again.
+  await expect(card(page, CAR.plate).getByRole("button", { name: "Start work" })).toHaveCount(0);
+  await move("Mark ready", "Ready");
   expect((await doc(request, id)).work_status).toBe("ready");
 });
 
