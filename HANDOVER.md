@@ -9765,3 +9765,17 @@ built; they wait for the owner's yes.**
 - Not done: profit by pack, delivery challan, credit days and the rest of W12's suggestions.
   Existing wholesale shops on live: an admin unticks Online Store.
 - Deploy: backend (two migrations today: `2026_10_25_000001`, `000002`) → `shopos:geo PK` → panel.
+
+## 2026-10-27 — services round fixed, #W1 re-test, admin billing
+
+- #W1 re-test failed (existing shops stayed listed): backend `7e214cf` — migration
+  `2026_10_27_000001` takes every wholesale shop off the marketplace; the public product list
+  never sends a distributor's price_tiers. Verified on dev: not listed, product page 404.
+- Services report `docs/qa/TESTER-REPORT-2026-10-25-services.md` (untracked): #S1–#S6 →
+  **B153–B158**. Backend `7728a2c`: trade settings defaults (`BusinessTypes::defaultSettings`),
+  quote → job (`from_document_id` on a job card). Panel `091661b`: Start the job, Khata on the bill
+  sheet, sellers kept for offline, take-in says it needs the line, labelled "How many".
+- Admin billing (the user's two questions): **B159** `awaiting_payment` bucket (paid needs a
+  payment covering today, or a free plan); **B160** the list prints the whole bill.
+- Re-test rows R140–R147. Deploy: backend → `php artisan migrate` (2026_10_25_000001/2,
+  2026_10_27_000001) → `php artisan shopos:geo PK` → panel.

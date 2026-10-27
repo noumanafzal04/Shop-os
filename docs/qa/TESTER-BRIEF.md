@@ -190,6 +190,14 @@ panel, docs (newest `main`). Run `php artisan migrate` (three new: `sale_returns
 | R137 | wholesale | Reports → Customers for October. (B150) | Each dealer: sales, bought, on khata in the period, owes now; walk-in on its own line; figures = Sales list. |
 | R138 | wholesale | Untick "Sell on khata" for the booker; he tries khata. (B151) | No Khata button; the API refuses KHATA_NOT_YOURS; balance unchanged. Everyone else still sells on khata. |
 | R139 | wholesale | The booker (no discount permission) looks for Retail/Wholesale on a line. (B152) | No menu; the API refuses PRICE_LEVEL_NOT_YOURS. A dealer in a wholesale group still gets the wholesale price. |
+| R140 | wholesale | Re-test R133 on the EXISTING Hisaab QA Wholesale after migrate. (B146) | Not listed; its product page 404s; with Online Store ticked back on, no price_tiers in the public product list. |
+| R141 | services | Create a new services shop; ring a sale. (B153) | "Served by" is asked and Tips are on from the first day. |
+| R142 | services | Take work in: pick the item. (B154) | A labelled "How many" box beside it. |
+| R143 | services | Bill a job for a customer with a phone, as someone with "Sell on khata". (B155) | Khata on the sheet; the whole balance goes on the account. Without the permission: no Khata. |
+| R144 | services | An open quotation → "Start the job". (B156) | A JOB- with the quote's lines and price on the board; the quote reads "Taken in as JOB-…". |
+| R145 | services | Salon offline (pulled once online): ring a sale. (B157) | Served by is there with the stylists; the synced sale names her. |
+| R146 | services | Jobs → Take work in, offline. (B158) | A warning at the top before anything is typed; the button stays shut. |
+| R147 | admin | Businesses list: a shop given a plan with no amount; a shop with add-ons. (B159, B160) | The first under "Not paid yet", not Paid; the second shows the whole bill and the split. |
 
 ### 5b. What no pass has reached yet
 
