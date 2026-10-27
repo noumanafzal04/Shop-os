@@ -11,7 +11,7 @@ import {
   strandedShiftOps,
   type ShiftOpRow,
 } from "./shift/shiftQueue";
-import { readinessLabel, readOfflineReadiness, type OfflineReadiness } from "./readiness";
+import { notSavedYet, readinessLabel, readOfflineReadiness, type OfflineReadiness } from "./readiness";
 import { markTillHere } from "./device/tillHere";
 import { pullNow } from "./sync/pullNow";
 import { useQuery } from "@tanstack/react-query";
@@ -54,6 +54,19 @@ export default function OfflineReadyPanel() {
 
   useEffect(refresh, [refresh]);
 
+  // WHILE IT SAVES, IT COUNTS. A 50,000-item shop is fifty pages, a minute or
+  // more on a slow line, and "Saving…" alone for that long reads as stuck. The
+  // device's own count is read again each second as the pages land, so the
+  // button says how far it has got.
+  useEffect(() => {
+    if (!saving) return;
+    const tick = setInterval(() => {
+      void readOfflineReadiness().then(setState, () => undefined);
+    }, 1000);
+
+    return () => clearInterval(tick);
+  }, [saving]);
+
   const save = () => {
     if (saving) return;
     setSaving(true);
@@ -72,6 +85,10 @@ export default function OfflineReadyPanel() {
   };
 
   const ready = state?.ready === true;
+  // Some of the shop's items are not on this device yet — it can sell, but not
+  // everything. Said, so a half-finished save is not read as a finished one.
+  const partly = ready && state !== null && notSavedYet(state) > 0;
+  const onServer = state?.onServer ?? null;
   // How long this shop may sell with no line — its plan's answer. The same
   // query the device list below reads, so it costs nothing more.
   const roster = useQuery({
@@ -117,13 +134,32 @@ export default function OfflineReadyPanel() {
           <p className="flex items-center gap-2 text-theme-sm font-medium text-gray-800 dark:text-white/90">
             <span
               aria-hidden
-              className={`h-2 w-2 shrink-0 rounded-full ${ready ? "bg-success-500" : "bg-warning-500"}`}
+              className={`h-2 w-2 shrink-0 rounded-full ${ready && !partly ? "bg-success-500" : "bg-warning-500"}`}
             />
-            {ready ? "This device can sell offline" : "This device is not ready to sell offline"}
+            {partly
+              ? "This device is only partly saved"
+              : ready
+                ? "This device can sell offline"
+                : "This device is not ready to sell offline"}
           </p>
           <p className="mt-1 text-theme-xs leading-relaxed text-gray-500 dark:text-gray-400">
             {state === null ? "Checking what is saved here…" : readinessLabel(state)}
           </p>
+          {state !== null && onServer !== null && onServer.products > 0 && state.products < onServer.products && (
+            <div
+              role="progressbar"
+              aria-label="Products saved on this device"
+              aria-valuemin={0}
+              aria-valuemax={onServer.products}
+              aria-valuenow={state.products}
+              className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800"
+            >
+              <div
+                className="h-full rounded-full bg-brand-500 transition-[width] duration-500"
+                style={{ width: `${Math.floor((state.products / onServer.products) * 100)}%` }}
+              />
+            </div>
+          )}
           {urgent && (
             <p className="mt-1 text-theme-xs font-medium text-brand-700 dark:text-brand-300">
               Your plan lets this shop sell without internet for up to {offlineDays} day{offlineDays === 1 ? "" : "s"}. Save this device so it can.
@@ -142,7 +178,11 @@ export default function OfflineReadyPanel() {
         </div>
 
         <Button size="sm" variant={ready ? "outline" : "primary"} onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save everything on this device"}
+          {saving
+            ? state !== null && onServer !== null && onServer.products > 0
+              ? `Saving… ${Math.min(state.products, onServer.products).toLocaleString()} of ${onServer.products.toLocaleString()}`
+              : "Saving…"
+            : "Save everything on this device"}
         </Button>
       </div>
 

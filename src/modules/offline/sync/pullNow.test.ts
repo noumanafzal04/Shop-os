@@ -3,7 +3,7 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 
 import { resetDbCache } from "../db/open";
-import { count } from "../db/repo";
+import { count, putSingleton } from "../db/repo";
 import { STORE } from "../db/schema";
 import { readMeta } from "./applyPull";
 import { catalogService, type CatalogItem, type CatalogPull, type Page, type Tombstone } from "./catalogService";
@@ -178,6 +178,43 @@ describe("paging", () => {
     await pullNow();
 
     expect((await readMeta()).cursors.products).toBe("page-2");
+  });
+});
+
+/**
+ * The user, 2026-10-27: a shop with 10k or 50k items presses "Save everything
+ * on this device" — is ALL of it saved, not only what was on screen? And
+ * pressing it again must not save anything twice.
+ */
+describe("saving everything, once", () => {
+  it("saves every page of a big shop, and remembers how many the shop has", async () => {
+    // 3 pages of 1,000 here stand for fifty: the loop is the same.
+    const pageOf = (n: number) => Array.from({ length: 1000 }, (_, i) => item(`p${n}-${i}`));
+    const withTotal = (data: CatalogPull) => ({ ...data, totals: { products: 3000, customers: 0 } });
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(withTotal(pull(pageOf(1), "c1", true))));
+    let round = 1;
+    vi.spyOn(catalogService, "delta").mockImplementation(async () => {
+      round += 1;
+
+      return envelope(withTotal(pull(pageOf(round), `c${round}`, round < 3)));
+    });
+
+    await pullNow({ force: true });
+
+    expect(await count(STORE.CATALOG)).toBe(3000);
+    expect((await readMeta()).serverTotals).toEqual({ products: 3000, customers: 0 });
+  });
+
+  it("pressing it again saves nothing twice", async () => {
+    const same = [item("p1"), item("p2"), item("p3")];
+    vi.spyOn(catalogService, "bootstrap").mockResolvedValue(envelope(pull(same, "c1")));
+    // A device whose cursors were lost asks from the start again and is sent
+    // every row a second time — the case where a duplicate would show.
+    await pullNow({ force: true });
+    await putSingleton(STORE.SYNC_META, { ...(await readMeta()), cursors: {} });
+    await pullNow({ force: true });
+
+    expect(await count(STORE.CATALOG)).toBe(3);
   });
 });
 

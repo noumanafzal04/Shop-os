@@ -204,6 +204,12 @@ export const PROJECTIONS = [
 
 export type Projection = (typeof PROJECTIONS)[number];
 
+/** What the server holds, for "saved X of Y" on the device. */
+export interface ServerTotals {
+  products: number;
+  customers: number;
+}
+
 export interface CatalogPull {
   products: Page<CatalogItem>;
   categories: Page<CatalogCategory>;
@@ -255,6 +261,12 @@ export interface CatalogPull {
   // own counter exactly as it is, not reset it to null.
   offline_sequence?: number | null;
   server_time: string;
+  /**
+   * How many products and customers the shop has IN ALL, counted by the rule
+   * the pages send rows by — so "48,000 of 50,000 saved" compares like with
+   * like. Optional: a server older than this sends none.
+   */
+  totals?: ServerTotals;
   /** Only on a first load. */
   branch_id?: string | null;
 }

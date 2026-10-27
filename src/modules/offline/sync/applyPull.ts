@@ -6,6 +6,7 @@ import {
   type CatalogItem,
   type CatalogPull,
   type Projection,
+  type ServerTotals,
 } from "./catalogService";
 import { indexEntriesFor, type BarcodeEntry } from "./barcodeIndex";
 
@@ -62,6 +63,12 @@ export interface SyncMeta {
    * written before this existed, which reads as never.
    */
   pulledAt?: number | null;
+  /**
+   * How much the server had at the last pull — the "of 50,000" in "48,000 of
+   * 50,000 saved". Kept when a server too old to send it answers, so one old
+   * reply does not wipe what was known.
+   */
+  serverTotals?: ServerTotals | null;
   /**
    * WHICH SHOP THIS DATABASE BELONGS TO.
    *
@@ -142,6 +149,7 @@ export async function applyPull(pull: CatalogPull): Promise<{
   // just now" that outlived a failed page would stop the next opening asking
   // for the rest.
   meta.pulledAt = hasMore ? null : Date.now();
+  meta.serverTotals = pull.totals ?? meta.serverTotals ?? null;
 
   await putSingleton(STORE.SYNC_META, meta);
 

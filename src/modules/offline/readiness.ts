@@ -1,6 +1,7 @@
 import { count } from "./db/repo";
 import { STORE } from "./db/schema";
 import { readMeta } from "./sync/applyPull";
+import type { ServerTotals } from "./sync/catalogService";
 
 /**
  * WHAT THIS DEVICE IS HOLDING, and whether it can trade without a line.
@@ -32,6 +33,11 @@ export interface OfflineReadiness {
   codes: number;
   /** When the last successful pull finished. Null = this till has never synced. */
   lastPullAt: string | null;
+  /**
+   * What the server had at that pull — the "of 50,000". Null before the first
+   * pull, or from a server too old to say.
+   */
+  onServer: ServerTotals | null;
   /** Enough on board to sell from. */
   ready: boolean;
 }
@@ -49,6 +55,7 @@ export async function readOfflineReadiness(): Promise<OfflineReadiness> {
     customers,
     codes,
     lastPullAt: meta.lastPullAt,
+    onServer: meta.serverTotals ?? null,
     // A catalog is the whole requirement. Customers are a convenience — a
     // walk-in sale needs none — and codes only decide whether a scanner works,
     // which is why a shop with neither is still told it can sell.
@@ -72,6 +79,23 @@ export function readinessLabel(r: OfflineReadiness): string {
     r.codes === 0
       ? " No barcodes saved, so scanning will not work offline — search by name instead."
       : "";
+  // "48,000 of 50,000" while some are not here yet; "all 50,000" once they are.
+  const said = (held: number, of: number | undefined, noun: string): string =>
+    of === undefined
+      ? `${held.toLocaleString()} ${noun}`
+      : held >= of
+        ? `all ${held.toLocaleString()} ${noun}`
+        : `${held.toLocaleString()} of ${of.toLocaleString()} ${noun}`;
+  const missing = r.onServer === null ? 0 : notSavedYet(r);
+  const rest = missing > 0 ? " The rest are not saved yet — press Save everything on this device." : "";
+  const sentence = `${said(r.products, r.onServer?.products, "products")} and ${said(r.customers, r.onServer?.customers, "customers")} are saved on this device.`;
 
-  return `${r.products.toLocaleString()} products and ${r.customers.toLocaleString()} customers are saved on this device.${codes}`;
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}${rest}${codes}`;
+}
+
+/** Rows the server has that this device does not — never below nothing. */
+export function notSavedYet(r: Pick<OfflineReadiness, "products" | "customers" | "onServer">): number {
+  if (r.onServer === null) return 0;
+
+  return Math.max(0, r.onServer.products - r.products) + Math.max(0, r.onServer.customers - r.customers);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
@@ -9,8 +9,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  */
 let ready = false;
 let offlineDays: number | null = 3;
-vi.mock("./readiness", () => ({
-  readOfflineReadiness: async () => ({ products: ready ? 200 : 0, customers: 0, codes: 0, lastPullAt: null, ready }),
+let onServer: { products: number; customers: number } | null = null;
+let held = 200;
+vi.mock("./readiness", async (actual) => ({
+  notSavedYet: (await actual<typeof import("./readiness")>()).notSavedYet,
+  readOfflineReadiness: async () => ({ products: ready ? held : 0, customers: 0, codes: 0, lastPullAt: null, onServer, ready }),
   readinessLabel: () => "label",
 }));
 vi.mock("./device/deviceService", () => ({ deviceService: { list: async () => ({ data: { devices: [], offline_days: offlineDays } }) } }));
@@ -18,6 +21,9 @@ vi.mock("./outbox/outbox", () => ({ adoptStranded: vi.fn(), strandedReason: vi.f
 vi.mock("./shift/shiftQueue", () => ({ adoptStrandedShiftOps: vi.fn(), strandedShiftOps: async () => [] }));
 vi.mock("../../components/ui/confirm", () => ({ useConfirm: () => vi.fn() }));
 vi.mock("../../components/ui/toast", () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }));
+let finishSaving: () => void = () => {};
+vi.mock("./sync/pullNow", () => ({ pullNow: () => new Promise<void>((done) => { finishSaving = done; }) }));
+vi.mock("./device/tillHere", () => ({ markTillHere: vi.fn() }));
 
 import OfflineReadyPanel from "./OfflineReadyPanel";
 
@@ -44,5 +50,32 @@ describe("saving this device for selling offline", () => {
     expect(await screen.findByText("This device is not ready to sell offline")).toBeInTheDocument();
     expect(screen.queryByText(/sell without internet/)).toBeNull();
     expect(second.container.querySelector("[data-offline-ready]")?.getAttribute("data-offline-ready")).toBe("not-ready");
+  });
+
+  it("says when only part of the shop is on this device, with how far it has got", async () => {
+    ready = true; offlineDays = 3; held = 12000; onServer = { products: 50000, customers: 0 };
+    show();
+
+    expect(await screen.findByText("This device is only partly saved")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Products saved on this device" })).toHaveAttribute("aria-valuenow", "12000");
+    onServer = null; held = 200;
+  });
+
+  it("counts up on the button while it saves, as the pages land", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    ready = true; offlineDays = 3; held = 1000; onServer = { products: 50000, customers: 0 };
+    show();
+    fireEvent.click(await screen.findByRole("button", { name: "Save everything on this device" }));
+
+    held = 12000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(1100); });
+    expect(await screen.findByRole("button", { name: "Saving… 12,000 of 50,000" })).toBeDisabled();
+
+    held = 50000;
+    await act(async () => { finishSaving(); });
+    expect(await screen.findByText("This device can sell offline")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    vi.useRealTimers();
+    onServer = null; held = 200;
   });
 });
