@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { asProduct, shelfRows, type Shelf } from "./browse";
+import { asProduct, shelfPage, type Shelf } from "./browse";
+
+const shelfRows = (...asked: Parameters<typeof shelfPage>) => shelfPage(...asked).rows;
 import type { CatalogCategory, CatalogItem } from "../sync/catalogService";
 
 /**
@@ -156,6 +158,20 @@ describe("the shelf before anything is typed", () => {
     );
 
     expect(shelfRows(shelf(many), "", "", 200)).toHaveLength(200);
+  });
+
+  it("says how many match in all, so the pane can say the rest exist", () => {
+    const many = Array.from({ length: 300 }, (_, i) =>
+      item({ id: `p${i}`, name: `Item ${String(i).padStart(3, "0")}` }),
+    );
+
+    expect(shelfPage(shelf(many), "", "", 200).total).toBe(300);
+    // A search counts every match, not just the ones it shows.
+    expect(shelfPage(shelf(many), "item 2", "", 10)).toMatchObject({ total: 100 });
+    expect(shelfPage(shelf(many), "item 2", "", 10).rows).toHaveLength(10);
+    // The next press shows the next ones, the first ones unchanged.
+    expect(shelfPage(shelf(many), "", "", 400).rows.map((r) => r.name).slice(198, 202)).toEqual(["Item 198", "Item 199", "Item 200", "Item 201"]);
+    expect(shelfPage(undefined, "", "")).toEqual({ rows: [], total: 0 });
   });
 
   it("is empty, not broken, before the cache has been read", () => {

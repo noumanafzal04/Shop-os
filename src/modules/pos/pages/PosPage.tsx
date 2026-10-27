@@ -93,7 +93,7 @@ import { useShopSettings } from "../../shop/hooks/useShop";
 import { couponsService } from "../../coupons/services/couponsService";
 import { promotionsService, type PromoPreview } from "../../promotions/services/promotionsService";
 import { memberDiscountFor, memberGroupFor } from "../../offline/lookup/memberDiscount";
-import { asProduct, loadShelf, loadTaxRates, shelfRows } from "../../offline/lookup/browse";
+import { asProduct, loadShelf, loadTaxRates, shelfPage } from "../../offline/lookup/browse";
 import { findByCode } from "../../offline/lookup/findByCode";
 import { onSale, sellingPrice, sizePrice } from "../../catalog/pricing";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
@@ -655,13 +655,17 @@ export default function PosPage() {
     if (!products.isPlaceholderData) setTilesAnswer({ search, categoryId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products.data]);
-  // Offline, the shelf comes from the till's own copy and there is no paging:
-  // the whole catalog is already here, so "load more" would be a button that
-  // asks a server nobody can reach.
-  const offlineRows = useMemo(
-    () => shelfRows(offlineShelf.data, search, categoryId, undefined, tyreFilter),
-    [offlineShelf.data, search, categoryId, tyreFilter],
+  // Offline, the shelf comes from the till's own copy: the whole catalog is
+  // already here, so "Load more" pages THAT, never a server nobody can reach.
+  // It used to show the first 200 and say nothing about the rest.
+  const OFFLINE_PAGE_SIZE = 200;
+  const [offlineLimit, setOfflineLimit] = useState(OFFLINE_PAGE_SIZE);
+  useEffect(() => { setOfflineLimit(OFFLINE_PAGE_SIZE); }, [search, categoryId, tyreFilter]);
+  const offlinePage = useMemo(
+    () => shelfPage(offlineShelf.data, search, categoryId, offlineLimit, tyreFilter),
+    [offlineShelf.data, search, categoryId, offlineLimit, tyreFilter],
   );
+  const offlineRows = offlinePage.rows;
   useEffect(() => {
     if (!connected) {
       setTiles(offlineRows);
@@ -672,7 +676,10 @@ export default function PosPage() {
   }, [connected, offlineRows]);
 
   const pagination = products.data?.meta?.pagination;
-  const hasMore = connected && !!pagination && pagination.current_page < pagination.last_page;
+  const hasMore = connected
+    ? !!pagination && pagination.current_page < pagination.last_page
+    : offlinePage.total > offlinePage.rows.length;
+  const shelfTotal = connected ? pagination?.total ?? tiles.length : offlinePage.total;
   // A refused catalog and an empty catalog used to draw the same blank grid.
   // If the till cannot read the product list, say so on the till.
   const productsDenied = deniedReason(products.error);
@@ -3841,11 +3848,11 @@ export default function PosPage() {
             <div className="mt-4 flex justify-center">
               <button
                 type="button"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={products.isFetching}
+                onClick={() => (connected ? setPage((p) => p + 1) : setOfflineLimit((n) => n + OFFLINE_PAGE_SIZE))}
+                disabled={connected && products.isFetching}
                 className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.10] px-5 py-2.5 text-[13px] font-semibold text-white/85 transition hover:border-brand-400 hover:bg-white/[0.16] hover:text-white disabled:opacity-50"
               >
-                {products.isFetching ? (
+                {connected && products.isFetching ? (
                   <>
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white/80" />
                     Loading…
@@ -3854,7 +3861,7 @@ export default function PosPage() {
                   <>
                     Load more
                     <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold tabular-nums text-white/70">
-                      {tiles.length} of {pagination?.total ?? tiles.length}
+                      {tiles.length} of {shelfTotal}
                     </span>
                   </>
                 )}

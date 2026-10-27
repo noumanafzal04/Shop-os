@@ -209,20 +209,25 @@ function categoryAndBelow(categories: CatalogCategory[], id: string): Set<string
 }
 
 /**
- * What the pane shows, given what has been typed.
+ * What the pane shows, given what has been typed — and how many match in all.
  *
  * With no search and no category this is the plain shelf ordered by name and
  * capped — a pane is not a place anybody reads four thousand rows.
+ *
+ * NO SILENT CAP. It used to return the first 200 and nothing else, so a till
+ * offline with 4,000 items showed A to C and no word that the rest existed —
+ * online the same pane says "Load more · 20 of 4,000". `total` is what lets the
+ * offline pane say it too, and page its own copy without asking a server.
  */
-export function shelfRows(
+export function shelfPage(
   shelf: Shelf | undefined,
   search: string,
   categoryId: string,
   limit = 200,
   /** The car's tyre size — only what fits it, as the server's `tyre_size` filter. */
   tyreSize = "",
-): CatalogProduct[] {
-  if (shelf === undefined) return [];
+): { rows: CatalogProduct[]; total: number } {
+  if (shelf === undefined) return { rows: [], total: 0 };
 
   // A parent holds its items in its children — Men finds Men → Shirts, as the
   // server's filter does.
@@ -234,13 +239,16 @@ export function shelfRows(
 
   const needle = search.trim();
 
-  const rows = needle
-    ? searchCatalog(fitting, needle, { categories: shelf.categoryNames, limit })
-    : [...fitting].sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit);
+  const matched = needle
+    ? searchCatalog(fitting, needle, { categories: shelf.categoryNames, limit: Number.POSITIVE_INFINITY })
+    : [...fitting].sort((a, b) => a.name.localeCompare(b.name));
 
   // NOT `rows.map(asProduct)`. `map` passes the INDEX as a second argument,
   // and `asProduct`'s second parameter is the tax rates — so the point-free
   // form compiles, hands a number where a Map is expected, and every row
   // loses its group rate with nothing to say so.
-  return rows.map((item) => asProduct(item, shelf.taxRates));
+  return {
+    rows: matched.slice(0, limit).map((item) => asProduct(item, shelf.taxRates)),
+    total: matched.length,
+  };
 }

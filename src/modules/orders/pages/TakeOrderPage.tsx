@@ -24,6 +24,7 @@ import { asksFirst, itemsOf, lineAnswers, lineName, lineOf, unitPriceOf, type Or
 import { sizesOf } from "../../pos/availability";
 import type { Product } from "../../catalog/types";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useConnectionStore } from "../../../stores/connectionStore";
 
 const CHANNELS = [
   { value: "phone", label: "Phone" },
@@ -200,8 +201,13 @@ export default function TakeOrderPage() {
   const worth = lines.length > 0 && askedSettled === asked && !worthQ.isFetching ? worthQ.data ?? null : null;
   const refused = lines.length > 0 && askedSettled === asked && !worthQ.isFetching && worthQ.error instanceof Error ? worthQ.error.message : null;
 
+  // An order lives on the server — that is how it reaches the kitchen — so it
+  // cannot be taken with the line down. Said at the top, before anything is
+  // typed, not after a press that goes nowhere (as #S6 on the workshop).
+  const connected = useConnectionStore((s) => s.online && s.reachable);
   const ready =
-    name.trim() !== ""
+    connected
+    && name.trim() !== ""
     && lines.length > 0
     // …and the figure it will be taken at is on the screen.
     && worth !== null
@@ -255,15 +261,17 @@ export default function TakeOrderPage() {
   const whyNotYet =
     lines.length === 0
       ? null
-      : name.trim() === ""
-        ? "Add the customer's name to take it."
-        : fulfillment === "delivery" && address.trim() === ""
-          ? "Add the delivery address to take it."
-          : refused !== null
-            ? "Put right what is said beside the total to take it."
-            : worth === null
-              ? "One moment — the total is being worked out."
-              : null;
+      : !connected
+        ? "No internet — the order can be taken when the line is back."
+        : name.trim() === ""
+          ? "Add the customer's name to take it."
+          : fulfillment === "delivery" && address.trim() === ""
+            ? "Add the delivery address to take it."
+            : refused !== null
+              ? "Put right what is said beside the total to take it."
+              : worth === null
+                ? "One moment — the total is being worked out."
+                : null;
 
   return (
     <>
@@ -283,6 +291,12 @@ export default function TakeOrderPage() {
           ← Back to orders
         </Link>
       </div>
+
+      {!connected && (
+        <p data-take-order-offline role="alert" className="mb-3 rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+          This device is offline. An order needs the internet to reach the kitchen. Sell at the till for now — it keeps working offline on a device that has saved everything.
+        </p>
+      )}
 
       {error && (
         <div className="mb-3">
