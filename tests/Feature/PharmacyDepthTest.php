@@ -6,10 +6,13 @@ use App\Models\Branch;
 use App\Models\City;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\Permissions;
+use App\Support\StaffPresets;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\DB;
@@ -62,7 +65,7 @@ class PharmacyDepthTest extends TestCase
         ]);
         $this->owner = User::factory()->shopOwner($this->shop)->create(['name' => 'Owner']);
         $this->counter = User::factory()
-            ->tenantStaff($this->shop, ['sales.manage', 'inventory.manage'])->create(['name' => 'Sana']);
+            ->tenantStaff($this->shop, ['sales.manage', 'inventory.manage', Permissions::PHARMACY_DISPENSE])->create(['name' => 'Sana']);
 
         $this->panadol = $this->drug('Panadol 500mg', 'Paracetamol', '500mg', 'Tablet', 50, stock: 100);
         $this->calpol = $this->drug('Calpol 500mg', 'paracetamol', '500 MG', 'tablet', 45, stock: 60);
@@ -341,6 +344,50 @@ class PharmacyDepthTest extends TestCase
         $this->assertSame('RX-2291', $sale['prescription_number']);
     }
 
+    /**
+     * #PH6 — a cashier dispensed Alprax by typing an Rx number and "Dr
+     * Anybody". The prescription says the medicine may go out; who may hand
+     * it over is the person's own permission.
+     */
+    public function test_a_counter_hand_without_the_permission_cannot_hand_over_a_controlled_drug(): void
+    {
+        $cashier = User::factory()->tenantStaff($this->shop, ['sales.manage'])->create(['name' => 'Kashif']);
+        $before = (float) $this->morphine->fresh()->stock_quantity;
+
+        $this->actingAsUser($cashier)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash',
+            'items' => [['product_id' => $this->morphine->id, 'quantity' => 1]],
+            'amount_paid' => 500,
+            'prescription_number' => 'RX-CASHIER-1', 'prescriber_name' => 'Dr Anybody',
+        ])->assertForbidden()->assertJsonPath('meta.error_code', 'DISPENSE_NOT_YOURS');
+
+        $this->assertSame(0, Sale::withoutTenancy()->count());
+        $this->assertEquals($before, (float) $this->morphine->fresh()->stock_quantity);
+
+        // Over the counter is still theirs to sell.
+        $this->actingAsUser($cashier)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'payment_method' => 'cash',
+            'items' => [['product_id' => $this->panadol->id, 'quantity' => 1]],
+            'amount_paid' => 500,
+        ])->assertCreated();
+    }
+
+    /** The pharmacist's job hands over; the cashier's job does not; a mart is not offered the box. */
+    public function test_the_pharmacist_preset_holds_the_permission_and_only_a_chemist_sees_it(): void
+    {
+        $presets = collect(StaffPresets::for($this->shop))->keyBy('code');
+        $this->assertContains(Permissions::PHARMACY_DISPENSE, $presets['pharmacist']['permissions']);
+        $this->assertNotContains(Permissions::PHARMACY_DISPENSE, $presets['cashier']['permissions']);
+
+        $mart = Tenant::factory()->provisioned()->create([
+            'business_type' => 'mart', 'features' => BusinessTypes::defaultFeatures('mart'),
+        ]);
+        $offered = fn (Tenant $t) => collect(Permissions::tenantCatalogFor($t))->firstWhere('key', Permissions::PHARMACY_DISPENSE)['available'];
+        $this->assertTrue($offered($this->shop));
+        $this->assertFalse($offered($mart));
+        $this->assertNotContains(Permissions::PHARMACY_DISPENSE, collect(StaffPresets::for($mart))->keyBy('code')['manager']['permissions']);
+    }
+
     /** An ordinary medicine is unaffected — nothing changes for a mart. */
     public function test_an_unscheduled_drug_still_sells_freely(): void
     {
@@ -374,6 +421,8 @@ class PharmacyDepthTest extends TestCase
         $this->assertEquals(2, $row['quantity']);
         // The lot it physically came out of — the link a recall walks back.
         $this->assertSame('MOR-2291', $row['batches'][0]['batch_number']);
+        // And who handed it over — the regulator's second question (#PH6).
+        $this->assertSame('Sana', $row['dispensed_by']);
     }
 
     /** Over-the-counter stock is not a dispensing record. */
@@ -500,6 +549,60 @@ class PharmacyDepthTest extends TestCase
             ->getJson('/api/v1/pharmacy/recall?batch_number=BAD-88')->assertOk()->json('data');
 
         $this->assertSame(1, $data['unreachable']);
+    }
+
+    /**
+     * #PH4 — a refunded box is back on the shelf, inside the `on_hand` the
+     * same screen says to pull. Its buyer is not somebody to call, and the
+     * lot cannot be on the shelf and in a customer's bag at once.
+     */
+    public function test_a_recall_does_not_call_a_customer_who_brought_it_back(): void
+    {
+        $this->batch($this->panadol, 'BAD-77', now()->addYear()->toDateString(), 60);
+        $back = $this->sell($this->panadol, 10, ['customer_name' => 'Brought It Back', 'customer_phone' => '0300 1']);
+        $half = $this->sell($this->panadol, 10, ['customer_name' => 'Kept Half', 'customer_phone' => '0300 2']);
+
+        $this->returnOf($back, 10);
+        $this->returnOf($half, 4);
+
+        $data = $this->actingAsUser($this->counter)
+            ->getJson('/api/v1/pharmacy/recall?batch_number=BAD-77')->assertOk()->json('data');
+
+        $this->assertSame(['Kept Half'], array_column($data['dispensed'], 'customer_name'));
+        $this->assertEquals(6, $data['dispensed'][0]['quantity']);
+        // Shelf + still out == what the lot held. Nothing counted twice.
+        $this->assertEquals(60, $data['on_hand'][0]['quantity'] + $data['dispensed'][0]['quantity']);
+    }
+
+    /**
+     * A sale that drew on two lots, partly returned: the return does not say
+     * which lot it came from, so it is counted against the OTHER lot first —
+     * a recall that misses a customer is the costly mistake.
+     */
+    public function test_a_return_from_a_two_lot_sale_leaves_the_bad_lot_still_out(): void
+    {
+        $this->batch($this->panadol, 'BAD-90', now()->addMonths(2)->toDateString(), 3);
+        $this->batch($this->panadol, 'OK-91', now()->addYear()->toDateString(), 60);
+        $sale = $this->sell($this->panadol, 5, ['customer_name' => 'Two Lots', 'customer_phone' => '0300 3']);
+
+        $this->returnOf($sale, 2);
+        $data = $this->actingAsUser($this->counter)
+            ->getJson('/api/v1/pharmacy/recall?batch_number=BAD-90')->assertOk()->json('data');
+        $this->assertEquals(3, $data['dispensed'][0]['quantity']);
+
+        $this->returnOf($sale, 3);
+        $data = $this->actingAsUser($this->counter)
+            ->getJson('/api/v1/pharmacy/recall?batch_number=BAD-90')->assertOk()->json('data');
+        $this->assertSame([], $data['dispensed']);
+        $this->assertSame(0, $data['unreachable']);
+    }
+
+    private function returnOf(array $sale, float $qty): void
+    {
+        $this->actingAsUser($this->owner)->postJson("/api/v1/sales/{$sale['id']}/returns", [
+            'items' => [['sale_item_id' => $sale['items'][0]['id'], 'quantity' => $qty]],
+            'reason' => 'Brought back', 'refund_method' => 'cash',
+        ])->assertCreated();
     }
 
     public function test_a_recall_needs_the_inventory_permission(): void

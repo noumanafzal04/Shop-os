@@ -181,6 +181,25 @@ class AnOrderReachesTheKitchenTest extends TestCase
         $this->assertSame('void', KitchenTicket::withoutTenancy()->where('tenant_id', $this->shop->id)->where('station', 'Kitchen')->value('status'));
     }
 
+    /**
+     * #RS2 — handed to the rider, delivered and paid, and 26 minutes later
+     * its docket still read NEW, flagged LATE, offering "Start cooking".
+     */
+    public function test_a_delivered_order_comes_off_the_pass_and_its_dockets_keep_what_the_kitchen_said(): void
+    {
+        $order = $this->takeOrder([[$this->biryani, 1]]);
+        $this->move($order, 'confirmed');
+        $this->move($order, 'preparing');
+        $this->assertCount(1, $this->pass());
+
+        $this->move($order, 'out_for_delivery');
+        $this->move($order, 'completed');
+
+        $this->assertSame([], $this->pass(), 'a delivered order is still asking to be cooked');
+        // Nobody bumped it, so nobody claims it was served.
+        $this->assertSame('fired', KitchenTicket::withoutTenancy()->where('tenant_id', $this->shop->id)->value('status'));
+    }
+
     public function test_the_step_that_sends_it_hands_back_what_the_screen_needs_to_print_the_slip(): void
     {
         $order = $this->takeOrder([[$this->biryani, 1], [$this->lemonade, 1]]);

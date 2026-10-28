@@ -133,6 +133,15 @@ class RestaurantTicketController extends Controller
             'voided_by' => $request->user()->id,
         ]);
 
+        // A docket with nothing left on it is not work (#RS2). The chai was
+        // KOT #2's only line; voided, the board kept an EMPTY ticket up,
+        // ageing, until it read GETTING LATE.
+        $kot = $item->kitchen_ticket_id === null ? null : KitchenTicket::query()->find($item->kitchen_ticket_id);
+        if ($kot !== null && in_array($kot->status, KitchenTicket::ACTIVE, true)
+            && ! $kot->items()->whereNull('voided_at')->exists()) {
+            $kot->update(['status' => 'void']);
+        }
+
         return ApiResponse::ok($ticket->fresh(['table', 'items']), 'Item voided.');
     }
 

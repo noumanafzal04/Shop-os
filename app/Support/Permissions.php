@@ -160,6 +160,18 @@ class Permissions
     public const SALES_ON_CREDIT = 'sales.on_credit';
 
     /**
+     * Handing over a schedule-controlled medicine (pharmacy #PH6).
+     *
+     * The only fence was some text in the prescription boxes: a cashier with
+     * no stock, report or pharmacy permission dispensed Alprax by typing an Rx
+     * number and "Dr Anybody". The prescription says the medicine MAY go out;
+     * this says who may hand it over. Everyone who could already do it was
+     * given it, so nothing that worked stopped; the Cashier preset goes
+     * without, and the owner can untick it.
+     */
+    public const PHARMACY_DISPENSE = 'pharmacy.dispense';
+
+    /**
      * Exceeding the shop's discount ceiling. discounts.apply lets you give the
      * everyday discount; this lets you go past the limit the owner set.
      */
@@ -399,6 +411,10 @@ class Permissions
             'label' => 'Sell on khata',
             'hint' => "Put a sale on a customer's account. Without it: cash, card and the rest only.",
         ],
+        self::PHARMACY_DISPENSE => [
+            'label' => 'Hand over controlled medicine',
+            'hint' => 'Sell a schedule-controlled medicine against a prescription. Without it the till refuses it.',
+        ],
         self::TABLES_SERVE_ANY => [
             'label' => 'Serve any table',
             'hint' => "Work and settle other waiters' tabs. Without it, their own tables only.",
@@ -470,6 +486,16 @@ class Permissions
     ];
 
     /**
+     * WHICH TRADE A TENANT PERMISSION IS ABOUT, where no module says it.
+     * Controlled medicine is a chemist's: a mart is not offered the box.
+     *
+     * @var array<string, string[]>
+     */
+    public const NEEDS_TRADE = [
+        self::PHARMACY_DISPENSE => ['pharmacy'],
+    ];
+
+    /**
      * The tenant catalog, each row saying whether THIS shop can use it.
      *
      * ── Flagged, never removed ─────────────────────────────────────────
@@ -490,14 +516,16 @@ class Permissions
     public static function tenantCatalogFor(?Tenant $tenant): array
     {
         $modules = $tenant?->moduleMap() ?? [];
+        $trade = $tenant?->business_type !== null ? BusinessTypes::primary($tenant->business_type) : null;
 
-        return array_map(function (array $row) use ($modules): array {
+        return array_map(function (array $row) use ($modules, $trade): array {
             $needs = self::NEEDS_MODULE[$row['key']] ?? [];
+            $trades = self::NEEDS_TRADE[$row['key']] ?? [];
 
-            $available = $needs === [] || array_filter(
+            $available = ($needs === [] || array_filter(
                 $needs,
                 static fn (string $module): bool => ! empty($modules[$module]),
-            ) !== [];
+            ) !== []) && ($trades === [] || in_array($trade, $trades, true));
 
             return $row + ['available' => $available];
         }, self::describe(self::tenant()));
@@ -563,6 +591,7 @@ class Permissions
             self::SALES_REFUND,
             self::SALES_CREDIT_OTHERS,
             self::SALES_ON_CREDIT,
+            self::PHARMACY_DISPENSE,
             self::TABLES_SERVE_ANY,
             self::CUSTOMERS_MANAGE,
             self::COUPONS_MANAGE,

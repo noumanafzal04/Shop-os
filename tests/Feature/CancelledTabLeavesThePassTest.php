@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\City;
 use App\Models\DiningTable;
+use App\Models\KitchenTicket;
 use App\Models\Product;
+use App\Models\RestaurantTicketItem;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
@@ -96,6 +98,39 @@ class CancelledTabLeavesThePassTest extends TestCase
         $this->firedTab();
 
         $this->assertCount(1, $this->board(), 'a fired docket never reached the pass');
+    }
+
+    /**
+     * #RS2 — the chai was KOT #2's only line. Voided, the board kept an EMPTY
+     * docket up, ageing, until it read GETTING LATE. A docket with something
+     * still on it stays.
+     */
+    public function test_a_docket_whose_last_line_is_voided_leaves_the_pass(): void
+    {
+        $tab = $this->firedTab();
+        $chai = Product::withoutTenancy()->create([
+            'tenant_id' => $this->shop->id, 'type' => 'product', 'item_type' => 'food_item',
+            'name' => 'Chai', 'price' => 120, 'track_inventory' => false, 'is_active' => true,
+        ]);
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$tab['id']}/items", [
+            'items' => [['product_id' => $chai->id, 'quantity' => 1], ['product_id' => $this->pizza->id, 'quantity' => 1]],
+        ])->assertSuccessful();
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$tab['id']}/fire", [])->assertSuccessful();
+        $this->assertCount(2, $this->board());
+
+        $lines = RestaurantTicketItem::withoutTenancy()->where('ticket_id', $tab['id'])->get();
+        $second = $lines->firstWhere('product_id', $chai->id)->kitchen_ticket_id;
+
+        // One of two lines voided: the docket still has a pizza to make.
+        $this->asOwner()->deleteJson("/api/v1/restaurant/tickets/{$tab['id']}/items/".$lines->firstWhere('product_id', $chai->id)->id)->assertOk();
+        $this->assertCount(2, $this->board());
+
+        // The last one: nothing left to make.
+        $pizzaOnIt = $lines->where('kitchen_ticket_id', $second)->firstWhere('product_id', $this->pizza->id);
+        $this->asOwner()->deleteJson("/api/v1/restaurant/tickets/{$tab['id']}/items/{$pizzaOnIt->id}")->assertOk();
+
+        $this->assertCount(1, $this->board(), 'an empty docket is still asking to be cooked');
+        $this->assertSame('void', KitchenTicket::withoutTenancy()->find($second)->status);
     }
 
     public function test_cancelling_a_tab_takes_its_docket_off_the_pass(): void

@@ -215,6 +215,9 @@ class StaffPresets
                     Permissions::SALES_ON_CREDIT,
                     Permissions::PRODUCTS_MANAGE,
                     Permissions::INVENTORY_MANAGE,
+                    // The job's whole point (#PH6). The Cashier preset goes
+                    // without: the till sells, the pharmacist hands over.
+                    Permissions::PHARMACY_DISPENSE,
                 ],
                 'modules' => ['pos'],
                 'trades' => ['pharmacy'],
@@ -245,6 +248,8 @@ class StaffPresets
                     Permissions::PURCHASES_MANAGE,
                     Permissions::CUSTOMERS_MANAGE,
                     Permissions::SALES_ON_CREDIT,
+                    // Trimmed away outside a chemist's, like every box here.
+                    Permissions::PHARMACY_DISPENSE,
                     Permissions::COUPONS_MANAGE,
                     Permissions::EXPENSES_MANAGE,
                     Permissions::REPORTS_VIEW,

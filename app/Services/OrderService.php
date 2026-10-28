@@ -918,6 +918,10 @@ class OrderService
              */
             $this->commission->chargeFor($order);
 
+            // …and the pass stops asking for it (#RS2). Delivered and paid,
+            // its docket was still NEW and flagged LATE 26 minutes later.
+            app(SendAnOrderToTheKitchen::class)->finished($order);
+
             $this->notifyCustomer($order, 'order.completed', 'Order completed',
                 "Your order {$order->order_number} is complete. Thank you!");
 

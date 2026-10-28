@@ -129,6 +129,24 @@ class SendAnOrderToTheKitchen
         }
     }
 
+    /**
+     * The order reached its customer: its ticket is closed, so the pass —
+     * which shows only open tickets' dockets — stops asking for it (#RS2).
+     *
+     * The dockets themselves are left as the kitchen left them. Writing
+     * `served` on one the cook never bumped would put a claim in the
+     * kitchen's record that the kitchen never made — the same line a settled
+     * tab keeps. A closed ticket is simply not work any more.
+     */
+    public function finished(Order $order): void
+    {
+        $ticket = $this->ticketOf($order);
+
+        if ($ticket !== null && $ticket->isOpen()) {
+            $ticket->forceFill(['status' => RestaurantTicketStatus::Closed, 'closed_at' => now()])->save();
+        }
+    }
+
     private function ticketOf(Order $order): ?RestaurantTicket
     {
         return RestaurantTicket::withoutTenancy()

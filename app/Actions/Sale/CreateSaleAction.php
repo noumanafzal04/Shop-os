@@ -1150,6 +1150,17 @@ class CreateSaleAction
                             'PRESCRIPTION_REQUIRED',
                         );
                     }
+
+                    // The prescription says the medicine MAY go out; this says
+                    // who may hand it over (#PH6). A cashier dispensed Alprax
+                    // by typing an Rx number and "Dr Anybody".
+                    if ($controlled !== [] && $ringer instanceof User && ! $ringer->hasPermission(Permissions::PHARMACY_DISPENSE)) {
+                        $names = implode(', ', array_map(fn ($l) => $l['product']->name, $controlled));
+                        throw DomainException::forbidden(
+                            "{$names} is schedule-controlled — handing it over needs the \"Hand over controlled medicine\" permission. Ask the owner.",
+                            'DISPENSE_NOT_YOURS',
+                        );
+                    }
                 }
 
                 // ── A bank funding part of its own card's transaction ───
@@ -1635,19 +1646,20 @@ class CreateSaleAction
                         // component's stock down by (component qty × deal qty). An
                         // out-of-stock component fails the whole sale (can't sell a
                         // deal you can't assemble).
-                        foreach ($line['product']->comboItems()->with('component')->get() as $ci) {
-                            $component = $ci->component;
-                            if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
+                        foreach ($this->dealDraws($line['product']) as [$shelf, $variantId, $perDeal, $dish]) {
+                            if ($shelf !== null && $shelf->type === ItemType::Product && $shelf->track_inventory) {
                                 $this->inventory->adjust([
-                                    'product_id' => $component->id,
+                                    'product_id' => $shelf->id,
                                     // WHICH size of it. A component with sizes has no stock of
                                     // its own on the parent — that figure is an orphaned
                                     // leftover, always zero — so this used to deduct against
                                     // nothing and refuse the sale on a full shelf.
-                                    'variant_id' => $ci->variant_id,
+                                    'variant_id' => $variantId,
                                     'type' => 'out',
-                                    'quantity' => round((float) $ci->quantity * $line['quantity'], 3),
-                                    'reason' => "Sale {$invoiceNumber} (deal: {$line['product']->name})",
+                                    'quantity' => round($perDeal * $line['quantity'], 3),
+                                    'reason' => $dish === null
+                                        ? "Sale {$invoiceNumber} (deal: {$line['product']->name})"
+                                        : "Sale {$invoiceNumber} (deal: {$line['product']->name}, recipe: {$dish->name})",
                                     'reference_type' => 'sale',
                                     'reference_id' => $sale->id,
                                     // Fresh POS sale: a short component must fail the
@@ -1656,7 +1668,8 @@ class CreateSaleAction
                                     // different — the deal was already handed over, so
                                     // it must never block collecting the money; it just
                                     // shows negative for recount, like the recipe path.
-                                    'allow_negative' => $trusted,
+                                    // A dish's ingredient never blocks: it is cooked.
+                                    'allow_negative' => $trusted || $dish !== null,
                                     'branch_id' => $branchId,
                                 ]);
                             }
@@ -2083,8 +2096,8 @@ class CreateSaleAction
     private function bomSnapshot(Product $product, ?ProductVariant $variant = null): ?array
     {
         if ($product->isCombo()) {
-            $rows = $product->comboItems()->with('component')->get()
-                ->map(fn ($ci) => [$ci->component, (float) $ci->quantity, $ci->variant_id]);
+            $rows = collect($this->dealDraws($product))
+                ->map(fn ($d) => [$d[0], $d[2], $d[1]]);
         } elseif ($product->hasRecipe()) {
             // WHICH SIZE was ordered decides which rows apply — a Large is
             // made differently from a Small, and the snapshot has to record
@@ -2099,7 +2112,16 @@ class CreateSaleAction
         $snapshot = [];
         foreach ($rows as [$component, $qtyPerUnit, $variantId]) {
             if ($component !== null && $component->type === ItemType::Product && $component->track_inventory) {
-                $snapshot[] = [
+                // One row per shelf. Two dishes in a deal both take rice, and
+                // a return keys its movement on the shelf — a second rice row
+                // would be swallowed as a repeat and half the rice lost.
+                $at = $component->id.'|'.$variantId;
+                if (isset($snapshot[$at])) {
+                    $snapshot[$at]['quantity_per_unit'] += $qtyPerUnit;
+
+                    continue;
+                }
+                $snapshot[$at] = [
                     'product_id' => $component->id,
                     // The size this deal names, so the snapshot records what
                     // actually left the shelf rather than the parent it hangs
@@ -2113,7 +2135,37 @@ class CreateSaleAction
             }
         }
 
-        return $snapshot ?: null;
+        return array_values($snapshot) ?: null;
+    }
+
+    /**
+     * What one unit of a deal takes off the shelves (#RS1).
+     *
+     * A stocked item inside the deal comes off its own shelf. A DISH inside it
+     * is cooked, so its recipe's ingredients come off instead — selling a
+     * Family Deal moved nothing for its biryani while the biryani sold on its
+     * own took chicken and rice, and the deal form promises "stock is taken off
+     * for each item below". Same order as a line on its own: a recipe first.
+     *
+     * @return list<array{0: ?Product, 1: ?string, 2: float, 3: ?Product}> shelf, its size, per deal, the dish it went into
+     */
+    private function dealDraws(Product $deal): array
+    {
+        $draws = [];
+        foreach ($deal->comboItems()->with('component')->get() as $ci) {
+            $component = $ci->component;
+            if ($component !== null && $component->hasRecipe()) {
+                $size = $ci->variant_id === null ? null : ProductVariant::query()->find($ci->variant_id);
+                foreach (RecipeFor::rows($component, $size) as $ri) {
+                    $draws[] = [$ri->ingredient, null, (float) $ci->quantity * (float) $ri->quantity, $component];
+                }
+
+                continue;
+            }
+            $draws[] = [$component, $ci->variant_id, (float) $ci->quantity, null];
+        }
+
+        return $draws;
     }
 
     /**
@@ -2285,6 +2337,28 @@ class CreateSaleAction
 
         if ($recipe !== null) {
             return round($recipe * $factor, 2);
+        }
+
+        // A deal costs what is inside it (#RS1): its lines' own costs, a dish
+        // by its recipe. It carried none, so the best seller on a deals-led
+        // menu read "margin 100%". Unknown is not zero — one part without a
+        // cost and the deal falls back to whatever was typed on it.
+        if ($product->isCombo()) {
+            $parts = $product->comboItems()->with('component')->get();
+            $sum = $parts->isEmpty() ? null : 0.0;
+            foreach ($parts as $ci) {
+                $part = $ci->component;
+                $size = $ci->variant_id === null ? null : ProductVariant::query()->find($ci->variant_id);
+                $each = $part === null || $part->isCombo() ? null : $this->lineCost($part, $size, 1.0);
+                if ($each === null) {
+                    $sum = null;
+                    break;
+                }
+                $sum += $each * (float) $ci->quantity;
+            }
+            if ($sum !== null) {
+                return round($sum * $factor, 2);
+            }
         }
 
         // Nothing cookable here: fall back to what was PAID for it. A size's
