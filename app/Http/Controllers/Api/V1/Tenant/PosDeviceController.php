@@ -134,6 +134,10 @@ class PosDeviceController extends Controller
             // The ceiling this shop was given, so the till knows what to
             // degrade against without a second call.
             'offline_days' => PlanLimits::limit($this->tenant->get(), 'offline_days'),
+            // Whether it may at all (#OF6). `offline_days` is seeded on its
+            // own, so a plan with no offline selling still read "1 day" and the
+            // shopkeeper was urged to save a till that would refuse.
+            'offline_selling' => PlanLimits::maySellOffline($this->tenant->get()),
         ]);
     }
 

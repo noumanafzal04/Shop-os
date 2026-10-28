@@ -213,6 +213,18 @@ class PlanLimits
     }
 
     /**
+     * May this shop's tills sell with no server? The switch, and only while
+     * the shop is paid up — past its grace it is read-only online, and
+     * offline was the way round that. One rule: the till's pull and the
+     * shopkeeper's offline card both ask it (#OF6).
+     */
+    public static function maySellOffline(Tenant $tenant): bool
+    {
+        return $tenant->subscriptionState() !== 'read_only'
+            && self::limit($tenant, 'offline_selling') === 1;
+    }
+
+    /**
      * Effective ceiling for a resource. The tenant's own value always wins;
      * otherwise a plan-owned key falls back to the plan (NULL = unlimited) and
      * a tenant-owned key falls back to the platform default.

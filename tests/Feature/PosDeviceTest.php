@@ -268,6 +268,19 @@ class PosDeviceTest extends TestCase
         $this->assertSame(3, $data['offline_days']);
     }
 
+    /**
+     * #OF6 — a plan with no offline selling still reads "1 day", because the
+     * two figures are seeded on their own. The list says whether the shop may
+     * sell offline at all, by the same rule the till's pull uses.
+     */
+    public function test_the_list_says_whether_the_shop_may_sell_offline_at_all(): void
+    {
+        $this->assertFalse($this->actingAsUser($this->owner)->getJson('/api/v1/pos-devices')->json('data.offline_selling'));
+
+        $this->tenant->update(['limits' => ['offline_selling' => 1]]);
+        $this->assertTrue($this->actingAsUser($this->owner)->getJson('/api/v1/pos-devices')->json('data.offline_selling'));
+    }
+
     public function test_a_till_records_the_lane_and_branch_it_was_standing_at(): void
     {
         $branch = Branch::withoutTenancy()->where('tenant_id', $this->tenant->id)

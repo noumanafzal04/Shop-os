@@ -244,9 +244,7 @@ class PosCatalogController extends Controller
             // around that: a till holding this switch went on selling with the
             // wifi off, for nothing, for as long as it liked (the user,
             // 2026-10-27). So it reads off with the plan, at the next pull.
-            'offline_selling' => $tenant !== null
-                && $tenant->subscriptionState() !== 'read_only'
-                && PlanLimits::limit($tenant, 'offline_selling') === 1,
+            'offline_selling' => $tenant !== null && PlanLimits::maySellOffline($tenant),
             // …and a till that does not pull again before then must still
             // stop: this is the last moment it may sell offline — the end of
             // the shop's grace. Null when the plan has no end date. The lease
