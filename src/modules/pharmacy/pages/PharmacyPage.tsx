@@ -118,7 +118,7 @@ function RegisterTab() {
           </ListEmpty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-theme-sm">
+            <table className="w-full min-w-[1000px] text-theme-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-left text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                   <th className="px-5 py-2.5 font-medium">Dispensed</th>
@@ -127,6 +127,7 @@ function RegisterTab() {
                   <th className="px-3 py-2.5 font-medium">Batch</th>
                   <th className="px-3 py-2.5 font-medium">Patient</th>
                   <th className="px-3 py-2.5 font-medium">Prescriber</th>
+                  <th className="px-3 py-2.5 font-medium">Handed over by</th>
                   <th className="px-5 py-2.5 font-medium">Rx / Invoice</th>
                 </tr>
               </thead>
@@ -175,6 +176,7 @@ function RegisterRow({ row }: { row: DispensingRow }) {
         {row.customer_phone && <div className="text-theme-xs text-gray-400">{row.customer_phone}</div>}
       </td>
       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.prescriber_name ?? "—"}</td>
+      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">{row.dispensed_by ?? "—"}</td>
       <td className="px-5 py-3 text-theme-xs text-gray-500 dark:text-gray-400">
         {row.prescription_number ?? "—"}
         <div className="text-gray-400">{row.invoice_number}</div>

@@ -48,6 +48,8 @@ export interface DispensingRow {
   patient_name: string | null;
   prescriber_name: string | null;
   customer_phone: string | null;
+  /** Who handed it over — the person who rang the sale. */
+  dispensed_by?: string | null;
 }
 
 export interface RecallResult {
