@@ -11,12 +11,13 @@ let ready = false;
 let offlineDays: number | null = 3;
 let onServer: { products: number; customers: number } | null = null;
 let held = 200;
+let offlineSelling: boolean | undefined;
 vi.mock("./readiness", async (actual) => ({
   notSavedYet: (await actual<typeof import("./readiness")>()).notSavedYet,
   readOfflineReadiness: async () => ({ products: ready ? held : 0, customers: 0, codes: 0, lastPullAt: null, onServer, ready }),
   readinessLabel: () => "label",
 }));
-vi.mock("./device/deviceService", () => ({ deviceService: { list: async () => ({ data: { devices: [], offline_days: offlineDays } }) } }));
+vi.mock("./device/deviceService", () => ({ deviceService: { list: async () => ({ data: { devices: [], offline_days: offlineDays, offline_selling: offlineSelling } }) } }));
 vi.mock("./outbox/outbox", () => ({ adoptStranded: vi.fn(), strandedReason: vi.fn(), strandedRows: async () => [] }));
 vi.mock("./shift/shiftQueue", () => ({ adoptStrandedShiftOps: vi.fn(), strandedShiftOps: async () => [] }));
 vi.mock("../../components/ui/confirm", () => ({ useConfirm: () => vi.fn() }));
@@ -58,7 +59,21 @@ describe("saving this device for selling offline", () => {
 
     expect(await screen.findByText("This device is only partly saved")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Products saved on this device" })).toHaveAttribute("aria-valuenow", "12000");
+    // And the page's own marker agrees with its words (#OF3).
+    expect(document.querySelector("[data-offline-ready]")?.getAttribute("data-offline-ready")).toBe("partly");
     onServer = null; held = 200;
+  });
+
+  /** #OF6 — Basic has no offline selling, yet its days read 1 and the card urged a save. */
+  it("tells a shop whose plan has no offline selling just that, without urging a save", async () => {
+    ready = false; offlineDays = 1; offlineSelling = false;
+    const { container } = show();
+
+    expect(await screen.findByText("Your plan does not include selling without internet.")).toBeInTheDocument();
+    expect(screen.queryByText(/sell without internet for up to/)).toBeNull();
+    expect(container.querySelector("[data-offline-ready]")?.getAttribute("data-offline-ready")).toBe("not-ready");
+    expect(screen.getByRole("button", { name: "Save everything on this device" }).className).not.toContain("bg-brand-500");
+    offlineSelling = undefined;
   });
 
   it("counts up on the button while it saves, as the pages land", async () => {

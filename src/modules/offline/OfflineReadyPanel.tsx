@@ -96,9 +96,13 @@ export default function OfflineReadyPanel() {
     queryFn: () => deviceService.list().then((r) => r.data),
   });
   const offlineDays = roster.data?.offline_days ?? 0;
+  // Whether it may at all (#OF6). `offline_days` is seeded on its own, so a
+  // plan with no offline selling read "1 day" and the shopkeeper was urged to
+  // save a till that would refuse. A server too old to say is taken at its days.
+  const planSellsOffline = roster.data?.offline_selling ?? offlineDays > 0;
   // A shop that may sell offline, on a device that cannot yet: the one thing on
   // this tab worth a colour, so it is not missed until the line goes down.
-  const urgent = offlineDays > 0 && state !== null && !ready;
+  const urgent = planSellsOffline && offlineDays > 0 && state !== null && !ready;
 
   // Said as two nouns rather than one total, because "4 items are stuck" tells
   // a shopkeeper nothing about whether to go looking for money or for a drawer
@@ -120,7 +124,7 @@ export default function OfflineReadyPanel() {
 
   return (
     <div
-      data-offline-ready={ready ? "ready" : urgent ? "needed" : "not-ready"}
+      data-offline-ready={partly ? "partly" : ready ? "ready" : urgent ? "needed" : "not-ready"}
       className={`rounded-xl border p-4 ${
         urgent
           ? "border-brand-300 bg-brand-50 dark:border-brand-500/40 dark:bg-brand-500/10"
@@ -165,6 +169,11 @@ export default function OfflineReadyPanel() {
               Your plan lets this shop sell without internet for up to {offlineDays} day{offlineDays === 1 ? "" : "s"}. Save this device so it can.
             </p>
           )}
+          {roster.data?.offline_selling === false && (
+            <p className="mt-1 text-theme-xs text-gray-500 dark:text-gray-400">
+              Your plan does not include selling without internet.
+            </p>
+          )}
           {state?.lastPullAt && (
             <p className="mt-1 text-theme-xs text-gray-400">
               Last checked {formatEntryDate(state.lastPullAt)}
@@ -177,7 +186,7 @@ export default function OfflineReadyPanel() {
           )}
         </div>
 
-        <Button size="sm" variant={ready ? "outline" : "primary"} onClick={save} disabled={saving}>
+        <Button size="sm" variant={ready || !planSellsOffline ? "outline" : "primary"} onClick={save} disabled={saving}>
           {saving
             ? state !== null && onServer !== null && onServer.products > 0
               ? `Saving… ${Math.min(state.products, onServer.products).toLocaleString()} of ${onServer.products.toLocaleString()}`

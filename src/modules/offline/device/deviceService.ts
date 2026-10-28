@@ -34,6 +34,8 @@ export interface DeviceRoster {
    * second call. Null means no ceiling was set.
    */
   offline_days: number | null;
+  /** Whether this shop may sell offline at all — the till's own rule (#OF6). */
+  offline_selling?: boolean;
 }
 
 export const deviceService = {

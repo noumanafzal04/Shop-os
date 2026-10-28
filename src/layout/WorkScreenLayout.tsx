@@ -1,4 +1,5 @@
 import { Outlet } from "react-router";
+import { ScreenCouldNotOpen } from "../components/system/ScreenCouldNotOpen";
 import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import { SidebarProvider } from "../context/SidebarContext";
 import AppSidebar from "./AppSidebar";
@@ -36,7 +37,9 @@ export default function WorkScreenLayout() {
           child pushes the whole screen past the edge of the window. */}
       <main className="min-w-0 lg:pl-[90px]">
         <WrittenTheShopsWay>
-          <Outlet />
+          <ScreenCouldNotOpen>
+            <Outlet />
+          </ScreenCouldNotOpen>
         </WrittenTheShopsWay>
       </main>
     </SidebarProvider>

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import OldBrowserNotice from "./components/system/OldBrowserNotice";
+import { ScreenCouldNotOpen } from "./components/system/ScreenCouldNotOpen";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
 import AppLayout from "./layout/AppLayout";
 import WorkScreenLayout from "./layout/WorkScreenLayout";
@@ -141,6 +142,9 @@ export default function App() {
           broken and says nothing. See OldBrowserNotice. Renders NOTHING on a
           browser that can. */}
       <OldBrowserNotice />
+      {/* Screens outside a layout — sign in, the storefront — fail to
+          open the same way; see ScreenCouldNotOpen. */}
+      <ScreenCouldNotOpen>
       <Suspense fallback={<PageFallback />}>
         <Routes>
           {/* ── The storefront lives under /shops ─────────────────────
@@ -571,6 +575,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/404" replace />} />
         </Routes>
       </Suspense>
+      </ScreenCouldNotOpen>
     </Router>
   );
 }

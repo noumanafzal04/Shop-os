@@ -169,7 +169,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
             <li>• Rows are matched by <strong>SKU</strong>: one you already have is updated, a new one is added.</li>
             <li>• A <strong>blank cell leaves that detail as it is</strong> — to change prices, SKU and Price are enough.</li>
             <li>• A size or a pack is its own row, with the item&rsquo;s SKU under <strong>Parent SKU</strong>.</li>
-            <li>• Up to 2,000 rows in a file. Split a longer list into several.</li>
+            <li>• Up to 500 rows in a file. Split a longer list into several — sending a file again is safe.</li>
           </ul>
 
           <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="import-file">

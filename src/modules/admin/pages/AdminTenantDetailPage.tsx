@@ -1,4 +1,5 @@
 import { renewalDue } from "../renewalDue";
+import { sellsOfflineOnlyByGrant } from "../offlineGrant";
 import { windowSays } from "../planWindowWords";
 import { tradePhrase } from "../tradePhrase";
 import { useState } from "react";
@@ -84,6 +85,7 @@ function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
   const extend = useExtendLimits();
   const toast = useToast();
   const granted = (tenant.limits?.offline_selling ?? 0) === 1;
+  const beyondPlan = sellsOfflineOnlyByGrant(tenant);
 
   /**
    * HOW LONG BLIND IS TOO LONG — the second decision, which no screen could
@@ -154,6 +156,13 @@ function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
         </div>
         <Badge color={granted ? "success" : "light"}>{granted ? "Granted" : "Not granted"}</Badge>
       </div>
+
+      {beyondPlan && (
+        <p data-offline-beyond-plan className="mt-3 text-theme-sm text-warning-700 dark:text-warning-400">
+          {tenant.plan?.name ?? "This shop's plan"} does not include offline selling — this shop sells offline only
+          because of this grant. Withdraw it if the plan should decide.
+        </p>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button

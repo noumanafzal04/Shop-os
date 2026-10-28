@@ -1,5 +1,6 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
 import { Outlet } from "react-router";
+import { ScreenCouldNotOpen } from "../components/system/ScreenCouldNotOpen";
 import { RefusedNotice } from "../common/routing/RefusedNotice";
 import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import DemoBanner from "../modules/landing/components/DemoBanner";
@@ -91,7 +92,9 @@ const LayoutContent: React.FC = () => {
           <OrderAlertsListener />
           <RefusedNotice />
           <WrittenTheShopsWay>
-            <Outlet />
+            <ScreenCouldNotOpen>
+              <Outlet />
+            </ScreenCouldNotOpen>
           </WrittenTheShopsWay>
         </main>
       </div>
