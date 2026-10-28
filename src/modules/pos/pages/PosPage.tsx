@@ -84,6 +84,7 @@ import ParkAsDocumentModal from "../../documents/components/ParkAsDocumentModal"
 import { parkCart, readParkedCart } from "../cartStorage";
 import { nextLineKey, rekeyed } from "../lineKeys";
 import { enterMeans } from "../enterKey";
+import { oneScanAtATime } from "../scanLine";
 import { shelfCouldNotLoad, type Asked } from "../shelfAnswer";
 import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
@@ -712,6 +713,8 @@ export default function PosPage() {
   // a quantity or a REMOVE on one of them landed on both. See lineKeys.
   const [cart, setCart] = useState<CartLine[]>(() => rekeyed(readParkedCart<CartLine>(terminalId)?.lines ?? []));
   const [restoredCart] = useState(() => readParkedCart<CartLine>(terminalId));
+  // One lookup at a time, in the order the codes were scanned (#MT1).
+  const [scanLine] = useState(oneScanAtATime);
 
   // When THIS cart began. Read by exactly one thing: the offline hard stop, so
   // that a shop's ceiling on trading blind cannot land between the first scan
@@ -1877,9 +1880,18 @@ export default function PosPage() {
    * @param orElse  what the cashier meant if NOTHING carries this code. Given
    *                when the term might be a code or might be the start of a
    *                name — see `enterMeans`. A miss is then not an error.
+   *
+   * The box is emptied HERE, the moment Enter is taken, and never after the
+   * lookup comes back: a scanner gun is already typing the next code by then,
+   * and it was typed onto the end of this one. See `scanLine.ts` (#MT1).
    */
-  const scan = async (code: string, orElse?: () => void) => {
+  const scan = (code: string, orElse?: () => void) => {
+    setSearch("");
     setScanError(null);
+
+    return scanLine(() => lookUp(code, orElse));
+  };
+  const lookUp = async (code: string, orElse?: () => void) => {
 
     // ── Scanning with no line ─────────────────────────────────────────
     //
@@ -1928,7 +1940,6 @@ export default function PosPage() {
         setPosNotice(`${product.name}: ${hit.quantity} ${product.unit ?? "kg"} weighed`);
       } else if (product.modifier_groups?.length) openConfig(product, scanned);
       else addLine(product, scanned?.id ?? null, scanned?.name, scanned?.price, undefined, hit.unitId ?? null);
-      setSearch("");
       posSound.success();
 
       return;
@@ -1974,11 +1985,13 @@ export default function PosPage() {
       // actually be handed, because depletion gives out the oldest lot first.
       if (data.aged) notices.push(`${data.product.name}: lot ${data.aged.batch_number} is ${data.aged.age} ${data.aged.status === "old" ? "— past what you call old" : "old"}`);
       sayOfALine(notices.length ? notices.join(" · ") : null);
-      setSearch("");
       posSound.success();
     } catch (e) {
-      if (orElse && e instanceof ApiError && e.errorCode === "POS_ITEM_NOT_FOUND") { orElse(); return; }
-      setScanError(e instanceof ApiError ? e.message : "Lookup failed.");
+      const missed = e instanceof ApiError && e.errorCode === "POS_ITEM_NOT_FOUND";
+      if (orElse && missed) { orElse(); return; }
+      // The box is already empty, so a miss names the code it was — the same
+      // words as a miss offline.
+      setScanError(missed ? `Nothing here matches ${code.trim()}.` : e instanceof ApiError ? e.message : "Lookup failed.");
       posSound.error();
     }
   };

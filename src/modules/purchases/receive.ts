@@ -73,6 +73,19 @@ export function needsDetails(items: Outstanding[]): boolean {
 }
 
 /**
+ * Does a line being received get a batch and an expiry written against it?
+ *
+ * Only a medicine did, so a mart's yogurt arrived on PO-000001 as a lot with
+ * no date — the expiring list and the till's warning knew only the opening 8,
+ * and the 40 that came in were invisible to both (mart #MT2). The product form
+ * already offers a dated lot for any packet that goes off; the goods-in door
+ * now asks the same: required for a medicine, offered for any other good.
+ */
+export function keepsLots(itemType: string | undefined): boolean {
+  return itemType === "medicine" || itemType === "physical_product";
+}
+
+/**
  * A medicine line being received is held until it has its expiry.
  *
  * The field was marked * and the button stayed lit: pressed with one expiry

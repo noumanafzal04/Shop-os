@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
-import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "../receive";
+import { checkNumbers, keepsLots, needsDetails, needsExpiry, parseSerials } from "../receive";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -327,7 +327,7 @@ export default function PurchaseOrdersPage() {
       {/* Detailed receive — per-line quantity + serials + batch/expiry */}
       <Modal isOpen={receiveModal.isOpen} onClose={receiveModal.closeModal} className="max-w-2xl p-6">
         <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">Receive goods</h3>
-        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Confirm quantities. Enter serials for serialized items and a batch/expiry for medicines.</p>
+        <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Confirm quantities. Enter serials for serialized items, and a batch and expiry for goods that go off — a medicine must have its expiry.</p>
         {receive.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't receive" message={receive.error.message} /></div>}
 
         <div className="max-h-[60dvh] space-y-3 overflow-y-auto pr-1">
@@ -338,6 +338,7 @@ export default function PurchaseOrdersPage() {
               if (!row) return null;
               const isSerial = !!it.product?.tracks_serial;
               const isMedicine = it.product?.item_type === "medicine";
+              const dated = keepsLots(it.product?.item_type);
               const numbers = checkNumbers(row.serials, Number(row.quantity));
               const serialCount = numbers.count;
               const outstanding = Number(it.quantity_ordered) - Number(it.quantity_received);
@@ -351,11 +352,11 @@ export default function PurchaseOrdersPage() {
                     </div>
                   </div>
 
-                  {isMedicine && (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                  {dated && (
+                    <div className="mt-2 grid grid-cols-2 gap-2" data-receive-lot>
                       <div><label className="mb-1 block text-theme-xs text-gray-400">Batch # (optional)</label><Input value={row.batch_number} onChange={(e) => setRcvField(it.id, { batch_number: e.target.value })} placeholder="Auto = PO number" /></div>
                       <div>
-                        <label className="mb-1 block text-theme-xs text-gray-400">Expiry <span className="text-error-500">*</span></label>
+                        <label className="mb-1 block text-theme-xs text-gray-400">Expiry {isMedicine ? <span className="text-error-500">*</span> : "(if it goes off)"}</label>
                         <Input type="date" value={row.expiry_date} onChange={(e) => setRcvField(it.id, { expiry_date: e.target.value })} />
                         {needsExpiry(it.product?.item_type, Number(row.quantity), row.expiry_date) && (
                           <p className="mt-1 text-theme-xs text-error-500">Needed before this delivery can be received.</p>

@@ -32,6 +32,7 @@ import { refillLink } from "../../transfers/stockWords";
 import { useBranches } from "../../branches/hooks/useBranches";
 import { useNarrow } from "../../../common/hooks/useNarrow";
 import { shopShortDateTime } from "../../../common/format/date";
+import { lotExpiry } from "../lotWords";
 import { StockViewTabs, type StockView } from "../components/StockViewTabs";
 import { stockQueries } from "../stockQueries";
 import { StockHistoryModal } from "../components/StockHistoryModal";
@@ -950,6 +951,7 @@ export default function InventoryPage() {
                         </span>
                       )}
                       {" · "}{formatQuantity(b.quantity)} left
+                      {" · "}<span data-lot-expiry className={b.expiry_date ? undefined : "text-gray-400"}>{lotExpiry(b.expiry_date)}</span>
                       {expired && <span className="ml-2 text-error-500">EXPIRED</span>}
                       {/* Age, not expiry. "old" is a nudge to price it or send
                           it back — never a block on selling it. */}
@@ -972,6 +974,8 @@ export default function InventoryPage() {
                           expiry on a lot auto-created by a PO receipt). */}
                       <input
                         type="date"
+                        aria-label={`Expiry of lot ${b.batch_number}`}
+                        title="Change this lot's expiry"
                         className="rounded border border-gray-300 px-1.5 py-0.5 text-theme-xs dark:border-gray-700 dark:bg-gray-900"
                         value={b.expiry_date ? b.expiry_date.slice(0, 10) : ""}
                         disabled={updateBatch.isPending}

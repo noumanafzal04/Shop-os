@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, useState, type ErrorInfo, type ReactNode } from "react";
 import { Link, useLocation } from "react-router";
 import { useConnectionStore } from "../../stores/connectionStore";
 import { PRODUCT } from "../../common/brand";
@@ -59,21 +59,31 @@ function CouldNotOpen({ error, at }: { error: Error; at: string }) {
   const connected = useConnectionStore((s) => s.online && s.reachable);
   const notDownloaded = NOT_DOWNLOADED.test(error.message);
   const offline = !connected;
+  // Whether the line was down WHEN it failed (#OF7). A screen whose download
+  // failed offline cannot be fetched again by this page — the browser keeps
+  // the failed import — so when the line comes back the same failure was
+  // read as "the app was updated". It was not: the internet came back.
+  const [failedOffline] = useState(() => offline || navigator.onLine === false);
 
   const [title, body] = offline
     ? [
         "This screen is not saved on this device yet",
         "It opens once the internet is back. The till keeps working offline on a device that has saved everything.",
       ]
-    : notDownloaded
+    : failedOffline
       ? [
-          "This screen needs a fresh copy of the app",
-          `${PRODUCT.name} was updated. Reload to open it — nothing you saved is lost.`,
+          "The internet is back",
+          "Reload to open this screen — nothing you saved is lost.",
         ]
-      : [
-          "This screen could not open",
-          "Something went wrong while drawing it. Reload to try again; if it keeps happening, tell us which screen.",
-        ];
+      : notDownloaded
+        ? [
+            "This screen needs a fresh copy of the app",
+            `${PRODUCT.name} was updated. Reload to open it — nothing you saved is lost.`,
+          ]
+        : [
+            "This screen could not open",
+            "Something went wrong while drawing it. Reload to try again; if it keeps happening, tell us which screen.",
+          ];
 
   return (
     <div

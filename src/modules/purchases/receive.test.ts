@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkNumbers, needsDetails, needsExpiry, parseSerials } from "./receive";
+import { checkNumbers, keepsLots, needsDetails, needsExpiry, parseSerials } from "./receive";
 
 describe("the numbers written down when goods arrive", () => {
   it("reads one number per line, or per comma, and ignores the gaps", () => {
@@ -78,5 +78,35 @@ describe("a medicine is received with its expiry (tester pass 5, B61)", () => {
   it("asks nothing of anything that is not a medicine", () => {
     expect(needsExpiry("physical_product", 4, "")).toBe(false);
     expect(needsExpiry(undefined, 4, "")).toBe(false);
+  });
+});
+
+/**
+ * A MART'S DATED GOODS ARRIVE WITH THEIR DATE (mart #MT2).
+ *
+ * PO-000001 brought 40 yogurt in as `PO-000001 · expires —`: the date boxes
+ * were drawn for a medicine only, and the expiring list never heard of them.
+ */
+const SHEET = Object.values(
+  import.meta.glob("./pages/PurchaseOrdersPage.tsx", { query: "?raw", import: "default", eager: true }),
+)[0] as string;
+
+describe("a good that goes off is received with its date", () => {
+  it("offers a batch and an expiry for a medicine and for any good", () => {
+    expect(keepsLots("medicine")).toBe(true);
+    expect(keepsLots("physical_product")).toBe(true);
+  });
+
+  it("not for a service, a dish or a deal — nothing of theirs sits on a shelf in lots", () => {
+    for (const t of ["service", "food_item", "deal", undefined]) expect(keepsLots(t), String(t)).toBe(false);
+  });
+
+  it("is what the receive sheet draws its date boxes from", () => {
+    expect(SHEET).toMatch(/const dated = keepsLots\(it\.product\?\.item_type\);/);
+    expect(SHEET).toMatch(/\{dated && \(\s*<div[^>]*data-receive-lot>/);
+  });
+
+  it("still holds only a medicine without one", () => {
+    expect(needsExpiry("physical_product", 40, "")).toBe(false);
   });
 });

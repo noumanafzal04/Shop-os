@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
 import { ScreenCouldNotOpen } from "./ScreenCouldNotOpen";
 import { useConnectionStore } from "../../stores/connectionStore";
@@ -53,6 +53,19 @@ describe("a screen that could not open", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("needs a fresh copy of the app");
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Go to the till" })).toBeNull();
+  });
+
+  it("failed offline and the line comes back: says so — it does not blame an update (#OF7)", async () => {
+    useConnectionStore.setState({ online: false, reachable: false });
+    shop(failedDownload());
+    await screen.findByRole("alert");
+
+    act(() => useConnectionStore.setState({ online: true, reachable: true }));
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("The internet is back");
+    expect(alert).not.toHaveTextContent("updated");
+    expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
   });
 
   it("belongs to the screen it happened on — the next screen opens", async () => {
