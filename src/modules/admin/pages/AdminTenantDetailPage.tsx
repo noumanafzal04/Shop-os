@@ -1237,6 +1237,19 @@ export default function AdminTenantDetailPage() {
     if (ok) run(remove, "Tenant deleted");
   };
 
+  // One press used to suspend a live shop and throw everybody in it out,
+  // while Delete — just as reversible — asked first (admin #AD5).
+  const doSuspend = async () => {
+    const ok = await confirm({
+      title: `Suspend ${t?.business_name ?? "this shop"}?`,
+      message: "Everyone signed in to it — the owner and every member of staff — is signed out at once, and nobody can sign in until it is activated again. Nothing is deleted.",
+      confirmLabel: "Suspend shop",
+      cancelLabel: "Keep it open",
+      tone: "danger",
+    });
+    if (ok) run(suspend, "Tenant suspended — all sessions revoked");
+  };
+
   const doAssignPlan = () => {
     if (!id || !planId || assignPlan.isPending) return;
     assignPlan.mutate(
@@ -1542,7 +1555,7 @@ export default function AdminTenantDetailPage() {
           ) : (
             <>
               {t.status === "active" ? (
-                <Button size="sm" variant="outline" className="w-full" onClick={() => run(suspend, "Tenant suspended — all sessions revoked")} disabled={suspend.isPending}>Suspend</Button>
+                <Button size="sm" variant="outline" className="w-full" onClick={doSuspend} disabled={suspend.isPending}>Suspend</Button>
               ) : (
                 <Button size="sm" variant="outline" className="w-full" onClick={() => run(activate, "Tenant activated")} disabled={activate.isPending}>Activate</Button>
               )}

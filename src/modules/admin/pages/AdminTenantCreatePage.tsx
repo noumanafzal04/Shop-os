@@ -10,6 +10,7 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError } from "../../../common/types/api";
+import { planSellsOffline } from "../planOffline";
 import { useCurrencies, useModuleCatalog, useModuleOffer, usePlans, useTenantMutations } from "../hooks/useAdmin";
 import { CityPicker } from "../../../common/geo/CityPicker";
 import { useBusinessTypes } from "../../shop/hooks/useShop";
@@ -340,6 +341,10 @@ export default function AdminTenantCreatePage() {
                   {selectedPlan.limits?.warehouses ?? selectedPlan.defaults?.warehouses ?? 1} warehouses ·{" "}
                   {selectedPlan.limits?.staff ?? selectedPlan.defaults?.staff ?? 5} staff ·{" "}
                   {selectedPlan.limits?.registers ?? selectedPlan.defaults?.registers ?? 2} lanes
+                </p>
+                {/* What a plan is really chosen for — and the form never said it (admin #AD1). */}
+                <p className="mt-1 text-gray-500 dark:text-gray-400" data-plan-offline>
+                  Selling offline: {planSellsOffline(selectedPlan.limits).toLowerCase()}
                 </p>
                 <p className="mt-1 text-gray-500 dark:text-gray-400">
                   {selectedPlan.limits?.orders_month == null

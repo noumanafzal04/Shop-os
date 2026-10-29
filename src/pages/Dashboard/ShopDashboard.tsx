@@ -156,15 +156,7 @@ export default function ShopDashboard() {
           />
         </div>
       )}
-      {data?.subscription_state === "read_only" && (
-        <div className="mb-6">
-          <Alert
-            variant="error"
-            title="Read-only mode"
-            message="Your subscription has expired. You can view everything, but changes are blocked until renewal. No data has been lost."
-          />
-        </div>
-      )}
+      {/* Read-only is said by the shell on every screen — see ReadOnlyBanner. */}
 
       {isError && (
         <div className="mb-6">

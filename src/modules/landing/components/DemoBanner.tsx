@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { apiGet } from "../../../common/api/client";
+import { timeOf, weekdayOf } from "../../../common/format/date";
 import { useAuthStore } from "../../../stores/authStore";
 import KeepShopModal from "./KeepShopModal";
 
@@ -18,6 +19,12 @@ import KeepShopModal from "./KeepShopModal";
  * precisely so this line can be a sentence a person can plan around; a sliding
  * window could not be printed truthfully at all.
  */
+interface KeepRequest {
+  id: string;
+  status: "pending" | "approved" | "declined";
+  decline_reason: string | null;
+}
+
 export default function DemoBanner() {
   const tenant = useAuthStore((s) => s.user?.tenant);
   // Re-rendered on a slow tick so "in 3 hours" does not sit there saying
@@ -32,24 +39,25 @@ export default function DemoBanner() {
     return () => window.clearInterval(t);
   }, [tenant?.is_demo]);
 
-  // Is somebody already waiting on an answer? The banner has to stop asking
-  // for something it has already been given — a shop that keeps offering
-  // "Keep this shop" after the request went in reads as though nobody heard.
-  const pending = useQuery({
+  // The last answer to "keep this shop". The banner has to stop asking for
+  // something it has already been given — a shop that keeps offering "Keep
+  // this shop" after the request went in reads as though nobody heard — and
+  // a NO has to reach the shop, reason and all (admin #AD6).
+  const request = useQuery({
     queryKey: ["shop", "keep"],
-    queryFn: () => apiGet<{ id: string } | null>("/shop/keep"),
+    queryFn: () => apiGet<KeepRequest | null>("/shop/keep"),
     enabled: Boolean(tenant?.is_demo),
     staleTime: 60_000,
   });
 
   if (!tenant?.is_demo) return null;
 
-  const asked = Boolean(pending.data?.data);
+  const asked = request.data?.data?.status === "pending";
+  const declined = request.data?.data?.status === "declined" ? request.data.data : null;
   const ends = tenant.demo_expires_at ? new Date(tenant.demo_expires_at) : null;
   const gone = ends !== null && ends.getTime() <= Date.now();
-  const when = ends?.toLocaleString(undefined, {
-    weekday: "short", hour: "numeric", minute: "2-digit",
-  });
+  // Never the browser's way of writing a time: "Thu 7:00 PM", as every screen says it.
+  const when = ends ? `${weekdayOf(ends)} ${timeOf(ends)}` : undefined;
 
   return (
     <>
@@ -66,6 +74,8 @@ export default function DemoBanner() {
           ? <>We have your request. Your shop is <strong className="font-semibold">safe</strong> while we look at it.</>
           : gone
             ? "This demo shop has ended — nothing here is saved."
+            : declined
+              ? <span data-keep-declined>We could not keep this shop: {declined.decline_reason}. It clears itself away{when ? <> at <strong className="font-semibold">{when}</strong></> : " after a day"}.</span>
             : <>Demo shop — yours alone. It clears itself away{when ? <> at <strong className="font-semibold">{when}</strong></> : " after a day"}.</>}
       </span>
 
@@ -78,7 +88,7 @@ export default function DemoBanner() {
           {/* The only place an email is ever asked for, and only from somebody
               who has already decided they want to keep what they built. Asking
               on the way IN loses the shopkeeper who would have bought it. */}
-          Keep this shop
+          {declined ? "Ask again" : "Keep this shop"}
         </button>
       )}
 

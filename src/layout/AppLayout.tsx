@@ -4,6 +4,7 @@ import { ScreenCouldNotOpen } from "../components/system/ScreenCouldNotOpen";
 import { RefusedNotice } from "../common/routing/RefusedNotice";
 import { WrittenTheShopsWay } from "./WrittenTheShopsWay";
 import DemoBanner from "../modules/landing/components/DemoBanner";
+import { ReadOnlyBanner } from "../components/system/ReadOnlyBanner";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
@@ -72,6 +73,7 @@ const LayoutContent: React.FC = () => {
             demo and cannot be scrolled away from. Renders nothing at all for a
             real shop. */}
         <DemoBanner />
+        <ReadOnlyBanner />
         <AppHeader />
         {/* `--pinned-bottom` is set by whatever is currently fixed to the
             bottom of the screen — the PWA install card, the update card — and

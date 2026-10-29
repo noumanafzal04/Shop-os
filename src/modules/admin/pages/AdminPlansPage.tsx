@@ -13,6 +13,7 @@ import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
 import { useModuleCatalog, useModulePrices, useModuleReach, usePlanMutations, usePlans, useSaveModulePrices } from "../hooks/useAdmin";
 import type { ModuleInfo, Plan } from "../services/adminService";
+import { planSellsOffline } from "../planOffline";
 import { ListIcon } from "../../../icons";
 import { PageHeader } from "../components/kit";
 import { applyModuleChange } from "../components/moduleRules";
@@ -372,9 +373,7 @@ export default function AdminPlansPage() {
             <div className="flex justify-between">
               <dt>Selling offline</dt>
               <dd className="font-medium text-gray-700 dark:text-gray-300">
-                {(plan.limits.offline_selling ?? 0) > 0
-                  ? `Up to ${plan.limits.offline_days ?? 3} day${(plan.limits.offline_days ?? 3) === 1 ? "" : "s"}`
-                  : "Not included"}
+                {planSellsOffline(plan.limits)}
               </dd>
             </div>
             <div className="flex justify-between">
