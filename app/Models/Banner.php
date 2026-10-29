@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,6 +14,24 @@ use Illuminate\Support\Facades\Storage;
  */
 class Banner extends BaseModel
 {
+    // What every customer sees, and what an advertiser paid for (admin #AD7).
+    use Auditable;
+
+    /** Customers seeing and tapping it is not a change anybody made. */
+    protected function auditQuiet(): array
+    {
+        return ['impression_count', 'click_count'];
+    }
+
+    /**
+     * A platform act: `tenant_id` is the advertiser, and the console's work on
+     * an ad is not a line in that shop's own trail.
+     */
+    protected function auditTenantId(): ?string
+    {
+        return null;
+    }
+
     protected $appends = ['image_url'];
 
     protected function casts(): array

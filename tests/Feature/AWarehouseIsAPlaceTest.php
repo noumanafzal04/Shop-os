@@ -114,7 +114,7 @@ class AWarehouseIsAPlaceTest extends TestCase
         $this->as($this->owner)->postJson('/api/v1/branches', ['name' => 'Second store', 'kind' => 'warehouse'])
             ->assertStatus(422)
             ->assertJsonPath('meta.error_code', 'LIMIT_REACHED')
-            ->assertJsonFragment(['message' => "You've reached your limit of 1 warehouses. Ask support to raise the warehouses allowed for your shop."]);
+            ->assertJsonFragment(['message' => "You've reached your limit of 1 warehouse. Ask support to raise the warehouses allowed for your shop."]);
 
         // …and a second SHOP is still refused on the branch allowance, as before.
         $this->as($this->owner)->postJson('/api/v1/branches', ['name' => 'Gulberg'])

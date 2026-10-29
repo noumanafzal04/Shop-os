@@ -69,7 +69,7 @@ class PlanLimits
      */
     public const REGISTRY = [
         // ── Billed usage: the plan sets the baseline ────────────────────
-        'products' => ['owner' => 'plan', 'column' => 'max_products', 'label' => 'products', 'enforced' => true, 'needs' => ['products', 'services']],
+        'products' => ['owner' => 'plan', 'column' => 'max_products', 'label' => 'products', 'one' => 'product', 'enforced' => true, 'needs' => ['products', 'services']],
         'orders_month' => ['owner' => 'plan', 'column' => 'max_orders_month', 'label' => 'orders this month', 'enforced' => false, 'needs' => ['pos', 'marketplace', 'dine_in']],
         // Declared so it is configurable and visible; enforcement wires in when
         // image byte accounting lands.
@@ -87,16 +87,16 @@ class PlanLimits
         // SHOPS ONLY. A warehouse is a place too, and it used to be counted
         // here — which made a godown cost a branch, and left a single shop on
         // the smallest plan unable to have one at all.
-        'branches' => ['owner' => 'tenant', 'column' => 'max_branches', 'default' => 1, 'label' => 'branches', 'enforced' => true],
+        'branches' => ['owner' => 'tenant', 'column' => 'max_branches', 'default' => 1, 'label' => 'branches', 'one' => 'branch', 'enforced' => true],
         // Places that hold stock and do not sell. One by default, because a
         // shop with a godown behind it is the ordinary case and not a chain.
         // Needs something to hold: a business with no stock has no use for one.
-        'warehouses' => ['owner' => 'tenant', 'column' => 'max_warehouses', 'default' => 1, 'label' => 'warehouses', 'enforced' => true, 'needs' => ['inventory']],
+        'warehouses' => ['owner' => 'tenant', 'column' => 'max_warehouses', 'default' => 1, 'label' => 'warehouses', 'one' => 'warehouse', 'enforced' => true, 'needs' => ['inventory']],
         // The owner is not "staff" — only additional accounts count.
-        'staff' => ['owner' => 'tenant', 'column' => 'max_staff', 'default' => 5, 'label' => 'staff members', 'enforced' => true],
+        'staff' => ['owner' => 'tenant', 'column' => 'max_staff', 'default' => 5, 'label' => 'staff members', 'one' => 'staff member', 'enforced' => true],
         // Checkout lanes. A single-counter shop needs no register row at all,
         // so most tenants sit at zero used.
-        'registers' => ['owner' => 'tenant', 'column' => 'max_registers', 'default' => 2, 'label' => 'registers', 'enforced' => true, 'needs' => ['pos']],
+        'registers' => ['owner' => 'tenant', 'column' => 'max_registers', 'default' => 2, 'label' => 'checkout lanes', 'one' => 'checkout lane', 'enforced' => true, 'needs' => ['pos']],
         // How long a till may keep SELLING with no contact with the server.
         //
         // Not enforced through assert(): nothing is being created, so there is
@@ -446,6 +446,8 @@ class PlanLimits
         if (self::usage($tenant, $key) + $adding > $limit) {
             $meta = self::REGISTRY[$key];
             $label = $meta['label'];
+            // "limit of 1 branches" read as written by a machine (admin #AD4).
+            $counted = $limit === 1 ? ($meta['one'] ?? $label) : $label;
 
             // Point at the thing that can actually be changed. A shop asking to
             // add a fourth branch is not helped by "upgrade your plan" when
@@ -455,7 +457,7 @@ class PlanLimits
                 : "Ask support to raise the {$label} allowed for your shop.";
 
             throw DomainException::unprocessable(
-                "You've reached your limit of {$limit} {$label}. {$remedy}",
+                "You've reached your limit of {$limit} {$counted}. {$remedy}",
                 'LIMIT_REACHED',
             );
         }

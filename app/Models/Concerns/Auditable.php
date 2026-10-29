@@ -216,6 +216,15 @@ trait Auditable
         return false;
     }
 
+    /**
+     * Whose trail the row is filed in. The shop the row belongs to, or the shop
+     * being worked in; a platform act done from the console has neither.
+     */
+    protected function auditTenantId(): ?string
+    {
+        return $this->getAttribute('tenant_id') ?? app(TenantContext::class)->id();
+    }
+
     protected function auditingSuppressed(): bool
     {
         return static::$auditingSuppressed[static::class] ?? false;
@@ -225,7 +234,7 @@ trait Auditable
     {
         AuditLog::query()->create([
             'user_id' => auth()->id(),
-            'tenant_id' => $this->getAttribute('tenant_id') ?? app(TenantContext::class)->id(),
+            'tenant_id' => $this->auditTenantId(),
             'event' => $event,
             'auditable_type' => static::class,
             'auditable_id' => $this->getKey(),

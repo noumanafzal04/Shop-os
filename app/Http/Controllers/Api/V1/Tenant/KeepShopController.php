@@ -108,13 +108,24 @@ class KeepShopController extends Controller
         return ApiResponse::created($created, 'Request sent — we will be in touch.');
     }
 
-    /** What the banner needs to know: is somebody already waiting on an answer? */
+    /**
+     * What the banner needs to know: the last answer to "keep this shop".
+     *
+     * It returned the PENDING request only, so a declined one came back as
+     * null and the banner offered "Keep this shop" again as if nobody had
+     * asked — the reason the admin was made to type went nowhere (admin #AD6).
+     * The latest request, whatever was decided, and only what the shop may
+     * read of it: not who on the platform reviewed it.
+     */
     public function show(Request $request): JsonResponse
     {
         $tenant = $request->user()->tenant;
+        $latest = $tenant === null ? null : ShopRequest::query()
+            ->where('tenant_id', $tenant->id)
+            ->latest('requested_at')
+            ->latest('id')
+            ->first();
 
-        return ApiResponse::ok(
-            $tenant === null ? null : ShopRequest::query()->where('tenant_id', $tenant->id)->pending()->first(),
-        );
+        return ApiResponse::ok($latest?->only(['id', 'status', 'decline_reason', 'requested_at', 'reviewed_at']));
     }
 }

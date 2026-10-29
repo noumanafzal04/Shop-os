@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\Storage;
  */
 class Announcement extends BaseModel
 {
+    // There is no unsend: who wrote it, who changed it and when it went out
+    // (`is_published`, `recipients_count`) are kept (admin #AD7).
+    use Auditable;
+
     protected $appends = ['image_url'];
 
     protected function casts(): array

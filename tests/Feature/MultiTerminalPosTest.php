@@ -198,7 +198,9 @@ class MultiTerminalPosTest extends TestCase
 
         // Two lanes already exist, so the third is over the line.
         $this->actingAsUser($this->owner)->postJson('/api/v1/registers', ['name' => 'Lane 3'])
-            ->assertStatus(422)->assertJsonPath('meta.error_code', 'LIMIT_REACHED');
+            ->assertStatus(422)->assertJsonPath('meta.error_code', 'LIMIT_REACHED')
+            // The console's word for a lane — "register" is shown to no shopkeeper anywhere (admin #AD4).
+            ->assertJsonPath('message', "You've reached your limit of 2 checkout lanes. Ask support to raise the checkout lanes allowed for your shop.");
 
         // Raising it for this one shop unlocks it — no plan involved.
         $this->tenant->forceFill(['limits' => ['registers' => 6]])->save();

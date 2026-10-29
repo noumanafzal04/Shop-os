@@ -227,6 +227,26 @@ class KeepThisShopTest extends TestCase
         $this->assertNotNull($tenant->demo_expires_at);
     }
 
+    /** Admin #AD6: the reason typed on decline reached nobody — the shop read "no request". */
+    public function test_a_declined_shop_is_told_so_and_why_and_may_ask_again(): void
+    {
+        [, $owner] = $this->aDemo();
+        $this->ask($owner)->assertCreated();
+        $this->actingAsUser($this->anAdmin())->postJson(
+            '/api/v1/admin/shop-requests/'.ShopRequest::query()->value('id').'/decline',
+            ['reason' => 'Duplicate of an existing shop.'],
+        )->assertOk();
+
+        $told = $this->actingAsUser($owner)->getJson('/api/v1/shop/keep')->assertOk()->json('data');
+        $this->assertSame('declined', $told['status']);
+        $this->assertSame('Duplicate of an existing shop.', $told['decline_reason']);
+        $this->assertArrayNotHasKey('reviewed_by', $told, 'who on the platform reviewed it is not the shop\'s to read');
+
+        // Asking again is a new request, and the banner reads THAT one.
+        $this->ask($owner, ['note' => 'It is not a duplicate — second branch.'])->assertCreated();
+        $this->assertSame('pending', $this->actingAsUser($owner)->getJson('/api/v1/shop/keep')->json('data.status'));
+    }
+
     public function test_the_oldest_request_is_the_one_offered_first(): void
     {
         // Nothing deletes a waiting shop, so this ordering is the only thing

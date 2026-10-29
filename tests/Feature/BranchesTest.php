@@ -94,7 +94,9 @@ class BranchesTest extends TestCase
 
         $this->login($owner)->postJson('/api/v1/branches', ['name' => 'Second'])
             ->assertStatus(422)
-            ->assertJsonPath('meta.error_code', 'LIMIT_REACHED');
+            ->assertJsonPath('meta.error_code', 'LIMIT_REACHED')
+            // One branch, not "1 branches" (admin #AD4).
+            ->assertJsonPath('message', "You've reached your limit of 1 branch. Ask support to raise the branches allowed for your shop.");
     }
 
     public function test_the_main_branch_cannot_be_deleted(): void
