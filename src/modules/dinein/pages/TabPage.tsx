@@ -23,7 +23,7 @@ import { sizesOf, whyNotSellable } from "../../pos/availability";
 import { useTicket, useDineInMutations, useOpenTickets, useServers, useSettleWorth, useTables, useTabLines } from "../hooks/useDineIn";
 import { useMayWorkTable } from "../ownership";
 import { dineInService, type TicketItem } from "../services/dineInService";
-import { askOf, settlementOf, tendersOf, type SettleAsk } from "../settleSheet";
+import { askOf, settlementOf, tendersOf, type SettleAsk, sharesOf } from "../settleSheet";
 import { QUICK_NOTES, isLive, lineExtras, lineName, lineSpoken, mayCancelTab, mayTakeOff, piles, portions, totalOf, unsentByDish } from "../tabLines";
 import { sinceLabel } from "../floorState";
 import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
@@ -138,6 +138,13 @@ export default function TabPage() {
   // Money the customer adds on top of the bill. Never part of the total — the
   // server keeps it in its own column so it can never read as revenue.
   const [tip, setTip] = useState("");
+  // Off the whole table's bill, and a coupon (#RS3). The till had both, the
+  // take-order screen had a coupon, and the table bill — where a family's
+  // 10% off is most often given — had neither.
+  const [billDiscount, setBillDiscount] = useState("");
+  const [coupon, setCoupon] = useState("");
+  const [people, setPeople] = useState(1);
+  const canDiscount = useAuthStore((st) => st.hasPermission("discounts.apply"));
 
   const liveItems = useMemo(() => (ticket?.items ?? []).filter(isLive), [ticket]);
   const unsettled = liveItems.filter((i) => !i.sale_id);
@@ -364,6 +371,9 @@ export default function TabPage() {
     setSettleQty(Object.fromEntries(unsettled.map((i) => [i.id, Number(i.quantity)])));
     setMethod("cash");
     setTip("");
+    setBillDiscount("");
+    setCoupon("");
+    setPeople(1);
     setSplitMethod("");
     setSplitAmount("");
     settle.reset();
@@ -380,7 +390,7 @@ export default function TabPage() {
   //
   // So the sheet does not work the bill out. It says what is being settled and
   // how, and shows the figures the sale path answers with — see settleSheet.ts.
-  const ask = askOf(unsettled, settleQty, method, splitMethod, splitAmount, tip);
+  const ask = askOf(unsettled, settleQty, method, splitMethod, splitAmount, tip, canDiscount ? billDiscount : "", coupon);
   const askKey = JSON.stringify(ask);
   // Each press of − / + and each digit of a tip is a different question. The
   // one that is asked is the one the hand has stopped on.
@@ -1286,6 +1296,12 @@ export default function TabPage() {
                 <span>{settlingWhole ? "Whole bill" : `${settleCount} ${settleCount === 1 ? "item" : "items"}`}</span>
                 <span className="tabular-nums">{money(worth.subtotal)}</span>
               </div>
+              {worth.discount > 0 && (
+                <div data-testid="settle-discount" className="flex items-center justify-between text-theme-sm text-success-600 dark:text-success-400">
+                  <span>Discount{ask.coupon_code ? ` · ${ask.coupon_code}` : ""}</span>
+                  <span className="tabular-nums">−{money(worth.discount)}</span>
+                </div>
+              )}
               {worth.tax > 0 && (
                 <div className="flex items-center justify-between text-theme-sm text-gray-500 dark:text-gray-400">
                   {/* No rate beside it: each dish is taxed at its own. */}
@@ -1317,6 +1333,19 @@ export default function TabPage() {
               )}
             </>
           )}
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-3" data-settle-offers>
+          {canDiscount && (
+            <div>
+              <Label>Discount <span className="font-normal text-gray-400">(off the bill)</span></Label>
+              <Input type="number" min="0" value={billDiscount} onChange={(e) => setBillDiscount(e.target.value)} placeholder="0" />
+            </div>
+          )}
+          <div className={canDiscount ? "" : "col-span-2"}>
+            <Label>Coupon</Label>
+            <Input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="Code" />
+          </div>
         </div>
 
         {/* Tipping is not universal here, so the prompt only appears for a shop
@@ -1352,6 +1381,26 @@ export default function TabPage() {
             </div>
           </div>
         )}
+        {/* Split between people (#RS4): each share to the paisa, adding up to the bill. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2" data-split-people>
+          <Label className="mb-0">Split between</Label>
+          <button type="button" aria-label="One person fewer" disabled={people <= 1} onClick={() => setPeople((n) => Math.max(1, n - 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300">−</button>
+          <span className="min-w-[4.5rem] text-center text-theme-sm tabular-nums text-gray-700 dark:text-gray-300">{people} {people === 1 ? "person" : "people"}</span>
+          <button type="button" aria-label="One person more" disabled={people >= 30} onClick={() => setPeople((n) => Math.min(30, n + 1))} className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300">+</button>
+          {people > 1 && worth !== null && (() => {
+            const shares = sharesOf(worth.due, people);
+            const first = shares[0];
+            const last = shares[shares.length - 1];
+            const evenly = first === last;
+            const more = shares.filter((x) => x === last).length;
+            return (
+              <span data-testid="split-shares" className="text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                {evenly ? `Each pays ${money(first)}` : `${people - more} pay ${money(first)}, ${more} pay ${money(last)}`}
+              </span>
+            );
+          })()}
+        </div>
+
         <div className="mb-3"><ShiftNeeded why={counterShift.why} /></div>
         <div className="flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={settleModal.closeModal}>Cancel</Button>

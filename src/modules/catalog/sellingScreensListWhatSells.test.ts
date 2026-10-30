@@ -43,7 +43,8 @@ const NOT_SELLING: Record<string, string> = {
   "../purchases/components/NewPurchaseOrder.tsx": "goods are bought and received before they are put on sale",
 };
 
-const calls = (source: string) => [...source.matchAll(/useProducts\(\{([^}]*)\}\)/g)].map((m) => m[1]);
+// The filters, whether or not an `enabled` follows them (the till passes `connected`, #OF5).
+const calls = (source: string) => [...source.matchAll(/useProducts\(\{([^}]*)\}(?:,\s*[^)]*)?\)/g)].map((m) => m[1]);
 
 describe("a screen that sells lists only what is on sale", () => {
   it("every selling screen asks for it", () => {

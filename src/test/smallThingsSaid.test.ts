@@ -64,3 +64,13 @@ it("#SV3 a warranty is offered without a serial, and on a service", () => {
   expect(form).toMatch(/\{isService && \(\s*<Section title="Warranty">/);
   expect(form).not.toMatch(/\{trackSerial && \(\s*<div>\s*<Label>Default warranty/);
 });
+
+it("#RS3 #RS4 the table's settle sheet offers a discount, a coupon and a split between people", () => {
+  expect(tab).toMatch(/askOf\(unsettled, settleQty, method, splitMethod, splitAmount, tip, canDiscount \? billDiscount : "", coupon\)/);
+  expect(tab).toMatch(/\{canDiscount && \(\s*<div>\s*<Label>Discount/);
+  expect(tab).toMatch(/const shares = sharesOf\(worth\.due, people\);/);
+});
+
+it("#OF5 the till does not search a server it knows it cannot reach", () => {
+  expect(pos).toMatch(/for_sale: true, page, per_page: POS_PAGE_SIZE \}, connected\);/);
+});

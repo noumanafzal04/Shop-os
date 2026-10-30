@@ -611,7 +611,10 @@ export default function PosPage() {
   const POS_PAGE_SIZE = 20;
   // Only what fits the car on the ramp, when the cashier asks for it.
   const [tyreFilter, setTyreFilter] = useState("");
-  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE });
+  // Not asked of a server the till knows it cannot reach (#OF5): every
+  // keystroke of a search went out and failed while the device's own shelf
+  // (above) quietly gave the answer — ten refused calls in three sales.
+  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE }, connected);
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   // Which question those tiles are the answer to — see shelfAnswer.
   const [tilesAnswer, setTilesAnswer] = useState<Asked>({ search: "", categoryId: "" });

@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "../types/api";
+import { useConnectionStore } from "../../stores/connectionStore";
 
 /**
  * ── `networkMode: "always"` is the most important line in this file ──────
@@ -42,6 +43,12 @@ export const queryClient = new QueryClient({
       retry: (failureCount, error) => {
         // Never retry client errors (401/403/404/422) — only network/5xx.
         if (error instanceof ApiError && error.status > 0 && error.status < 500) {
+          return false;
+        }
+        // Nor a call that never reached a server the app already KNOWS is
+        // out of reach (#OF5): two more tries of each one tripled the red in
+        // an offline till's console and taught nobody anything new.
+        if (error instanceof ApiError && error.status === 0 && !useConnectionStore.getState().online) {
           return false;
         }
         return failureCount < 2;

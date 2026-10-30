@@ -28,6 +28,12 @@ export interface SettleAsk {
   /** How it will be paid — a bill wholly in cash settles to the shop's coin. */
   methods: string[];
   tip_amount: number;
+  /**
+   * Off the whole bill, and a coupon (#RS3) — asked of the server like the
+   * rest, so the figure the sheet shows already has them taken off.
+   */
+  discount?: number;
+  coupon_code?: string;
 }
 
 /** What the server answers. */
@@ -66,8 +72,19 @@ export function askOf(
   secondMethod: string,
   secondTyped: string,
   tipTyped: string,
+  discountTyped = "",
+  couponTyped = "",
 ): SettleAsk {
-  return { splits: splitsOf(lines, chosen), methods: methodsOf(method, secondMethod, secondTyped), tip_amount: amount(tipTyped) };
+  const discount = amount(discountTyped);
+  const coupon = couponTyped.trim().toUpperCase();
+
+  return {
+    splits: splitsOf(lines, chosen),
+    methods: methodsOf(method, secondMethod, secondTyped),
+    tip_amount: amount(tipTyped),
+    ...(discount > 0 ? { discount } : {}),
+    ...(coupon !== "" ? { coupon_code: coupon } : {}),
+  };
 }
 
 /**
@@ -94,6 +111,8 @@ export interface Settlement {
   amount_paid?: number;
   payments?: Array<{ method: string; amount: number }>;
   tip_amount?: number;
+  discount?: number;
+  coupon_code?: string;
 }
 
 /** The settlement, in the shape the endpoint takes: one tender is one field, two are the array. */
@@ -109,5 +128,23 @@ export function settlementOf(worth: SettleWorth, ask: SettleAsk, secondTyped: st
         ? { payment_method: tenders[1].method, amount_paid: tenders[1].amount }
         : { payment_method: tenders[0].method, amount_paid: paisa(worth.due) }),
     tip_amount: ask.tip_amount || undefined,
+    discount: ask.discount,
+    coupon_code: ask.coupon_code,
   };
+}
+
+/**
+ * "FOUR OF US, SPLIT IT FOUR WAYS" (#RS4).
+ *
+ * The commonest split at a Pakistani table had no button: the cashier worked
+ * out 849.99 each by hand. Each share to the paisa, and the shares add up to
+ * the bill exactly — the paisa left over go to the last people, never lost.
+ */
+export function sharesOf(due: number, people: number): number[] {
+  const n = Math.max(1, Math.floor(people));
+  const totalPaisa = Math.round(due * 100);
+  const each = Math.floor(totalPaisa / n);
+  const extra = totalPaisa - each * n;
+
+  return Array.from({ length: n }, (_, i) => (each + (i >= n - extra ? 1 : 0)) / 100);
 }

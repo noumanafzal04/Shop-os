@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askOf, methodsOf, settlementOf, splitsOf, tendersOf, type SettleWorth } from "./settleSheet";
+import { askOf, methodsOf, settlementOf, sharesOf, splitsOf, tendersOf, type SettleWorth } from "./settleSheet";
 
 const lines = [{ id: "karahi", quantity: "2.000" }, { id: "tea", quantity: 3 }, { id: "naan", quantity: 4 }];
 const worth = (due: number, more: Partial<SettleWorth> = {}): SettleWorth => ({ subtotal: 0, discount: 0, tax: 0, total: due, tip: 0, rounding: 0, due, ...more });
@@ -77,5 +77,38 @@ describe("what the settle sheet sends once it has been told", () => {
 
     expect(first.amount + second.amount).toBeCloseTo(831.9, 10);
     expect(first.amount).toBe(554.6);
+  });
+});
+
+describe("a discount and a coupon on a table's bill (#RS3)", () => {
+  it("are asked with the rest, and sent with the settlement", () => {
+    const ask = askOf([], {}, "cash", "", "", "", "190", " fam10 ");
+    expect(ask.discount).toBe(190);
+    expect(ask.coupon_code).toBe("FAM10");
+
+    const worth = { subtotal: 1890, discount: 190, tax: 0, total: 1700, tip: 0, rounding: 0, due: 1700 } as SettleWorth;
+    const sent = settlementOf(worth, ask, "");
+    expect(sent.discount).toBe(190);
+    expect(sent.coupon_code).toBe("FAM10");
+    expect(sent.amount_paid).toBe(1700);
+  });
+
+  it("are left out when nothing was typed", () => {
+    const ask = askOf([], {}, "cash", "", "", "");
+    expect("discount" in ask).toBe(false);
+    expect("coupon_code" in ask).toBe(false);
+  });
+});
+
+describe("four of us, split four ways (#RS4)", () => {
+  it("gives each a share to the paisa, adding up to the bill exactly", () => {
+    expect(sharesOf(3399.96, 4)).toEqual([849.99, 849.99, 849.99, 849.99]);
+    const odd = sharesOf(1000, 3);
+    expect(odd).toEqual([333.33, 333.33, 333.34]);
+    expect(Math.round(odd.reduce((a, b) => a + b, 0) * 100) / 100).toBe(1000);
+  });
+
+  it("is the whole bill for one person", () => {
+    expect(sharesOf(1549.98, 1)).toEqual([1549.98]);
   });
 });
