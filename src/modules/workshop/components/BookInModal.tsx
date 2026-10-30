@@ -12,11 +12,12 @@ import { ApiError } from "../../../common/types/api";
 import { catalogService } from "../../catalog/services/catalogService";
 import { vehiclesService } from "../../vehicles/services/vehiclesService";
 import { documentService } from "../../documents/services/documentService";
-import { boardWords } from "../words";
+import { boardWords, jobExample } from "../words";
 import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { instantOf } from "../../../common/time/localInput";
 import type { Vehicle } from "../../vehicles/services/vehiclesService";
 import { useConnectionStore } from "../../../stores/connectionStore";
+import { useAuthStore } from "../../../stores/authStore";
 
 /**
  * A car arriving, in the thirty seconds somebody has while holding its keys.
@@ -56,6 +57,7 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
   // customer said is wrong, when it was promised, the opening line — is
   // identical for a car and for eight shirts.
   const words = boardWords(usePrimaryBusinessType());
+  const category = useAuthStore((st) => st.user?.tenant?.business_category ?? null);
   // A job is kept on the server, not on this device. With the line down the
   // form let a counter write out the whole slip, then found no item and greyed
   // out the button with no word why (services #S6). Said first, now.
@@ -202,7 +204,7 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
             rows={2}
             value={complaint}
             onChange={(v) => setComplaint(v)}
-            placeholder={words.tracksVehicle ? "Noise from front left when braking" : "8 shirts, starch on collars"}
+            placeholder={words.tracksVehicle ? "Noise from front left when braking" : jobExample(category)}
           />
           <p className="mt-1 text-theme-xs text-gray-400">
             {words.tracksVehicle

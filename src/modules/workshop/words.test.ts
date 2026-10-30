@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { boardWords, hasJobBoard } from "./words";
+import { boardWords, hasJobBoard, jobExample } from "./words";
 
 /**
  * A job card is work TAKEN IN — lines accumulate, nobody knows the price when
@@ -83,5 +83,18 @@ describe("the words change, the board does not", () => {
     expect(boardWords("automotive").stages).toHaveLength(3);
     expect(boardWords("services").stages).toHaveLength(3);
     expect(boardWords("automotive").stages[2]).toBe(boardWords("services").stages[2]);
+  });
+});
+
+describe("the take-in example is this shop's own work (#SV2)", () => {
+  it("a tailor is not asked for eight shirts, and a repair shop names a phone", () => {
+    expect(jobExample("tailor")).toBe("2 shalwar kameez, loose fit");
+    expect(jobExample("mobile_repair")).toBe("Samsung A10 — screen cracked");
+    expect(jobExample("laundry")).toBe("8 shirts, starch on collars");
+  });
+
+  it("a trade with no example of its own is asked in plain words", () => {
+    expect(jobExample("salon_beauty")).toBe("What they asked for, in their own words");
+    expect(jobExample(null)).toBe("What they asked for, in their own words");
   });
 });

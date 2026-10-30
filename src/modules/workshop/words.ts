@@ -118,3 +118,24 @@ export function hasJobBoard(businessType: string | null | undefined): boolean {
 export function boardWords(businessType: string | null | undefined): BoardWords {
   return businessType === "automotive" ? WORKSHOP : JOBS;
 }
+
+/**
+ * THE TAKE-IN BOX'S EXAMPLE, IN THIS SHOP'S OWN WORK (#SV2).
+ *
+ * Every trade on the job board was shown "8 shirts, starch on collars" — the
+ * tailor and the mobile-repair shop alike. The shop's category already says
+ * which trade it is; the example is the first thing on the sheet that should.
+ */
+const JOB_EXAMPLES: Record<string, string> = {
+  tailor: "2 shalwar kameez, loose fit",
+  laundry: "8 shirts, starch on collars",
+  mobile_repair: "Samsung A10 — screen cracked",
+  computer_repair: "Laptop will not charge",
+  auto_workshop: "Noise from front left when braking",
+  printing: "500 visiting cards, both sides",
+  photography: "Passport photos, 6 copies",
+};
+
+export function jobExample(category: string | null | undefined): string {
+  return (category ? JOB_EXAMPLES[category] : undefined) ?? "What they asked for, in their own words";
+}
