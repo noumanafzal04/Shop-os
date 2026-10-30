@@ -282,6 +282,40 @@ class WhatATabWillAskForTest extends TestCase
             ->assertCreated()->assertJsonPath('data.ticket.status', 'closed')->assertJsonPath('data.sale.change_due', fn ($change) => (float) $change === 0.0);
     }
 
+    /**
+     * #RS3 — a family's 10% off at the table had nowhere to go: the sheet
+     * offered no discount and no coupon though every layer under it took them.
+     * Asked like the rest, so what the sheet says is what settling charges.
+     */
+    public function test_a_table_bill_takes_a_discount_off_the_figure_it_asks_for(): void
+    {
+        $this->shopSetting(['default_tax_rate' => 0]);
+        $id = $this->tab([['product_id' => $this->menu['karahi']->id, 'quantity' => 1]]);
+
+        $plain = $this->worth($id);
+        $off = $this->worth($id, ['discount' => 190]);
+
+        $this->assertEquals(190.0, $off['discount']);
+        $this->assertEquals(round($plain['due'] - 190, 2), $off['due'], 'the sheet asked for the bill before its discount');
+
+        $this->asOwner()->postJson("/api/v1/restaurant/tickets/{$id}/settle", ['payment_method' => 'cash', 'amount_paid' => $off['due'], 'discount' => 190])
+            ->assertCreated()->assertJsonPath('data.ticket.status', 'closed')
+            ->assertJsonPath('data.sale.total', fn ($t) => (float) $t === round($plain['total'] - 190, 2));
+    }
+
+    public function test_somebody_who_may_not_give_a_discount_is_not_quoted_one(): void
+    {
+        $id = $this->tab([['product_id' => $this->menu['naan']->id, 'quantity' => 1]]);
+        // May take the money at any table — and may not take anything off it.
+        $waiter = User::factory()->create(['tenant_id' => $this->shop->id, 'role' => 'staff', 'permissions' => ['sales.manage', 'tables.serve_any']]);
+        $token = $waiter->createToken('t', ['access'])->plainTextToken;
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)->postJson("/api/v1/restaurant/tickets/{$id}/settle/worth", ['methods' => ['cash'], 'discount' => 10])
+            ->assertStatus(403)->assertJsonPath('meta.error_code', 'DISCOUNT_NOT_ALLOWED');
+        $this->withToken($token)->postJson("/api/v1/restaurant/tickets/{$id}/settle/worth", ['methods' => ['cash']])->assertOk();
+    }
+
     public function test_a_tab_that_is_closed_or_empty_is_refused_in_words(): void
     {
         $id = $this->tab([['product_id' => $this->menu['naan']->id, 'quantity' => 1]]);

@@ -236,12 +236,24 @@ class RestaurantTicketController extends Controller
             'methods' => ['required', 'array', 'min:1', 'max:10'],
             'methods.*' => [Rule::in(PaymentMethod::counterOrCredit())],
             'tip_amount' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:999999'],
+            // Off the whole bill, and a coupon (#RS3) — asked here as they will
+            // be charged, so the sheet shows the bill with them taken off.
+            'discount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'coupon_code' => ['sometimes', 'nullable', 'string', 'max:40'],
         ]);
+
+        // The same fence settling puts up: a whole-bill discount is a
+        // controlled action, and a figure nobody may charge is not quoted.
+        if ((float) ($data['discount'] ?? 0) > 0 && ! $request->user()->hasPermission(Permissions::DISCOUNTS_APPLY)) {
+            throw DomainException::forbidden('You may not give a discount on a bill.', 'DISCOUNT_NOT_ALLOWED');
+        }
 
         $methods = array_values(array_unique($data['methods']));
         $worth = $action->worth($ticket, [
             'splits' => $data['splits'] ?? [],
             'tip_amount' => $data['tip_amount'] ?? 0,
+            'discount' => $data['discount'] ?? 0,
+            'coupon_code' => $data['coupon_code'] ?? null,
         ] + (count($methods) === 1
             ? ['payment_method' => $methods[0]]
             // Which methods, not how much on each: the split is typed against
