@@ -139,6 +139,18 @@ class ReportService
             ->selectRaw('COALESCE(SUM(unit_cost * quantity), 0) as cogs')
             ->value('cogs');
 
+        // …and what was sold with NO cost recorded (#RS13). The profit below
+        // counts it as costing nothing; the screen says how much that is, so
+        // "margin 100%" on an uncosted menu is not read as a fact.
+        $uncosted = (float) SaleItem::query()
+            ->where('sale_items.tenant_id', $tenantId)
+            ->whereNull('unit_cost')
+            ->whereHas('sale', fn ($q) => $q
+                ->whereIn('status', Takings::COUNTED)
+                ->whereBetween('sold_at', [$fromStart, $toEnd])
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId)))
+            ->sum('line_total');
+
         $expensesTotal = (float) Expense::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereBetween('expense_date', [$from.' 00:00:00', $to.' 23:59:59'])
@@ -219,6 +231,7 @@ class ReportService
                 'other_income' => round($otherIncome, 2),
                 'tax' => $tax,
                 'cogs' => round($cogs, 2),
+                'uncosted_sales' => round($uncosted, 2),
                 'gross_profit' => round($kept - $tax - $cogs, 2),
                 'expenses' => round($expensesTotal, 2),
                 'cash_rounding' => $rounding,
@@ -452,14 +465,31 @@ class ReportService
                 "SUM({$kept}) as units",
                 "SUM({$earned}) as revenue",
                 "SUM(sale_items.unit_cost * ({$kept})) as cogs",
+                // AN UNKNOWN COST IS NOT A COST OF NOTHING (#RS13). A line
+                // with no cost recorded summed as 0, so a karahi nobody had
+                // costed read "cogs 0 · margin 100%", and so did the day.
+                "SUM(CASE WHEN sale_items.unit_cost IS NULL THEN {$earned} ELSE 0 END) as uncosted_revenue",
+                'SUM(CASE WHEN sale_items.unit_cost IS NULL THEN 0 ELSE 1 END) as costed_lines',
             ]))
             ->get();
 
+        // Profit only on what has a cost; what has none is said beside it.
+        // Null — not 0 — where nothing sold had a cost.
+        $earnedOn = function (float $revenue, float $uncosted, ?float $cogs): array {
+            $costed = round($revenue - $uncosted, 2);
+            $profit = $cogs === null ? null : round($costed - $cogs, 2);
+
+            return [
+                'cogs' => $cogs,
+                'profit' => $profit,
+                'margin_pct' => $profit !== null && $costed > 0 ? round(($profit / $costed) * 100, 1) : null,
+                'uncosted_revenue' => round($uncosted, 2),
+            ];
+        };
+
         $items = $rows
-            ->map(function ($row): array {
+            ->map(function ($row) use ($earnedOn): array {
                 $revenue = round((float) $row->revenue, 2);
-                $cogs = round((float) $row->cogs, 2);
-                $profit = round($revenue - $cogs, 2);
 
                 return [
                     'name' => $row->variant_name
@@ -468,49 +498,48 @@ class ReportService
                     'category' => $row->category_name,
                     'units' => round((float) $row->units, 3),
                     'revenue' => $revenue,
-                    'cogs' => $cogs,
-                    'profit' => $profit,
-                    // Null, not zero, when nothing was taken: there is no
-                    // margin on a giveaway, and 0% would read as break-even.
-                    'margin_pct' => $revenue > 0 ? round(($profit / $revenue) * 100, 1) : null,
-                ];
+                    // Null margin, not zero, when nothing was taken: there is
+                    // no margin on a giveaway, and 0% would read as break-even.
+                ] + $earnedOn($revenue, (float) $row->uncosted_revenue, (int) $row->costed_lines > 0 ? round((float) $row->cogs, 2) : null);
             })
             ->sortByDesc('profit')
             ->values();
 
         $byCategory = $rows
             ->groupBy('category_name')
-            ->map(function (Collection $group, string $category): array {
+            ->map(function (Collection $group, string $category) use ($earnedOn): array {
                 $revenue = round((float) $group->sum(fn ($r) => (float) $r->revenue), 2);
-                $cogs = round((float) $group->sum(fn ($r) => (float) $r->cogs), 2);
+                $known = $group->sum(fn ($r) => (int) $r->costed_lines) > 0;
 
                 return [
                     'category' => $category,
                     'revenue' => $revenue,
-                    'cogs' => $cogs,
-                    'profit' => round($revenue - $cogs, 2),
-                    'margin_pct' => $revenue > 0 ? round((($revenue - $cogs) / $revenue) * 100, 1) : null,
-                ];
+                ] + $earnedOn(
+                    $revenue,
+                    (float) $group->sum(fn ($r) => (float) $r->uncosted_revenue),
+                    $known ? round((float) $group->sum(fn ($r) => (float) $r->cogs), 2) : null,
+                );
             })
             ->sortByDesc('profit')
             ->values()
             ->all();
 
         $revenue = round((float) $items->sum('revenue'), 2);
-        $cogs = round((float) $items->sum('cogs'), 2);
+        $known = $items->contains(fn (array $i): bool => $i['cogs'] !== null);
 
         return [
             'period' => ['from' => $from, 'to' => $to],
             'totals' => [
                 'revenue' => $revenue,
-                'cogs' => $cogs,
-                'profit' => round($revenue - $cogs, 2),
-                'margin_pct' => $revenue > 0 ? round((($revenue - $cogs) / $revenue) * 100, 1) : null,
-            ],
+            ] + $earnedOn(
+                $revenue,
+                (float) $items->sum('uncosted_revenue'),
+                $known ? round((float) $items->sum(fn (array $i) => (float) ($i['cogs'] ?? 0)), 2) : null,
+            ),
             'best' => $items->take($limit)->all(),
             // Sold at a loss. Usually a costing mistake rather than a decision,
             // and it is invisible in any report ranked by revenue.
-            'losing' => $items->filter(fn (array $i): bool => $i['profit'] < 0)
+            'losing' => $items->filter(fn (array $i): bool => $i['profit'] !== null && $i['profit'] < 0)
                 ->sortBy('profit')
                 ->take($limit)
                 ->values()

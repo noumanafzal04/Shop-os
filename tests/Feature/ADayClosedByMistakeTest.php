@@ -66,6 +66,28 @@ final class ADayClosedByMistakeTest extends TestCase
         $this->item = Product::withoutTenancy()->findOrFail($id);
     }
 
+    // ── A day nobody opened (#SV1) ──────────────────────────────────
+
+    public function test_a_day_nobody_opened_still_says_what_was_taken_with_no_drawer(): void
+    {
+        // Nothing yet: no day, and nothing to say about one.
+        $this->as()->getJson('/api/v1/pos/day')->assertOk()
+            ->assertJsonPath('data', null)->assertJsonMissingPath('meta.taken_with_no_drawer');
+
+        // A tailor's day: cash taken, no drawer ever opened.
+        $this->sell(2);                                              // Rs 200
+        $this->sell(3);                                              // Rs 300
+
+        $this->as()->getJson('/api/v1/pos/day')->assertOk()
+            ->assertJsonPath('data', null)
+            ->assertJsonPath('meta.taken_with_no_drawer.sales_count', 2)
+            ->assertJsonPath('meta.taken_with_no_drawer.sales_total', 500);
+
+        // Yesterday's sales are not today's.
+        $this->at('2026-10-07 09:00');
+        $this->as()->getJson('/api/v1/pos/day')->assertOk()->assertJsonMissingPath('meta.taken_with_no_drawer');
+    }
+
     // ── The way back ────────────────────────────────────────────────
 
     public function test_a_day_closed_by_mistake_is_opened_again_and_sold_in(): void

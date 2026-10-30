@@ -373,10 +373,13 @@ class ProductController extends Controller
             // recipe, or where an ingredient under it has no cost — never a
             // partial sum, which would read as a smaller cost rather than as
             // an unknown one and make the kitchen underprice.
-            'recipe_cost' => RecipeCost::forDish($product),
+            //
+            // A deal costs what is in it (#RS13) — it answered null here while
+            // a sale of it costed correctly, so its cost was learned by selling.
+            'recipe_cost' => $product->isCombo() ? RecipeCost::forDeal($product) : RecipeCost::forDish($product),
             // The half that makes it actionable: "cannot cost this dish" is a
             // complaint, "Onions and Cooking oil have no cost" is a job.
-            'recipe_cost_missing' => RecipeCost::missingCosts($product),
+            'recipe_cost_missing' => $product->isCombo() ? RecipeCost::dealMissing($product) : RecipeCost::missingCosts($product),
         ]));
     }
 

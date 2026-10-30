@@ -7,6 +7,7 @@ use App\Actions\Pos\ReopenBusinessDayAction;
 use App\Exceptions\DomainException;
 use App\Http\Controllers\Controller;
 use App\Models\BankDeposit;
+use App\Models\Branch;
 use App\Models\BusinessDay;
 use App\Models\CashSession;
 use App\Models\CustomerLedgerEntry;
@@ -70,7 +71,7 @@ class BusinessDayController extends Controller
             // say so, and say whether it can be opened again. "No day open"
             // alone reads as "nobody has started yet", which at two in the
             // afternoon after a mis-pressed close is the opposite of the truth.
-            return ApiResponse::ok(null, 'No day open', $this->closedToday($request));
+            return ApiResponse::ok(null, 'No day open', $this->closedToday($request) + $this->takenWithNoDay($request));
         }
 
         // AN OLDER DAY STILL OPEN DOES NOT HIDE TODAY'S CLOSE. Codex QA
@@ -182,6 +183,24 @@ class BusinessDayController extends Controller
      *
      * @return array<string, mixed>
      */
+    /**
+     * WHAT WAS TAKEN TODAY WITH NO DRAWER, ON A DAY NOBODY OPENED (#SV1).
+     *
+     * A tailor bills from the job board and never opens a drawer, so the day
+     * never starts — and the one screen meant to say what the shop took read
+     * "No day open yet" with Rs 5,630 of the customer's cash in the shop.
+     * Sent only when there is something to say.
+     */
+    private function takenWithNoDay(Request $request): array
+    {
+        $tenant = $request->user()->tenant;
+        $branchId = $this->branch->scopesAll() ? null : $this->branch->id();
+        $isMain = $branchId !== null && (bool) Branch::query()->whereKey($branchId)->value('is_default');
+        $away = AwayFromDrawers::on($tenant->id, ShopDay::today($tenant), $branchId, $isMain);
+
+        return $away['sales_count'] > 0 ? ['taken_with_no_drawer' => $away] : [];
+    }
+
     private function closedToday(Request $request): array
     {
         $closed = $this->branch->scopesAll()

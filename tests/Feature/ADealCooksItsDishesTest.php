@@ -129,6 +129,21 @@ class ADealCooksItsDishesTest extends TestCase
         $this->assertEquals(370, (float) SaleItem::withoutTenancy()->value('unit_cost'));
     }
 
+    /** #RS13: the deal's own card says what it costs, before anybody sells one — and what stops it. */
+    public function test_a_deals_card_says_what_it_costs_and_what_is_missing(): void
+    {
+        $deal = $this->deal([[$this->biryani, 1], [$this->water, 2]]);
+        $this->actingAsUser($this->owner)->getJson("/api/v1/products/{$deal}")->assertOk()
+            ->assertJsonPath('data.recipe_cost', 370)
+            ->assertJsonPath('data.recipe_cost_missing', []);
+
+        $karahi = $this->stocked('Karahi (no cost)', 5, null);
+        $short = $this->deal([[$this->biryani, 1], [$karahi, 1]]);
+        $this->actingAsUser($this->owner)->getJson("/api/v1/products/{$short}")->assertOk()
+            ->assertJsonPath('data.recipe_cost', null)
+            ->assertJsonPath('data.recipe_cost_missing', ['Karahi (no cost)']);
+    }
+
     /** Unknown is not zero: one part with no cost and the deal claims no computed figure. */
     public function test_a_deal_with_a_part_nobody_costed_does_not_invent_a_cost(): void
     {

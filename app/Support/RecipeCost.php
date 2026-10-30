@@ -123,6 +123,59 @@ final class RecipeCost
      *
      * @return array<int, string> ingredient names, one level deep
      */
+    /**
+     * WHAT ONE DEAL COSTS: the sum of what is in it (#RS1, #RS13) — a dish by
+     * its recipe, anything else by what was paid for it, a size by its own
+     * cost first. Null when any part has none: one part without a cost makes
+     * the whole figure a guess, and a guess reads as a smaller cost.
+     *
+     * The one rule for the sale line (`CreateSaleAction::lineCost`) and the
+     * deal's own card, which said nothing — an owner learned what a deal cost
+     * only by selling one.
+     */
+    public static function forDeal(Product $deal): ?float
+    {
+        $parts = $deal->comboItems()->with('component')->get();
+        if ($parts->isEmpty()) {
+            return null;
+        }
+
+        $sum = 0.0;
+        foreach ($parts as $ci) {
+            $each = self::ofPart($ci->component, $ci->variant_id);
+            if ($each === null) {
+                return null;
+            }
+            $sum += $each * (float) $ci->quantity;
+        }
+
+        return round($sum, 2);
+    }
+
+    /**
+     * Which of a deal's parts are stopping its cost being computed.
+     *
+     * @return array<int, string> part names
+     */
+    public static function dealMissing(Product $deal): array
+    {
+        return $deal->comboItems()->with('component')->get()
+            ->filter(fn ($ci) => self::ofPart($ci->component, $ci->variant_id) === null)
+            ->map(fn ($ci) => $ci->component?->name ?? 'A removed item')
+            ->unique()->values()->all();
+    }
+
+    /** One part of a deal: a dish by its recipe, else what was paid. Never a deal inside a deal. */
+    private static function ofPart(?Product $part, ?string $variantId): ?float
+    {
+        if ($part === null || $part->isCombo()) {
+            return null;
+        }
+        $size = $variantId === null ? null : ProductVariant::query()->find($variantId);
+
+        return self::forDish($part, [], $size) ?? UnitCost::ofPack($part, $size, 1.0);
+    }
+
     public static function missingCosts(Product $dish, ?ProductVariant $variant = null): array
     {
         $items = RecipeFor::rows($dish, $variant);

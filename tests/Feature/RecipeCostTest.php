@@ -266,6 +266,50 @@ class RecipeCostTest extends TestCase
         $this->assertEquals(2100, $data['totals']['profit']);
     }
 
+    /**
+     * #RS13 — a dish nobody costed read "cogs 0 · margin 100%", and the day's
+     * margin with it. Unknown is said as unknown, and profit is struck only
+     * on what has a cost.
+     */
+    public function test_a_cost_nobody_recorded_is_unknown_not_nothing(): void
+    {
+        $chicken = $this->product('Chicken', 700);
+        $karahi = $this->product('Chicken Karahi', null, ['price' => 1400, 'track_inventory' => false]);
+        $this->recipe($karahi, [[$chicken, 0.5]]);   // 350 a plate
+        $chai = $this->product('Chai', null, ['price' => 150, 'track_inventory' => false]);   // never costed
+
+        $this->actingAsUser($this->owner)->postJson('/api/v1/sales', [
+            'channel' => 'walk_in', 'payment_method' => 'cash',
+            'items' => [['product_id' => $karahi->id, 'quantity' => 2], ['product_id' => $chai->id, 'quantity' => 3]],
+            'amount_paid' => 3250,
+        ])->assertCreated();
+
+        $data = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/reports/margins?period=monthly')->assertOk()->json('data');
+        $line = fn (string $name) => collect($data['best'])->firstWhere('name', $name);
+
+        $this->assertEquals(700, $line('Chicken Karahi')['cogs']);
+        $this->assertEquals(2100, $line('Chicken Karahi')['profit']);
+        $this->assertEquals(75.0, $line('Chicken Karahi')['margin_pct']);
+        $this->assertEquals(0, $line('Chicken Karahi')['uncosted_revenue']);
+
+        $this->assertNull($line('Chai')['cogs'], 'a cost nobody recorded was printed as 0');
+        $this->assertNull($line('Chai')['profit']);
+        $this->assertNull($line('Chai')['margin_pct'], 'an uncosted line read margin 100%');
+        $this->assertEquals(450, $line('Chai')['uncosted_revenue']);
+
+        // The day: all of it sold, profit only on what has a cost.
+        $this->assertEquals(3250, $data['totals']['revenue']);
+        $this->assertEquals(700, $data['totals']['cogs']);
+        $this->assertEquals(2100, $data['totals']['profit']);
+        $this->assertEquals(75.0, $data['totals']['margin_pct']);
+        $this->assertEquals(450, $data['totals']['uncosted_revenue']);
+
+        $summary = $this->actingAsUser($this->owner)
+            ->getJson('/api/v1/reports/summary?period=monthly')->assertOk()->json('data.totals');
+        $this->assertEquals(450, $summary['uncosted_sales'], 'the overview never said what it counted as free');
+    }
+
     public function test_the_product_screen_shows_the_cost_and_what_is_missing(): void
     {
         // Where a dish is priced is where the figure has to appear.

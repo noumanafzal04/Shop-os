@@ -2344,20 +2344,9 @@ class CreateSaleAction
         // menu read "margin 100%". Unknown is not zero — one part without a
         // cost and the deal falls back to whatever was typed on it.
         if ($product->isCombo()) {
-            $parts = $product->comboItems()->with('component')->get();
-            $sum = $parts->isEmpty() ? null : 0.0;
-            foreach ($parts as $ci) {
-                $part = $ci->component;
-                $size = $ci->variant_id === null ? null : ProductVariant::query()->find($ci->variant_id);
-                $each = $part === null || $part->isCombo() ? null : $this->lineCost($part, $size, 1.0);
-                if ($each === null) {
-                    $sum = null;
-                    break;
-                }
-                $sum += $each * (float) $ci->quantity;
-            }
-            if ($sum !== null) {
-                return round($sum * $factor, 2);
+            $deal = RecipeCost::forDeal($product);
+            if ($deal !== null) {
+                return round($deal * $factor, 2);
             }
         }
 
