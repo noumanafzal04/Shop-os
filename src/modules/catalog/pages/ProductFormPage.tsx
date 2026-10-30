@@ -557,7 +557,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       kitchen_station: isFood ? (kitchenStation.trim() || null) : undefined,
       // Serialized retail — only physical goods carry a serial/IMEI + warranty.
       tracks_serial: isPhysical ? trackSerial : undefined,
-      warranty_months: isPhysical && trackSerial && warrantyMonths ? Number(warrantyMonths) : isPhysical ? null : undefined,
+      // A warranty is a promise on the bill, serial or not (#SV3): a repair
+      // shop's fitted screen or battery has no IMEI and still carries one.
+      warranty_months: (isPhysical || isService) && warrantyMonths ? Number(warrantyMonths) : isPhysical || isService ? null : undefined,
       barcodes: posEnabled && isGood ? extraBarcodes.map((b) => b.trim()).filter(Boolean) : undefined,
       units: posEnabled && isGood ? packPayload(units) : undefined,
       combo_items: isCombo
@@ -1163,22 +1165,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 />
                 Ask for a serial / IMEI number for each unit sold (phones, electronics, batteries)
               </label>
-              {trackSerial && (
-                <div>
-                  <Label>Default warranty (months)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={warrantyMonths}
-                    onChange={(e) => setWarrantyMonths(e.target.value)}
-                    placeholder="e.g. 12"
-                  />
-                  <p className="mt-1 text-theme-xs text-gray-400">
-                    Added to each unit sold (the cashier can change it on a sale). Leave blank for no warranty.
-                  </p>
-                </div>
-              )}
+              <WarrantyField value={warrantyMonths} onChange={setWarrantyMonths} serial={trackSerial} />
             </div>
+          </Section>
+        )}
+
+        {/* A service carries a warranty too (#SV3): "3 months on this screen"
+            is a repair shop's everyday promise, and the bill is its slip. */}
+        {isService && (
+          <Section title="Warranty">
+            <WarrantyField value={warrantyMonths} onChange={setWarrantyMonths} serial={false} />
           </Section>
         )}
 
@@ -1926,7 +1922,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 {isGood && (
                   <Section
                     title="Bulk pricing (buy more, pay less)"
-                    hint="Buy more, pay less — e.g. 10 or more at Rs 90, 50 or more at Rs 80. The customer gets the lowest price their quantity reaches, never more than the normal price."
+                    hint="Buy more, pay less — e.g. 10 or more at 90 each, 50 or more at 80 each. The customer gets the lowest price their quantity reaches, never more than the normal price."
                     action={
                       <button type="button" className={ROW_ACTION} onClick={() => setTiers((t) => [...t, { min_qty: "", price: "" }])}>
                         + Add tier
@@ -1999,6 +1995,21 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
  * A partial food cost is not a cheaper dish; it is a wrong one, and wrong in
  * the direction that makes a kitchen underprice.
  */
+/** How long the shop stands behind it — printed on the bill with its end date. */
+function WarrantyField({ value, onChange, serial }: { value: string; onChange: (v: string) => void; serial: boolean }) {
+  return (
+    <div>
+      <Label>{serial ? "Default warranty (months)" : "Warranty (months)"}</Label>
+      <Input type="number" min="0" value={value} onChange={(e) => onChange(e.target.value)} placeholder="e.g. 3" />
+      <p className="mt-1 text-theme-xs text-gray-400">
+        {serial
+          ? "Added to each unit sold (the cashier can change it on a sale). Leave blank for no warranty."
+          : "Printed on the bill with the date it ends. Leave blank for no warranty."}
+      </p>
+    </div>
+  );
+}
+
 /**
  * What one dish — or one deal (#RS13) — costs to make, from its parts.
  *

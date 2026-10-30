@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { sentMoney } from "../payMath";
 import { NamedTextarea } from "../../../common/a11y/NamedTextarea";
-import { checkNumbers, keepsLots, needsDetails, needsExpiry, parseSerials } from "../receive";
+import { checkNumbers, keepsLots, needsDetails, needsExpiry, overDue, parseSerials } from "../receive";
 import TableEmpty from "../../../components/ui/table/TableEmpty";
 import { useLocation, useNavigate } from "react-router";
 import { useMoney } from "../../shop/hooks/useShop";
@@ -103,6 +103,7 @@ export default function PurchaseOrdersPage() {
     const row = rcv[it.id];
     if (!row) return false;
     if (needsExpiry(it.product?.item_type, Number(row.quantity), row.expiry_date)) return true;
+    if (overDue(Number(row.quantity), Number(it.quantity_ordered) - Number(it.quantity_received)) !== null) return true;
     return !!it.product?.tracks_serial && !checkNumbers(row.serials, Number(row.quantity)).ok;
   });
 
@@ -351,6 +352,9 @@ export default function PurchaseOrdersPage() {
                       <div className="w-24"><Input type="number" min="0" max={String(outstanding)} value={row.quantity} onChange={(e) => setRcvField(it.id, { quantity: e.target.value })} /></div>
                     </div>
                   </div>
+                  {overDue(Number(row.quantity), outstanding) && (
+                    <p className="mt-1 text-theme-xs text-error-500" data-receive-over>{overDue(Number(row.quantity), outstanding)}</p>
+                  )}
 
                   {dated && (
                     <div className="mt-2 grid grid-cols-2 gap-2" data-receive-lot>

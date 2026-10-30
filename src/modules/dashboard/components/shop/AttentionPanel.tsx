@@ -140,7 +140,7 @@ export function AttentionPanel({ data, caps, money = inTheDefault }: Props) {
       title: `${data.inventory.expiring_soon} ${
         data.inventory.expiring_soon === 1 ? "batch is" : "batches are"
       } expiring`,
-      detail: "Within 30 days, or already expired — pull or discount them.",
+      detail: `Within ${data.inventory.expiring_within_days ?? 30} days, or already expired — pull or discount them.`,
       icon: <CalenderIcon className="size-5" />,
       // The expiry banner sits at the top of the unfiltered page. Expiring is
       // not the same question as running low.

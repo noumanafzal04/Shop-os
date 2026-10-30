@@ -656,6 +656,15 @@ export default function TabPage() {
               </div>
             )}
           </div>
+          {/* THE MENU SAYS WHEN IT IS CUT (#RS7). It drains up to 1,000 dishes
+              and was handed how many more there are — the deal picker said so,
+              this screen never did, and a waiter past 1,000 silently could not
+              reach the rest. */}
+          {(products.data?.missing ?? 0) > 0 && (
+            <p data-testid="menu-cut" className="shrink-0 px-3 pt-2 text-theme-xs text-warning-600 dark:text-warning-400">
+              Showing the first 1,000 items — about {products.data?.missing} more are not on this menu.
+            </p>
+          )}
           <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto p-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {products.isLoading ? (
               Array.from({ length: 12 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />)

@@ -15,6 +15,7 @@ import type { StockDisposal } from "../services/inventoryService";
 import { useBranchColumn } from "../../branches/hooks/useBranchColumn";
 import { WriteOffModal } from "../components/WriteOffModal";
 import { shopToday } from "../../../common/shopDay";
+import { shopDate } from "../../../common/format/date";
 
 /**
  * What left the shelf without being sold, and what is owed back for it.
@@ -157,7 +158,8 @@ export default function DisposalsPage() {
                       <div className="text-theme-xs text-gray-400">
                         {d.number}
                         {d.batch_number ? ` · batch ${d.batch_number}` : ""}
-                        {d.expiry_date ? ` · exp ${d.expiry_date}` : ""}
+                        {/* A box date, sent as midnight UTC: read as the day it names (#PH3). */}
+                        {d.expiry_date ? ` · exp ${shopDate(d.expiry_date.slice(0, 10))}` : ""}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
@@ -191,7 +193,7 @@ export default function DisposalsPage() {
                             {money(d.credit_received ?? 0)}
                           </div>
                           <div className="text-theme-xs text-gray-400">
-                            {d.credit_received_at}
+                            {shopDate(d.credit_received_at.slice(0, 10))}
                             {d.credit_reference ? ` · ${d.credit_reference}` : ""}
                           </div>
                         </div>

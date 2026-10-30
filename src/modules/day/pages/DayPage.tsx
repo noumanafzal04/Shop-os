@@ -491,7 +491,10 @@ export default function DayPage() {
                     hint={rungUpHint(running!)}
                     tone="accent"
                   />
-                  <Stat label="Cash takings" value={money(running!.cash_sales)} hint="Excludes card and account" />
+                  {/* WHAT THIS FIGURE IS (#RS11). "Cash takings" counted a sale
+                      that was rung and cancelled — its cash went straight back
+                      out, and that is in the drawer figure beside it, not here. */}
+                  <Stat label="Cash through drawers" value={money(running!.cash_sales)} hint="Cash sales on a shift, before refunds" />
                   <Stat
                     label="In the drawers"
                     value={money(running!.expected_cash)}

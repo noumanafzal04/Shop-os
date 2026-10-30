@@ -441,8 +441,11 @@ export default function ProductsPage() {
                       </td>
                     )}
                     <td className="px-6 py-4">
-                      <Badge size="sm" color={p.is_active ? "success" : "light"}>
-                        {p.is_active ? "Active" : "Inactive"}
+                      {/* SOLD OUT IS A STATUS (#RS6). A dish taken off for the night
+                          read "Active" here, and the only sign was a button's
+                          colour — a chef scanning for what is off hovered every row. */}
+                      <Badge size="sm" color={!p.is_active ? "light" : p.sold_out ? "warning" : "success"}>
+                        {!p.is_active ? "Inactive" : p.sold_out ? "Sold out" : "Active"}
                       </Badge>
                       {p.for_sale === false && (
                         <div className="mt-1 text-theme-xs text-gray-400">Not sold — ingredient</div>

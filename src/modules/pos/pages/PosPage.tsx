@@ -101,6 +101,7 @@ import { FULL_SCREEN_PAGE } from "../../../layout/fullScreenPage";
 import { shopDate, shopDateTime } from "../../../common/format/date";
 import { counted } from "../../../common/format/counted";
 import { ForecourtClosedStrip } from "../../fuel/components/ForecourtClosedStrip";
+import { ReadOnlyBanner } from "../../../components/system/ReadOnlyBanner";
 
 /** What a cart line can be made from: a catalogue item, or the bare shape a shortcut tile carries. */
 type LineSource = CatalogProduct | { id: string; name: string; price: string | number; discount_price?: string | number | null; sold_by?: "unit" | "weight"; unit?: string | null; price_tiers?: CartLine["price_tiers"]; units?: ProductUnit[] };
@@ -3027,6 +3028,11 @@ export default function PosPage() {
         customerPhone={customerPhone}
         onDone={clearSale}
       />}
+
+      {/* READ-ONLY, SAID ON THE TILL TOO (#AD8). The shell carries this strip
+          on every other shop screen; the till renders outside the shell, so a
+          lapsed shop's cashier rang a whole basket before the refusal came. */}
+      <ReadOnlyBanner />
 
       {/* Practice. A full-width bar rather than a chip among chips: a till in
           training looks EXACTLY like a live one, so the one thing that must

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkNumbers, keepsLots, needsDetails, needsExpiry, parseSerials } from "./receive";
+import { checkNumbers, keepsLots, needsDetails, needsExpiry, overDue, parseSerials } from "./receive";
 
 describe("the numbers written down when goods arrive", () => {
   it("reads one number per line, or per comma, and ignores the gaps", () => {
@@ -108,5 +108,17 @@ describe("a good that goes off is received with its date", () => {
 
   it("still holds only a medicine without one", () => {
     expect(needsExpiry("physical_product", 40, "")).toBe(false);
+  });
+});
+
+describe("more than is due (#PH1)", () => {
+  it("is said, and the press held, instead of the extra being dropped", () => {
+    expect(overDue(3, 2)).toMatch(/^Only 2 are still due on this order\. A free one from the supplier\?/);
+    expect(overDue(2, 1)).toMatch(/^Only 1 is still due/);
+  });
+
+  it("says nothing when it fits", () => {
+    expect(overDue(2, 2)).toBeNull();
+    expect(overDue(0, 2)).toBeNull();
   });
 });

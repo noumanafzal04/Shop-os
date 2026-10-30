@@ -96,3 +96,17 @@ export function keepsLots(itemType: string | undefined): boolean {
 export function needsExpiry(itemType: string | undefined, quantity: number, expiry: string): boolean {
   return itemType === "medicine" && Number.isFinite(quantity) && quantity > 0 && expiry.trim() === "";
 }
+
+/**
+ * MORE THAN IS DUE IS SAID, NOT DROPPED (#PH1).
+ *
+ * A distributor's 10 + 1 free is normal trade, and the honest attempt was to
+ * receive 3 where 2 were due: the box carried `max`, a typed 3 stayed, the
+ * press went through, two landed — and nothing said the third was dropped.
+ * The shopkeeper believed 300 tablets were on the shelf. Null when it fits.
+ */
+export function overDue(typed: number, outstanding: number): string | null {
+  if (!Number.isFinite(typed) || typed <= outstanding) return null;
+
+  return `Only ${outstanding} ${outstanding === 1 ? "is" : "are"} still due on this order. A free one from the supplier? Receive what is due, then add the extra with a stock adjustment.`;
+}

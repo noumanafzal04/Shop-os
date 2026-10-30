@@ -54,6 +54,8 @@ export interface CatalogItem {
   kitchen_station: string | null;
   /** May a single till decide this sale alone? Read in Phase 3. */
   offline_ok: boolean;
+  /** Why it cannot be sold offline, in the server's words — null when it can (#PH5). */
+  offline_why?: string | null;
   /**
    * Eighty-sixed — the kitchen has run out for now.
    *

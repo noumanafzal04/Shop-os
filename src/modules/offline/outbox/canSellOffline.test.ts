@@ -68,6 +68,13 @@ describe("what a single till cannot decide alone", () => {
     expect(refusals[0].reason).toMatch(/Panadol/);
   });
 
+  it("says WHY, in the server's own sentence (#PH5)", () => {
+    const why = "Medicines need the live batch and expiry list, which only the server has.";
+    const refusals = refusalsFor(cart({ lines: [{ name: "Panadol", offline_ok: false, offline_why: why }] }));
+
+    expect(refusals[0].reason).toBe(`Panadol can't be sold while the internet is down. ${why}`);
+  });
+
   it("names the item, so the cashier knows which one to take off", () => {
     const refusals = refusalsFor(
       cart({

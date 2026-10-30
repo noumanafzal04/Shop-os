@@ -1046,15 +1046,15 @@ export default function ShopSettingsPage() {
                         </Field>
                         <Field
                           label="Round cash bills to"
-                          hint="Cash bills only — card and khata bills are always exact. A bill of Rs 1,238.15 cannot be paid exactly in cash; a halfway amount rounds in the customer's favour."
+                          hint={`Cash bills only — card and khata bills are always exact. A bill of ${formatIn(shopCurrency, 1238.15)} cannot be paid exactly in cash; a halfway amount rounds in the customer's favour.`}
                         >
                           <Select
                             value={String(prefs.cash_rounding ?? 0)}
                             options={[
                               { value: "0", label: "Nothing — exact to the paisa" },
-                              { value: "1", label: "Nearest Rs 1" },
-                              { value: "5", label: "Nearest Rs 5" },
-                              { value: "10", label: "Nearest Rs 10" },
+                              { value: "1", label: `Nearest ${sym} 1` },
+                              { value: "5", label: `Nearest ${sym} 5` },
+                              { value: "10", label: `Nearest ${sym} 10` },
                             ]}
                             placeholder={null}
                             onChange={(v) => setP("cash_rounding", Number(v))}

@@ -111,7 +111,8 @@ export function RefundApproval({ needsApproval, ownDrawer, value, onChange, purp
           </div>
           {roster.isSuccess && approvers.length === 0 && (
             <p className="text-theme-xs text-gray-500 sm:col-span-2">
-              Nobody who may approve this has a till PIN yet. A supervisor sets one under Security; the owner can set it under Staff.
+              {/* Where the PIN really is (#RS9): there is no PIN on Security, and the owner is not on Staff. */}
+              Nobody who may approve this has a till PIN yet. The owner sets them under Settings → Point of sale → Staff PINs.
             </p>
           )}
         </div>

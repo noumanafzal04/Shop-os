@@ -52,7 +52,7 @@ export function InventoryTiles({ data, caps }: Props) {
       key: "expiring",
       label: "Expiring soon",
       value: inventory.expiring_soon,
-      caption: "batches within 30 days",
+      caption: `batches within ${inventory.expiring_within_days ?? 30} days`,
       tone: inventory.expiring_soon > 0 ? "warning" : "gray",
       to: "/tenant/inventory",
     });

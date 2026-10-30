@@ -358,7 +358,7 @@ export interface CatalogPricing {
    * line has to remember to bring it, and the one that forgets sells a
    * medicine offline.
    */
-  guardLines: Array<{ name: string; offline_ok?: boolean }>;
+  guardLines: Array<{ name: string; offline_ok?: boolean; offline_why?: string | null }>;
 }
 
 export async function linesFromCatalog(
@@ -430,7 +430,7 @@ export async function linesFromCatalog(
       lineDiscount: line.discountMode === "amt" ? (line.discountValue ?? null) : null,
     });
 
-    guardLines.push({ name: item.name, offline_ok: item.offline_ok });
+    guardLines.push({ name: item.name, offline_ok: item.offline_ok, offline_why: item.offline_why });
   }
 
   return { lines, guardLines };

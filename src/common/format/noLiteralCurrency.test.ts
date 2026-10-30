@@ -35,7 +35,7 @@ const ALLOWED: Array<[RegExp, string]> = [
  * a line of its own, `}Rs {diff}` and a label's "(Rs)" all walked past it —
  * nine of them, a deal's cost and the till's own discount box among them.
  */
-const MARK = /(["'`])(?:Rs|PKR|₨|₹)\s?\1|[`"']Rs\s|Rs\s?\$\{|(?:^|[\s}>])(?:Rs|PKR|₨|₹)\s?\{|\?\?\s*["']Rs["']|\((?:Rs|PKR|₨|₹)\)/;
+const MARK = /(["'`])(?:Rs|PKR|₨|₹)\s?\1|[`"']Rs\s|Rs\s?\$\{|(?:^|[\s}>])(?:Rs|PKR|₨|₹)\s?\{|\?\?\s*["']Rs["']|\((?:Rs|PKR|₨|₹)\)|["'`][^"'`\n]*\bRs\.? ?\d/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -65,7 +65,7 @@ describe("no screen writes a currency mark of its own", () => {
   });
 
   it("finds a mark when one is written — so a clean result means something", () => {
-    for (const line of ["const money = (n) => `Rs ${n}`;", 'const cur = settings?.symbol ?? "Rs";', "<span>Rs {total}</span>", 'label: "Rs " + price,', "            Rs {cost.toLocaleString()}", '{diff > 0 ? "+" : "−"}Rs {Math.abs(diff)} {per}', "<Label>Min spend (Rs)</Label>", 'label: "Fixed (PKR)" }']) {
+    for (const line of ["const money = (n) => `Rs ${n}`;", 'const cur = settings?.symbol ?? "Rs";', "<span>Rs {total}</span>", 'label: "Rs " + price,', "            Rs {cost.toLocaleString()}", '{diff > 0 ? "+" : "−"}Rs {Math.abs(diff)} {per}', "<Label>Min spend (Rs)</Label>", 'label: "Fixed (PKR)" }', '{ value: "1", label: "Nearest Rs 1" },', 'hint="A bill of Rs 1,238.15 cannot be paid"']) {
       expect(MARK.test(codeOf(line).join("\n")), line).toBe(true);
     }
     for (const line of ["// the till read \"Rs 437.4\"", "const first = rows[0];", "{money(total)}", "const Rsvp = true;", "<Label>Min spend ({currency.symbol})</Label>", "const Rs = { a: 1 };", "(Rsvp)"]) {

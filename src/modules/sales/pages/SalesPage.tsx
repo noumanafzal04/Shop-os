@@ -415,8 +415,10 @@ export default function SalesPage() {
   };
 
   /** A line of the sale as a person would say it: the design, and which size of it. */
-  const lineName = (item: { product_name: string; variant_name: string | null }) =>
-    `${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ""}`;
+  // …and WHICH PACK (#PH7): a box of 100 and one tablet both read "Panadol ·
+  // 1 returnable", and a pharmacist taking back "1" could not tell which.
+  const lineName = (item: { product_name: string; variant_name: string | null; unit_name?: string | null }) =>
+    `${item.product_name}${item.variant_name ? ` (${item.variant_name})` : ""}${item.unit_name ? ` · ${item.unit_name}` : ""}`;
 
   // ── WHAT IS BEING HANDED BACK IS WORTH — asked of the server ─────────
   //
@@ -685,6 +687,7 @@ export default function SalesPage() {
                       <td className="px-4 py-2">
                         {item.product_name}
                         {item.variant_name && <span className="text-gray-400"> ({item.variant_name})</span>}
+                        {item.unit_name && <span className="text-gray-400"> · {item.unit_name}</span>}
                       </td>
                       <td className="px-4 py-2 text-right">
                         {/* As a NUMBER: the server sends "2.000", and a shop

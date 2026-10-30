@@ -141,7 +141,7 @@ export interface TenantDashboard {
   pending_orders: number;
   pending_reservations: number;
   low_stock_count: number;
-  // Batches expiring within 30 days (incl. already-expired) — pharmacy/perishables.
+  // Batches expiring within the shop's own window (incl. already-expired) — pharmacy/perishables.
   expiring_soon_count: number;
   products_count: number;
   // The branch these figures reflect (null = all branches / HQ view).
@@ -157,6 +157,8 @@ export interface TenantDashboard {
     low_stock: number;
     out_of_stock: number;
     expiring_soon: number;
+    /** The window `expiring_soon` was counted in — 90 days for a pharmacy, 30 elsewhere, or the shop's own (#PH2). */
+    expiring_within_days?: number;
     pending_pos: number;
   };
   order_pipeline: OrderPipeline;

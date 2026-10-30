@@ -21,6 +21,8 @@ export interface OfflineLine {
   name: string;
   /** From the catalog projection — the server's own verdict, carried down. */
   offline_ok?: boolean;
+  /** The server's reason it cannot be sold offline (#PH5). */
+  offline_why?: string | null;
 }
 
 export interface OfflineCart {
@@ -62,7 +64,7 @@ export function refusalsFor(cart: OfflineCart): Refusal[] {
   const blocked = cart.lines.filter((l) => l.offline_ok === false);
   for (const line of blocked) {
     refusals.push({
-      reason: `${line.name} can't be sold while the internet is down.`,
+      reason: `${line.name} can't be sold while the internet is down.${line.offline_why ? ` ${line.offline_why}` : ""}`,
       fix: "Take it off the bill, or wait for the connection.",
     });
   }
