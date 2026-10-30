@@ -13,6 +13,7 @@ use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -531,32 +532,124 @@ class RiderSideTest extends TestCase
         $otp = Order::withoutTenancy()->find($order['id'])->delivery_otp;
         $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/deliver", ['code' => $otp])->assertOk();
 
-        // The rider's own screen: what they earned, what they are holding.
+        // The rider's own screen: what they are holding. The shop invited and
+        // assigned them — its own rider — so the fee is the shop's (#ON1).
         $this->as($this->rider)->getJson('/api/v1/rider/earnings')
             ->assertOk()
             ->assertJsonPath('data.deliveries', 1)
-            ->assertJsonPath('data.earned', 100)
+            ->assertJsonPath('data.earned', 0)
             ->assertJsonPath('data.cash_in_hand', 2100);
 
         // The shop's side of the same fact.
         $this->as($this->owner)->getJson("/api/v1/riders/{$cardId}/statement")
-            ->assertOk()->assertJsonPath('data.cash_in_hand', 2100)->assertJsonPath('data.rider_earned', 100);
+            ->assertOk()->assertJsonPath('data.cash_in_hand', 2100)->assertJsonPath('data.rider_earned', 0)
+            ->assertJsonPath('data.to_hand_in', 2100);
 
         $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle", ['note' => 'Evening count'])
-            ->assertCreated()->assertJsonPath('data.orders_count', 1);
+            ->assertCreated()->assertJsonPath('data.orders_count', 1)->assertJsonPath('data.amount_paid', '2100.00');
 
         // Settled once, and only once.
         $this->as($this->rider)->getJson('/api/v1/rider/earnings')
             ->assertOk()
-            ->assertJsonPath('data.cash_in_hand', 0)
-            // What they EARNED does not disappear when the cash goes back.
-            ->assertJsonPath('data.earned', 100);
+            ->assertJsonPath('data.cash_in_hand', 0);
 
         $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle")
             ->assertStatus(422)->assertJsonPath('meta.error_code', 'RIDER_NOTHING_TO_SETTLE');
     }
 
     // ── The shop's side ──────────────────────────────────────────────
+
+    // ── Whose delivery fee (#ON1) ────────────────────────────────────
+    //
+    // The Online round: Rs 2,000 of goods + Rs 100 delivery, Rs 2,100 at the
+    // door — and the books held Rs 2,000, the fee nowhere but on the order.
+    // The owner's rule: it depends whose rider carried it. The platform's
+    // keeps the fee; a shop's own carries it for the shop.
+
+    /** Collected and delivered; returns the order row. */
+    private function carriedBy(User $rider, array $order): Order
+    {
+        $this->as($rider)->postJson("/api/v1/rider/jobs/{$order['id']}/pick-up")->assertOk();
+        $otp = Order::withoutTenancy()->find($order['id'])->delivery_otp;
+        $this->as($rider)->postJson("/api/v1/rider/jobs/{$order['id']}/deliver", ['code' => $otp])->assertOk();
+
+        return Order::withoutTenancy()->with('sale')->findOrFail($order['id']);
+    }
+
+    private function moneyIn(): float
+    {
+        return (float) $this->as($this->owner)->getJson('/api/v1/cashbook?'.http_build_query([
+            'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString(),
+        ]))->assertOk()->json('data.totals.money_in');
+    }
+
+    public function test_a_shops_own_rider_carries_the_fee_and_the_books_hold_all_of_it(): void
+    {
+        $cardId = $this->linkToShop($this->approvedRider($this->rider));
+        $order = $this->placeDelivery();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $cardId])->assertOk();
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/accept")->assertOk();
+        $done = $this->carriedBy($this->rider, $order);
+
+        $this->assertFalse($done->riderKeepsTheFee());
+        $this->assertEquals(2000, (float) $done->sale->total, 'the sale is the goods');
+        $fee = DB::table('incomes')->where('tenant_id', $this->shop->id)->where('reference', $done->order_number)->get();
+        $this->assertCount(1, $fee, 'the shop\'s delivery fee reached no book');
+        $this->assertEquals(100, (float) $fee[0]->amount);
+        $this->assertSame("Delivery charge · {$done->order_number}", $fee[0]->description);
+        $this->assertSame('cash', $fee[0]->payment_method);
+        $this->assertNull($fee[0]->cash_movement_id, 'the rider still has the money — no drawer moves at completion');
+        $this->assertEquals(2100, $this->moneyIn(), 'the books must hold what the door took');
+
+        $this->as($this->owner)->getJson("/api/v1/riders/{$cardId}/statement")
+            ->assertOk()->assertJsonPath('data.rider_earned', 0)->assertJsonPath('data.to_hand_in', 2100);
+        $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle")
+            ->assertCreated()->assertJsonPath('data.rider_earned', '0.00')->assertJsonPath('data.amount_paid', '2100.00');
+    }
+
+    public function test_a_pool_rider_keeps_the_fee_and_hands_in_the_goods_money(): void
+    {
+        $this->shop->forceFill(['settings' => ['delivery_provider' => 'platform']])->save();
+        $this->approvedRider($this->rider, platform: true);
+        $order = $this->placeDelivery();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/accept")->assertOk();
+        $done = $this->carriedBy($this->rider, $order);
+
+        $this->assertTrue($done->riderKeepsTheFee());
+        $this->assertEquals(2000, (float) $done->sale->total);
+        $this->assertSame(0, DB::table('incomes')->where('tenant_id', $this->shop->id)->count(), 'the rider\'s pay was booked as the shop\'s income');
+        $this->assertEquals(2000, $this->moneyIn());
+
+        $this->as($this->rider)->getJson('/api/v1/rider/earnings')
+            ->assertOk()->assertJsonPath('data.earned', 100)->assertJsonPath('data.cash_in_hand', 2100);
+        $this->as($this->owner)->getJson("/api/v1/riders/{$done->rider_id}/statement")
+            ->assertOk()->assertJsonPath('data.cash_in_hand', 2100)
+            ->assertJsonPath('data.rider_earned', 100)->assertJsonPath('data.to_hand_in', 2000);
+
+        // A blank amount is what is OWED — the goods — not all that was collected.
+        $this->as($this->owner)->postJson("/api/v1/riders/{$done->rider_id}/settle")
+            ->assertCreated()
+            ->assertJsonPath('data.cash_collected', '2100.00')
+            ->assertJsonPath('data.rider_earned', '100.00')
+            ->assertJsonPath('data.amount_paid', '2000.00');
+
+        // What they EARNED does not disappear when the cash goes back.
+        $this->as($this->rider)->getJson('/api/v1/rider/earnings')
+            ->assertOk()->assertJsonPath('data.cash_in_hand', 0)->assertJsonPath('data.earned', 100);
+    }
+
+    public function test_a_delivery_the_shop_made_with_no_rider_books_its_fee(): void
+    {
+        $order = $this->placeDelivery();
+        foreach (['confirmed', 'preparing', 'out_for_delivery', 'completed'] as $status) {
+            $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => $status])->assertOk();
+        }
+
+        $this->assertSame(1, DB::table('incomes')->where('tenant_id', $this->shop->id)->where('amount', 100)->count());
+        $this->assertEquals(2100, $this->moneyIn());
+    }
 
     public function test_a_shop_adds_an_app_rider_by_their_rider_id(): void
     {

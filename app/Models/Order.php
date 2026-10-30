@@ -46,6 +46,26 @@ class Order extends Model
         return $this->belongsTo(Rider::class);
     }
 
+    /**
+     * WHOSE IS THE DELIVERY FEE? (#ON1 — the owner's rule, 2026-10-30)
+     *
+     * "Depends whether the rider is the system's or the shop's own." A rider
+     * the platform sent — who took the job from the pool — keeps the fee: it
+     * is their pay, and they hand in the goods money only. A shop's own rider
+     * (assigned by the shop, or nobody at all) carries it for the shop, and
+     * the fee is the shop's income, booked when the order completes.
+     */
+    public function riderKeepsTheFee(): bool
+    {
+        return $this->rider_self_claimed === true;
+    }
+
+    /** The part of the delivery fee that is the rider's, not the shop's. */
+    public function feeToTheRider(): float
+    {
+        return $this->riderKeepsTheFee() ? round((float) $this->delivery_fee, 2) : 0.0;
+    }
+
     public function riderSettlement(): BelongsTo
     {
         return $this->belongsTo(RiderSettlement::class);

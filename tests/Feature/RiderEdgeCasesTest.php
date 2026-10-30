@@ -707,11 +707,12 @@ class RiderEdgeCasesTest extends TestCase
         $this->deliver($cash, $this->rider);
         $this->deliver($prepaid, $this->rider);
 
-        // Two deliveries, two fees earned — one lot of cash.
+        // Two deliveries, one lot of cash. The shop assigned both — its own
+        // rider — so neither fee is the rider's (#ON1).
         $this->as($this->rider)->getJson('/api/v1/rider/earnings')
             ->assertOk()
             ->assertJsonPath('data.deliveries', 2)
-            ->assertJsonPath('data.earned', 200)
+            ->assertJsonPath('data.earned', 0)
             ->assertJsonPath('data.cash_in_hand', 2100)
             ->assertJsonPath('data.cash_orders', 1);
 
@@ -729,14 +730,15 @@ class RiderEdgeCasesTest extends TestCase
         $this->inHand($order, $cardId, $this->rider);
         $this->deliver($order, $this->rider);
 
-        // The shop let the rider keep their fee out of the cash. What was
+        // The shop let its own rider keep a hundred out of the cash. What was
         // counted and what was handed over are different numbers, and the
-        // receipt has to say the second one.
+        // receipt has to say the second one. (The fee itself is the shop's —
+        // its own rider carried it, #ON1 — so nothing was EARNED by rule.)
         $this->as($this->owner)->postJson("/api/v1/riders/{$cardId}/settle", [
             'amount_paid' => 2000, 'note' => 'Rider kept his fee',
         ])->assertCreated()
             ->assertJsonPath('data.cash_collected', '2100.00')
-            ->assertJsonPath('data.rider_earned', '100.00')
+            ->assertJsonPath('data.rider_earned', '0.00')
             ->assertJsonPath('data.amount_paid', '2000.00');
 
         $this->assertDatabaseHas('rider_settlements', [

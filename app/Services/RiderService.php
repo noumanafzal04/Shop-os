@@ -1094,7 +1094,9 @@ class RiderService
 
         return [
             'deliveries' => $delivered->count(),
-            'earned' => round((float) $delivered->sum(fn (Order $o) => (float) $o->delivery_fee), 2),
+            // Only the fees that are theirs (#ON1): a shop's own rider carries
+            // the fee for the shop.
+            'earned' => round((float) $delivered->sum(fn (Order $o) => $o->feeToTheRider()), 2),
             'cash_in_hand' => round((float) $holding->sum(fn (Order $o) => (float) $o->total), 2),
             'cash_orders' => $holding->count(),
             'by_shop' => $holding->groupBy('tenant_id')->map(fn ($rows, $id) => [
@@ -1138,7 +1140,10 @@ class RiderService
             }
 
             $cash = round((float) $orders->sum(fn (Order $o) => (float) $o->total), 2);
-            $earned = round((float) $orders->sum(fn (Order $o) => (float) $o->delivery_fee), 2);
+            // A pool rider keeps the fee and hands in the rest; a shop's own
+            // rider hands in all of it, the fee being the shop's (#ON1). So a
+            // blank amount means what is owed, not everything collected.
+            $earned = round((float) $orders->sum(fn (Order $o) => $o->feeToTheRider()), 2);
 
             $settlement = RiderSettlement::withoutTenancy()->create([
                 'tenant_id' => $shop->id,
@@ -1146,7 +1151,7 @@ class RiderService
                 'rider_id' => $card->id,
                 'cash_collected' => $cash,
                 'rider_earned' => $earned,
-                'amount_paid' => $amountPaid ?? $cash,
+                'amount_paid' => $amountPaid ?? round($cash - $earned, 2),
                 'orders_count' => $orders->count(),
                 'note' => $note,
                 'settled_by' => $staff->id,

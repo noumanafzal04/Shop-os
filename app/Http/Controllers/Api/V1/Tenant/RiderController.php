@@ -135,13 +135,18 @@ class RiderController extends Controller
             ->whereNull('rider_settlement_id')
             ->where('payment_method', 'cod')
             ->orderBy('delivered_at')
-            ->get(['id', 'order_number', 'total', 'delivery_fee', 'delivered_at']);
+            ->get(['id', 'order_number', 'total', 'delivery_fee', 'rider_self_claimed', 'delivered_at']);
+
+        $cash = round((float) $orders->sum(fn (Order $o) => (float) $o->total), 2);
+        $earned = round((float) $orders->sum(fn (Order $o) => $o->feeToTheRider()), 2);
 
         return ApiResponse::ok([
             'rider' => $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')),
             'orders' => $orders,
-            'cash_in_hand' => round((float) $orders->sum(fn (Order $o) => (float) $o->total), 2),
-            'rider_earned' => round((float) $orders->sum(fn (Order $o) => (float) $o->delivery_fee), 2),
+            'cash_in_hand' => $cash,
+            // The fees that are the rider's own (#ON1) — kept, never handed in.
+            'rider_earned' => $earned,
+            'to_hand_in' => round($cash - $earned, 2),
         ]);
     }
 

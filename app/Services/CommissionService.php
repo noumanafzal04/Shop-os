@@ -94,9 +94,10 @@ class CommissionService
     /**
      * What the percentage is taken of.
      *
-     * `goods` leaves the delivery fee out, because that money is not the
-     * shop's revenue — it is the rider's — and including it would make a shop
-     * that delivers pay more for an identical basket.
+     * `goods` leaves the delivery fee out, because that money is not goods —
+     * it is a pool rider's pay, or a shop's own delivery charge (#ON1) — and
+     * including it would make a shop that delivers pay more for an identical
+     * basket.
      */
     private function baseFor(Order $order): float
     {

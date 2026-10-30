@@ -12,6 +12,7 @@ use App\Exceptions\DomainException;
 use App\Exceptions\OrderQuoted;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Income;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductUnit;
@@ -26,6 +27,7 @@ use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
 use App\Support\Permissions;
+use App\Support\ShopDay;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
 use App\Support\UnitCost;
@@ -818,9 +820,9 @@ class OrderService
 
             // The coupon was validated + consumed at placement — carry its
             // discount into the sale (NOT the coupon code, which would consume
-            // a second use). The delivery fee stays on the order: the sale
-            // records goods revenue only, so amount_paid equals the sale total
-            // exactly and a discounted order can always complete.
+            // a second use). The sale records goods revenue only, so
+            // amount_paid equals the sale total exactly and a discounted order
+            // can always complete. The delivery fee is booked below.
             $goodsPaid = round((float) $order->subtotal - (float) $order->discount, 2);
 
             /** @var Sale $sale */
@@ -870,6 +872,31 @@ class OrderService
                     .($order->coupon_code !== null ? " (coupon {$order->coupon_code})" : ''),
                 'idempotency_key' => "order-sale-{$order->id}",
             ]);
+
+            /**
+             * THE DELIVERY FEE REACHES THE BOOKS (#ON1).
+             *
+             * It was charged and collected — Rs 6,050 at the door for a
+             * Rs 5,900 sale — and written nowhere but the order, so the
+             * cashbook, reports and dashboard all said 5,900 while the rider
+             * handed in 6,050. When the fee is the shop's (its own rider, or
+             * none), it is the shop's income from today, beside the sale, as a
+             * forfeited advance is. No drawer moves here: the rider still has
+             * the money, and handing it in is the drawer's moment (settle).
+             * A pool rider keeps it, and the shop's books never held it.
+             */
+            $shopsFee = round((float) $order->delivery_fee - $order->feeToTheRider(), 2);
+            if ($order->fulfillment_type === FulfillmentType::Delivery && $shopsFee > 0) {
+                Income::query()->create([
+                    'tenant_id' => $order->tenant_id,
+                    'branch_id' => $sale->branch_id,
+                    'description' => "Delivery charge · {$order->order_number}",
+                    'reference' => $order->order_number,
+                    'amount' => $shopsFee,
+                    'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
+                    'income_date' => ShopDay::today(),
+                ]);
+            }
 
             $order->forceFill([
                 'status' => OrderStatus::Completed,
