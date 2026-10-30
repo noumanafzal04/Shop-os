@@ -99,8 +99,9 @@ export default function RidersPage() {
     settle.mutate(
       {
         id: settling,
-        // Blank means "all of it" — the server falls back to the counted cash.
-        // Sending 0 for an empty box would record that the shop took nothing.
+        // Blank means "what is owed" — the server falls back to the cash less
+        // the rider's own fees. Sending 0 for an empty box would record that
+        // the shop took nothing.
         amount_paid: paid.trim() === "" ? undefined : Number(paid),
         note: note.trim() || undefined,
       },
@@ -439,9 +440,15 @@ export default function RidersPage() {
                 </div>
               </div>
 
-              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
-                Of that, {money(statement.data?.rider_earned ?? 0)} is what the rider earned in
-                delivery fees. This entry records the cash — it does not pay them.
+              {/*
+                WHOSE FEE (#ON1). A rider the platform sent keeps their delivery
+                fees; a shop's own rider carries them for the shop, and the fee
+                is already in the shop's income. The figure to hand in says which.
+              */}
+              <p className="text-theme-xs text-gray-500 dark:text-gray-400" data-to-hand-in>
+                {(statement.data?.rider_earned ?? 0) > 0
+                  ? `Of that, ${money(statement.data?.rider_earned ?? 0)} is the rider's own delivery fees — they keep it, so ${money(statement.data?.to_hand_in ?? 0)} comes to the till.`
+                  : "The delivery fees on these orders are the shop's — all of it comes to the till."}
               </p>
 
               <div>
@@ -450,7 +457,7 @@ export default function RidersPage() {
                   type="number"
                   value={paid}
                   onChange={(e) => setPaid(e.target.value)}
-                  placeholder={String(statement.data?.cash_in_hand ?? 0)}
+                  placeholder={String(statement.data?.to_hand_in ?? statement.data?.cash_in_hand ?? 0)}
                 />
               </div>
               <div>

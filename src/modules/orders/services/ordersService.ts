@@ -154,7 +154,10 @@ export interface RiderStatement {
     delivered_at: string | null;
   }>;
   cash_in_hand: number;
+  /** The rider's own delivery fees — only a pool rider's (#ON1). */
   rider_earned: number;
+  /** Collected less what the rider keeps: what comes to the till. */
+  to_hand_in: number;
 }
 
 // Owner-side order shape (raw model)
