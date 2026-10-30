@@ -23,6 +23,7 @@ import {
   useDayHistory,
   useDayMutations,
   useDeposits,
+  useTakenWithNoDrawer,
 } from "../hooks/useDay";
 import { dayService, signerName, type BankDeposit, type BusinessDay, type DayShift } from "../services/dayService";
 import { bankedBeyondDrawers, depositCanBeCorrected } from "../banking";
@@ -35,6 +36,7 @@ import { useBranchStore } from "../../../stores/branchStore";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import CollectedOnKhata from "../../customers/components/CollectedOnKhata";
 import { shopDate, shopShortDate, timeOf, weekdayOf } from "../../../common/format/date";
+import { counted } from "../../../common/format/counted";
 
 type Tab = "today" | "shifts" | "history" | "banking";
 
@@ -127,6 +129,7 @@ export default function DayPage() {
   const activeBranchId = useBranchStore((st) => st.activeBranchId);
   const day = useCurrentDay();
   const closedToday = useClosedToday();
+  const takenWithNoDrawer = useTakenWithNoDrawer();
   const { close, deposit, reopen, correctDeposit, removeDeposit } = useDayMutations();
   const confirm = useConfirm();
   // Whoever the server lets record a deposit — and so correct one (#20).
@@ -374,12 +377,29 @@ export default function DayPage() {
             />
           ) : !view ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center dark:border-gray-800 dark:bg-white/[0.03]">
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                No day open yet.
-              </p>
-              <p className="mt-1 text-theme-xs text-gray-400">
-                The day starts by itself when the first cashier opens a drawer — nobody has to remember to start it.
-              </p>
+              {/* NOT "no day open yet" WHEN MONEY CAME IN (#SV1). A tailor bills
+                  from the job board and never opens a drawer, and this said
+                  "no day open" with Rs 5,630 of the customer's cash taken. */}
+              {takenWithNoDrawer.data ? (
+                <>
+                  <p data-testid="taken-with-no-drawer" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    No drawer has been opened today — but {money(takenWithNoDrawer.data.sales_total)} was taken in{" "}
+                    {counted(takenWithNoDrawer.data.sales_count, "sale")}.
+                  </p>
+                  <p className="mt-1 text-theme-xs text-gray-400">
+                    It is in your books and in no till&apos;s count. Open a shift before taking cash, and the day will count it.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No day open yet.
+                  </p>
+                  <p className="mt-1 text-theme-xs text-gray-400">
+                    The day starts by itself when the first cashier opens a drawer — nobody has to remember to start it.
+                  </p>
+                </>
+              )}
               {/* WHICH counter this is about. On All branches the answer now
                   spans every shop, so "no day open" genuinely means nobody is
                   trading anywhere; on a chosen branch it means that branch.

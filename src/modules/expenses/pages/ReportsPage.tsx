@@ -204,6 +204,13 @@ export default function ReportsPage() {
               <MetricCard label="Cash Rounding" value={money(data.totals.cash_rounding ?? 0)} />
             )}
             <MetricCard label="Net Profit" value={money(data.totals.net_profit)} />
+            {/* What the profit counted as free (#RS13): sold with no cost on record. */}
+            {(data.totals.uncosted_sales ?? 0) > 0 && (
+              <p data-testid="uncosted-sales" className="col-span-full rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-theme-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+                {money(data.totals.uncosted_sales ?? 0)} of what was sold has no cost on record, so the profit above
+                counts it as costing nothing. Give those items a cost price for the true profit.
+              </p>
+            )}
           </>
         ) : (
           <>

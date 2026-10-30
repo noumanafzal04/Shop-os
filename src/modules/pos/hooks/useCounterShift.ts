@@ -1,3 +1,5 @@
+import { useAuthStore } from "../../../stores/authStore";
+import { useOwnDrawer } from "../../expenses/useOwnDrawer";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { whyCannotRing } from "../services/posService";
 import { useCurrentSession } from "./usePos";
@@ -36,4 +38,26 @@ export function useCashNeedsShift(method: string, amount: number): string | null
   const { why } = useCounterShift("to take cash");
 
   return method === "cash" && amount > 0 && why !== null ? `${why} Card, bank or wallet money needs no drawer.` : null;
+}
+
+/**
+ * CASH THAT WILL REACH NO DRAWER, SAID BEFORE IT IS TAKEN (#SV1).
+ *
+ * A shop that does not ask for shifts takes a job's advance and its balance
+ * with nobody's drawer open — a tailor never touches the till — and the day
+ * then read CASH TAKINGS Rs 0 with Rs 5,630 of the customer's cash in the shop.
+ * Not refused: the shop chose not to ask for shifts. Told, with the way to
+ * have it counted. Null when it will reach a drawer, when it is not cash, when
+ * the shop has no till, where a shift is required (useCashNeedsShift refuses
+ * there), or while the answer is still on its way.
+ */
+export function useCashReachesNoDrawer(method: string, amount: number): string | null {
+  const settings = useShopSettings();
+  const drawer = useOwnDrawer();
+  const shopHasTill = useAuthStore((s) => s.user?.tenant?.features?.pos ?? false);
+  const required = settings.data?.pos_require_shift === true;
+
+  if (!shopHasTill || required || method !== "cash" || !(amount > 0) || drawer !== "none") return null;
+
+  return "No shift of yours is open, so this cash goes into no drawer and the day will not count it. Open a shift first to have it counted — card, bank or wallet money needs no drawer.";
 }

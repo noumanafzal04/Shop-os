@@ -261,7 +261,7 @@ function PlanChangePreviewBlock({ preview }: {
         <span className="font-medium text-gray-800 dark:text-white/90">{p.to.name}</span>
         {diff !== 0 && (
           <span className={`ml-auto tabular-nums ${diff > 0 ? "text-success-600 dark:text-success-500" : "text-warning-600 dark:text-warning-400"}`}>
-            {diff > 0 ? "+" : "−"}Rs {Math.abs(diff).toLocaleString()} {per}
+            {diff > 0 ? "+" : "−"}{platformMoney(Math.abs(diff))} {per}
           </span>
         )}
       </div>
@@ -933,7 +933,7 @@ function CapacityCard({ tenant }: { tenant: Tenant }) {
                   >
                     <div className="text-sm font-medium text-gray-800 dark:text-white/90">{pack.label}</div>
                     <div className="mt-0.5 text-theme-xs text-gray-500 dark:text-gray-400">
-                      Rs {pack.price.toLocaleString()} each, per billing period
+                      {platformMoney(pack.price)} each, per billing period
                     </div>
                   </button>
                 );
@@ -1161,7 +1161,7 @@ function BillCard({ pkg }: { pkg: TenantPackage }) {
               <span className="mr-1.5 rounded-full bg-brand-50 px-1.5 py-px text-[11px] font-medium text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">Add-on</span>
               {a.label}
               {a.own_price && a.listed !== null && a.listed !== a.monthly && (
-                <span className="ml-1.5 text-theme-xs text-gray-400">usually Rs {Math.round(a.listed).toLocaleString()}</span>
+                <span className="ml-1.5 text-theme-xs text-gray-400">usually {platformMoney(Math.round(a.listed))}</span>
               )}
             </dt>
             <dd className="whitespace-nowrap tabular-nums text-gray-800 dark:text-white/90">

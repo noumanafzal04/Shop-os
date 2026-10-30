@@ -21,8 +21,8 @@ import { usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { boardWords, hasJobBoard } from "../../workshop/words";
 import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
-import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
-import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { useCashNeedsShift, useCashReachesNoDrawer } from "../../pos/hooks/useCounterShift";
+import { NoDrawerNote, ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { PrintPaperModal } from "../components/PrintPaperModal";
 import { HoldQuoteModal } from "../components/HoldQuoteModal";
 import { CollectModal } from "../components/CollectModal";
@@ -549,6 +549,7 @@ function DepositModal({
   const [reference, setReference] = useState("");
   const money = useMoney();
   const shiftWhy = useCashNeedsShift(method, Number(amount) || 0);
+  const noDrawer = useCashReachesNoDrawer(method, Number(amount) || 0);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
@@ -600,6 +601,7 @@ function DepositModal({
             </div>
           </div>
           <ShiftNeeded why={shiftWhy} />
+          <NoDrawerNote note={noDrawer} />
           {method !== "cash" && (
             <div>
               <Label>Reference</Label>

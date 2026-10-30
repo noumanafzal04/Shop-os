@@ -7,7 +7,7 @@ import { CollectModal } from "./CollectModal";
  * B26: Bill & hand over showed the balance only as a grey placeholder, and
  * "Bill it" stayed shut until the same figure was typed over it.
  */
-vi.mock("../../pos/hooks/useCounterShift", () => ({ useCounterShift: () => ({ ready: true, why: null }) }));
+vi.mock("../../pos/hooks/useCounterShift", () => ({ useCounterShift: () => ({ ready: true, why: null }), useCashReachesNoDrawer: () => null }));
 vi.mock("../../shop/hooks/useShop", () => ({ useMoney: () => (n: number) => `Rs ${n.toLocaleString("en-US")}` }));
 
 const show = (onSubmit = vi.fn(), onClose = vi.fn(), balance = 2490) =>

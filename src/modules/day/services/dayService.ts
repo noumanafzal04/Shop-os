@@ -74,6 +74,15 @@ export interface ClosedToday {
   can_reopen: boolean;
 }
 
+/**
+ * Sold today with no drawer, on a day nobody opened (#SV1) — sent beside an
+ * empty current day only when there is something to say.
+ */
+export interface TakenWithNoDrawer {
+  sales_count: number;
+  sales_total: number;
+}
+
 export interface DayShift {
   id: string;
   status: "open" | "closed";

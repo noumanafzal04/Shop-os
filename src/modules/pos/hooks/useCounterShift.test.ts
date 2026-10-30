@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
-import { useCashNeedsShift, useCounterShift } from "./useCounterShift";
+import { useAuthStore } from "../../../stores/authStore";
+import { useCashNeedsShift, useCashReachesNoDrawer, useCounterShift } from "./useCounterShift";
 
 /**
  * The counter's rule, for the screens beside the till: a shop that asks for
@@ -57,5 +58,39 @@ describe("an advance", () => {
 
     session = today;
     expect(renderHook(() => useCashNeedsShift("cash", 500)).result.current).toBeNull();
+  });
+});
+
+describe("cash that will reach no drawer (#SV1)", () => {
+  const owner = (pos: boolean) =>
+    useAuthStore.setState({ user: { role: "shop_owner", permissions: [], tenant: { id: "t", features: { pos } } } } as never);
+
+  it("is said before it is taken, in a shop that does not ask for shifts", () => {
+    owner(true);
+    required = false;
+    session = null;
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 2000)).result.current).toMatch(/^No shift of yours is open, so this cash goes into no drawer and the day will not count it\./);
+  });
+
+  it("says nothing when it will reach a drawer, or is not cash, or there is nothing to take", () => {
+    owner(true);
+    required = false;
+    session = today;
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 2000)).result.current, "an open drawer was warned about").toBeNull();
+    session = null;
+    expect(renderHook(() => useCashReachesNoDrawer("card", 2000)).result.current).toBeNull();
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 0)).result.current).toBeNull();
+    session = undefined;
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 2000)).result.current, "warned on a guess while still asking").toBeNull();
+  });
+
+  it("leaves the refusing to a shop that asks for shifts, and says nothing in a shop with no till", () => {
+    owner(true);
+    required = true;
+    session = null;
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 2000)).result.current).toBeNull();
+    owner(false);
+    required = false;
+    expect(renderHook(() => useCashReachesNoDrawer("cash", 2000)).result.current).toBeNull();
   });
 });

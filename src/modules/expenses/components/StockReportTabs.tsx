@@ -84,12 +84,21 @@ export function MarginsTab({ range }: { range: ReportRange }) {
         ) : (
           <>
             <MetricCard label="Revenue" value={money(data.totals.revenue)} />
-            <MetricCard label="Cost of goods" value={money(data.totals.cogs)} />
-            <MetricCard label="Profit" value={money(data.totals.profit)} />
+            <MetricCard label="Cost of goods" value={data.totals.cogs === null ? "—" : money(data.totals.cogs)} />
+            <MetricCard label="Profit" value={data.totals.profit === null ? "—" : money(data.totals.profit)} />
             <MetricCard label="Margin" value={data.totals.margin_pct === null ? "—" : `${data.totals.margin_pct}%`} />
           </>
         )}
       </div>
+
+      {/* AN UNKNOWN COST IS SAID, NOT PRINTED AS 0 (#RS13): a karahi nobody
+          had costed read "margin 100%", and so did the whole day. */}
+      {data && data.totals.uncosted_revenue > 0 && (
+        <p data-testid="uncosted-revenue" className="mb-6 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-theme-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+          {money(data.totals.uncosted_revenue)} of these sales have no cost recorded, so they are left out of the
+          profit and margin above. Give those items a cost price to count them.
+        </p>
+      )}
 
       {data && data.losing.length > 0 && (
         <div className="mb-6 overflow-hidden rounded-2xl border border-error-200 bg-error-50 dark:border-error-500/25 dark:bg-error-500/10">
@@ -163,10 +172,10 @@ export function MarginsTab({ range }: { range: ReportRange }) {
                     </td>
                     <td
                       className={`px-5 py-2.5 text-right tabular-nums font-medium ${
-                        row.profit < 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"
+                        (row.profit ?? 0) < 0 ? "text-error-600 dark:text-error-400" : "text-gray-800 dark:text-white/90"
                       }`}
                     >
-                      {money(row.profit)}
+                      {row.profit === null ? <span className="font-normal text-gray-400">No cost</span> : money(row.profit)}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-400">
                       {row.margin_pct === null ? "—" : `${row.margin_pct}%`}

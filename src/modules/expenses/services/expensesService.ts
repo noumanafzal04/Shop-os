@@ -159,6 +159,8 @@ export interface ReportSummary {
     /** Money in that wasn't a sale — a retainer, an owner's injection, a refund. */
     other_income: number;
     cogs: number;
+    /** Sold with no cost on record (#RS13) — the profit below counts it as costing nothing. */
+    uncosted_sales?: number;
     /** Sales tax still held for the government: charged, less handed back on returns. Not the shop's. */
     tax: number;
     gross_profit: number;
@@ -258,19 +260,23 @@ export interface MarginLine {
   category: string;
   units: number;
   revenue: number;
-  cogs: number;
-  profit: number;
-  /** Null when nothing was taken — 0% would read as break-even on a giveaway. */
+  /** Null when nothing sold had a cost on record (#RS13) — unknown, never 0. */
+  cogs: number | null;
+  /** Struck only on what has a cost; null when nothing did. */
+  profit: number | null;
+  /** Null when nothing was taken — 0% would read as break-even on a giveaway — or no cost is known. */
   margin_pct: number | null;
+  /** Revenue from lines with no cost on record, left out of profit and margin. */
+  uncosted_revenue: number;
 }
 
 export interface MarginsReport {
   period: { from: string; to: string };
-  totals: { revenue: number; cogs: number; profit: number; margin_pct: number | null };
+  totals: { revenue: number; cogs: number | null; profit: number | null; margin_pct: number | null; uncosted_revenue: number };
   best: MarginLine[];
   /** Sold below cost — almost always a costing mistake, invisible in a revenue ranking. */
   losing: MarginLine[];
-  by_category: Array<{ category: string; revenue: number; cogs: number; profit: number; margin_pct: number | null }>;
+  by_category: Array<{ category: string; revenue: number; cogs: number | null; profit: number | null; margin_pct: number | null; uncosted_revenue: number }>;
 }
 
 export interface ValuationReport {

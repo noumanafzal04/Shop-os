@@ -11,3 +11,15 @@ export function ShiftNeeded({ why }: { why: string | null }) {
     </div>
   );
 }
+
+/** Cash about to be taken with no drawer open — allowed, and said (#SV1). */
+export function NoDrawerNote({ note }: { note: string | null }) {
+  if (note === null) return null;
+
+  return (
+    <div data-testid="no-drawer-note" className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-theme-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+      {note}{" "}
+      <Link to="/tenant/pos" className="font-semibold underline">Open the till</Link>
+    </div>
+  );
+}

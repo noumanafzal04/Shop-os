@@ -6,8 +6,8 @@ import Label from "../../../components/form/Label";
 import { Modal, ModalForm } from "../../../components/ui/modal";
 import { useOnceKey } from "../../../common/onceKey";
 import { useMoney } from "../../shop/hooks/useShop";
-import { useCounterShift } from "../../pos/hooks/useCounterShift";
-import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { useCashReachesNoDrawer, useCounterShift } from "../../pos/hooks/useCounterShift";
+import { NoDrawerNote, ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { DEPOSIT_METHODS } from "../services/documentService";
 
 /**
@@ -90,6 +90,7 @@ export function CollectModal({
   // Each opening starts from the balance again, not from what was typed last time.
   const close = () => { setTyped(null); onClose(); };
   const short = due > 0 && paid < due;
+  const noDrawer = useCashReachesNoDrawer(onKhata ? "khata" : method, due > 0 ? paid : 0);
 
   const typedOdo = odometer.trim() === "" ? null : Number(odometer);
   const odoOut = typedOdo !== null && Number.isFinite(typedOdo) ? typedOdo : null;
@@ -122,6 +123,7 @@ export function CollectModal({
         }
       >
         <div className="mb-3"><ShiftNeeded why={counterShift.why} /></div>
+        {noDrawer && <div className="mb-3"><NoDrawerNote note={noDrawer} /></div>}
         <p className="mb-5 text-theme-sm text-gray-500 dark:text-gray-400">
           {due > 0
             ? `Take ${money(due)} and the goods go out.`

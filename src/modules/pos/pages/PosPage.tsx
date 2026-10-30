@@ -4810,7 +4810,7 @@ export default function PosPage() {
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{hasOffers ? <>Discount &amp; coupon</> : "Discount"}</h3>
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Manual discount (Rs)</label>
+            <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Manual discount ({cur})</label>
             <Input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
           </div>
           {hasOffers && (

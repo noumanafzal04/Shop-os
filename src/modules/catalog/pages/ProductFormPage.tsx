@@ -24,7 +24,7 @@ import {
   useProductMutations,
   useSyncModifiers,
 } from "../hooks/useCatalog";
-import { useBusinessTypes, useShopSettings } from "../../shop/hooks/useShop";
+import { useBusinessTypes, useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { useTaxGroups } from "../hooks/useTaxGroups";
 import { catalogService } from "../services/catalogService";
 import type { ItemTypeCode, ModifierGroup } from "../types";
@@ -1258,6 +1258,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               </p>
             )}
             {err("combo_items") && <p className="mt-1 text-theme-xs text-error-500">{err("combo_items")}</p>}
+            {/* What one deal costs, from what is in it (#RS13) — saved deals only:
+                the figure comes from the server's own costing of the parts. */}
+            {isEdit && comboRows.length > 0 && <FoodCost deal cost={recipeCost} missing={recipeMissing} price={Number(price) || 0} />}
           </Section>
         )}
 
@@ -1996,17 +1999,28 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
  * A partial food cost is not a cheaper dish; it is a wrong one, and wrong in
  * the direction that makes a kitchen underprice.
  */
-function FoodCost({ cost, missing, price }: { cost: number | null; missing: string[]; price: number }) {
+/**
+ * What one dish — or one deal (#RS13) — costs to make, from its parts.
+ *
+ * A deal's card said nothing of its cost: the owner learned it only by selling
+ * one. And the figure was written "Rs {cost}" by hand, which is right in
+ * Lahore and wrong in every shop that trades in its own money.
+ */
+function FoodCost({ cost, missing, price, deal = false }: { cost: number | null; missing: string[]; price: number; deal?: boolean }) {
+  const money = useMoney();
+  const what = deal ? "deal" : "dish";
+  const parts = deal ? "items in it" : "ingredients";
+
   if (cost === null) {
     return (
       <div className="mt-4 rounded-xl border border-warning-300 bg-warning-50 px-4 py-3 dark:border-warning-500/40 dark:bg-warning-500/10">
         <p className="text-theme-sm font-medium text-warning-700 dark:text-warning-400">
-          This dish cannot be costed yet
+          This {what} cannot be costed yet
         </p>
         <p className="mt-0.5 text-theme-xs text-warning-700/80 dark:text-warning-400/80">
           {missing.length > 0
-            ? `No cost price on ${missing.join(", ")}. Add it there and this dish costs itself.`
-            : "Add a cost price to the ingredients and this dish costs itself."}
+            ? `No cost price on ${missing.join(", ")}. Add it there and this ${what} costs itself.`
+            : `Add a cost price to the ${parts} and this ${what} costs itself.`}
         </p>
       </div>
     );
@@ -2026,7 +2040,7 @@ function FoodCost({ cost, missing, price }: { cost: number | null; missing: stri
         <div>
           <p className="text-theme-xs uppercase tracking-wide text-gray-400">Costs to make</p>
           <p className="text-lg font-semibold tabular-nums text-gray-800 dark:text-white/90">
-            Rs {cost.toLocaleString()}
+            {money(cost)}
           </p>
         </div>
         {pct !== null && (
@@ -2037,8 +2051,8 @@ function FoodCost({ cost, missing, price }: { cost: number | null; missing: stri
         )}
       </div>
       <p className="mt-1.5 text-theme-xs text-gray-400">
-        From the ingredients&rsquo; own cost prices. Save and reopen to refresh it after changing the
-        recipe.
+        From the {parts}&rsquo; own cost prices. Save and reopen to refresh it after changing the
+        {deal ? "deal" : "recipe"}.
       </p>
     </div>
   );

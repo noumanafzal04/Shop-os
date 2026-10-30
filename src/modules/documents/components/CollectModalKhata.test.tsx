@@ -8,7 +8,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
  * on credit — so a laundry could not bill a hostel monthly, nor a distributor
  * a dealer, from any screen, although the server did it happily.
  */
-vi.mock("../../pos/hooks/useCounterShift", () => ({ useCounterShift: () => ({ ready: true, why: null }) }));
+vi.mock("../../pos/hooks/useCounterShift", () => ({ useCounterShift: () => ({ ready: true, why: null }), useCashReachesNoDrawer: () => null }));
 vi.mock("../../pos/components/ShiftNeeded", () => ({ ShiftNeeded: () => null }));
 vi.mock("../../shop/hooks/useShop", () => ({ useMoney: () => (n: number) => `M${n}` }));
 vi.mock("../../../components/ui/modal", () => ({

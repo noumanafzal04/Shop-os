@@ -11,7 +11,7 @@ import { useModal } from "../../../hooks/useModal";
 import { useConfirm } from "../../../components/ui/confirm";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
-import { useMoney } from "../../shop/hooks/useShop";
+import { useCurrency, useMoney } from "../../shop/hooks/useShop";
 import { useCategories } from "../../catalog/hooks/useCatalog";
 import { catalogService } from "../../catalog/services/catalogService";
 import { usePromotions, usePromotionMutations } from "../hooks/usePromotions";
@@ -59,6 +59,7 @@ function scheduleLabel(p: Promotion): string {
 
 export default function PromotionsPage() {
   const money = useMoney();
+  const currency = useCurrency();
   const asked = usePromotions();
   const { data: promotions, isLoading } = asked;
   const { create, update, remove } = usePromotionMutations();
@@ -216,7 +217,7 @@ export default function PromotionsPage() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <Label>Discount</Label>
-                <Select value={draft.type} options={[{ value: "percent", label: "Percent %" }, { value: "fixed", label: "Fixed (Rs)" }, { value: "bogo", label: "Buy X Get Y" }]}
+                <Select value={draft.type} options={[{ value: "percent", label: "Percent %" }, { value: "fixed", label: `Fixed (${currency.symbol})` }, { value: "bogo", label: "Buy X Get Y" }]}
                   onChange={(v) => { set("type", v as PromoType); if (v === "bogo" && draft.scope === "order") set("scope", "category"); }} />
               </div>
               {!isBogo && <div><Label>Value</Label><Input type="number" min="0" value={draft.value} onChange={(e) => set("value", e.target.value)} /></div>}
@@ -271,9 +272,9 @@ export default function PromotionsPage() {
           {!isBogo && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {draft.scope === "order"
-                ? <div><Label>Min spend (Rs)</Label><Input type="number" min="0" value={draft.min_spend} onChange={(e) => set("min_spend", e.target.value)} placeholder="None" /></div>
+                ? <div><Label>Min spend ({currency.symbol})</Label><Input type="number" min="0" value={draft.min_spend} onChange={(e) => set("min_spend", e.target.value)} placeholder="None" /></div>
                 : <div><Label>Min quantity</Label><Input type="number" min="0" value={draft.min_qty} onChange={(e) => set("min_qty", e.target.value)} placeholder="None" /></div>}
-              {draft.type === "percent" && <div><Label>Max discount (Rs)</Label><Input type="number" min="0" value={draft.max_discount} onChange={(e) => set("max_discount", e.target.value)} placeholder="No cap" /></div>}
+              {draft.type === "percent" && <div><Label>Max discount ({currency.symbol})</Label><Input type="number" min="0" value={draft.max_discount} onChange={(e) => set("max_discount", e.target.value)} placeholder="No cap" /></div>}
             </div>
           )}
 

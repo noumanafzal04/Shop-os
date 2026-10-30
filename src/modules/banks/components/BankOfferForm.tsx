@@ -5,6 +5,7 @@ import Label from "../../../components/form/Label";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import type { BankCardOffer, BankOfferInput, BankOfferType, CardType } from "../services/banksService";
+import { useCurrency, useMoney } from "../../shop/hooks/useShop";
 
 /**
  * One bank campaign.
@@ -45,6 +46,8 @@ export function BankOfferForm({
   onSave: (payload: BankOfferInput & { id?: string }) => void;
   onClose: () => void;
 }) {
+  const money = useMoney();
+  const currency = useCurrency();
   const [label, setLabel] = useState(offer?.label ?? "");
   const [type, setType] = useState<BankOfferType>(offer?.type ?? "percent");
   const [value, setValue] = useState(String(offer?.value ?? ""));
@@ -92,25 +95,25 @@ export function BankOfferForm({
             </select>
           </div>
           <div>
-            <Label>{type === "percent" ? "Percent" : "Amount (Rs)"}</Label>
+            <Label>{type === "percent" ? "Percent" : `Amount (${currency.symbol})`}</Label>
             <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder={type === "percent" ? "10" : "500"} />
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label>Only on card amounts over (Rs)</Label>
+            <Label>Only on card amounts over ({currency.symbol})</Label>
             <Input value={minSpend} onChange={(e) => setMinSpend(e.target.value)} placeholder="Any" />
           </div>
           <div>
-            <Label>Most it can take off (Rs)</Label>
+            <Label>Most it can take off ({currency.symbol})</Label>
             <Input value={maxDiscount} onChange={(e) => setMaxDiscount(e.target.value)} placeholder="No cap" />
           </div>
         </div>
 
         {uncapped && (
           <p className="rounded-lg bg-warning-50 px-3 py-2 text-theme-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-            No cap. On a Rs 400,000 sale this gives away Rs {(Number(value) || 0) * 4000}. If the
+            No cap. On a {money(400000, 0)} sale this gives away {money((Number(value) || 0) * 4000)}. If the
             bank's letter names a maximum, put it here — the claim will be measured against it.
           </p>
         )}

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { dayService, type ClosedToday, type DepositInput } from "../services/dayService";
+import { dayService, type ClosedToday, type DepositInput, type TakenWithNoDrawer } from "../services/dayService";
 import { useAuthStore } from "../../../stores/authStore";
 
 /** A trading day is drawers, so it belongs to shops that actually have a till. */
@@ -41,6 +41,22 @@ export function useClosedToday() {
     queryFn: () => dayService.current(),
     select: (envelope): ClosedToday | null =>
       (envelope.meta as { closed_today?: ClosedToday | null } | undefined)?.closed_today ?? null,
+    enabled: useTillShop(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * What was sold today with no drawer, when no day is open (#SV1). The same
+ * request again — one key, one fetch.
+ */
+export function useTakenWithNoDrawer() {
+  return useQuery({
+    queryKey: ["pos", "day"],
+    queryFn: () => dayService.current(),
+    select: (envelope): TakenWithNoDrawer | null =>
+      (envelope.meta as { taken_with_no_drawer?: TakenWithNoDrawer | null } | undefined)?.taken_with_no_drawer ?? null,
     enabled: useTillShop(),
     refetchInterval: 60_000,
     staleTime: 30_000,
