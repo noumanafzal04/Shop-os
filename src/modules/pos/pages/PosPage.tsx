@@ -3061,12 +3061,14 @@ export default function PosPage() {
               ? `Your shift has been open since ${open?.opened_on ? shopDate(open.opened_on) : "an earlier day"} — close it when the day ends, so each day's money is counted on its own.`
               : whyCannotRing(session.data ?? null, requireShift)}
           </span>
+          {/* min-h-8: py-1 drew these 28 px tall on a phone, under the till's
+              own 32 px floor — on the button that ends a cashier's day (#DV2). */}
           {staleShift ? (
-            <button type="button" onClick={closeModal.openModal} className="rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
+            <button type="button" onClick={closeModal.openModal} className="min-h-8 rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
               Close shift
             </button>
           ) : !covering && (
-            <button type="button" onClick={() => { setOpeningFloat(""); openModal.openModal(); }} className="rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
+            <button type="button" onClick={() => { setOpeningFloat(""); openModal.openModal(); }} className="min-h-8 rounded-lg bg-white/20 px-3 py-1 ring-1 ring-white/40 transition hover:bg-white/30">
               Open shift
             </button>
           )}
@@ -4766,13 +4768,14 @@ export default function PosPage() {
         <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
           {cart.length} item{cart.length === 1 ? "" : "s"} · {money(total)}
         </p>
-        <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
+        <label htmlFor="hold-ticket-name" className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">
           Name this ticket
         </label>
         {/* A plain input rather than the shared one: this field wants focus the
             moment the prompt opens and Enter to commit, and the shared Input
             exposes neither. */}
         <input
+          id="hold-ticket-name"
           autoFocus
           value={holdLabel}
           onChange={(e) => setHoldLabel(e.target.value)}
@@ -5578,7 +5581,7 @@ export default function PosPage() {
                     <div className="truncate text-theme-xs text-brand-500">{h.cart.customer_phone}</div>
                   )}
                   <div className="truncate text-theme-xs text-gray-400">
-                    {h.cart.items.length} items · {money(h.total_estimate)}
+                    {counted(h.cart.items.length, "item")} · {money(h.total_estimate)}
                     {/* The list is site-wide now, so say whose ticket it is and
                         which lane parked it — otherwise six lanes' tickets are
                         an anonymous pile. */}

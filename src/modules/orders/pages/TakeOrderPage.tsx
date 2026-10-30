@@ -286,7 +286,7 @@ export default function TakeOrderPage() {
         </div>
         <Link
           to="/tenant/orders"
-          className="text-theme-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+          className="inline-flex min-h-8 items-center text-theme-sm font-medium text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
         >
           ← Back to orders
         </Link>

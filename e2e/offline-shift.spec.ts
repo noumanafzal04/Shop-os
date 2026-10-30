@@ -190,8 +190,15 @@ test("a till that reboots into an outage opens its own drawer and counts it out"
   const holdDialog = page.getByRole("dialog");
   // A bare <input> with no `type`, so `input[type=text]` matches nothing —
   // the attribute selector needs the attribute to be present.
-  const labelBox = holdDialog.getByPlaceholder(/Customer name/i).first();
-  if (await labelBox.isVisible().catch(() => false)) await labelBox.fill("Milk run");
+  //
+  // BY ITS LABEL, AND NO `if` (#DV1). This hunted the placeholder "Customer
+  // name", renamed on 13 Oct ("the hold label is not a customer"), and an
+  // `if (isVisible)` skipped the fill without a word — so the check below
+  // blamed the drafts list for a name nobody typed. A step the test needs
+  // fails when it cannot be done.
+  const labelBox = holdDialog.getByLabel("Name this ticket");
+  await expect(labelBox, "the hold dialog has no box to name the ticket").toBeVisible({ timeout: 8000 });
+  await labelBox.fill("Milk run");
   // "Hold ticket" — the dialog's confirm. `/^Hold$/` matched nothing, so the
   // modal simply stayed open and the check tested a button nobody pressed.
   const holdConfirm = holdDialog.getByRole("button", { name: /^Hold ticket$/ }).last();

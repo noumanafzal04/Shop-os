@@ -54,6 +54,11 @@ test.beforeAll(async ({ request }) => {
 
 const box = (page: Page) => page.getByPlaceholder(/scan barcode or search/i).first();
 const cart = (page: Page) => page.locator("[data-cart-row]");
+// What the till says when nothing carries a code. #MT1 made a miss online say
+// what a miss offline says — "Nothing here matches E2E-NOPE-9Z." — and these
+// checks still looked for the old words, so the two absence checks below
+// passed for a sentence that no longer exists anywhere (#DV7).
+const MISSED = /Nothing here matches \S+\./;
 
 /**
  * The till between two scans: an empty ticket, an empty box, the shelf on
@@ -105,7 +110,7 @@ test("a code that nothing carries rings nothing, and the till says so", async ({
 
   await scanIn(page, "E2E-NOPE-9Z");
 
-  await expect(page.getByText("No item found for that code.")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(MISSED)).toBeVisible({ timeout: 15_000 });
   await expect(cart(page), "a code nobody carries put something on the bill").toHaveCount(0);
 });
 
@@ -129,7 +134,7 @@ test("part of a label that is nobody's whole code is still a search: Enter adds 
 
   await expect(cart(page).filter({ hasText: CODED[0].name }), "a search that looks like a code added nothing").toHaveCount(1, { timeout: 15_000 });
   await expect(cart(page)).toHaveCount(1);
-  await expect(page.getByText("No item found for that code."), "a miss on the way to the match was shown as an error").toHaveCount(0);
+  await expect(page.getByText(MISSED), "a miss on the way to the match was shown as an error").toHaveCount(0);
 });
 
 test("an Enter the box has moved on from is not spent on what was typed after it", async ({ page }) => {
@@ -145,7 +150,7 @@ test("an Enter the box has moved on from is not spent on what was typed after it
   await page.waitForTimeout(1_500);
   // …and nothing is on the bill: nobody pressed Enter for it.
   await expect(cart(page), "an old Enter rang something that was typed after it").toHaveCount(0);
-  await expect(page.getByText("No item found for that code."), "an old Enter looked up a code that is no longer in the box").toHaveCount(0);
+  await expect(page.getByText(MISSED), "an old Enter looked up a code that is no longer in the box").toHaveCount(0);
 });
 
 test("Enter adds the match the arrow keys are on, not the first one", async ({ page }) => {

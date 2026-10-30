@@ -74,7 +74,9 @@ function Grip({
       onKeyDown={onKeyDown}
       // `touch-none` matters more than it looks: without it the browser reads a
       // vertical drag as a page scroll and the row never moves on a tablet.
-      className="flex h-9 w-7 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-gray-300 transition hover:bg-gray-100 hover:text-gray-500 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400/40 active:cursor-grabbing dark:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-400"
+      // 36 wide, not 28 (#DV4): the control that orders a shop's categories
+      // was the hardest thing on the screen to hit on a phone.
+      className="flex h-9 w-9 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg text-gray-300 transition hover:bg-gray-100 hover:text-gray-500 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-400/40 active:cursor-grabbing dark:text-gray-600 dark:hover:bg-white/[0.06] dark:hover:text-gray-400"
     >
       {/* Two columns of dots — the grip every list in every app uses, so
           nobody has to be told what it is. */}
@@ -226,7 +228,7 @@ function Branch({
                   }}
                 />
               ) : (
-                <span className="h-9 w-7 shrink-0" />
+                <span className="h-9 w-9 shrink-0" />
               )}
 
               {/* The twisty, or a gap the same size so names stay in a column. */}
@@ -236,7 +238,7 @@ function Branch({
                   onClick={() => toggleExpanded(c.id)}
                   aria-expanded={open}
                   aria-label={open ? `Collapse ${c.name}` : `Expand ${c.name}`}
-                  className="flex h-7 w-6 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06]"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/[0.06]"
                 >
                   <svg
                     width="10"
@@ -249,7 +251,7 @@ function Branch({
                   </svg>
                 </button>
               ) : (
-                <span className="h-7 w-6 shrink-0" />
+                <span className="h-8 w-8 shrink-0" />
               )}
 
               {editing === c.id ? (
@@ -305,7 +307,7 @@ function Branch({
                     {!!c.products_count && (
                       <Link
                         to={`/tenant/products?category=${c.id}`}
-                        className="shrink-0 rounded-md px-1.5 py-0.5 text-theme-xs tabular-nums text-gray-400 transition hover:bg-gray-100 hover:text-brand-600 dark:hover:bg-white/[0.06] dark:hover:text-brand-400"
+                        className="inline-flex min-h-8 shrink-0 items-center rounded-md px-1.5 py-0.5 text-theme-xs tabular-nums text-gray-400 transition hover:bg-gray-100 hover:text-brand-600 dark:hover:bg-white/[0.06] dark:hover:text-brand-400"
                       >
                         {c.products_count} {c.products_count === 1 ? "item" : "items"}
                       </Link>

@@ -125,7 +125,9 @@ export default function CashbookPage() {
                             can check, and checking is the whole job. */}
                         <Link
                           to={`/tenant/ledger?date=${d.date}`}
-                          className="text-brand-600 hover:underline dark:text-brand-400"
+                          // One line, a finger tall (#DV6): "28 Oct" wrapped to
+                          // 23 px wide on a phone and a tap at its middle hit the cell.
+                          className="inline-flex min-h-8 items-center whitespace-nowrap text-brand-600 hover:underline dark:text-brand-400"
                         >
                           {formatEntryDate(d.date)}
                         </Link>

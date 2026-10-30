@@ -52,7 +52,18 @@ const TRADES: Array<{ key: string; owner: string }> = [
  * `throttle:auth` is 5 logins per minute per IP, so this runs ONCE and the
  * session is reused. See the same note in the sweep's client.
  */
+// How long the limiter is waited out, and how often. The setup's own time is
+// worked out from these (#DV8): four tries with 65 s between them is over
+// four minutes of waiting, inside a project timeout of 300 s — so a warm
+// limiter killed the setup mid-wait and every test in the project then failed
+// on a session that was never written, reported as whatever it was testing.
+const ATTEMPTS = 4;
+const LIMITER_WAIT = 65_000;
+const ONE_TRY = 20_000 + 15_000; // the redirect we wait for, plus the page around it
+const AFTER_SIGN_IN = 90_000; // a shop that has not finished setup is finished here
+
 async function signIn(page: Page, who: string, into: string): Promise<void> {
+  setup.setTimeout(ATTEMPTS * ONE_TRY + (ATTEMPTS - 1) * LIMITER_WAIT + AFTER_SIGN_IN);
   fs.mkdirSync("e2e/.auth", { recursive: true });
 
   // `throttle:auth` is 5 per minute per IP and it is CORRECT — it is the
@@ -69,8 +80,8 @@ async function signIn(page: Page, who: string, into: string): Promise<void> {
       await expect(page).toHaveURL(/\/tenant/, { timeout: 20_000 });
       break;
     } catch (e) {
-      if (attempt >= 4) throw e;
-      await page.waitForTimeout(65_000);
+      if (attempt >= ATTEMPTS) throw e;
+      await page.waitForTimeout(LIMITER_WAIT);
     }
   }
 
