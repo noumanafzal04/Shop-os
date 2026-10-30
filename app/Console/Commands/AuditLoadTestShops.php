@@ -1215,11 +1215,28 @@ class AuditLoadTestShops extends Command
      */
     private function theGridIsWhole(Tenant $shop): void
     {
+        // A GRID IS A PRODUCT WITH AXES THAT MAKE AT LEAST ONE SIZE (#VS1).
+        // `attributes` is not null on plenty of products that have no sizes —
+        // a medicine's strength lives there too — and a shop holding one such
+        // product ran this whole section against nothing and failed "two
+        // axes, not one (0 of 0)": a check about an empty set, crying wolf on
+        // a healthy database. No grid, no section — as every other check here
+        // skips a subject the shop does not have.
         $withAxes = DB::table('products')
             ->where('tenant_id', $shop->id)
             ->whereNull('deleted_at')
             ->whereNotNull('attributes')
-            ->get(['id', 'name', 'attributes', 'stock_quantity']);
+            ->get(['id', 'name', 'attributes', 'stock_quantity'])
+            ->map(function ($p) {
+                $axes = json_decode((string) $p->attributes, true)['variant_axes'] ?? null;
+                $p->combinations = is_array($axes) && $axes !== []
+                    ? array_product(array_map(fn ($a) => count($a['values'] ?? []), $axes))
+                    : 0;
+
+                return $p;
+            })
+            ->filter(fn ($p) => $p->combinations > 0)
+            ->values();
 
         if ($withAxes->isEmpty()) {
             return;
@@ -1234,15 +1251,9 @@ class AuditLoadTestShops extends Command
         $short = 0;
         $expected = 0;
         foreach ($withAxes as $p) {
-            $axes = json_decode((string) $p->attributes, true)['variant_axes'] ?? null;
-            if (! is_array($axes) || $axes === []) {
-                continue;
-            }
+            $expected += $p->combinations;
 
-            $combinations = array_product(array_map(fn ($a) => count($a['values'] ?? []), $axes));
-            $expected += $combinations;
-
-            if (($variants[$p->id] ?? collect())->count() !== $combinations) {
+            if (($variants[$p->id] ?? collect())->count() !== $p->combinations) {
                 $short++;
             }
         }

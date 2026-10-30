@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Validation\ValidationException;
@@ -153,15 +154,29 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
+        // WITH ITS HEADERS (#NE2). The throttle puts Retry-After on the
+        // exception, and the envelope was built without it — so the panel,
+        // which reads the header, never had a wait to show and guessed one.
         $exceptions->renderable(function (TooManyRequestsHttpException $e, Request $request) {
             if ($request->is('api/*')) {
-                return ApiResponse::error('Too many requests. Please slow down.', 429, code: 'RATE_LIMITED');
+                return ApiResponse::error('Too many requests. Please slow down.', 429, code: 'RATE_LIMITED')
+                    ->withHeaders($e->getHeaders());
+            }
+        });
+
+        // A body bigger than the server takes (a 9 MB photo, #NE1) was
+        // answered "The POST data is too large." — PHP's words, not the shop's.
+        $exceptions->renderable(function (PostTooLargeException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return ApiResponse::error('That file is too large to send. Make it smaller and try again — nothing was saved.', 413, code: 'TOO_LARGE')
+                    ->withHeaders($e->getHeaders());
             }
         });
 
         $exceptions->renderable(function (HttpException $e, Request $request) {
             if ($request->is('api/*')) {
-                return ApiResponse::error($e->getMessage() ?: 'Request failed.', $e->getStatusCode());
+                return ApiResponse::error($e->getMessage() ?: 'Request failed.', $e->getStatusCode())
+                    ->withHeaders($e->getHeaders());
             }
         });
 
