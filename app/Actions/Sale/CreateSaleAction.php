@@ -1632,6 +1632,10 @@ class CreateSaleAction
                         'line_discount' => $line['line_discount'],
                         'line_total' => $line['line_total'],
                         'tax_rate' => $line['tax_rate'],
+                        // The promise the bill makes, kept with it (#SV3): the
+                        // cashier's figure, else the product's own.
+                        'warranty_months' => $line['warranty_months']
+                            ?? ($line['product']->warranty_months !== null ? (int) $line['product']->warranty_months : null),
                     ]);
 
                     // Serialized retail: snapshot each unit's serial + warranty.

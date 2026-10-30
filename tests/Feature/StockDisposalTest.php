@@ -357,6 +357,16 @@ class StockDisposalTest extends TestCase
         $this->assertCount(1, $rows);
     }
 
+    /** #PH2: the dashboard says the window it counted in — the pharmacy's 90, not "30 days". */
+    public function test_the_dashboard_names_the_window_it_counted_in(): void
+    {
+        $this->batch(qty: 20, expiry: '+60 days');
+
+        $this->actingAsUser($this->owner)->getJson('/api/v1/dashboard')->assertOk()
+            ->assertJsonPath('data.inventory.expiring_soon', 1)
+            ->assertJsonPath('data.inventory.expiring_within_days', 90);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────
 
     /** @return array<string, mixed> */

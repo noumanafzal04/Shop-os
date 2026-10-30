@@ -262,6 +262,9 @@ class DashboardService
                 'low_stock' => $lowStock,
                 'out_of_stock' => $tracksStock ? $this->outOfStockCount($tenant, $branchId) : 0,
                 'expiring_soon' => $expiringSoon,
+                // The window the count used (#PH2): the screen said "within 30
+                // days" over a pharmacy's 90-day count.
+                'expiring_within_days' => ShopSettings::expiringSoonDays($tenant),
                 'pending_pos' => $tenant->featureEnabled('pos') ? $this->parkedTicketCount($tenant, $branchId) : 0,
             ],
             'order_pipeline' => $takesOrders ? $this->orderPipeline($tenant) : $this->emptyPipeline(),

@@ -3,8 +3,8 @@
 namespace App\Support;
 
 use App\Models\BranchStock;
-use App\Models\ProductBatch;
 use App\Models\Product;
+use App\Models\ProductBatch;
 use Illuminate\Support\Collection;
 
 /**
@@ -153,6 +153,10 @@ class PosProjection
             'sold_out' => SoldOut::isOff($product, null, $branchId),
 
             'offline_ok' => static::sellableOffline($product),
+            // …and WHY NOT, in the server's own sentence (#PH5). The till wrote
+            // a generic "can't be sold while the internet is down" while this
+            // sentence sat here unsent.
+            'offline_why' => static::sellableOffline($product) ? null : OfflinePolicy::refusalFor($product),
 
             // Sizes, strengths, pack shapes — whatever this trade calls them.
             //

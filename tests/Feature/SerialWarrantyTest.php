@@ -4,12 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\City;
 use App\Models\Product;
+use App\Models\SaleItem;
 use App\Models\SaleItemSerial;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -85,6 +87,32 @@ class SerialWarrantyTest extends TestCase
             $serial->sold_at->copy()->addMonths(12)->toDateString(),
             $serial->warranty_expires_at->toDateString(),
         );
+    }
+
+    /**
+     * #SV3 — a repair shop's fitted screen carries "3 months" without an IMEI.
+     * The line keeps the months it was sold with, and the bill prints them
+     * with the date they end.
+     */
+    public function test_a_part_with_no_serial_carries_its_warranty_on_the_bill(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-31 11:00:00', 'UTC'));
+        $screen = Product::withoutTenancy()->create([
+            'tenant_id' => $this->tenant->id, 'type' => 'product', 'item_type' => 'physical_product',
+            'name' => 'A10 screen', 'price' => 3500, 'stock_quantity' => 10,
+            'track_inventory' => true, 'tracks_serial' => false, 'warranty_months' => 3,
+        ]);
+
+        $sale = $this->sell($screen, 1, [])->assertCreated()->json('data');
+        $this->assertSame(3, (int) SaleItem::withoutTenancy()->where('sale_id', $sale['id'])->value('warranty_months'));
+
+        // The product's term changing later never rewrites the bill already handed over.
+        $screen->forceFill(['warranty_months' => 6])->save();
+
+        $html = $this->actingAsUser($this->owner)->get("/api/v1/sales/{$sale['id']}/invoice")->assertOk()->getContent();
+        $this->assertStringContainsString('Warranty', $html);
+        $this->assertMatchesRegularExpression('/3 months, to\s+31 Jan 2027/', $html);
+        $this->assertStringNotContainsString('6 months', $html);
     }
 
     public function test_warranty_lookup_returns_the_sale_and_status(): void

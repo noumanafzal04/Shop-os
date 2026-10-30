@@ -366,7 +366,7 @@ class FoodServiceTest extends TestCase
 
     public function test_two_tabs_merge_into_one_bill(): void
     {
-        $keep = $this->openTab($this->t1);
+        $keep = $this->openTab($this->t1, ['guest_count' => 3]);
         $fold = $this->openTab($this->t2);
         $this->addItems($keep['id'], [['product_id' => $this->biryani->id, 'quantity' => 1]]);
         $this->addItems($fold['id'], [['product_id' => $this->lassi->id, 'quantity' => 2]]);
@@ -377,6 +377,8 @@ class FoodServiceTest extends TestCase
             ->assertOk()->json('data');
 
         $this->assertCount(2, $merged['items']);
+        // The people come with their food (#RS5): three and two are five.
+        $this->assertSame(5, $merged['guest_count']);
         // 800 + (200 × 2)
         $this->assertEquals(1200, $merged['running_total']);
 

@@ -67,6 +67,13 @@ class MergeTicketsAction
 
             $source->items()->whereNull('voided_at')->update(['ticket_id' => $target->id]);
 
+            // …and THE PEOPLE COME WITH THEIR FOOD (#RS5). Three at T1 and two
+            // at T2 became a tab for 2, and the floor's "5 in the room" read 4
+            // while the same five sat there. A side nobody counted adds nothing.
+            if ($source->guest_count !== null) {
+                $target->forceFill(['guest_count' => (int) $target->guest_count + (int) $source->guest_count])->save();
+            }
+
             $source->forceFill([
                 'status' => RestaurantTicketStatus::Closed,
                 'closed_at' => now(),

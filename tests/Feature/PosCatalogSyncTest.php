@@ -422,6 +422,9 @@ class PosCatalogSyncTest extends TestCase
 
         $this->assertTrue($items[$plain->id]['offline_ok']);
         $this->assertFalse($items[$serial->id]['offline_ok'], 'Two tills would sell the same IMEI.');
+        // …and the till is told why, in the server's words (#PH5).
+        $this->assertNull($items[$plain->id]['offline_why']);
+        $this->assertStringContainsString('serial number', (string) $items[$serial->id]['offline_why']);
     }
 
     public function test_a_medicine_is_never_offline_sellable(): void

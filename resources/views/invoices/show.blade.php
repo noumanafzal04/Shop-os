@@ -659,6 +659,27 @@
         </table>
     @endif
 
+    {{-- ══ Warranty on what has no serial (#SV3) ═════════════════
+         A screen or a battery fitted in a repair carries the shop's promise
+         without an IMEI. The months were kept on the line when it was sold;
+         the end date is counted the way a serial's is. --}}
+    @php($warranted = $sale->items->filter(fn ($i) => (int) $i->warranty_months > 0 && ! $serials->contains('sale_item_id', $i->id)))
+    @if($warranted->count() > 0)
+        <hr class="rule">
+        <div class="lmeta b" style="margin-bottom:4px">Warranty</div>
+        <table class="items" style="font-size:{{ $roll ? '11px' : '12px' }}">
+            @foreach($warranted as $w)
+                <tr>
+                    <td>{{ $w->product_name }}</td>
+                    <td class="r lmeta">
+                        {{ (int) $w->warranty_months }} {{ (int) $w->warranty_months === 1 ? 'month' : 'months' }}, to
+                        {{ \App\Support\ShopTime::day($sale->sold_at->copy()->setTimezone(\App\Support\ShopDay::zone())->startOfDay()->addMonthsNoOverflow((int) $w->warranty_months)->toDateString(), $tenant ?? null) }}
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+
     {{-- ══ Loyalty ═══════════════════════════════════════════════ --}}
     @if(! $gift && ((int) $sale->points_earned > 0 || (int) $sale->points_redeemed > 0))
         <hr class="hair">
