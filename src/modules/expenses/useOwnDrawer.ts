@@ -8,11 +8,13 @@ import type { OwnDrawer } from "./booksWords";
  *
  * Cash filed as an expense or an income moves the filer's own open drawer and
  * nobody else's — the server's `record()` finds it by who is filing. Somebody
- * who cannot ring a sale is never asked; while the answer is on its way it is
- * unknown, never a "no" on a guess.
+ * who cannot ring a sale is never asked, nor a shop that has no till at all;
+ * while the answer is on its way it is unknown, never a "no" on a guess.
  */
 export function useOwnDrawer(): OwnDrawer {
-  const canTill = useAuthStore((s) => s.user?.role === "shop_owner" || (s.user?.permissions?.includes("sales.manage") ?? false));
+  const shopHasTill = useAuthStore((s) => s.user?.tenant?.features?.pos ?? false);
+  const mayRing = useAuthStore((s) => s.user?.role === "shop_owner" || (s.user?.permissions?.includes("sales.manage") ?? false));
+  const canTill = shopHasTill && mayRing;
   const session = useCurrentSession(canTill);
 
   if (!canTill) return "none";

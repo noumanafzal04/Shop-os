@@ -35,6 +35,7 @@ import { PriceHistory } from "../components/PriceHistory";
 import { formatQuantity } from "../../../common/format/quantity";
 import { TAB_LABEL, refusalsOutOfSight, tabOfField, tabsFor, type FormTab } from "../formTabs";
 import { GoesOnShelf } from "../../branches/components/StandingAt";
+import { pictureRefusal } from "../pictureFile";
 
 /** The on/off pill — inside a Toggle, and beside the title of a section that can be switched off. */
 /** "food_item" → "Food item": what a kind of item is called until the server's own name for it arrives. */
@@ -357,6 +358,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // On create there's no product id yet, so photos are staged in-memory and
   // uploaded right after the item is created.
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  // A file the picker refused before sending it (#NE1) — said in place of the
+  // server's words, and cleared by the next pick.
+  const [pictureWhy, setPictureWhy] = useState<string | null>(null);
   /**
    * THE ONE PICTURE, wherever it currently lives.
    *
@@ -929,7 +933,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     disabled={images.upload.isPending}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
+                      const refused = file ? pictureRefusal(file) : null;
+                      setPictureWhy(refused);
+                      if (file && refused === null) {
                         if (isEdit) {
                           images.upload.mutate([file]);
                         } else {
@@ -973,10 +979,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                     {images.remove.isPending ? "Removing…" : "Remove photo"}
                   </Button>
                 )}
-                {isEdit && images.upload.error instanceof ApiError && (
-                  <p className="text-theme-xs text-error-500">
-                    {images.upload.error.errors["images.0"]?.[0] ?? images.upload.error.message}
+                {pictureWhy !== null ? (
+                  <p className="text-theme-xs text-error-500" data-picture-refused>
+                    {pictureWhy}
                   </p>
+                ) : (
+                  isEdit && images.upload.error instanceof ApiError && (
+                    <p className="text-theme-xs text-error-500">
+                      {images.upload.error.errors["images.0"]?.[0] ?? images.upload.error.message}
+                    </p>
+                  )
                 )}
                 <p className={`text-theme-xs ${onlineRequired && !hasPhoto ? "text-warning-500" : "text-gray-400"}`}>
                   {onlineRequired && !hasPhoto

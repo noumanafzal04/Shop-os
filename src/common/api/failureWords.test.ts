@@ -23,7 +23,11 @@ describe("what a failed write tells a person", () => {
     });
     const now = Date.parse("2026-10-24T10:00:00Z");
     expect(failureWords(429, undefined, "Sat, 24 Oct 2026 10:00:45 GMT", now)?.meta).toEqual({ retry_after: 45 });
-    expect(failureWords(429, undefined, null)?.meta).toEqual({ retry_after: 30 });
+  });
+
+  it("waits the limiter's whole minute when the server names no wait (#NE2)", () => {
+    expect(failureWords(429, undefined, null)?.meta).toEqual({ retry_after: 60 });
+    expect(failureWords(429, undefined, "soon")?.message).toContain("wait 60 seconds");
   });
 
   it("says a lapsed sign-in in words", () => {

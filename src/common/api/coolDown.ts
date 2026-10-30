@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError } from "../types/api";
+import { UNSAID_WAIT_SECONDS } from "./failureWords";
 
 /**
  * SECONDS LEFT BEFORE A THROTTLED WRITE MAY BE TRIED AGAIN (next rounds #31).
@@ -14,7 +15,7 @@ export function useCoolDown(error: unknown): number {
   const [left, setLeft] = useState(0);
 
   useEffect(() => {
-    const seconds = error instanceof ApiError && error.status === 429 ? (error.figure("retry_after") ?? 30) : 0;
+    const seconds = error instanceof ApiError && error.status === 429 ? (error.figure("retry_after") ?? UNSAID_WAIT_SECONDS) : 0;
     if (seconds <= 0) return;
     const until = Date.now() + seconds * 1000;
     const tick = () => setLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)));

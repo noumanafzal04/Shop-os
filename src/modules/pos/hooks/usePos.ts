@@ -70,10 +70,16 @@ async function currentSession() {
 }
 
 export function useCurrentSession(enabled = true) {
+  // A SHOP WITH NO TILL IS NEVER ASKED FOR ONE (#FN1). Income and Expenses
+  // ask whose drawer the cash moves, and a books-only shop answered that with
+  // `GET /pos/session` — refused MODULE_DISABLED, three times in a walk of its
+  // own two screens. The shop's module map says it before anybody asks.
+  const shopHasTill = useAuthStore((s) => s.user?.tenant?.features?.pos ?? false);
+
   return useQuery({
     queryKey: ["pos", "session"],
     queryFn: currentSession,
-    enabled,
+    enabled: enabled && shopHasTill,
   });
 }
 

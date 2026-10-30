@@ -10,6 +10,7 @@ import { resetDbCache } from "../../offline/db/open";
 import { mirrorShift } from "../../offline/shift/shiftMirror";
 import { useAuthStore } from "../../../stores/authStore";
 import type { CashSession } from "../services/posService";
+import { useOwnDrawer } from "../../expenses/useOwnDrawer";
 import { useCurrentSession } from "./usePos";
 
 /**
@@ -56,7 +57,7 @@ const wrapper = ({ children }: { children: ReactNode }) => {
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetDbCache();
-  useAuthStore.setState({ user: { tenant: { id: SHOP } } } as never);
+  useAuthStore.setState({ user: { role: "shop_owner", tenant: { id: SHOP, features: { pos: true } } } } as never);
 });
 
 describe("the shift survives a reload with no server", () => {
@@ -109,5 +110,36 @@ describe("only silence falls back", () => {
 
     const { result } = renderHook(() => useCurrentSession(), { wrapper });
     await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+
+describe("a shop with no till is never asked for one (#FN1)", () => {
+  it("does not ask, and Income/Expenses read 'no drawer' — not 'still asking'", async () => {
+    let asked = 0;
+    currentSessionImpl = () => {
+      asked++;
+      return Promise.resolve({ data: session });
+    };
+    useAuthStore.setState({ user: { role: "shop_owner", tenant: { id: SHOP, features: { expenses: true } } } } as never);
+
+    const till = renderHook(() => useCurrentSession(), { wrapper });
+    const drawer = renderHook(() => useOwnDrawer(), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(asked, "a books-only shop asked GET /pos/session").toBe(0);
+    expect(till.result.current.fetchStatus).toBe("idle");
+    expect(drawer.result.current, "a shop with no till waited forever for a drawer").toBe("none");
+  });
+
+  it("still asks in a shop that has one", async () => {
+    let asked = 0;
+    currentSessionImpl = () => {
+      asked++;
+      return Promise.resolve({ data: session });
+    };
+
+    const { result } = renderHook(() => useOwnDrawer(), { wrapper });
+    await waitFor(() => expect(result.current).toBe("open"));
+    expect(asked).toBe(1);
   });
 });

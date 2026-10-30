@@ -56,13 +56,20 @@ export function failureWords(
   return null;
 }
 
-/** Retry-After is seconds or a date; a missing or unreadable one waits 30 seconds. */
+/**
+ * Retry-After is seconds or a date. A missing or unreadable one waits a whole
+ * minute — every limiter here counts per minute, and "30 seconds" told
+ * somebody throttled at the start of the window to come back while it was
+ * still shut (#NE2).
+ */
+export const UNSAID_WAIT_SECONDS = 60;
+
 function waitFor(header: string | null | undefined, now: number): number {
   const seconds = Number(header);
   if (header && Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds);
   const at = header ? Date.parse(header) : NaN;
 
-  return Number.isFinite(at) && at > now ? Math.ceil((at - now) / 1000) : 30;
+  return Number.isFinite(at) && at > now ? Math.ceil((at - now) / 1000) : UNSAID_WAIT_SECONDS;
 }
 
 /**
