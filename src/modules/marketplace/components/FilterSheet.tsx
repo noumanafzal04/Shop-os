@@ -149,6 +149,17 @@ export function FilterSheet({ visible, onClose, base = {}, value, onApply }: Pro
     <BottomSheet
       visible={visible}
       onClose={onClose}
+      /*
+        THE ONE SHEET THAT SCROLLS, so it keeps the header-only drag.
+
+        Every other sheet in this app can be pushed down from anywhere on
+        it, which is what makes the gesture discoverable. This one has its
+        own `ScrollView`, and two gestures claiming the same downward finger
+        means the list scrolls sometimes and the sheet moves other times —
+        see `dragHandleOnly` on the component for why coordinating them
+        properly is a bigger job than this sheet is worth today.
+      */
+      dragHandleOnly
       title="Filters"
       action={
         active > 0 ? (

@@ -1,6 +1,7 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
 import { PROJECT_ROOT, fs, path, sourceFiles } from "./support/node";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider } from "../src/theme";
 import { ProductSheet } from "../src/modules/marketplace/components/ProductSheet";
 
@@ -17,7 +18,19 @@ const codeOnly = (src: string) =>
 async function render(node: React.ReactElement) {
   let tree!: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
-    tree = ReactTestRenderer.create(<ThemeProvider>{node}</ThemeProvider>);
+    /*
+      `GestureHandlerRootView` is not scaffolding — it is the thing the app
+      must also have. `BottomSheet` can be dragged from anywhere on the
+      panel now, and the library THROWS without a root rather than mounting
+      a handler that silently never fires. `App.tsx` wraps the whole tree
+      for exactly this reason; this mirrors it so the test fails for the
+      same cause a phone would.
+    */
+    tree = ReactTestRenderer.create(
+      <GestureHandlerRootView>
+        <ThemeProvider>{node}</ThemeProvider>
+      </GestureHandlerRootView>,
+    );
   });
   return tree;
 }

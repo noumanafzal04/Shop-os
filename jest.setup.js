@@ -147,4 +147,143 @@ jest.mock('@react-native-firebase/messaging', () => ({
  * UI thread to create one on.
  */
 require('react-native-gesture-handler/jestSetup');
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+/**
+ * REANIMATED, STUBBED BY HAND — and the shipped mock is the reason why.
+ *
+ * `react-native-reanimated/mock` looks like the answer and is not: its first
+ * line is `require('./src/index')`, so it loads the REAL module, runs
+ * `initializers.native.ts`, and dies in `runOnUISync` before it has mocked
+ * anything. A mock that imports the thing it is mocking only works when the
+ * thing it is mocking can be imported.
+ *
+ * Every other combination fails too, each in a way that names no package:
+ *
+ *   no mock, no resolver       loadUnpackersWithCode  (worklets' native entry)
+ *   worklets resolver only     runOnUISync            (reanimated's own)
+ *   reanimated resolver only   "not supported on web" (resolves the WEB build)
+ *
+ * ── It is a Proxy, and the first draft was not ───────────────────────
+ *
+ * That draft listed the nine exports this app calls and argued the surface
+ * was "small and stable, so state it rather than proxy it". It was wrong
+ * within one run: GESTURE HANDLER imports Reanimated too, and reaches for
+ * internals no screen here has ever named — `useEvent` first, and whatever
+ * follows it next version. The suites failed with
+ * `Reanimated.useEvent is not a function`, which is the `react-native-svg`
+ * lesson arriving by a different road: a hand-written list falls behind the
+ * thing it mocks, and the error names neither.
+ *
+ * So the named entries below are the ones whose BEHAVIOUR a render depends
+ * on — a shared value has to hold a value, a timing has to call back — and
+ * everything else resolves to a no-op.
+ *
+ * What is lost: nothing under jest asserts how a sheet MOVES. Nothing did
+ * before either. `feel.test.ts` reads the source, which is the honest
+ * instrument for "which thread does this run on", and a phone is the honest
+ * instrument for how it feels.
+ */
+/**
+ * THE WORKLETS RUNTIME — stubbed, because BOTH of its real entry points
+ * fail under jest and for opposite reasons.
+ *
+ *   the native build   reaches for a TurboModule and dies on
+ *                      `loadUnpackersWithCode` being undefined
+ *   the web build      throws on purpose: "`getUIRuntimeHolder` is not
+ *                      supported on web"
+ *
+ * The package ships a jest RESOLVER that picks the second, which trades the
+ * first error for the second — and the second arrives from Gesture Handler
+ * rather than Reanimated, on a `setImmediate`, so it fails suites that never
+ * rendered an animation at all.
+ *
+ * A Proxy rather than a list, and the opposite choice to the Reanimated stub
+ * below. This app never calls into worklets directly: the names asked for
+ * are whatever Reanimated and Gesture Handler happen to reach for THIS
+ * version, which is not a surface worth tracking by hand. Everything
+ * resolves to a no-op that returns its first argument, which is the right
+ * answer for `runOnUI(fn)` and harmless for the rest.
+ */
+jest.mock('react-native-worklets', () => {
+  const noop = (fn) => (typeof fn === 'function' ? fn : () => {});
+
+  return new Proxy(
+    {
+      __esModule: true,
+      isWorkletFunction: () => false,
+      createWorkletRuntime: () => ({}),
+      getUIRuntimeHolder: () => ({}),
+      runOnUI: noop,
+      runOnJS: noop,
+      runOnUISync: noop,
+      scheduleOnUI: noop,
+      scheduleOnRN: noop,
+    },
+    {
+      get(target, key) {
+        if (key in target) return target[key];
+        if (typeof key !== 'string') return undefined;
+        return noop;
+      },
+      has: () => true,
+    },
+  );
+});
+
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const { View, Text, ScrollView, Image } = require('react-native');
+
+  // A shared value is an object with a `.value`. Under jest nothing reads it
+  // back on another thread, so a plain box is the whole of it.
+  const useSharedValue = (initial) => {
+    const ref = React.useRef({ value: initial });
+    return ref.current;
+  };
+
+  // The animation helpers return their TARGET and run the callback at once:
+  // a test that waits for an exit must see the exit finish.
+  const settle = (toValue, _config, cb) => {
+    if (typeof _config === 'function') _config(true);
+    else if (typeof cb === 'function') cb(true);
+    return toValue;
+  };
+
+  const named = {
+    __esModule: true,
+    default: { View, Text, ScrollView, Image, createAnimatedComponent: (c) => c },
+    useSharedValue,
+    useAnimatedStyle: (fn) => fn(),
+    useDerivedValue: (fn) => ({ value: fn() }),
+    useAnimatedRef: () => ({ current: null }),
+    useEvent: () => () => {},
+    useHandler: () => ({ context: {}, doDependenciesDiffer: false }),
+    withSpring: settle,
+    withTiming: settle,
+    withDelay: (_ms, value) => value,
+    cancelAnimation: () => {},
+    runOnJS: (fn) => fn,
+    runOnUI: (fn) => fn,
+    interpolate: (value, input, output) => {
+      // Enough to be truthful at the ends, which is all any assertion here
+      // looks at: a backdrop is either dimmed or it is not.
+      if (value <= input[0]) return output[0];
+      if (value >= input[input.length - 1]) return output[output.length - 1];
+      return output[0];
+    },
+    Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    ReduceMotion: { System: 'system', Always: 'always', Never: 'never' },
+    Easing: { linear: (t) => t, inOut: (f) => f, out: (f) => f, quad: (t) => t, cubic: (t) => t },
+  };
+
+  return new Proxy(named, {
+    get(target, key) {
+      if (key in target) return target[key];
+      if (typeof key !== 'string') return undefined;
+      // Anything Gesture Handler or a future version reaches for. Returning
+      // a function rather than undefined is what stops the failure being
+      // "x is not a function" in a file nobody here wrote.
+      return () => {};
+    },
+    has: () => true,
+  });
+});

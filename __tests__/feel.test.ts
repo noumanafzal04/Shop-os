@@ -180,8 +180,21 @@ describe("every overlay behaves like the others", () => {
   });
 
   it("drives every overlay off the JS thread", () => {
-    // A backdrop that stutters while a list is still rendering behind it is
-    // the single most noticeable jank in an app of this shape.
+    /**
+     * A backdrop that stutters while a list is still rendering behind it is
+     * the single most noticeable jank in an app of this shape.
+     *
+     * ── Two ways to be off the JS thread, and this used to know one ──
+     *
+     * It asserted `useNativeDriver: true` everywhere, which was the whole
+     * answer while everything here was RN's `Animated`. The sheet is
+     * Reanimated now — shared values ARE the UI thread, and there is no
+     * `useNativeDriver` to set — so the old assertion failed the file that
+     * had just been made faster.
+     *
+     * The rule was never "say useNativeDriver". It is "no animation on this
+     * list is driven from JavaScript", and there are two spellings of that.
+     */
     for (const rel of [
       "../core/src/ui/BottomSheet.tsx",
       "src/navigation/SideMenu.tsx",
@@ -189,7 +202,12 @@ describe("every overlay behaves like the others", () => {
       "src/modules/mode/ModeSwitchCover.tsx",
     ]) {
       const src = codeOnly(fs.readFileSync(path.join(ROOT, rel), "utf8"));
-      expect(`${rel}: ${/useNativeDriver: true/.test(src)}`).toBe(`${rel}: true`);
+
+      const nativeDriver = /useNativeDriver: true/.test(src);
+      const reanimated = /useSharedValue\(/.test(src) && /useAnimatedStyle\(/.test(src);
+
+      expect(`${rel}: ${nativeDriver || reanimated}`).toBe(`${rel}: true`);
+      // The one spelling that is always wrong, whichever system is in use.
       expect(`${rel}: ${/useNativeDriver: false/.test(src)}`).toBe(`${rel}: false`);
     }
   });
@@ -199,14 +217,64 @@ describe("every overlay behaves like the others", () => {
     // closing — the most common way a good exit animation is never seen.
     const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
     expect(src).toMatch(/const \[mounted, setMounted\] = useState\(visible\)/);
-    expect(src).toMatch(/animateOut/);
+    /**
+     * The UNMOUNT IS A CALLBACK OF THE EXIT, however it is written.
+     *
+     * This asked for a function literally named `animateOut`. That is the
+     * name the old implementation used; the rule is that `setMounted(false)`
+     * happens when the animation FINISHES and not when the prop changes.
+     * Reanimated spells that as the completion callback of `withTiming`.
+     */
+    expect(src).toMatch(/withTiming\([\s\S]{0,200}runOnJS\(unmount\)/);
   });
 
   it("lets a sheet be dragged shut, not only pressed shut", () => {
-    // The gesture anybody who has used one sheet will try on the next.
+    /**
+     * The gesture anybody who has used one sheet will try on the next — and
+     * the feedback that caused the rewrite: *"drag down and up krna jaise
+     * insta facebook ... waise ni hain."*
+     *
+     * `PanResponder` was the old spelling. What the rule means is that there
+     * IS a pan, that it follows the finger, and that letting go springs
+     * rather than snaps.
+     */
     const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
-    expect(src).toMatch(/PanResponder\.create/);
-    expect(src).toMatch(/Animated\.spring/);
+    expect(src).toMatch(/Gesture\.Pan\(\)|PanResponder\.create/);
+    expect(src).toMatch(/withSpring\(|Animated\.spring/);
+  });
+
+  it("judges a flick by where it would LAND, not by how far it got", () => {
+    /**
+     * The third thing that was wrong. The old release test was
+     * `dy > 96 || vy > 0.75` — two unrelated thresholds with a gap between
+     * them, and a fast short flick is exactly what falls in the gap. It is
+     * also the most common way people dismiss these.
+     *
+     * Projecting the position forward by the velocity collapses both into
+     * one question the physics already answers.
+     */
+    const src = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
+    expect(src).toMatch(/velocityY \* PROJECTION/);
+  });
+
+  it("lets the whole panel be dragged, not a strip at the top", () => {
+    /**
+     * The second thing. A 30pt header was the only draggable area, so the
+     * gesture was one nobody discovered. The default is now the whole panel;
+     * a sheet that scrolls inside opts out by name, and `FilterSheet` is the
+     * one that does — two gestures claiming the same downward finger is a
+     * list that scrolls sometimes and a sheet that moves other times.
+     */
+    const sheet = codeOnly(fs.readFileSync(path.join(ROOT, "../core/src/ui/BottomSheet.tsx"), "utf8"));
+    expect(sheet).toMatch(/dragHandleOnly = false/);
+
+    const optedOut = sourceFiles(path.join(ROOT, "src"))
+      .filter((f) => f.endsWith(".tsx"))
+      .filter((f) => /dragHandleOnly/.test(codeOnly(fs.readFileSync(f, "utf8"))))
+      .map((f) => path.relative(ROOT, f));
+
+    // Named, so adding a second one is a decision somebody writes down here.
+    expect(optedOut).toEqual(["src/modules/marketplace/components/FilterSheet.tsx"]);
   });
 });
 
