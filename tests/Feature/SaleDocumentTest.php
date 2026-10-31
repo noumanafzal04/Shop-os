@@ -929,6 +929,59 @@ class SaleDocumentTest extends TestCase
     }
 
     /** One fridge, held on the given advance, for Ahmed. */
+    // ── A booking's cash with no drawer open (#AZ21) ─────────────────
+
+    public function test_a_bookings_cash_with_no_drawer_open_is_listed_beside_the_drawers(): void
+    {
+        // A shop that does not ask for shifts: 2,000 taken on a layaway, then
+        // the booking cancelled with a 500 fee and 1,500 handed back in cash —
+        // all with no drawer open. Not one figure that counts cash moved.
+        $doc = $this->layaway(2000, $this->fanOnly(), $this->manager);
+        $this->assertNull(SaleDocumentPayment::withoutTenancy()->where('sale_document_id', $doc['id'])->value('cash_session_id'));
+
+        $this->actingAsUser($this->manager)->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", [
+            'reason' => 'Changed mind', 'forfeit_amount' => 500, 'refund_method' => 'cash',
+        ])->assertOk();
+
+        $away = $this->actingAsUser($this->owner)->getJson('/api/v1/pos/day')->assertOk()->json('meta.taken_with_no_drawer');
+
+        $this->assertSame(0, $away['sales_count']);
+        $this->assertEquals(2000, $away['advances_in']);
+        $this->assertEquals(1500, $away['advances_back']);
+    }
+
+    public function test_a_bookings_cash_that_a_drawer_took_is_not_listed_again(): void
+    {
+        $this->openShift(5000, $this->manager);
+        $doc = $this->layaway(2000, $this->fanOnly(), $this->manager);
+        $this->actingAsUser($this->manager)->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", [
+            'reason' => 'Changed mind', 'refund_method' => 'cash',
+        ])->assertOk();
+
+        $running = $this->actingAsUser($this->owner)->getJson('/api/v1/pos/day')->assertOk()->json('data.running.away_from_drawers');
+
+        // Both legs went through the manager's drawer — nothing beside it.
+        $this->assertEquals(0, $running['advances_in']);
+        $this->assertEquals(0, $running['advances_back']);
+    }
+
+    public function test_a_booking_handed_back_by_card_is_not_cash_beside_the_drawers(): void
+    {
+        $doc = $this->layaway(2000, [...$this->fanOnly(), 'deposit' => ['amount' => 2000, 'method' => 'card']], $this->manager);
+        $this->actingAsUser($this->manager)->postJson("/api/v1/sale-documents/{$doc['id']}/cancel", [
+            'reason' => 'Changed mind', 'refund_method' => 'card',
+        ])->assertOk();
+
+        $this->assertSame('card', SaleDocument::withoutTenancy()->whereKey($doc['id'])->value('refund_method'));
+        $this->assertNull($this->actingAsUser($this->owner)->getJson('/api/v1/pos/day')->assertOk()->json('meta.taken_with_no_drawer'));
+    }
+
+    /** @return array<string, mixed> One fan, so a small advance meets the 20 % floor. */
+    private function fanOnly(): array
+    {
+        return ['items' => [['product_id' => $this->fan->id, 'quantity' => 1]]];
+    }
+
     private function layaway(float $deposit, array $extra = [], ?User $actor = null): array
     {
         return $this->actingAsUser($actor ?? $this->cashier)->postJson('/api/v1/sale-documents', [

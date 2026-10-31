@@ -5,6 +5,8 @@ namespace App\Support;
 use App\Enums\SaleStatus;
 use App\Models\BusinessDay;
 use App\Models\Sale;
+use App\Models\SaleDocument;
+use App\Models\SaleDocumentPayment;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,7 +24,7 @@ use Illuminate\Support\Facades\DB;
  */
 final class AwayFromDrawers
 {
-    /** @return array{sales_count: int, sales_total: float} */
+    /** @return array{sales_count: int, sales_total: float, advances_in: float, advances_back: float} */
     public static function of(BusinessDay $day): array
     {
         // Sales written before places existed carry none, which is Main's.
@@ -35,24 +37,52 @@ final class AwayFromDrawers
      * its Day & banking said "No day open yet" with Rs 5,630 taken. A null
      * branch is every branch, as the owner's "All branches" view asks.
      *
-     * @return array{sales_count: int, sales_total: float}
+     * …and a booking's CASH that no drawer took or gave (#AZ21): a layaway's
+     * advance taken with no shift open, and the cash handed back when one was
+     * cancelled with none open. Both were in no book that counts cash.
+     *
+     * @return array{sales_count: int, sales_total: float, advances_in: float, advances_back: float}
      */
     public static function on(string $tenantId, string $date, ?string $branchId, bool $isMain): array
     {
         $tenant = ShopDay::shop($tenantId);
+        $window = [ShopDay::startOf($date, $tenant), ShopDay::endOf($date, $tenant)];
+        $here = fn ($q) => $q->when($branchId !== null, fn ($q) => $q->where(fn ($at) => $at
+            ->where('branch_id', $branchId)
+            ->when($isMain, fn ($main) => $main->orWhereNull('branch_id'))));
 
-        $sold = Sale::withoutTenancy()
+        $sold = $here(Sale::withoutTenancy()
             ->where('tenant_id', $tenantId)
             ->whereNull('cash_session_id')
-            ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded])
-            ->when($branchId !== null, fn ($q) => $q->where(fn ($at) => $at
-                ->where('branch_id', $branchId)
-                ->when($isMain, fn ($main) => $main->orWhereNull('branch_id'))))
-            ->whereBetween('sold_at', [ShopDay::startOf($date, $tenant), ShopDay::endOf($date, $tenant)]);
+            ->whereIn('status', [SaleStatus::Completed, SaleStatus::PartiallyRefunded, SaleStatus::Refunded]))
+            ->whereBetween('sold_at', $window);
+
+        $advancesIn = $here(SaleDocumentPayment::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->where('method', 'cash')
+            ->whereNull('cash_session_id'))
+            ->whereBetween('paid_at', $window)
+            ->sum('amount');
+
+        // Handed back in cash, and no drawer's `deposit_out` says so.
+        $advancesBack = $here(SaleDocument::withoutTenancy()
+            ->where('tenant_id', $tenantId)
+            ->where('status', SaleDocument::STATUS_CANCELLED)
+            ->where('refund_method', 'cash')
+            ->where('refunded_amount', '>', 0))
+            ->whereBetween('cancelled_at', $window)
+            ->whereNotExists(fn ($q) => $q->select(DB::raw(1))
+                ->from('cash_movements')
+                ->whereColumn('cash_movements.source_id', 'sale_documents.id')
+                ->where('cash_movements.source_type', 'sale_document')
+                ->where('cash_movements.type', 'deposit_out'))
+            ->sum('refunded_amount');
 
         return [
             'sales_count' => (int) (clone $sold)->count(),
             'sales_total' => round((float) (clone $sold)->sum(DB::raw(Takings::takenSql())), 2),
+            'advances_in' => round((float) $advancesIn, 2),
+            'advances_back' => round((float) $advancesBack, 2),
         ];
     }
 }

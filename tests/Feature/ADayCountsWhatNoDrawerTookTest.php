@@ -64,7 +64,8 @@ final class ADayCountsWhatNoDrawerTookTest extends TestCase
         $day = $this->as()->getJson('/api/v1/pos/day')->assertOk()->json('data');
         $this->assertEquals(500, $day['running']['sales_total'], "a sale with no shift was left out of the day's takings");
         $this->assertSame(2, $day['running']['sales_count']);
-        $this->assertEquals(['sales_count' => 1, 'sales_total' => 200], $day['running']['away_from_drawers']);
+        // No booking's cash moved without a drawer here (#AZ21 added those two).
+        $this->assertEquals(['sales_count' => 1, 'sales_total' => 200, 'advances_in' => 0, 'advances_back' => 0], $day['running']['away_from_drawers']);
         // The drawer is told only what it took.
         $this->assertEquals(1300, $day['running']['expected_cash']);
 

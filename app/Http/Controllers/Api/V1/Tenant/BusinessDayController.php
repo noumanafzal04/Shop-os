@@ -198,7 +198,10 @@ class BusinessDayController extends Controller
         $isMain = $branchId !== null && (bool) Branch::query()->whereKey($branchId)->value('is_default');
         $away = AwayFromDrawers::on($tenant->id, ShopDay::today($tenant), $branchId, $isMain);
 
-        return $away['sales_count'] > 0 ? ['taken_with_no_drawer' => $away] : [];
+        // A booking's cash with no drawer counts too (#AZ21).
+        return $away['sales_count'] > 0 || $away['advances_in'] > 0 || $away['advances_back'] > 0
+            ? ['taken_with_no_drawer' => $away]
+            : [];
     }
 
     private function closedToday(Request $request): array

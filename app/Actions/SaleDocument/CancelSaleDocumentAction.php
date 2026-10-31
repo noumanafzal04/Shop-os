@@ -191,6 +191,9 @@ class CancelSaleDocumentAction
                 'cancel_reason' => $data['reason'] ?? null,
                 'refunded_amount' => $refund,
                 'forfeited_amount' => $forfeit,
+                // How it went back (#AZ21) — cash handed over with no drawer
+                // open is listed beside the drawers on Day & banking.
+                'refund_method' => $refund > 0 ? ($data['refund_method'] ?? 'cash') : null,
                 'stock_reserved' => false,
             ])->save();
 
