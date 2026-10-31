@@ -90,3 +90,23 @@ describe("announcing a till", () => {
     expect(body(post).name).toBe("Counter tablet");
   });
 });
+
+/**
+ * #AZ23 — a lapsed shop's till announced itself twice a visit and was refused
+ * 403 SUBSCRIPTION_EXPIRED each time, a console error apiece. The same refusal
+ * is given on the device, without dialling.
+ */
+describe("a read-only shop's till", () => {
+  it("is refused on the device, in the server's words, and nothing is posted", async () => {
+    const { useAuthStore } = await import("../../../stores/authStore");
+    useAuthStore.setState({ user: { tenant: { id: "t1", subscription_state: "read_only" } } } as never);
+    const post = vi.spyOn(client, "apiPost").mockResolvedValue(envelope({}) as never);
+
+    await expect(deviceService.register("d1")).rejects.toMatchObject({ status: 403, errorCode: "SUBSCRIPTION_EXPIRED" });
+    expect(post).not.toHaveBeenCalled();
+
+    useAuthStore.setState({ user: { tenant: { id: "t1", subscription_state: "active" } } } as never);
+    await deviceService.register("d1");
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});

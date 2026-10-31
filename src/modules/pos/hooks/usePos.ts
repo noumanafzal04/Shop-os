@@ -5,6 +5,7 @@ import { closeShiftOffline, openShiftOffline, recordMovementOffline } from "../.
 import { mirrorShift, mirroredShift } from "../../offline/shift/shiftMirror";
 import { useAuthStore } from "../../../stores/authStore";
 import { posService } from "../services/posService";
+import { lineIsDown } from "../../../stores/connectionStore";
 import { isCover } from "../services/posService";
 import type { HeldSale, ManualMovementType, SessionState } from "../services/posService";
 
@@ -328,6 +329,8 @@ export function useHeldSales(shared = false) {
     queryFn: async () => {
       const tenantId = useAuthStore.getState().user?.tenant?.id ?? null;
       const mine = localHeld(tenantId);
+      // No network at all: what is parked here is the whole answer (#AZ20).
+      if (lineIsDown()) return mine;
 
       try {
         // Both lists, always — a ticket parked on this till during an outage

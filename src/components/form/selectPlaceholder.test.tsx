@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+import fs from "node:fs";
+import path from "node:path";
+
 import Select from "./Select";
 
 /**
@@ -25,3 +28,44 @@ describe("a select that always holds one of its choices", () => {
     expect(screen.getAllByRole("option")[0]).toHaveTextContent("Select an option");
   });
 });
+
+/**
+ * #AZ18 — the same shape came back on the item form three times: Category,
+ * Tax group and Kitchen station each listed their empty choice twice, the
+ * placeholder's copy dead. No Select may name its empty choice AND a
+ * placeholder of the same words.
+ */
+describe("no picker lists its empty choice twice", () => {
+  const SRC = path.resolve(__dirname, "../..");
+  const files = (dir: string): string[] =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+      const at = path.join(dir, e.name);
+      if (e.isDirectory()) return files(at);
+
+      return /\.tsx$/.test(e.name) && !/\.test\./.test(e.name) ? [at] : [];
+    });
+
+  it("finds the doubled shape when it is written", () => {
+    expect(doubled('<Select options={[{ value: "", label: "No category" }, ...rest]} placeholder="No category" />')).toEqual(["No category"]);
+    expect(doubled('<Select options={[{ value: "", label: "No category" }]} placeholder={null} />')).toEqual([]);
+  });
+
+  it("is written nowhere", () => {
+    const offences = files(SRC).flatMap((f) => doubled(fs.readFileSync(f, "utf8")).map((label) => `${path.relative(SRC, f)}: "${label}"`));
+
+    expect(offences).toEqual([]);
+  });
+});
+
+/** Placeholders whose words are also an empty choice listed just above them. */
+function doubled(code: string): string[] {
+  const out: string[] = [];
+  for (const m of code.matchAll(/placeholder="([^"]+)"/g)) {
+    const before = code.slice(Math.max(0, (m.index ?? 0) - 800), m.index);
+    const lastSelect = before.lastIndexOf("<Select");
+    if (lastSelect === -1) continue;
+    if (before.slice(lastSelect).includes(`{ value: "", label: "${m[1]}" }`)) out.push(m[1]);
+  }
+
+  return out;
+}

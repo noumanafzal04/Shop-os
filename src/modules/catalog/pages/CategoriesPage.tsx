@@ -239,7 +239,7 @@ export default function CategoriesPage() {
                   label: `${"— ".repeat(f.depth)}Move items to ${f.node.name}`,
                 })),
             ]}
-            placeholder="Don't move items"
+            placeholder={null}
             onChange={setReassignTo}
           />
         </div>

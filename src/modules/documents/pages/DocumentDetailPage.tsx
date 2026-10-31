@@ -23,6 +23,7 @@ import { AddToJob } from "../components/AddToJob";
 import { shopDate, shopShortDateTime } from "../../../common/format/date";
 import { useCashNeedsShift, useCashReachesNoDrawer } from "../../pos/hooks/useCounterShift";
 import { NoDrawerNote, ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { useOwnDrawer } from "../../expenses/useOwnDrawer";
 import { PrintPaperModal } from "../components/PrintPaperModal";
 import { HoldQuoteModal } from "../components/HoldQuoteModal";
 import { CollectModal } from "../components/CollectModal";
@@ -661,6 +662,9 @@ function CancelModal({
 
   const kept = Math.min(Math.max(0, Number(forfeit) || 0), paid);
   const back = Math.max(0, paid - kept);
+  // Whose drawer the cash comes out of — said only when there is one (#AZ21).
+  const handBackNoDrawer = useCashReachesNoDrawer(refundBy, back, "out");
+  const ownDrawer = useOwnDrawer();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-md">
@@ -744,10 +748,15 @@ function CancelModal({
                       </button>
                     ))}
                   </div>
-                  {refundBy === "cash" && (
+                  {refundBy === "cash" && ownDrawer === "open" && (
                     <p className="mt-1.5 text-theme-xs text-gray-500 dark:text-gray-400">
                       Cash comes out of your own open drawer.
                     </p>
+                  )}
+                  {handBackNoDrawer !== null && (
+                    <div className="mt-2">
+                      <NoDrawerNote note={handBackNoDrawer} />
+                    </div>
                   )}
                 </div>
               )}

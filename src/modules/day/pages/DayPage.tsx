@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { rungUpHint } from "../rungUpHint";
+import { bookingCashAway, rungUpHint } from "../rungUpHint";
 import { useOnceKey } from "../../../common/onceKey";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import PageMeta from "../../../components/common/PageMeta";
@@ -382,13 +382,22 @@ export default function DayPage() {
                   "no day open" with Rs 5,630 of the customer's cash taken. */}
               {takenWithNoDrawer.data ? (
                 <>
-                  <p data-testid="taken-with-no-drawer" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    No drawer has been opened today — but {money(takenWithNoDrawer.data.sales_total)} was taken in{" "}
-                    {counted(takenWithNoDrawer.data.sales_count, "sale")}.
-                  </p>
-                  <p className="mt-1 text-theme-xs text-gray-400">
-                    It is in your books and in no till&apos;s count. Open a shift before taking cash, and the day will count it.
-                  </p>
+                  {takenWithNoDrawer.data.sales_count > 0 && (
+                    <>
+                      <p data-testid="taken-with-no-drawer" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        No drawer has been opened today — but {money(takenWithNoDrawer.data.sales_total)} was taken in{" "}
+                        {counted(takenWithNoDrawer.data.sales_count, "sale")}.
+                      </p>
+                      <p className="mt-1 text-theme-xs text-gray-400">
+                        It is in your books and in no till&apos;s count. Open a shift before taking cash, and the day will count it.
+                      </p>
+                    </>
+                  )}
+                  {bookingCashAway(takenWithNoDrawer.data, money) !== null && (
+                    <p data-testid="booking-cash-away" className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {bookingCashAway(takenWithNoDrawer.data, money)}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
@@ -524,6 +533,12 @@ export default function DayPage() {
                   </div>
                 </div>
               </div>
+
+              {bookingCashAway(running!.away_from_drawers, money) !== null && (
+                <p data-testid="booking-cash-away" className="mb-6 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-theme-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+                  {bookingCashAway(running!.away_from_drawers, money)}
+                </p>
+              )}
 
               {view.collections && view.collections.count > 0 && (
                 <div className="mb-6"><CollectedOnKhata collections={view.collections} cashInDrawers /></div>

@@ -25,6 +25,7 @@ import { round2 } from "../../offline/pricing/money";
 import { formatIn } from "../../../common/format/currency";
 import { useTillCurrency } from "../../offline/tillSettings";
 import { quickTendersFor } from "../quickTenders";
+import { manualDiscountRefusal } from "../manualDiscount";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, packPrice, recalcLine, withLineDiscount } from "../lineMath";
 import { followLevel, shortBy, taxableShown, tillBill, type BillGroup } from "../tillBill";
@@ -77,7 +78,7 @@ import { useLanes, useTerminal } from "../../registers/hooks/useRegisters";
 import { paperLabel, receiptService, type ReceiptKind, type ReceiptPaper } from "../../receipts/services/receiptService";
 import { useFailedReceipts } from "../../receipts/hooks/useReceipts";
 import { useTillStore } from "../../../stores/tillStore";
-import { useConnectionStore } from "../../../stores/connectionStore";
+import { lineIsDown, useConnectionStore } from "../../../stores/connectionStore";
 import { useIdleLock } from "../hooks/useIdleLock";
 import TillLock from "../components/TillLock";
 import SubstitutePicker from "../../pharmacy/components/SubstitutePicker";
@@ -965,7 +966,9 @@ export default function PosPage() {
   const serialLineProductId = serialKey ? cart.find((x) => x.key === serialKey)?.product_id : undefined;
   const inStockSerials = useQuery({
     queryKey: ["product-serials", serialLineProductId],
-    queryFn: async () => (await catalogService.serials(serialLineProductId!, "in_stock")).data,
+    // Offline there is nobody to ask which numbers are in stock: the cashier
+    // types the one on the box, as they would anyway (#AZ20).
+    queryFn: async () => (lineIsDown() ? [] : (await catalogService.serials(serialLineProductId!, "in_stock")).data),
     enabled: !!serialLineProductId && serialModal.isOpen,
   });
   const [openingFloat, setOpeningFloat] = useState("");
@@ -2891,7 +2894,11 @@ export default function PosPage() {
   const reRingHeld = reRingMoney !== null && (reRingMoney.blocked !== null || !approvalReady(reRingApproval, needsReRingApproval));
   // …and a discount past the limit waits for the manager's PIN (#3).
   const discountHeld = discountAsk !== null && !approvalReady(discountApproval, true);
-  const canCheckout = cart.length > 0 && canRing && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && !discountHeld && coolDown === 0 && (
+  // A manual discount below nothing or past the bill (#AZ19, B6) is said in
+  // its box and holds the sale — the server would refuse it anyway, in a
+  // field's words, after the cashier had taken the money against it.
+  const discountRefused = manualDiscountRefusal(discount, subtotal);
+  const canCheckout = cart.length > 0 && canRing && discountRefused === null && !creditNeedsCustomer && !tradeInTooBig && !reRingHeld && !discountHeld && coolDown === 0 && (
     method === "cash" ? (Number(tendered) || 0) >= payable
       : method === "credit" ? total > 0
       : method === "split" ? total > 0 && splitPaid >= payable
@@ -4833,9 +4840,14 @@ export default function PosPage() {
             {/* Said at the keying, not at the press (A-to-Z, B6): 5,000 off a
                 150 bill read "GRAND TOTAL 0" with Complete live, and the
                 cashier learned it was refused with the customer waiting. */}
-            {subtotal > 0 && (Number(discount) || 0) > subtotal && (
+            {discountRefused === "past_the_bill" && (
               <p data-discount-past-bill className="mt-1 text-theme-xs text-error-500">
                 More than the bill — take off at most {money(subtotal)}, or the sale will be refused.
+              </p>
+            )}
+            {discountRefused === "below_nothing" && (
+              <p data-discount-below-nothing className="mt-1 text-theme-xs text-error-500">
+                A discount takes money off — it cannot be below 0. Type the amount to take off, between 0 and {money(subtotal)}.
               </p>
             )}
           </div>
@@ -4860,7 +4872,7 @@ export default function PosPage() {
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={() => { setDiscount(""); clearCoupon(); }}>Clear</Button>
-          <Button size="sm" onClick={discountModal.closeModal}>Done</Button>
+          <Button size="sm" onClick={discountModal.closeModal} disabled={discountRefused !== null}>Done</Button>
         </div>
       </Modal>
 

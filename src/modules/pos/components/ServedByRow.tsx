@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { posService } from "../services/posService";
+import { lineIsDown } from "../../../stores/connectionStore";
 import { sellersOnDevice } from "../../offline/tillSettings";
 
 /**
@@ -54,6 +55,8 @@ export function ServedByRow({ enabled, me, anyone, value, onChange }: Props) {
     // catalogue. A box that vanished offline sent every salon sale with nobody
     // named (services #S5).
     queryFn: async () => {
+      // No network at all: the list the catalogue brought, without dialling (#AZ20).
+      if (lineIsDown()) return sellersOnDevice();
       try {
         return (await posService.sellers()).data;
       } catch (failed) {

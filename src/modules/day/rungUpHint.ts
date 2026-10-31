@@ -1,4 +1,4 @@
-import type { DayView } from "./services/dayService";
+import type { DayView, TakenWithNoDrawer } from "./services/dayService";
 
 /**
  * WHAT "RUNG UP" IS MADE OF (B14).
@@ -13,4 +13,22 @@ export function rungUpHint(running: Pick<DayView["running"], "sales_count" | "aw
   const away = running.away_from_drawers?.sales_count ?? 0;
 
   return away > 0 ? `${sales} · ${away} not at a counter` : sales;
+}
+
+/**
+ * A BOOKING'S CASH THAT NO DRAWER TOOK OR GAVE (#AZ21).
+ *
+ * A layaway's advance taken with no shift open, and the cash handed back when
+ * one was cancelled with none open: real notes, in the books, and in no till's
+ * count. Said beside the drawers — never added into them — so the shop can see
+ * where they went. Null when there is none.
+ */
+export function bookingCashAway(away: TakenWithNoDrawer | null | undefined, money: (n: number) => string): string | null {
+  const taken = away?.advances_in ?? 0;
+  const back = away?.advances_back ?? 0;
+  if (taken <= 0 && back <= 0) return null;
+
+  const parts = [taken > 0 ? `${money(taken)} cash taken` : null, back > 0 ? `${money(back)} cash handed back` : null].filter(Boolean);
+
+  return `On bookings with no drawer open: ${parts.join(" · ")}. It is in your books and in no till's count — open a shift first to have it counted.`;
 }

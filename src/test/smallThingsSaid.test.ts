@@ -82,5 +82,31 @@ it("A-to-Z B7: an offline till prices its promotion itself and asks no server", 
 });
 
 it("A-to-Z B6: a discount past the bill is said at the keying", () => {
-  expect(pos).toMatch(/\{subtotal > 0 && \(Number\(discount\) \|\| 0\) > subtotal && \(\s*<p data-discount-past-bill/);
+  expect(pos).toMatch(/\{discountRefused === "past_the_bill" && \(\s*<p data-discount-past-bill/);
+});
+
+it("#AZ17 the item form's Category box shows the shelf the item is on", () => {
+  // `defaultValue` was seeded before the product arrived, so every edit read
+  // "No category". The form holds the value; the box shows it.
+  expect(form).toMatch(/<Select\s+value=\{categoryId\}/);
+  expect(form).not.toMatch(/defaultValue=\{categoryId\}/);
+});
+
+it("#AZ22 every screen that picks from the first 1,000 items says when the list is cut", () => {
+  const callers = Object.entries(import.meta.glob("../modules/**/*.tsx", { query: "?raw", import: "default", eager: true }) as Record<string, string>)
+    .filter(([file, code]) => !file.includes(".test.") && /usePickableProducts\(/.test(code));
+
+  expect(callers.map(([file]) => file.split("/").pop()).sort()).toEqual(["FuelSetupPage.tsx", "ProductFormPage.tsx", "TabPage.tsx"]);
+  for (const [file, code] of callers) {
+    expect(code, file).toMatch(/\.data\?\.missing \?\? 0\) > 0 && \(/);
+    expect(code, file).toMatch(/Showing the first 1,000 items/);
+  }
+});
+
+it("#AZ21 the cancel sheet says a drawer only when there is one", () => {
+  const doc = read(import.meta.glob("../modules/documents/pages/DocumentDetailPage.tsx", { query: "?raw", import: "default", eager: true }));
+
+  expect(doc).toMatch(/const handBackNoDrawer = useCashReachesNoDrawer\(refundBy, back, "out"\);/);
+  expect(doc).toMatch(/\{refundBy === "cash" && ownDrawer === "open" && \(\s*<p[^>]*>\s*Cash comes out of your own open drawer\./);
+  expect(doc).toMatch(/<NoDrawerNote note=\{handBackNoDrawer\} \/>/);
 });

@@ -1019,16 +1019,20 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
 
         <div>
           <Label>Category</Label>
+          {/* HELD BY THE FORM (#AZ17). It was `defaultValue` keyed on the
+              categories arriving — and the PRODUCT arrives later, so every
+              edit read "No category" while the item sat on a shelf. The one
+              "No category" is the real choice; a placeholder beside it was a
+              second, dead copy (#AZ18). */}
           <Select
-            key={categories.data ? "loaded" : "loading"}
-            defaultValue={categoryId}
+            value={categoryId}
             options={[
               { value: "", label: "No category" },
               // Every level, as the filter and the till list them: a third
               // level could be made and filtered by, but nothing filed in it (#AZ5).
               ...categoryMenu(categories.data ?? []).map((c) => ({ value: c.id, label: menuLabel(c) })),
             ]}
-            placeholder="No category"
+            placeholder={null}
             onChange={setCategoryId}
           />
         </div>
@@ -1073,7 +1077,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               ]}
               // The box read "Select an option" while holding a real answer:
               // with no group chosen the item uses its own rate, or the shop's.
-              placeholder="Use own rate / shop default"
+              placeholder={null}
               onChange={(v) => setTaxGroupId(v)}
             />
             <p className="mt-1 text-theme-xs text-gray-400">
@@ -1353,7 +1357,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 { value: "", label: "Default kitchen" },
                 ...stations.map((st) => ({ value: st, label: st })),
               ]}
-              placeholder="Default kitchen"
+              placeholder={null}
               onChange={setKitchenStation}
             />
             {stations.length === 0 && (

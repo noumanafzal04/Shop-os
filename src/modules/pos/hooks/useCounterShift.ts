@@ -51,7 +51,7 @@ export function useCashNeedsShift(method: string, amount: number): string | null
  * the shop has no till, where a shift is required (useCashNeedsShift refuses
  * there), or while the answer is still on its way.
  */
-export function useCashReachesNoDrawer(method: string, amount: number): string | null {
+export function useCashReachesNoDrawer(method: string, amount: number, way: "in" | "out" = "in"): string | null {
   const settings = useShopSettings();
   const drawer = useOwnDrawer();
   const shopHasTill = useAuthStore((s) => s.user?.tenant?.features?.pos ?? false);
@@ -59,5 +59,9 @@ export function useCashReachesNoDrawer(method: string, amount: number): string |
 
   if (!shopHasTill || required || method !== "cash" || !(amount > 0) || drawer !== "none") return null;
 
-  return "No shift of yours is open, so this cash goes into no drawer and the day will not count it. Open a shift first to have it counted — card, bank or wallet money needs no drawer.";
+  // Handed BACK (#AZ21): a cancelled booking's cash refund with no drawer open
+  // was told "Cash comes out of your own open drawer" — there was none.
+  return way === "out"
+    ? "No shift of yours is open, so this cash comes out of no drawer — Day & banking lists it beside the drawers, not in them. Open a shift first to have it counted — card, bank or wallet money needs no drawer."
+    : "No shift of yours is open, so this cash goes into no drawer and the day will not count it. Open a shift first to have it counted — card, bank or wallet money needs no drawer.";
 }

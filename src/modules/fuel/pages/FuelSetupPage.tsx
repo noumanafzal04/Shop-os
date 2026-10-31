@@ -309,6 +309,14 @@ export default function FuelSetupPage() {
               {/* Fuel is an ordinary product — the tank points at the catalog so
                   the rate is never kept in two places. */}
               <Select options={productOptions} placeholder="Pick the fuel" value={tankForm.product_id} onChange={(v) => setTankForm((f) => ({ ...f, product_id: v }))} />
+              {/* The list is cut at 1,000, as the menu and the deal picker
+                  say (#AZ22) — a forecourt past that was offered a silent
+                  subset when it picked what a tank holds. */}
+              {(products.data?.missing ?? 0) > 0 && (
+                <p data-testid="fuel-list-cut" className="mt-1 text-theme-xs text-warning-600 dark:text-warning-400">
+                  Showing the first 1,000 items — about {products.data?.missing} more are not in this list.
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>

@@ -81,6 +81,10 @@ export interface ClosedToday {
 export interface TakenWithNoDrawer {
   sales_count: number;
   sales_total: number;
+  /** A booking's cash taken with no drawer open (#AZ21). */
+  advances_in?: number;
+  /** …and handed back on a cancellation with none open. */
+  advances_back?: number;
 }
 
 export interface DayShift {
@@ -140,7 +144,7 @@ export interface DayView {
     counted_cash: number;
     variance: number;
     /** Of the sales above, those no drawer took — an order paid on the doorstep, a sale with no shift (B14). */
-    away_from_drawers?: { sales_count: number; sales_total: number };
+    away_from_drawers?: TakenWithNoDrawer;
   };
   banked: number;
   /**

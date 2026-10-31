@@ -1,5 +1,7 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from "../../../common/api/client";
 import { readTally } from "../pricing/shadowTally";
+import { ApiError } from "../../../common/types/api";
+import { useAuthStore } from "../../../stores/authStore";
 
 /** One till, as the shop sees it. Carries nothing secret. */
 export interface PosDevice {
@@ -50,6 +52,14 @@ export const deviceService = {
    * has.
    */
   register: async (deviceId: string, name?: string | null) => {
+    // A read-only shop (its plan lapsed) is refused every write, this one
+    // included — 403 SUBSCRIPTION_EXPIRED, twice a visit, a console error each
+    // (#AZ23). The strip on the till already says why; the refusal is given
+    // here, without dialling, in the server's own words and code.
+    if (useAuthStore.getState().user?.tenant?.subscription_state === "read_only") {
+      throw new ApiError("This shop is read-only until its subscription is renewed.", 403, "SUBSCRIPTION_EXPIRED");
+    }
+
     // What this till has checked with the offline engine, sent on the boot that
     // was happening anyway rather than on a call of its own. It has to travel
     // this way round: a till that finds NOTHING never reports a variance, and

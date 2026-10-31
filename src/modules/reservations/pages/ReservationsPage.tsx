@@ -112,7 +112,7 @@ export default function ReservationsPage() {
               { value: "cancelled", label: "Cancelled" },
               { value: "expired", label: "Expired" },
             ]}
-            placeholder="All statuses"
+            placeholder={null}
             onChange={(v) => { setStatus(v); setPage(1); }}
           />
         </div>

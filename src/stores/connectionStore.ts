@@ -37,3 +37,14 @@ if (typeof window !== "undefined") {
   window.addEventListener("online", () => useConnectionStore.getState().setOnline(true));
   window.addEventListener("offline", () => useConnectionStore.getState().setOnline(false));
 }
+
+/**
+ * THE BROWSER SAYS THERE IS NO NETWORK AT ALL — so a call cannot reach anybody.
+ *
+ * For a query that has an answer of its own on the device (the held tickets
+ * parked here, the sellers that came down with the catalogue): with the line
+ * down it gives that answer without dialling. Each of them used to dial first,
+ * fail `ERR_INTERNET_DISCONNECTED`, write a console error, and only then fall
+ * back (#AZ20 — the same family as the bell, #AZ2).
+ */
+export const lineIsDown = (): boolean => !useConnectionStore.getState().online;

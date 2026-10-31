@@ -302,7 +302,7 @@ export default function HardwareDevices() {
                     { value: "", label: "Shared — any register" },
                     ...laneList.map((l) => ({ value: l.id, label: l.name })),
                   ]}
-                  placeholder="Shared — any register"
+                  placeholder={null}
                   onChange={(v) => setDraft((d) => ({ ...d, register_id: v }))}
                 />
               </div>
