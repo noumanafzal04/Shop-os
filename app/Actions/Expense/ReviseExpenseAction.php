@@ -68,6 +68,8 @@ class ReviseExpenseAction
                     'amount' => (float) $expense->amount,
                     'reason' => $expense->description,
                 ]);
+                // Raised past what the drawer held (#AZ14).
+                $warnings[] = BooksDrawer::overdrawnWarning($movement);
             } elseif ($stillCash && ! $wasCash) {
                 // Corrected from card/bank to cash. The money did come out of
                 // a drawer, so one has to move — the actor's own, real and
@@ -83,6 +85,7 @@ class ReviseExpenseAction
 
                 if ($created !== null) {
                     $expense->forceFill(['cash_movement_id' => $created->id, 'branch_id' => $created->branch_id])->save();
+                    $warnings[] = BooksDrawer::overdrawnWarning($created);
                 } else {
                     $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice, 'Changed to cash');
                 }

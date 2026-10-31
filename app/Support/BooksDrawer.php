@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Exceptions\DomainException;
+use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\Tenant;
 use App\Models\User;
@@ -158,6 +159,42 @@ class BooksDrawer
         return $practice
             ? $verb.', but your open shift is a practice till — no real drawer was adjusted.'
             : $verb.', but you have no shift open — the drawer was not adjusted.';
+    }
+
+    /**
+     * THE DRAWER WAS PAID OUT BEYOND WHAT IT HELD (#AZ14).
+     *
+     * A shift with a 200 float took 152.25, then paid a supplier 1,000 and an
+     * expense 120.50 "from the till". Both went through without a word, and the
+     * shift's close sheet later read "Expected −668.00 · Over 668.00" beside
+     * "The drawer is empty" — somebody sent looking for money that was never
+     * there.
+     *
+     * Not refused: the money was spent, and refusing the record does not
+     * unspend it (the rule a budget follows, see RecordExpenseAction). It is
+     * said at the one moment it can still be put right — the rest came from a
+     * pocket or the safe, and a Paid in says so.
+     */
+    public static function overdrawnWarning(?CashMovement $movement): ?string
+    {
+        if ($movement === null || $movement->direction !== 'out' || $movement->cash_session_id === null) {
+            return null;
+        }
+
+        $session = CashSession::query()->find($movement->cash_session_id);
+        if ($session === null) {
+            return null;
+        }
+
+        $holds = (float) DrawerMath::for($session)['expected_cash'];
+        if ($holds >= -0.001) {
+            return null;
+        }
+
+        return sprintf(
+            'That is more cash than your drawer held, so it now expects %s. If the rest came from somewhere else, record it as a Paid in so the shift balances.',
+            number_format($holds, 2),
+        );
     }
 
     /** The trading day a shift belongs to: its day's date, or the shop day it was opened on. */

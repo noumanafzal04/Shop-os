@@ -41,6 +41,38 @@ use Illuminate\Support\Facades\DB;
  */
 class DrawerMath
 {
+    /**
+     * HOW "CASH SALES" IS MADE, LINE BY LINE (#AZ11).
+     *
+     * A Z-read printed "Cash sales −60.00" and stopped: one sale of 500 with
+     * 250 change, and 310 handed back over the counter on an exchange. The
+     * figure was right and nothing on the paper said why, so the cashier
+     * whose name is on the slip could not follow it. The Close-shift panel
+     * already lays it out (panel drawerWords.salesSteps); this is the same
+     * layout for paper.
+     *
+     * Read only while it still makes the frozen figure: a slip must never print
+     * lines that add up to something other than the total under them.
+     *
+     * @param  array{cash_tendered: float, change_given: float, cash_refunds: float, exchange_cash_back?: float, cash_sales: float}  $drawer
+     * @return array<int, array{sign: string, label: string, value: float}>|null
+     */
+    public static function salesSteps(array $drawer, float $frozenCashSales): ?array
+    {
+        if (abs((float) $drawer['cash_sales'] - $frozenCashSales) > 0.005) {
+            return null;
+        }
+
+        $swapped = round((float) ($drawer['exchange_cash_back'] ?? 0), 2);
+
+        return array_values(array_filter([
+            ['sign' => '+', 'label' => 'Cash tendered', 'value' => round((float) $drawer['cash_tendered'], 2)],
+            ['sign' => '−', 'label' => 'Change given', 'value' => round((float) $drawer['change_given'] - $swapped, 2)],
+            $swapped > 0 ? ['sign' => '−', 'label' => 'Handed back on exchanges', 'value' => $swapped] : null,
+            ['sign' => '−', 'label' => 'Cash refunds', 'value' => round((float) $drawer['cash_refunds'], 2)],
+        ]));
+    }
+
     /** Statuses whose tender physically entered this drawer. */
     public const RUNG_STATUSES = [
         SaleStatus::Completed,

@@ -145,6 +145,11 @@
     <table>
         <tr><td>Opening float</td><td class="num">{{ $money($session->opening_float) }}</td></tr>
         <tr><td>Cash sales</td><td class="num">{{ $money($session->cash_sales) }}</td></tr>
+        {{-- How it is made (#AZ11): a negative "Cash sales" with nothing
+             under it could not be followed by the cashier who signs it. --}}
+        @foreach ($cashSteps ?? [] as $step)
+            <tr data-cash-step class="muted"><td>&nbsp;&nbsp;{{ $step['sign'] }} {{ $step['label'] }}</td><td class="num">{{ $money($step['value']) }}</td></tr>
+        @endforeach
         <tr><td>Paid in</td><td class="num">{{ $money($session->cash_in) }}</td></tr>
         <tr><td>Paid out</td><td class="num">−{{ $money($session->cash_out) }}</td></tr>
         <tr class="total"><td>Expected</td><td class="num">{{ $amount($session->expected_cash) }}</td></tr>

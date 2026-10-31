@@ -312,4 +312,21 @@ class SoldOutTest extends TestCase
 
         $this->assertNotNull(Order::query()->find($order['id'])->sale_id);
     }
+
+    public function test_one_dish_read_on_its_own_says_what_the_list_says(): void
+    {
+        // #AZ4: the list said "Sold out"; `GET /products/{id}` had no
+        // `sold_out` key at all, nor the branch's price and stock.
+        $this->actingAsUser($this->owner)->postJson("/api/v1/products/{$this->fish->id}/sold-out")->assertSuccessful();
+
+        $one = $this->actingAsUser($this->owner)->getJson("/api/v1/products/{$this->fish->id}")->assertOk()->json('data');
+        $row = collect($this->actingAsUser($this->owner)->getJson('/api/v1/products')->assertOk()->json('data'))
+            ->firstWhere('id', $this->fish->id);
+
+        $this->assertTrue($one['sold_out']);
+        foreach (['sold_out', 'sold_out_at', 'branch_price', 'branch_stock', 'on_hand', 'expired_stock'] as $field) {
+            $this->assertArrayHasKey($field, $one, "the single read leaves out {$field}");
+            $this->assertEquals($row[$field], $one[$field], "{$field} differs between the list and the single read");
+        }
+    }
 }

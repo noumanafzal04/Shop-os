@@ -301,6 +301,27 @@ class ShiftReportingTest extends TestCase
             ->assertSee('DRAWER BALANCED');
     }
 
+    public function test_the_z_read_says_how_cash_sales_was_made(): void
+    {
+        // #AZ11: "Cash sales −60.00" printed alone — right, and impossible to
+        // follow for the cashier signing it. The lines under it add up to it.
+        $this->openShift(1000);
+        $this->actingAsUser($this->cashier)->postJson('/api/v1/sales', [
+            'channel' => 'pos', 'cash_session_id' => $this->sessionId,
+            'items' => [['product_id' => $this->rice->id, 'quantity' => 1]],
+            'payment_method' => 'cash', 'amount_paid' => 3000,
+        ])->assertCreated();
+        $this->closeShift(['1000' => 3, '500' => 1]);
+
+        $session = CashSession::withoutTenancy()->where('user_id', $this->cashier->id)->firstOrFail();
+        $paper = $this->actingAsUser($this->cashier)
+            ->get("/api/v1/pos/sessions/{$session->id}/z-report/print")
+            ->assertOk();
+
+        $paper->assertSeeInOrder(['Cash sales', '2,500.00', '+ Cash tendered', '3,000.00', '− Change given', '500.00', '− Cash refunds', '0.00', 'Paid in'], false);
+        $this->assertSame(3, substr_count($paper->getContent(), 'data-cash-step'));
+    }
+
     // ── The trading day ─────────────────────────────────────────────
 
     public function test_the_first_shift_of_the_day_opens_the_day(): void

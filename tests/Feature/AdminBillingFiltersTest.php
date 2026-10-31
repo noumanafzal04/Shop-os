@@ -435,10 +435,27 @@ class AdminBillingFiltersTest extends TestCase
         $tenant = Tenant::query()->where('business_name', 'New Shop')->firstOrFail();
 
         $this->assertTrue($tenant->subscription_starts_at->isToday());
+        // A month on WITHOUT overflow — the rule every window follows. This
+        // said `addMonths` and failed on every 31st: 31 Oct + 1 month is
+        // 30 Nov here, and Carbon's overflow made it 1 Dec.
         $this->assertSame(
-            now()->addMonths($this->basic->billing_period_months)->toDateString(),
+            now()->addMonthsNoOverflow($this->basic->billing_period_months)->toDateString(),
             $tenant->subscription_ends_at->toDateString(),
         );
+    }
+
+    public function test_a_tenant_created_on_the_31st_runs_to_the_end_of_next_month(): void
+    {
+        // Pinned, so the month-end is tested every day and not only on a 31st.
+        $this->travelTo(now()->setDate(2026, 10, 31)->setTime(12, 0));
+
+        $this->asAdmin()->postJson('/api/v1/admin/tenants', $this->createPayload())
+            ->assertCreated();
+
+        $tenant = Tenant::query()->where('business_name', 'New Shop')->firstOrFail();
+
+        $this->assertSame('2026-10-31', $tenant->subscription_starts_at->toDateString());
+        $this->assertSame('2026-11-30', $tenant->subscription_ends_at->toDateString());
     }
 
     public function test_the_admin_can_state_the_billing_window(): void

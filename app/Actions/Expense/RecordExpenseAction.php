@@ -3,6 +3,7 @@
 namespace App\Actions\Expense;
 
 use App\Actions\Pos\RecordCashMovementAction;
+use App\Models\CashMovement;
 use App\Models\Expense;
 use App\Models\ExpenseBudget;
 use App\Models\User;
@@ -113,6 +114,11 @@ class RecordExpenseAction
         if ($paidInCash && $expense->cash_movement_id === null) {
             // Null for a business with no till: there is no drawer to mention.
             $warnings[] = BooksDrawer::untouchedDrawerWarning($user, $practice);
+        }
+
+        // Paid out beyond what the drawer held (#AZ14).
+        if ($expense->cash_movement_id !== null) {
+            $warnings[] = BooksDrawer::overdrawnWarning(CashMovement::query()->find($expense->cash_movement_id));
         }
 
         $month = Carbon::parse($expense->expense_date)->startOfMonth();

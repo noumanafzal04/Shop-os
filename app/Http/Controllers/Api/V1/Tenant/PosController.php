@@ -894,6 +894,9 @@ class PosController extends Controller
                 ->orderBy('created_at')
                 ->get(),
             'covers' => $this->coverBreakdown($session),
+            // What makes the frozen "Cash sales" figure (#AZ11) — null if the
+            // lines would no longer add up to it.
+            'cashSteps' => DrawerMath::salesSteps(DrawerMath::for($session), (float) $session->cash_sales),
         ]);
     }
 

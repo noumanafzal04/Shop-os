@@ -357,7 +357,7 @@ class ProductController extends Controller
         );
     }
 
-    public function show(string $id): JsonResponse
+    public function show(string $id, BranchContext $branch): JsonResponse
     {
         /** @var Product $product */
         $product = Product::query()
@@ -367,6 +367,11 @@ class ProductController extends Controller
             // loading.
             ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
             ->findOrFail($id);
+
+        // The list stamps what THIS branch has run out of, charges and holds;
+        // one product read on its own did not (#AZ4) — the list said "Sold out"
+        // and the single read had no `sold_out` at all. Same stamper, same answer.
+        static::stampBranchFigures([$product], [$product], $branch->id(), $branch->scopeId());
 
         return ApiResponse::ok(array_merge($product->toArray(), [
             // What one portion costs to make. Null where the dish has no
