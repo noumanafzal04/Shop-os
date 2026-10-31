@@ -8,6 +8,7 @@ import Button from "../ui/button/Button";
 import Alert from "../ui/alert/Alert";
 import { useLogin } from "../../modules/auth/hooks/useAuth";
 import { ApiError } from "../../common/types/api";
+import { useCoolDownState } from "../../common/api/coolDown";
 
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -16,9 +17,17 @@ export default function SignInForm() {
   const [password, setPassword] = useState("");
 
   const login = useLogin();
+  // A throttled sign-in (#AZ3): the server's wait is counted down where it is
+  // said, and the button is held until it reaches 0 — another press inside it
+  // only pushes the window further out.
+  const wait = useCoolDownState(login.error);
 
   const errorMessage =
-    login.error instanceof ApiError
+    wait.left > 0
+      ? `Too many tries in a short time — wait ${wait.left} second${wait.left === 1 ? "" : "s"}, then try again.`
+      : wait.over
+        ? null
+        : login.error instanceof ApiError
       ? login.error.firstFieldError() ?? login.error.message
       : login.error
         ? "Something went wrong. Please try again."
@@ -27,7 +36,7 @@ export default function SignInForm() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     // Tap-guard: never double-submit while a request is in flight.
-    if (login.isPending) return;
+    if (login.isPending || wait.left > 0) return;
     login.mutate({ identifier: identifier.trim(), password });
   };
 
@@ -47,6 +56,11 @@ export default function SignInForm() {
             {errorMessage && (
               <div className="mb-5">
                 <Alert variant="error" title="Sign in failed" message={errorMessage} />
+              </div>
+            )}
+            {wait.over && (
+              <div data-testid="sign-in-wait-over" className="mb-5">
+                <Alert variant="info" title="Ready" message="The wait is over — you can sign in again now." />
               </div>
             )}
             <form onSubmit={handleSubmit}>
@@ -99,8 +113,8 @@ export default function SignInForm() {
                   </Link>
                 </div>
                 <div>
-                  <Button type="submit" className="w-full" size="sm" disabled={login.isPending}>
-                    {login.isPending ? "Signing in…" : "Sign in"}
+                  <Button type="submit" className="w-full" size="sm" disabled={login.isPending || wait.left > 0}>
+                    {login.isPending ? "Signing in…" : wait.left > 0 ? `Wait ${wait.left}s` : "Sign in"}
                   </Button>
                 </div>
               </div>

@@ -230,9 +230,12 @@ describe("the promotion on the screen is of the cart being rung", () => {
   });
 
   it("asks the till's own engine when there is nobody to ask", () => {
-    const effect = code.slice(code.indexOf(".preview(billLines.map"), code.indexOf("const clearSale"));
-    expect(effect).toMatch(/\.catch\(async \(\) => \{/);
+    // The till's own engine answers when the server cannot — and, with the
+    // line known to be down, without the server being asked at all.
+    const effect = code.slice(code.indexOf("const fromTheTill = async () => {"), code.indexOf("const clearSale"));
     expect(effect).toMatch(/promotionLocally\(lines,/);
+    expect(effect).toMatch(/\.preview\(billLines\.map[\s\S]*\.catch\(fromTheTill\);/);
+    expect(effect).toMatch(/if \(!connected\) \{\s*void fromTheTill\(\);/);
   });
 });
 

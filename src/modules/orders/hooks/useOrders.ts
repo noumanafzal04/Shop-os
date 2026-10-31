@@ -15,6 +15,7 @@ import {
   type PlaceOrderPayload,
 } from "../services/ordersService";
 import type { OrdersWaiting } from "../../../layout/ordersWaiting";
+import { WATCHER_NETWORK_MODE } from "../../../common/api/queryClient";
 import { useAuthStore } from "../../../stores/authStore";
 import { useNotifications } from "../../notifications/hooks/useNotifications";
 import { HEAL_AFTER, heardAt, isNews, keptFor, newestOrderNews, ownerOf } from "../waitingCount";
@@ -134,6 +135,8 @@ export function useOrdersWaiting(enabled: boolean) {
     // The exception: two minutes with no word from anywhere. Any answer —
     // asked for, or told by the Orders screen — starts the two minutes again.
     refetchInterval: HEAL_AFTER,
+    // A watcher: never dialled into a dead line (#AZ2).
+    networkMode: WATCHER_NETWORK_MODE,
   });
 
   // Whatever was last said is kept, whoever said it.

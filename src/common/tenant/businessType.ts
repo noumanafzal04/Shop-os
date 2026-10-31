@@ -42,8 +42,13 @@ export function usePrimaryBusinessType(): string | null {
  *
  * One list, read by the product form and the sidebar, so the place you turn it
  * on and the place you look it up can never disagree again.
+ *
+ * A services shop is on it too (#AZ8): a mobile-repair shop sells the battery
+ * and the screen it fits, and could warrant its labour but not the part. The
+ * section shows only on a PHYSICAL item and the warranty desk only with stock,
+ * so a tailor or a salon that sells nothing never sees either.
  */
-export const SERIAL_TRADES = ["retail", "wholesale", "automotive", "petroleum"];
+export const SERIAL_TRADES = ["retail", "wholesale", "automotive", "petroleum", "services"];
 
 /** Does this trade sell serial-tracked, warrantied units? */
 export function tracksSerials(businessType: string | null | undefined): boolean {

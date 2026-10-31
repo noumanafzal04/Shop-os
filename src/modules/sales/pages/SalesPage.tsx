@@ -707,10 +707,17 @@ export default function SalesPage() {
               {/* THE TAX, said. This went Subtotal 3,900 → Total 4,095 with
                   nothing between them, so the sheet a shop opens to answer
                   "why is this more than the price?" could not answer it. */}
-              {Number(detail.data.tax) > 0 && <div>Tax: {money(detail.data.tax ?? 0)}</div>}
+              {Number(detail.data.tax) > 0 && !detail.data.tax_inclusive && <div>Tax: {money(detail.data.tax ?? 0)}</div>}
               <div className="text-base font-bold text-gray-800 dark:text-white/90">
                 Total: {money(detail.data.total)}
               </div>
+              {/* A shop whose prices already hold the tax (#AZ6): it was printed
+                  between Subtotal 125 and Total 125 as "Tax 18.16", three figures
+                  that cannot add up. It is inside the total, and said so — as
+                  the printed invoice says "Sales tax (included)". */}
+              {Number(detail.data.tax) > 0 && detail.data.tax_inclusive && (
+                <div data-sale-tax-inside className="text-theme-xs text-gray-500">Includes tax {money(detail.data.tax ?? 0)}</div>
+              )}
               {/* What stands between the total and what was paid (the full
                   re-test, #5 #11): "Total 116.99 · Paid 136.99" said nothing
                   of the 20 tip that made the difference. */}

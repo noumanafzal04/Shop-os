@@ -23,6 +23,19 @@ describe("the bill as the owner reads it", () => {
   });
 });
 
+describe("a bill whose prices already held the tax (#AZ6)", () => {
+  it("says the tax inside the total, not between the subtotal and it", () => {
+    const subtotal = SALES.indexOf("Subtotal: {money(detail.data.subtotal)}");
+    const total = SALES.indexOf("Total: {money(detail.data.total)}");
+    const paid = SALES.indexOf("Paid {money(detail.data.amount_paid)}");
+
+    // Added on top only when the prices did not hold it.
+    expect(SALES.slice(subtotal, total)).toMatch(/Number\(detail\.data\.tax\) > 0 && !detail\.data\.tax_inclusive && <div>Tax: /);
+    // Held inside: said under the total, as the invoice does.
+    expect(SALES.slice(total, paid)).toMatch(/Number\(detail\.data\.tax\) > 0 && detail\.data\.tax_inclusive && \(\s*<div data-sale-tax-inside[^>]*>Includes tax \{money/);
+  });
+});
+
 describe("Reports", () => {
   it("shows the cash rounding beside the net profit it is part of", () => {
     const rounding = REPORTS.indexOf('<MetricCard label="Cash Rounding" value={money(data.totals.cash_rounding ?? 0)} />');

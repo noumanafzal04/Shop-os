@@ -4,14 +4,14 @@ import { downloadCsv } from "../../../common/api/download";
 import PageMeta from "../../../components/common/PageMeta";
 import Badge from "../../../components/ui/badge/Badge";
 import { CommissionOwed } from "../components/CommissionOwed";
-import { useSubscription } from "../hooks/useShop";
+import { useCurrency, useSubscription } from "../hooks/useShop";
 import type { SubscriptionInfo } from "../services/shopService";
 import { capital, useKindOfBusiness } from "../../../common/tenant/kindOfBusiness";
 import { formatRange } from "../../../components/ui/filters";
 import { offlineRules, planSays, subscriptionWords, usageRows } from "../subscriptionRows";
 import { everyPeriod, whatYouPay } from "../whatYouPay";
 import { PRODUCT, productSlug } from "../../../common/brand";
-import { platformMoney } from "../../../common/format/currency";
+import { platformBilledIn, platformMoney } from "../../../common/format/currency";
 import { shopDate } from "../../../common/format/date";
 
 /**
@@ -82,6 +82,7 @@ export default function SubscriptionPage() {
   const kind = useKindOfBusiness();
   const words = subscriptionWords(kind);
   const described = planSays(kind, data?.plan?.description);
+  const billedIn = platformBilledIn(useCurrency());
 
   if (sub.isLoading || !data) {
     return (
@@ -128,6 +129,10 @@ export default function SubscriptionPage() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {money(data.plan.price)} {everyPeriod(data.plan.billing_period_months)}
               </p>
+              {/* A shop trading in AED read "Rs 2,500 every month" as its own
+                  money (#AZ9). The plan is the platform's price, in the
+                  platform's currency — said wherever that is not the shop's. */}
+              {billedIn && <p data-billed-in className="text-theme-xs text-gray-400">{billedIn}</p>}
               {/* …and what was added for this shop, when anything was. The
                   line above is the PLAN's price; a shop with an add-on pays
                   more than that, and this was the screen that did not say so. */}

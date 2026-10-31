@@ -12,6 +12,8 @@ interface KeptQuery<T> {
   enabled?: boolean;
   refetchInterval?: number;
   refetchOnWindowFocus?: boolean;
+  /** `WATCHER_NETWORK_MODE` for a poll with no offline path of its own (#AZ2). */
+  networkMode?: "online" | "always" | "offlineFirst";
   /**
    * False for a variant of the query that is not worth keeping — an older
    * page of a list, say. It is then an ordinary query: asked, and forgotten.

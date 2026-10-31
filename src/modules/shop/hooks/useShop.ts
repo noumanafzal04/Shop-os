@@ -10,7 +10,7 @@ import {
   DEFAULT_DATE_FORMAT, dateFormatOf, dateIn, dateTimeIn, setShopDateFormat, shopDateFormat, shopDateFormatIsRemembered, shortDateIn, shortDateTimeIn, timeOf, typedDayIn,
   type DateFormatCode, type Datish,
 } from "../../../common/format/date";
-import { setShopDayRule } from "../../../common/shopDay";
+import { setShopDayRule, shopTodayDate } from "../../../common/shopDay";
 import { useKeptQuery } from "../../../common/kept/useKeptQuery";
 
 /**
@@ -212,7 +212,8 @@ export function useDates() {
     /** "5:14 PM" */
     time: (value: Datish) => timeOf(value),
     /** What somebody typed, as a day — or null. */
-    typed: (text: string) => typedDayIn(code, text),
+    /** "today" is the shop's business day, as every prefill is (#AZ1). */
+    typed: (text: string) => typedDayIn(code, text, shopTodayDate()),
   }), [code]);
 }
 

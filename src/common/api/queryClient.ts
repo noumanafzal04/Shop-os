@@ -61,3 +61,18 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * A WATCHER THAT ASKS ONLY WHILE THERE IS A LINE (#AZ2).
+ *
+ * `"always"` above is right for anything the till does with the line down —
+ * it has an offline path, and a failed request is what switches it on. A
+ * WATCHER has none. The bell asks every 30 seconds and the menu's order count
+ * every two minutes; offline for 5½ minutes, the bell dialled out eleven times
+ * into a dead line, failed eleven times and wrote eleven console errors —
+ * the whole of #OF2.
+ *
+ * Such a query takes TanStack's own `"online"`: with the browser offline it is
+ * paused, not run, and asked once the moment the line comes back.
+ */
+export const WATCHER_NETWORK_MODE = "online" as const;

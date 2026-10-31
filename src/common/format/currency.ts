@@ -131,3 +131,11 @@ export const paperIn = (currency: CurrencyFormat | null | undefined, value: stri
  */
 export const platformMoney = (value: string | number | null | undefined, places?: number): string =>
   formatIn(PKR, value, places);
+
+/**
+ * Said beside a platform figure on a shop that trades in something else (#AZ9):
+ * null where the two are the same money, so a rupee shop is told nothing new.
+ */
+export function platformBilledIn(shop: Pick<CurrencyFormat, "code">): string | null {
+  return shop.code === PKR.code ? null : `Billed in ${PKR.name} (${PKR.code}) — the platform's money, not your shop's.`;
+}

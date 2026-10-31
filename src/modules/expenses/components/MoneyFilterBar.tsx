@@ -282,6 +282,12 @@ export function MoneyFilterBar({
         role="dialog"
         aria-modal="true"
         aria-label="Filters"
+        // HIDDEN MEANS HIDDEN (#AZ16): always mounted and slid off the edge, so
+        // a closed drawer still told a screen reader a modal was open and put
+        // 18 controls in the tab order — 20 of 70 Tabs landed in it. The cure
+        // the Appearance drawer already has (ThemeCustomizer).
+        aria-hidden={!open}
+        inert={!open}
         className={`fixed z-[80] flex flex-col bg-white transition-transform duration-200 dark:bg-gray-900
           inset-x-0 bottom-0 max-h-[85dvh] rounded-t-2xl
           sm:inset-y-0 sm:left-auto sm:right-0 sm:h-dvh sm:max-h-none sm:w-[min(24rem,100vw)] sm:rounded-none
@@ -373,6 +379,9 @@ export function MoneyFilterBar({
               <Input
                 type="number"
                 min="0"
+                // To the paisa, as the expense itself is filed (A-to-Z, B6):
+                // a box with no step refused 1250.75.
+                step={0.01}
                 placeholder="From"
                 value={filters.min_amount ?? ""}
                 onChange={(e) => set({ min_amount: e.target.value })}
@@ -380,6 +389,9 @@ export function MoneyFilterBar({
               <Input
                 type="number"
                 min="0"
+                // To the paisa, as the expense itself is filed (A-to-Z, B6):
+                // a box with no step refused 1250.75.
+                step={0.01}
                 placeholder="To"
                 value={filters.max_amount ?? ""}
                 onChange={(e) => set({ max_amount: e.target.value })}

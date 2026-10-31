@@ -25,6 +25,7 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import Pager from "../../../components/ui/pager";
 import { dueOn, openOrders, PAY_METHODS, payOutlook, sentMoney } from "../payMath";
 import { shopToday } from "../../../common/shopDay";
+import { savedNotes } from "../../expenses/savedNotes";
 
 
 export default function SuppliersPage() {
@@ -110,7 +111,13 @@ export default function SuppliersPage() {
     else create.mutate(payload, opts);
   };
 
+  // What the server said about a payment it has saved — a till paid out of
+  // beyond what it held (#AZ14). The sheet stays up with it, as the expense
+  // form does (see savedNotes), instead of a toast gone in four seconds.
+  const [payNotes, setPayNotes] = useState<string[]>([]);
+
   const openPay = (s: Supplier) => {
+    setPayNotes([]);
     setTarget(s);
     setPayAmount("");
     setPayMethod("cash");
@@ -136,7 +143,13 @@ export default function SuppliersPage() {
         // What was missing is the other half: on success the dialog just
         // vanished, and money that leaves without a word is money a shopkeeper
         // pays twice.
-        onSuccess: () => { payOnce.renew(); payModal.closeModal(); toast.success(`Payment to ${target.name} recorded`); },
+        onSuccess: (response) => {
+          payOnce.renew();
+          toast.success(`Payment to ${target.name} recorded`);
+          const notes = savedNotes(response.meta);
+          if (notes.length > 0) setPayNotes(notes);
+          else payModal.closeModal();
+        },
       },
     );
   };
@@ -271,6 +284,15 @@ export default function SuppliersPage() {
 
         {pay.error instanceof ApiError && <div className="mb-3"><Alert variant="error" title="Couldn't record" message={pay.error.message} /></div>}
 
+        {payNotes.length > 0 ? (
+          <div data-testid="pay-saved-notes" className="space-y-3">
+            <Alert variant="success" title="Saved" message="The payment is recorded." />
+            {payNotes.map((n) => <Alert key={n} variant="warning" title="Worth knowing" message={n} />)}
+            <div className="flex justify-end">
+              <Button size="sm" onClick={payModal.closeModal}>Done</Button>
+            </div>
+          </div>
+        ) : (<>
         <div className="space-y-4">
           <div>
             <Label htmlFor="pay-amount">Amount</Label>
@@ -348,6 +370,7 @@ export default function SuppliersPage() {
           <Button size="sm" variant="outline" onClick={payModal.closeModal}>Cancel</Button>
           <Button size="sm" onClick={doPay} disabled={pay.isPending || entered <= 0}>{pay.isPending ? "Saving…" : "Record payment"}</Button>
         </div>
+        </>)}
       </Modal>
     </>
   );

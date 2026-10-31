@@ -159,13 +159,6 @@ export function spokenDate(value: Datish): string {
   return p ? `${p.d} ${MONTHS_LONG[p.m - 1]} ${p.y}` : "";
 }
 
-/** The day as a machine holds it: "2026-10-12". What a date field's value is. */
-export function isoDay(value: Datish): string {
-  const p = partsOf(value);
-
-  return p ? `${p.y}-${two(p.m)}-${two(p.d)}` : "";
-}
-
 /**
  * WHAT SOMEBODY TYPED, as a day — or null when it is not one.
  *

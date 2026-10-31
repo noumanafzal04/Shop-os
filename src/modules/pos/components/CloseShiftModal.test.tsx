@@ -13,10 +13,11 @@ import CloseShiftModal from "./CloseShiftModal";
  */
 
 let byNote = true;
+let expectedCash = 22580;
 
 vi.mock("../hooks/usePos", () => ({
   useSessionReport: () => ({
-    data: { denomination_count: byNote, blind_close: false, declare_tenders: false, denominations: [1000, 500], drawer: { expected_cash: 22580 } },
+    data: { denomination_count: byNote, blind_close: false, declare_tenders: false, denominations: [1000, 500], drawer: { expected_cash: expectedCash } },
   }),
 }));
 vi.mock("../../offline/tillSettings", () => ({
@@ -36,6 +37,7 @@ function sheet() {
 
 beforeEach(() => {
   byNote = true;
+  expectedCash = 22580;
 });
 
 describe("closing a shift nobody counted", () => {
@@ -104,5 +106,33 @@ describe("counting to the paisa (the full re-test, #9)", () => {
 
     fireEvent.click(closeButton());
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ counted: 1000, loose: undefined }));
+  });
+});
+
+/**
+ * #AZ14 — a till paid out beyond what it held: AED 200 float, 152.25 taken, a
+ * supplier paid 1,000 and an expense 120.50 in cash. Expected −668.00; counted
+ * 0; the sheet said "Over 668.00" beside "The drawer is empty".
+ */
+describe("a drawer paid out beyond what it held", () => {
+  it("does not call the empty drawer a surplus, and says where to look", () => {
+    byNote = false;
+    expectedCash = -668;
+    sheet();
+    fireEvent.click(screen.getByRole("checkbox", { name: /The drawer is empty/ }));
+
+    expect(screen.queryByText("Over")).toBeNull();
+    expect(screen.getByText("Paid out beyond what it held")).toBeInTheDocument();
+    expect(document.querySelector("[data-drawer-overdrawn]")).toHaveTextContent("668 came from somewhere");
+  });
+
+  it("an ordinary surplus is still Over", () => {
+    byNote = false;
+    expectedCash = 100;
+    sheet();
+    fireEvent.change(screen.getByLabelText("Counted cash"), { target: { value: "150" } });
+
+    expect(screen.getByText("Over")).toBeInTheDocument();
+    expect(document.querySelector("[data-drawer-overdrawn]")).toBeNull();
   });
 });

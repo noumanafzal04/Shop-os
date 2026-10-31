@@ -28,3 +28,18 @@ export function bankedBeyondDrawers(
 export function depositCanBeCorrected(deposit: Pick<BankDeposit, "business_day">, dayStatus?: string | null): boolean {
   return (dayStatus ?? deposit.business_day?.status ?? null) !== "closed";
 }
+
+/**
+ * WHAT "STILL IN THE SHOP" IS TAKEN FROM (#AZ7).
+ *
+ * It is the cash the drawers hold — COUNTED where a shift is closed, expected
+ * where one is still trading — less what was banked. "In the drawers" beside
+ * it is what they should hold. The caption said "In the drawers, less what was
+ * banked", true only while every count matched: a shift counted 5,000 over
+ * read In the drawers 1,140 · Banked 500 · Still in the shop 5,640.
+ */
+export function stillInTheShopHint(variance: number, word: (amount: number) => string): string {
+  if (Math.abs(variance) < 0.005) return "In the drawers, less what was banked";
+
+  return `What the drawers were counted at, less what was banked — the count was ${word(Math.abs(variance))} ${variance > 0 ? "over" : "short"}`;
+}

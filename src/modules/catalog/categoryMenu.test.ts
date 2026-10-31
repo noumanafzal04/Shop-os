@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { categoryMenu, menuLabel } from "./categoryMenu";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 /**
  * Next rounds #22: online the till's category menu offered five rows, offline
@@ -33,5 +35,33 @@ describe("one category list, however it arrives", () => {
 
   it("keeps a child whose parent it was not sent", () => {
     expect(categoryMenu([{ id: "cw", name: "QA Cookware", parent_id: "gone" }])).toEqual([{ id: "cw", name: "QA Cookware", depth: 0 }]);
+  });
+});
+
+/**
+ * #AZ5: the item form built its own list one level deep, so a third-level
+ * category could be made and filtered by but nothing could be filed in it.
+ * Every picker reads `categoryMenu`; nobody walks `children` by hand.
+ */
+describe("no screen lists categories one level deep by hand", () => {
+  const src = resolve(__dirname, "../..");
+  const files = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const at = join(dir, name);
+      if (statSync(at).isDirectory()) return files(at);
+
+      return /\.tsx?$/.test(name) && !/\.test\./.test(name) && name !== "categoryMenu.ts" ? [at] : [];
+    });
+
+  it("walks children only inside categoryMenu", () => {
+    const handmade = files(src).filter((f) => /children \?\? \[\]\)\.(map|flatMap)|\.children\?\.map/.test(readFileSync(f, "utf8")));
+
+    expect(handmade).toEqual([]);
+  });
+
+  it("the item form offers every level", () => {
+    const form = readFileSync(resolve(__dirname, "pages/ProductFormPage.tsx"), "utf8");
+
+    expect(form).toMatch(/categoryMenu\(categories\.data/);
   });
 });

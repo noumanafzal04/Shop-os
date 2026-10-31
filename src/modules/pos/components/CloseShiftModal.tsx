@@ -4,6 +4,7 @@ import Button from "../../../components/ui/button/Button";
 import { useMoney } from "../../shop/hooks/useShop";
 import { numberIn } from "../../../common/format/currency";
 import { useSessionReport } from "../hooks/usePos";
+import { varianceWord } from "../drawerWords";
 import { tillFlag, useTillSettings, useTillCurrency } from "../../offline/tillSettings";
 import { useConnectionStore } from "../../../stores/connectionStore";
 import { useOfflineStore } from "../../offline/offlineStore";
@@ -202,7 +203,7 @@ export default function CloseShiftModal({
               onFocus={(e) => e.currentTarget.select()}
               onChange={(e) => setLoose(typedMoney(e.target.value))}
             />
-            <span className="text-theme-xs text-gray-400">paisa or anything no box above holds</span>
+            <span className="text-theme-xs text-gray-400">small coins, or anything no box above holds</span>
           </div>
         </div>
       ) : (
@@ -234,11 +235,17 @@ export default function CloseShiftModal({
             </div>
             {variance !== null && Math.abs(variance) > 0.001 && (
               <div className="mt-1 flex items-baseline justify-between text-theme-xs">
-                <span className="text-gray-400">{variance > 0 ? "Over" : "Short"}</span>
+                <span className="text-gray-400">{varianceWord(expected, variance)}</span>
                 <span className="font-medium tabular-nums text-error-600 dark:text-error-400">
                   {money(Math.abs(variance))}
                 </span>
               </div>
+            )}
+            {expected < -0.001 && (
+              <p data-drawer-overdrawn role="note" className="mt-2 text-theme-xs text-warning-700 dark:text-warning-400">
+                More cash was paid out of this drawer than it ever held, so {money(-expected)} came from somewhere
+                else. Record that money as a Paid in before closing and the count will balance.
+              </p>
             )}
           </>
         )}

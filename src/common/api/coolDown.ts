@@ -12,13 +12,27 @@ import { UNSAID_WAIT_SECONDS } from "./failureWords";
  * holds its button until it reaches 0. 0 when there is nothing to wait for.
  */
 export function useCoolDown(error: unknown): number {
+  return useCoolDownState(error).left;
+}
+
+/**
+ * The same count, and whether it has run out (#AZ3) — so a screen whose words
+ * named the wait can stop naming it. The sign-in screen said "wait 53 seconds"
+ * and still said 53 three seconds later, with its button live.
+ */
+export function useCoolDownState(error: unknown): { left: number; over: boolean } {
   const [left, setLeft] = useState(0);
+  const [over, setOver] = useState(false);
 
   useEffect(() => {
     const seconds = error instanceof ApiError && error.status === 429 ? (error.figure("retry_after") ?? UNSAID_WAIT_SECONDS) : 0;
     if (seconds <= 0) return;
     const until = Date.now() + seconds * 1000;
-    const tick = () => setLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+    const tick = () => {
+      const now = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+      setLeft(now);
+      if (now === 0) setOver(true);
+    };
     const first = window.setTimeout(tick, 0);
     const every = window.setInterval(tick, 1000);
 
@@ -26,8 +40,9 @@ export function useCoolDown(error: unknown): number {
       window.clearTimeout(first);
       window.clearInterval(every);
       setLeft(0);
+      setOver(false);
     };
   }, [error]);
 
-  return left;
+  return { left, over };
 }

@@ -88,3 +88,37 @@ describe("no screen writes a currency mark of its own", () => {
     expect(offences, "these write a currency mark themselves — use useMoney(), platformMoney or money(n, shop.currency)").toEqual([]);
   });
 });
+
+/**
+ * #AZ15 — "paisa" printed to a shop that trades in dirhams: the close-shift
+ * sheet's loose-cash row and the "Round cash bills to" choice. The 25-screen
+ * sweep never opened either, because both sit on sheets. The rupee's coin is
+ * as much a currency mark as "Rs".
+ */
+const COIN = /\bpaisa\b(?!\s*[(=])/i;
+
+describe("no screen names the rupee's coin", () => {
+  it("finds it when it is written, and not in code that merely counts", () => {
+    for (const line of ['<span className="x">paisa or anything no box above holds</span>', '{ value: "0", label: "Nothing — exact to the paisa" },']) {
+      expect(COIN.test(codeOf(line).join("\n")), line).toBe(true);
+    }
+    for (const line of ["const paisa = (n: number) => Math.round(n * 100) / 100;", "amount: paisa(due)", "// to the paisa", "JazzCash, Easypaisa, SadaPay"]) {
+      expect(COIN.test(codeOf(line).join("\n")), line).toBe(false);
+    }
+  });
+
+  it("every screen says it in words true of any money", () => {
+    const offences: string[] = [];
+
+    for (const file of walk(SRC)) {
+      const rel = path.relative(SRC, file).split(path.sep).join("/");
+      if (ALLOWED.some(([where]) => where.test(rel))) continue;
+
+      codeOf(fs.readFileSync(file, "utf8")).forEach((line, i) => {
+        if (COIN.test(line)) offences.push(`${rel}:${i + 1}  ${line.trim().slice(0, 120)}`);
+      });
+    }
+
+    expect(offences, "say \"small coins\" or \"the exact amount\" — a shop may trade in fils or cents").toEqual([]);
+  });
+});

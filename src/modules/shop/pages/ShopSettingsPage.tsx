@@ -1051,7 +1051,7 @@ export default function ShopSettingsPage() {
                           <Select
                             value={String(prefs.cash_rounding ?? 0)}
                             options={[
-                              { value: "0", label: "Nothing — exact to the paisa" },
+                              { value: "0", label: "Nothing — keep the exact amount" },
                               { value: "1", label: `Nearest ${sym} 1` },
                               { value: "5", label: `Nearest ${sym} 5` },
                               { value: "10", label: `Nearest ${sym} 10` },

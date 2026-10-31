@@ -24,6 +24,7 @@ import { effectiveTaxRate } from "../../offline/pricing/priceCart";
 import { round2 } from "../../offline/pricing/money";
 import { formatIn } from "../../../common/format/currency";
 import { useTillCurrency } from "../../offline/tillSettings";
+import { quickTendersFor } from "../quickTenders";
 import { taxFieldsOf } from "../taxFields";
 import { lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, packPrice, recalcLine, withLineDiscount } from "../lineMath";
 import { followLevel, shortBy, taxableShown, tillBill, type BillGroup } from "../tillBill";
@@ -1339,12 +1340,7 @@ export default function PosPage() {
     // Promotions with a refusal, and it used to on every change to the cart.
     if (billLines.length === 0 || !hasOffers) { setPromo(null); return; }
     let alive = true;
-    promotionsService
-      .preview(billLines.map((l) => ({
-        product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity, line_total: lineNet(l),
-      })))
-      .then(({ data }) => { if (alive) setPromo(data); })
-      .catch(async () => {
+    const fromTheTill = async () => {
         const local = await linesFromCatalog(billLines.map((l) => ({
           product_id: l.product_id,
           variant_id: l.variant_id,
@@ -1358,12 +1354,26 @@ export default function PosPage() {
           .then(({ lines }) => promotionLocally(lines, Number(discount) || 0))
           .catch(() => null);
         if (alive) setPromo(local === null ? null : { promotion_id: local.id, name: local.name, discount: local.discount });
-      });
+    };
+    // With the line known to be down the server is not asked at all: a cart
+    // of six changes sent six previews into a dead line, six console errors,
+    // before the till's own engine answered anyway (A-to-Z, B7 — as #OF5
+    // did for search).
+    if (!connected) {
+      void fromTheTill();
+    } else {
+      promotionsService
+        .preview(billLines.map((l) => ({
+          product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity, line_total: lineNet(l),
+        })))
+        .then(({ data }) => { if (alive) setPromo(data); })
+        .catch(fromTheTill);
+    }
     return () => { alive = false; };
     // Keyed on what the lines COST, not on the array: a customer's group
     // arriving re-prices every line without the cart itself changing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promoKey, hasOffers]);
+  }, [promoKey, hasOffers, connected]);
 
   const clearSale = () => {
     setAddingTo(null);
@@ -2887,9 +2897,8 @@ export default function PosPage() {
       : method === "split" ? total > 0 && splitPaid >= payable
       : true
   );
-  const quickTenders = [payable, Math.ceil(payable / 500) * 500, Math.ceil(payable / 1000) * 1000, Math.ceil(payable / 5000) * 5000]
-    .filter((v, i, a) => v > 0 && a.indexOf(v) === i)
-    .slice(0, 4);
+  // From the shop's own notes, not three rupee steps (#AZ13).
+  const quickTenders = quickTendersFor(payable, currency.cash);
 
   // Publish the current handlers for the keyboard-shortcut listener.
   //
@@ -4821,6 +4830,14 @@ export default function PosPage() {
           <div>
             <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300">Manual discount ({cur})</label>
             <Input type="number" min="0" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+            {/* Said at the keying, not at the press (A-to-Z, B6): 5,000 off a
+                150 bill read "GRAND TOTAL 0" with Complete live, and the
+                cashier learned it was refused with the customer waiting. */}
+            {subtotal > 0 && (Number(discount) || 0) > subtotal && (
+              <p data-discount-past-bill className="mt-1 text-theme-xs text-error-500">
+                More than the bill — take off at most {money(subtotal)}, or the sale will be refused.
+              </p>
+            )}
           </div>
           {hasOffers && (
           <div>
@@ -5017,7 +5034,7 @@ export default function PosPage() {
                           a correction from the server — and comparing it to
                           the unrounded bill meant the one button that is
                           exactly right stopped saying so. */}
-                      {v === payable ? `Exact · ${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
+                      {v === quickTenders[0] ? `Exact · ${Number(v).toLocaleString()}` : Number(v).toLocaleString()}
                     </button>
                   ))}
                 </div>

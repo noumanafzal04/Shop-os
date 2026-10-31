@@ -26,7 +26,7 @@ import {
   useTakenWithNoDrawer,
 } from "../hooks/useDay";
 import { dayService, signerName, type BankDeposit, type BusinessDay, type DayShift } from "../services/dayService";
-import { bankedBeyondDrawers, depositCanBeCorrected } from "../banking";
+import { bankedBeyondDrawers, depositCanBeCorrected, stillInTheShopHint } from "../banking";
 import { useConfirm } from "../../../components/ui/confirm";
 import ClosedTodayCard from "../components/ClosedTodayCard";
 import { shopToday, turnsAtLabel } from "../../../common/shopDay";
@@ -493,8 +493,10 @@ export default function DayPage() {
                   />
                   {/* WHAT THIS FIGURE IS (#RS11). "Cash takings" counted a sale
                       that was rung and cancelled — its cash went straight back
-                      out, and that is in the drawer figure beside it, not here. */}
-                  <Stat label="Cash through drawers" value={money(running!.cash_sales)} hint="Cash sales on a shift, before refunds" />
+                      out, and that is in the drawer figure beside it, not here.
+                      A cash refund IS taken off (DrawerMath: tendered − change −
+                      cash refunds), so the hint says so (#AZ10). */}
+                  <Stat label="Cash through drawers" value={money(running!.cash_sales)} hint="Cash sales on a shift, less cash refunds" />
                   <Stat
                     label="In the drawers"
                     value={money(running!.expected_cash)}
@@ -507,7 +509,7 @@ export default function DayPage() {
                     hint={
                       (view.banked_beyond_drawers ?? 0) > 0
                         ? `${money(view.banked_beyond_drawers!)} more banked than the drawers held`
-                        : "In the drawers, less what was banked"
+                        : stillInTheShopHint(running!.variance, money)
                     }
                   />
                   <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
-import { dateIn, isoDay, monthYear, typedDayIn, type DateFormatCode } from "../../common/format/date";
+import { dateIn, monthYear, typedDayIn, type DateFormatCode } from "../../common/format/date";
+import { shopToday, shopTodayDate } from "../../common/shopDay";
 import { useDateFormat } from "../../modules/shop/hooks/useShop";
 import { CalenderIcon } from "../../icons";
 
@@ -116,7 +117,10 @@ export default function DateField({
   const [typing, setTyping] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const today = isoDay(new Date());
+  // The SHOP's day, not the device's: between midnight and the day-turn the
+  // two differ, and a box that prefilled the business day while "today" typed
+  // into it meant the wall date put one expense in two days (#AZ1).
+  const today = shopToday();
   // The month the calendar is showing, and the day the keyboard is on.
   const [cursor, setCursor] = useState(value || today);
   const [place, setPlace] = useState<{ left: number; top: number } | null>(null);
@@ -135,7 +139,7 @@ export default function DateField({
       : `That is after ${dateIn(code, max)}, the latest day this takes.`;
 
   // Held back from the form: refused, or typed words that are not yet a day it takes.
-  const typedDay = typing !== null && typing.trim() !== "" ? typedDayIn(code, typing) : undefined;
+  const typedDay = typing !== null && typing.trim() !== "" ? typedDayIn(code, typing, shopTodayDate()) : undefined;
   const held = refused !== null || (typedDay !== undefined && (typedDay === null || !allowed(typedDay)));
   const tell = useRef(onInvalid);
   tell.current = onInvalid;
@@ -149,7 +153,7 @@ export default function DateField({
 
       return;
     }
-    const day = typedDayIn(code, text);
+    const day = typedDayIn(code, text, shopTodayDate());
     // Given as soon as it IS a day — a form that is read before the box is
     // left (a filter, a test) holds what is on the screen. A day it will not
     // take is said at once, not when the box is left (#17).
@@ -163,7 +167,7 @@ export default function DateField({
     setTyping(null);
     if (text === "") return;
 
-    const day = typedDayIn(code, text);
+    const day = typedDayIn(code, text, shopTodayDate());
     if (day === null) setRefused(`“${text}” is not a date. Type it like ${dateIn(code, today)}, or pick it from the calendar.`);
     else if (!allowed(day)) setRefused(outside(day));
   };

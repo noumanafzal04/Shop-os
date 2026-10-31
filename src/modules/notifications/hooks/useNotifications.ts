@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPost } from "../../../common/api/client";
+import { WATCHER_NETWORK_MODE } from "../../../common/api/queryClient";
 import { useKeptQuery } from "../../../common/kept/useKeptQuery";
 import type { ApiEnvelope } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
@@ -37,6 +38,8 @@ export function useNotifications(page = 1) {
     staleTime: BELL_EVERY,
     // Near-real-time bell without websockets.
     refetchInterval: BELL_EVERY,
+    // …and not into a dead line: paused offline, asked once when it is back (#AZ2).
+    networkMode: WATCHER_NETWORK_MODE,
     refetchOnWindowFocus: true,
   });
 }

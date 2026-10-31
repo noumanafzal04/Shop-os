@@ -1,4 +1,6 @@
 import { blankPack, packPayload, packRowsFrom, pieceCodes, type PackRow } from "../packCodes";
+import { categoryMenu, menuLabel } from "../categoryMenu";
+import { useWrongBoxOpensItsTab } from "../wrongBoxOpensItsTab";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -11,7 +13,7 @@ import Select from "../../../components/form/Select";
 import Button from "../../../components/ui/button/Button";
 import Alert from "../../../components/ui/alert/Alert";
 import { ApiError, type ApiMeta } from "../../../common/types/api";
-import { SERIAL_TRADES, usePrimaryBusinessType } from "../../../common/tenant/businessType";
+import { tracksSerials, usePrimaryBusinessType } from "../../../common/tenant/businessType";
 import { productExampleFor } from "../productExamples";
 import { useAuthStore } from "../../../stores/authStore";
 import {
@@ -693,10 +695,6 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
     }
   };
 
-  if (!hasPermission("products.manage")) {
-    return <Alert variant="error" title="No access" message="You don't have permission to manage items." />;
-  }
-
   // The tabs follow the shop's modules and the item's type — see formTabs.
   //
   // Sizes are editable now, so that tab no longer disappears on edit. It used
@@ -705,6 +703,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // sizes gone.
   const tabs = tabsFor({ online: marketplaceEnabled, sizes: showVariants, addOns: supportsModifiers, service: isService });
   const activeTab: FormTab = tabs.includes(tab) ? tab : "details";
+  const wrongBox = useWrongBoxOpensItsTab(activeTab, setTab);
+
+  if (!hasPermission("products.manage")) {
+    return <Alert variant="error" title="No access" message="You don't have permission to manage items." />;
+  }
+
   // What the server refused where nobody is looking, and which tabs hold it.
   const outOfSight = refusalsOutOfSight(fieldErrors, activeTab, tabs);
   const refusedOn = new Set(
@@ -780,7 +784,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
           ))}
         </div>
 
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <form onSubmit={submit} onInvalidCapture={wrongBox} className="flex min-h-0 flex-1 flex-col">
           {/* `min-h-0` so this pane can shrink below its content: a flex item
               defaults to `min-height: auto` and otherwise grows past the dialog,
               pushing the footer — and with it Save and Cancel — off the bottom.
@@ -867,7 +871,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             ))}
 
             {/* ═══════════════ TAB: Details ═══════════════ */}
-            <div className={activeTab === "details" ? "space-y-5" : "hidden"}>
+            <div data-form-tab="details" className={activeTab === "details" ? "space-y-5" : "hidden"}>
         {/* Item type — chosen once at creation; after that it is the chip in the header */}
         {!isEdit && allowedTypes.length > 1 && (
           <div>
@@ -1020,10 +1024,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             defaultValue={categoryId}
             options={[
               { value: "", label: "No category" },
-              ...(categories.data ?? []).flatMap((c) => [
-                { value: c.id, label: c.name },
-                ...(c.children ?? []).map((ch) => ({ value: ch.id, label: `— ${ch.name}` })),
-              ]),
+              // Every level, as the filter and the till list them: a third
+              // level could be made and filtered by, but nothing filed in it (#AZ5).
+              ...categoryMenu(categories.data ?? []).map((c) => ({ value: c.id, label: menuLabel(c) })),
             ]}
             placeholder="No category"
             onChange={setCategoryId}
@@ -1152,8 +1155,9 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             warranty: retail (phones, electronics) and the auto aftermarket
             (batteries above all — the most-claimed warranty item on a
             Pakistani forecourt, and one this section used to lock out
-            entirely). A grocery or pharmacy never tracks a unit by serial. */}
-        {isPhysical && SERIAL_TRADES.includes(businessType ?? "") && (
+            entirely), and the repair shop fitting a part (#AZ8). A grocery
+            or pharmacy never tracks a unit by serial. */}
+        {isPhysical && tracksSerials(businessType) && (
           <Section title="Serial & warranty">
             <div className="space-y-3">
               <label className="flex cursor-pointer items-center gap-2 text-theme-sm text-gray-700 dark:text-gray-300">
@@ -1526,7 +1530,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                 online: whether this item does, what a customer will find when
                 it does, the collections it sits in, the least they may order. */}
             {marketplaceEnabled && (
-            <div className={activeTab === "online" ? "space-y-5" : "hidden"}>
+            <div data-form-tab="online" className={activeTab === "online" ? "space-y-5" : "hidden"}>
         <Toggle
           checked={visibleOnline}
           onChange={setVisibleOnline}
@@ -1608,7 +1612,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             )}
 
             {/* ═══════════════ TAB: Variants & options ═══════════════ */}
-            <div className={activeTab === "options" ? "space-y-5" : "hidden"}>
+            <div data-form-tab="options" className={activeTab === "options" ? "space-y-5" : "hidden"}>
         {/* Variants — products, on BOTH paths.
             This said "creation only" for a while after it stopped being true,
             which is its own kind of wrong documentation: a comment stating a
@@ -1710,7 +1714,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             </div>
 
             {/* ═══════════════ TAB: Codes & packs ═══════════════ */}
-            <div className={activeTab === "advanced" ? "space-y-5" : "hidden"}>
+            <div data-form-tab="advanced" className={activeTab === "advanced" ? "space-y-5" : "hidden"}>
         {/* Codes, units, packs & bulk prices — a service has none of them.
 
             TWO TO A ROW: the codes, then the brand and the trade price, then

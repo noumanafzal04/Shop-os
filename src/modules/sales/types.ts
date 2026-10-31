@@ -118,6 +118,8 @@ export interface Sale {
   tip_amount?: string | number | null;
   /** A cash bill settled to a coin: + the shop kept it, − it gave it up. */
   rounding_adjustment?: string | number | null;
+  /** The prices held the tax already: `tax` is inside `total`, never on top of it (#AZ6). */
+  tax_inclusive?: boolean;
   /** What on the bill only the server prices — a till's shadow check leaves these out. */
   coupon_code?: string | null;
   points_redeemed?: string | number | null;

@@ -72,3 +72,18 @@ export function salesSteps(d: {
 export function refundsWord(refunds: number, exchanges = 0): string {
   return exchanges > 0 ? `${refunds} · ${exchanges} ${exchanges === 1 ? "exchange" : "exchanges"}` : String(refunds);
 }
+
+/**
+ * WHAT A COUNT THAT DOES NOT MATCH IS CALLED (#AZ14).
+ *
+ * A shift with an AED 200 float paid a supplier AED 1,000 in cash: the drawer
+ * then "expected" −668, and a drawer counted at 0 was called "Over 668" beside
+ * the tick that says the drawer is empty. Nobody was 668 up — the till had been
+ * paid out of beyond anything it held. Below zero the expectation itself is the
+ * thing to explain, so that is what the line says.
+ */
+export function varianceWord(expected: number, variance: number): string {
+  if (expected < -0.001) return "Paid out beyond what it held";
+
+  return variance > 0 ? "Over" : "Short";
+}

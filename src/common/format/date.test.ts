@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  DATE_FORMAT_CODES, DEFAULT_DATE_FORMAT, dateFormatOf, dateIn, dateTimeIn, isoDay, monthName, monthYear,
+  DATE_FORMAT_CODES, DEFAULT_DATE_FORMAT, dateFormatOf, dateIn, dateTimeIn, monthName, monthYear,
   setShopDateFormat, shopDate, shopDateFormat, shopDateTime, shopShortDate, shortDateIn, shortDateTimeIn, timeOf, typedDayIn,
   type DateFormatCode,
 } from "./date";
@@ -32,7 +32,6 @@ describe("a day, written the way the shop writes dates", () => {
   it("is the day it says, whatever the clock on the wall — a day is never moved to a time zone", () => {
     // `new Date("2026-10-12")` is midnight UTC: the 11th, west of Greenwich.
     // Read as its own three numbers, it is the 12th everywhere.
-    expect(isoDay("2026-10-12")).toBe("2026-10-12");
     expect(dateIn("dmy_text", "2026-01-01")).toBe("1 Jan 2026");
     expect(dateIn("dmy_text", "2025-12-31")).toBe("31 Dec 2025");
   });
@@ -43,7 +42,6 @@ describe("a day, written the way the shop writes dates", () => {
       expect(shortDateIn("dmy", nothing)).toBe("");
       expect(dateTimeIn("dmy", nothing)).toBe("");
       expect(timeOf(nothing)).toBe("");
-      expect(isoDay(nothing)).toBe("");
     }
   });
 
@@ -77,7 +75,6 @@ describe("a moment, as the clock in front of the reader had it", () => {
   it("takes the moment as a string or a number too", () => {
     expect(dateIn("dmy_text", afternoon.toISOString())).toBe("5 Oct 2026");
     expect(dateIn("dmy_text", afternoon.getTime())).toBe("5 Oct 2026");
-    expect(isoDay(afternoon)).toBe("2026-10-05");
   });
 
   it("names a month the same in every format", () => {

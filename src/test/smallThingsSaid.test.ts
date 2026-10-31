@@ -52,7 +52,7 @@ describe("small things, said right", () => {
 const dayPage = read(import.meta.glob("../modules/day/pages/DayPage.tsx", { query: "?raw", import: "default", eager: true }));
 
 it("#RS11 the day's cash figure is named for what it counts", () => {
-  expect(dayPage).toMatch(/<Stat label="Cash through drawers" value=\{money\(running!\.cash_sales\)\} hint="Cash sales on a shift, before refunds" \/>/);
+  expect(dayPage).toMatch(/<Stat label="Cash through drawers" value=\{money\(running!\.cash_sales\)\} hint="Cash sales on a shift, less cash refunds" \/>/);
   expect(dayPage).not.toMatch(/label="Cash takings"/);
 });
 
@@ -73,4 +73,14 @@ it("#RS3 #RS4 the table's settle sheet offers a discount, a coupon and a split b
 
 it("#OF5 the till does not search a server it knows it cannot reach", () => {
   expect(pos).toMatch(/for_sale: true, page, per_page: POS_PAGE_SIZE \}, connected\);/);
+});
+
+it("A-to-Z B7: an offline till prices its promotion itself and asks no server", () => {
+  expect(pos).toMatch(/if \(!connected\) \{\s*void fromTheTill\(\);\s*\} else \{\s*promotionsService\s*\.preview\(/);
+  expect(pos).toMatch(/\.catch\(fromTheTill\);/);
+  expect(pos).toMatch(/\}, \[promoKey, hasOffers, connected\]\);/);
+});
+
+it("A-to-Z B6: a discount past the bill is said at the keying", () => {
+  expect(pos).toMatch(/\{subtotal > 0 && \(Number\(discount\) \|\| 0\) > subtotal && \(\s*<p data-discount-past-bill/);
 });
