@@ -25,4 +25,12 @@ describe("a manual discount the till will not pay against", () => {
     expect(till).toMatch(/<Button size="sm" onClick=\{discountModal\.closeModal\} disabled=\{discountRefused !== null\}>Done<\/Button>/);
     expect(till).toMatch(/\{discountRefused === "below_nothing" && \(/);
   });
+
+  it("#AZ24 a refused minus never reaches the bill — the box keeps it, the total does not", () => {
+    const till = readFileSync(resolve(__dirname, "pages/PosPage.tsx"), "utf8");
+
+    expect(till).toMatch(/const discountTaken = Math\.max\(0, Number\(discount\) \|\| 0\);/);
+    expect(till).toMatch(/useMemo\(\(\) => tillBill\(\{[\s\S]{0,200}discount: discountTaken,/);
+    expect(till).not.toMatch(/Number\(discount\) \|\| 0\)(?!;)/);
+  });
 });

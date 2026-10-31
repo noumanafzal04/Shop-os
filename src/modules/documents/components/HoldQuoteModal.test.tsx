@@ -27,7 +27,7 @@ vi.mock("../../shop/hooks/useShop", async (original) => ({
   ...(await original<typeof import("../../shop/hooks/useShop")>()),
   useMoney: () => (n: number | string) => `Rs ${Number(n).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
 }));
-vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null }));
+vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null, useCashReachesNoDrawer: () => null }));
 vi.mock("../../../components/ui/toast", () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }));
 
 const quote = (over: Partial<SaleDocument> = {}) => ({

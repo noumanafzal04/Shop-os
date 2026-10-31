@@ -38,7 +38,7 @@ vi.mock("../../shop/hooks/useShop", async (original) => ({
   // The shop's setting says 20 % — the sheet must not work the floor out from it.
   useShopSettings: () => ({ data: { layaway_enabled: true, quotations_enabled: true, layaway_min_deposit_percent: 20 } }),
 }));
-vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null }));
+vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null, useCashReachesNoDrawer: () => null }));
 vi.mock("../../customers/components/CustomerSuggestions", () => ({ CustomerSuggestions: () => null }));
 vi.mock("../../../components/ui/toast", () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }));
 

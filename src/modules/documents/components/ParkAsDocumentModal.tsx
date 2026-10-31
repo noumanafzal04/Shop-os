@@ -10,8 +10,8 @@ import { useDocumentMutations, useDocumentWorth } from "../hooks/useDocuments";
 import { DEPOSIT_METHODS, documentService } from "../services/documentService";
 import type { DocumentKind, DocumentLineInput } from "../services/documentService";
 import { useOnceKey } from "../../../common/onceKey";
-import { useCashNeedsShift } from "../../pos/hooks/useCounterShift";
-import { ShiftNeeded } from "../../pos/components/ShiftNeeded";
+import { useCashNeedsShift, useCashReachesNoDrawer } from "../../pos/hooks/useCounterShift";
+import { NoDrawerNote, ShiftNeeded } from "../../pos/components/ShiftNeeded";
 import { CustomerSuggestions } from "../../customers/components/CustomerSuggestions";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { shopToday } from "../../../common/shopDay";
@@ -98,6 +98,11 @@ export default function ParkAsDocumentModal({
   const belowMinimum = layaway && minimum > 0 && depositValue + 0.001 < minimum;
   const missingCustomer = layaway && !phone.trim();
   const shiftWhy = useCashNeedsShift(layaway ? method : "", depositValue);
+  // Said BEFORE the press (#AZ25): with shifts not required and no drawer of
+  // theirs open, the advance's cash reaches no drawer — the cancel sheet and
+  // Day & banking said so afterwards, the one moment to open a shift passed
+  // in silence. Card, bank and wallet money is never mentioned.
+  const noDrawer = useCashReachesNoDrawer(layaway ? method : "", depositValue);
 
   const submit = () => {
     create.mutate(
@@ -227,6 +232,7 @@ export default function ParkAsDocumentModal({
       </div>
 
       {shiftWhy && <div className="mt-4"><ShiftNeeded why={shiftWhy} /></div>}
+      {noDrawer && <div className="mt-4"><NoDrawerNote note={noDrawer} /></div>}
       {refused && <p className="mt-4 text-theme-sm text-error-600 dark:text-error-400">{refused}</p>}
 
       <div className="mt-6 flex justify-end gap-2">

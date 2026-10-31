@@ -1161,12 +1161,17 @@ export default function PosPage() {
   // Nothing typed is no tip. A switch turned off mid-sale takes the tip with
   // it: a figure the cashier can no longer see must not be on the bill.
   const tipAmount = tipsOn ? Math.max(0, round2(Number(tip) || 0)) : 0;
+  // What the bill takes off — never less than nothing (#AZ24). A "-50" typed
+  // into the box is refused there, but it reached the bill first: the till read
+  // GRAND TOTAL Rs 200 on a Rs 150 cart while the box said no. The box keeps
+  // what was typed, so the cashier can see and fix it; the bill does not.
+  const discountTaken = Math.max(0, Number(discount) || 0);
   const bill = useMemo(() => tillBill({
     lines: billLines,
     group: customerGroup,
     defaultTaxRate: taxRate,
     taxInclusive,
-    discount: Number(discount) || 0,
+    discount: discountTaken,
     couponDiscount,
     promoDiscount,
     redeemPoints: redeemPtsNum,
@@ -1175,7 +1180,7 @@ export default function PosPage() {
     tip: tipAmount,
     tenders: tenderKey === "" ? [] : tenderKey.split(","),
     cashRounding: roundingStep,
-  }), [billLines, customerGroup, taxRate, taxInclusive, discount, couponDiscount, promoDiscount,
+  }), [billLines, customerGroup, taxRate, taxInclusive, discountTaken, couponDiscount, promoDiscount,
     redeemPtsNum, redeemValue, tradeInTotal, tipAmount, tenderKey, roundingStep]);
   const subtotal = bill.subtotal;
   const loyaltyDiscount = bill.loyaltyDiscount;
@@ -1196,7 +1201,7 @@ export default function PosPage() {
    */
   const currentBill = billKey({
     lines: cart,
-    discount: Number(discount) || 0,
+    discount: discountTaken,
     couponDiscount,
     promoDiscount,
     redeemPoints: redeemPtsNum,
@@ -1354,7 +1359,7 @@ export default function PosPage() {
           discountValue: l.discountValue,
           discountMode: l.discountMode,
         })))
-          .then(({ lines }) => promotionLocally(lines, Number(discount) || 0))
+          .then(({ lines }) => promotionLocally(lines, discountTaken))
           .catch(() => null);
         if (alive) setPromo(local === null ? null : { promotion_id: local.id, name: local.name, discount: local.discount });
     };
@@ -1439,7 +1444,7 @@ export default function PosPage() {
     const queued = await completeOffline({
       sale: payload,
       lines,
-      cartDiscount: Number(discount) || 0,
+      cartDiscount: discountTaken,
       guard: {
         lines: guardLines,
         paymentMethod: method,
@@ -1575,7 +1580,7 @@ export default function PosPage() {
           // says something different about each medicine on it.
           ...(l.directions?.trim() ? { directions: l.directions.trim() } : {}),
         })),
-        discount: Number(discount) || 0,
+        discount: discountTaken,
         coupon_code: couponCode || undefined,
         // Loyalty: points redeemed on this sale (server prices the discount).
         ...(redeemPtsNum > 0 ? { redeem_points: redeemPtsNum } : {}),
@@ -2556,7 +2561,7 @@ export default function PosPage() {
           // kept on the sale as the buyer's name.
           customer_name: customer.trim() || undefined,
           customer_phone: customerPhone || undefined,
-          discount: Number(discount) || 0,
+          discount: discountTaken,
           order_type: orderType,
           table_no: tableNo || undefined,
           coupon_code: couponCode,
@@ -3042,7 +3047,7 @@ export default function PosPage() {
               : { line_discount: l.discountValue }
             : {}),
         }))}
-        discount={Number(discount) || 0}
+        discount={discountTaken}
         customerName={customer}
         customerPhone={customerPhone}
         onDone={clearSale}
@@ -4746,7 +4751,7 @@ export default function PosPage() {
             {Number(discount) > 0 || couponCode ? (
               <span className="truncate">
                 <span className="hidden sm:inline">Discount </span>
-                −{money((Number(discount) || 0) + couponDiscount)}
+                −{money((discountTaken) + couponDiscount)}
               </span>
             ) : (
               <span className="truncate">

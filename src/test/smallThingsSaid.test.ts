@@ -110,3 +110,13 @@ it("#AZ21 the cancel sheet says a drawer only when there is one", () => {
   expect(doc).toMatch(/\{refundBy === "cash" && ownDrawer === "open" && \(\s*<p[^>]*>\s*Cash comes out of your own open drawer\./);
   expect(doc).toMatch(/<NoDrawerNote note=\{handBackNoDrawer\} \/>/);
 });
+
+it("#AZ25 a booking's cash with no drawer open is said before the press, on both sheets", () => {
+  for (const sheet of [
+    read(import.meta.glob("../modules/documents/components/ParkAsDocumentModal.tsx", { query: "?raw", import: "default", eager: true })),
+    read(import.meta.glob("../modules/documents/components/HoldQuoteModal.tsx", { query: "?raw", import: "default", eager: true })),
+  ]) {
+    expect(sheet).toMatch(/const noDrawer = useCashReachesNoDrawer\([^,]+, depositValue\);/);
+    expect(sheet).toMatch(/\{noDrawer && <div className="mt-4"><NoDrawerNote note=\{noDrawer\} \/><\/div>\}/);
+  }
+});

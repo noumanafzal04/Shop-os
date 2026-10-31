@@ -32,7 +32,7 @@ vi.mock("../hooks/useInstallments", () => ({
   useInstallmentPlan: () => ({ data: one }),
   useInstallmentMutations: () => ({ pay: { mutate: pay, isPending: false } }),
 }));
-vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null }));
+vi.mock("../../pos/hooks/useCounterShift", () => ({ useCashNeedsShift: () => null, useCashReachesNoDrawer: () => null }));
 vi.mock("../../shop/hooks/useShop", () => ({ useMoney: () => (n: number | string) => `Rs ${Number(n).toLocaleString("en-US")}` }));
 vi.mock("../../../common/shopDay", () => ({ shopWallToday: () => "2026-11-12" }));
 vi.mock("../../../common/format/date", () => ({ shopDate: (d: string) => d.slice(0, 10) }));
