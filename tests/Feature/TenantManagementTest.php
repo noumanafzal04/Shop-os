@@ -267,7 +267,7 @@ class TenantManagementTest extends TestCase
     {
         $tenant = Tenant::factory()->create(['limits' => null]);
 
-        foreach (['basic' => 1000, 'enterprise' => null] as $code => $expected) {
+        foreach (['basic' => 1000, 'pro' => null] as $code => $expected) {
             $plan = Plan::query()->where('code', $code)->first();
             $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", ['plan_id' => $plan->id])
                 ->assertOk();
@@ -278,7 +278,7 @@ class TenantManagementTest extends TestCase
 
     public function test_downgrading_keeps_every_row_the_shop_owns(): void
     {
-        $tenant = Tenant::factory()->create(['plan_id' => Plan::query()->where('code', 'enterprise')->value('id')]);
+        $tenant = Tenant::factory()->create(['plan_id' => Plan::query()->where('code', 'pro')->value('id')]);
         $basic = Plan::query()->where('code', 'basic')->first();
 
         $this->asAdmin()->postJson("/api/v1/admin/tenants/{$tenant->id}/assign-plan", [
@@ -356,9 +356,9 @@ class TenantManagementTest extends TestCase
         // One ladder, four rungs. They differ only in size and price — which
         // is why a petrol pump, a restaurant and a books-only office can all
         // sit on the same rung and still each run what their trade needs.
-        $this->assertCount(4, $response->json('data'));
+        $this->assertCount(3, $response->json('data'));
         $this->assertSame(
-            ['basic', 'premium', 'pro', 'enterprise'],
+            ['basic', 'premium', 'pro'],
             array_column($response->json('data'), 'code'),
         );
     }

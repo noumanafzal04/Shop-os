@@ -332,7 +332,7 @@ class PlanPackagesTest extends TestCase
         $after = $package();
         // Same plan. No plan was made for it, by anybody or by anything.
         $this->assertSame($basic->id, $shop->fresh()->plan_id);
-        $this->assertSame(5, Plan::query()->count() + 1, 'a plan appeared from somewhere');
+        $this->assertSame(4, Plan::query()->count() + 1, 'a plan appeared from somewhere');
         $this->assertSame(['customers'], $after['addons']);
         $this->assertSame('Customers & Khata', $after['bill']['addons'][0]['label']);
         $this->assertEquals(500, $after['bill']['addons'][0]['monthly']);
@@ -402,7 +402,7 @@ class PlanPackagesTest extends TestCase
         // includes it FOR that trade — it is an add-on there, and the Rs
         // 25,000 was on that business's bill while the screen said it was
         // charged to nobody.
-        $enterprise = $this->plan('enterprise');
+        $enterprise = $this->plan('pro');
         $books = Tenant::factory()->create(['business_name' => 'Ledger & Sons', 'business_type' => 'finance', 'plan_id' => $enterprise->id]);
         $books->applyModules(['expenses' => true, 'products' => true]);
 

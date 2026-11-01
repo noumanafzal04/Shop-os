@@ -79,7 +79,7 @@ class ReadinessCheck extends Command
      * this list: a live box could carry it on a super admin and be told it
      * was ready.
      */
-    private const PUBLISHED = [
+    public const PUBLISHED = [
         'admin@shopos.test' => 'password',
         'admin@trueserve.app' => 'Admin@123',
     ];

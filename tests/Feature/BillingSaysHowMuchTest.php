@@ -48,7 +48,7 @@ class BillingSaysHowMuchTest extends TestCase
         $this->seed(PlanSeeder::class);
         $this->admin = User::factory()->superAdmin()->create();
         $this->basic = Plan::query()->where('code', 'basic')->firstOrFail();
-        $this->enterprise = Plan::query()->where('code', 'enterprise')->firstOrFail();
+        $this->enterprise = $this->bespokePlan();
     }
 
     private function asAdmin(): static

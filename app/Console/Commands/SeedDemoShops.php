@@ -103,7 +103,7 @@ class SeedDemoShops extends SeedLoadTestShops
         'mart' => [
             'n' => 2, 'name' => 'Johar Fresh Mart', 'type' => 'mart', 'category' => 'supermarket', 'owner' => 'Bilal Chaudhry',
             'colour' => '#15803D', 'address' => '112-G1, Canal Road, Johar Town, Lahore', 'at' => [31.4731, 74.2795],
-            'plan' => 'enterprise', 'branches' => ['Main — Johar Town', 'Wapda Town'],
+            'plan' => 'pro', 'branches' => ['Main — Johar Town', 'Wapda Town'],
             'sizes' => 0, 'batches' => false, 'dining' => false, 'online' => true, 'bank_offers' => true,
             // The godown behind the shop: cartons come in here and go to the
             // shelf as it empties. It ships no online orders.

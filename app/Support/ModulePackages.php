@@ -119,9 +119,9 @@ final class ModulePackages
      * BASIC      the small shop: add products, print labels, ring a sale.
      * STANDARD   (`premium`) a shop that keeps its books — its customers'
      *            credit, its suppliers, its stock, its own expenses.
-     * PRO        a shop that also sells past its counter: online, delivered,
-     *            with offers and reservations.
-     * ENTERPRISE everything its trade can use.
+     * PREMIUM    (`pro`) the top of the ladder: everything its trade can use
+     *            (launch, 2026-11-01 — it took Enterprise's place).
+     * ENTERPRISE retired from sale; a shop already on it keeps everything.
      *
      * Each rung holds all of the one below it; a test holds that.
      *
@@ -134,12 +134,7 @@ final class ModulePackages
             'inventory', 'purchasing', 'stocktake', 'documents',
             'customers', 'expenses', 'images', 'dine_in',
         ],
-        'pro' => [
-            'products', 'services', 'pos', 'labels',
-            'inventory', 'purchasing', 'stocktake', 'documents',
-            'customers', 'expenses', 'images', 'dine_in',
-            'disposals', 'promotions', 'bank_offers', 'reservations', 'marketplace', 'delivery',
-        ],
+        'pro' => null,
         'enterprise' => null,
     ];
 

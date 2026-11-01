@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -108,6 +109,25 @@ class ReportsExpansionTest extends TestCase
         $this->assertEquals(300, $data['totals']['outstanding']);
         $this->assertSame('Acme', $data['by_supplier'][0]['supplier']);
         $this->assertEquals(300, $data['by_supplier'][0]['outstanding']);
+    }
+
+    public function test_a_purchase_on_the_first_or_last_day_of_the_period_is_counted(): void
+    {
+        // Found on 1 November: every purchase dated the 1st read 0, because a
+        // bare "2026-11-01" sorts before "2026-11-01 00:00:00". Pinned to both
+        // edges so it is tested every day, not only on the 1st.
+        $supplierId = $this->actingAsUser($this->owner)->postJson('/api/v1/suppliers', ['name' => 'Acme'])->json('data.id');
+
+        foreach (['2026-11-01 10:00:00' => '2026-11-01', '2026-11-30 10:00:00' => '2026-11-30'] as $now => $day) {
+            $this->travelTo(CarbonImmutable::parse($now));
+            $this->actingAsUser($this->owner)->postJson('/api/v1/purchase-orders', [
+                'supplier_id' => $supplierId, 'order_date' => $day, 'status' => 'ordered',
+                'items' => [['product_id' => $this->product->id, 'quantity' => 2, 'unit_cost' => 50]],
+            ])->assertCreated();
+
+            $data = $this->actingAsUser($this->owner)->getJson('/api/v1/reports/purchases?from=2026-11-01&to=2026-11-30')->assertOk()->json('data');
+            $this->assertEquals($day === '2026-11-01' ? 100 : 200, $data['totals']['ordered_value'], "a purchase dated {$day} was left out");
+        }
     }
 
     public function test_reports_require_permission(): void

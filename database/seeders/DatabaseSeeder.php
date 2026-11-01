@@ -20,7 +20,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // ── Production bootstrap ─────────────────────────────────────────
+        // ── What every server needs — and on a live box, ALL it gets ──────
+        //
+        //   CitySeeder + GeoSeeder   Pakistan: 7 provinces, 458 cities (the
+        //                            same import as `php artisan shopos:geo PK`)
+        //   PlanSeeder               Basic · Standard · Premium
+        //   SuperAdminSeeder         the admins named in .env (config/platform.php)
         $this->call([
             CitySeeder::class,
             // Country → province → city, joining the eight above.
@@ -68,13 +73,15 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        // The shops that are handed to somebody — on every server, live ones
-        // included, which is the difference from everything above: they are
-        // built without Faker and are not on the public marketplace.
+        // The nine shops that are handed to somebody for a walkthrough. Built
+        // without Faker and off the public marketplace — but still made-up
+        // shops with known logins, so a LIVE box gets none unless asked
+        // (launch, 2026-11-01): `php artisan demo:shops` builds them on any
+        // server, any time, when somebody is to be shown round.
         //
-        // Not under test. A suite that seeds the world would build nine shops
-        // each time, and `DemoShopsCommandTest` builds them on purpose.
-        if (! app()->environment('testing')) {
+        // Not under test either: a suite that seeds the world would build nine
+        // shops each time, and `DemoShopsCommandTest` builds them on purpose.
+        if (! app()->environment(['testing', 'production']) || ($demoOptIn && ! app()->environment('testing'))) {
             $this->call(DemoShopsSeeder::class);
         }
     }

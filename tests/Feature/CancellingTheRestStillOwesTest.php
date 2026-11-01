@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\PurchaseOrder;
 use App\Models\Tenant;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
@@ -31,6 +32,10 @@ class CancellingTheRestStillOwesTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // The order is dated 13 October and the report asks for October: the
+        // clock is held in that month, or the shop's history window — counted
+        // back from today — starts after it (failed on 1 November).
+        $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00'));
         $this->withoutMiddleware(ThrottleRequests::class);
         $shop = Tenant::factory()->provisioned()->create(['setup_completed' => true]);
         $this->owner = User::factory()->shopOwner($shop)->create();

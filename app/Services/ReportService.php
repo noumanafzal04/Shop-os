@@ -562,20 +562,24 @@ class ReportService
      */
     public function purchases(string $tenantId, string $from, string $to): array
     {
-        // Bound the window at whole-day edges (like every other report). Passing
-        // the bare date strings [$from, $to] excludes rows ON the last day:
-        // the date-cast column stores "…-31 00:00:00", which sorts AFTER the
-        // bare "…-31" upper bound — so a PO dated on the period's final day
-        // silently vanished (only visible on the last day of a month/period).
-        $fromStart = CarbonImmutable::parse($from)->startOfDay();
-        $toEnd = CarbonImmutable::parse($to)->endOfDay();
+        // A DATE compared as a date, at both ends. The column is written two
+        // ways — "2026-10-31 00:00:00" through the date cast, "2026-11-01" as
+        // sent — and each way lost a day against a string bound:
+        //   bare bounds ["…-01", "…-31"]  dropped "…-31 00:00:00" (it sorts after "…-31");
+        //   whole-day bounds ["…-01 00:00:00", "…-31 23:59:59"]  dropped "…-01",
+        //   which sorts BEFORE "…-01 00:00:00" — so on the 1st of a month every
+        //   purchase of that day read 0 (found 2026-11-01, five reports at once).
+        // The day of each row against the day of each bound has no such edge.
+        $fromDay = CarbonImmutable::parse($from)->toDateString();
+        $toDay = CarbonImmutable::parse($to)->toDateString();
 
         // Placed orders only — the same line the supplier card and the
         // dashboard draw. A draft counted here made "ordered value" larger
         // than anything the shop had actually ordered.
         $base = Payable::billable(PurchaseOrder::withoutTenancy())
             ->where('purchase_orders.tenant_id', $tenantId)
-            ->whereBetween('purchase_orders.order_date', [$fromStart, $toEnd]);
+            ->whereDate('purchase_orders.order_date', '>=', $fromDay)
+            ->whereDate('purchase_orders.order_date', '<=', $toDay);
 
         // ORDERED is what the shop committed to; it is the document the
         // supplier also holds. What is OWED is billed on delivery, not on the

@@ -6,7 +6,7 @@ use App\Models\Plan;
 use Illuminate\Database\Seeder;
 
 /**
- * The ladder: Basic → Standard → Pro → Enterprise.
+ * The ladder: Basic → Standard → Premium (codes basic, premium, pro).
  *
  * A plan answers one question — what does this business pay, and HOW MUCH may
  * it have. It grants no modules, and that rule has not moved: a petrol pump, a
@@ -104,10 +104,15 @@ class PlanSeeder extends Seeder
                 'max_offline_days' => 3,
             ],
             [
+                // The top of the ladder (launch, 2026-11-01): three plans, as
+                // the market sells them — Basic, Standard, Premium. The code
+                // stays `pro` so a shop already on it keeps its plan; only the
+                // name moved. It took Enterprise's place: every module its
+                // trade can use (ModulePackages).
                 'code' => 'pro',
-                'name' => 'Pro',
+                'name' => 'Premium',
                 'price' => 7999,
-                'description' => 'A real chain: ten branches, no catalog ceiling, and a week of trading offline.',
+                'description' => 'Everything your trade can use: ten branches, no catalog ceiling, and a week of trading offline.',
                 'grace_period_days' => 21,
                 'max_branches' => 10,
                 'max_warehouses' => 5,
@@ -120,26 +125,6 @@ class PlanSeeder extends Seeder
                 'retention_months' => 120,
                 'max_offline_selling' => 1,
                 'max_offline_days' => 7,
-            ],
-            [
-                'code' => 'enterprise',
-                'name' => 'Enterprise',
-                'price' => 15000,
-                'description' => 'Sized to the organisation. Nothing is capped, history is kept for good, and the terms are whatever was agreed.',
-                'grace_period_days' => 30,
-                'max_branches' => 50,
-                'max_warehouses' => 20,
-                'max_staff' => 200,
-                'max_registers' => 50,
-                // Null, not a large number: an organisation on a negotiated
-                // contract has no meter, and a ceiling nobody agreed to is a
-                // support call waiting to happen.
-                'max_orders_month' => null,
-                'max_products' => null,
-                'max_storage_mb' => null,
-                'retention_months' => null,
-                'max_offline_selling' => 1,
-                'max_offline_days' => 14,
             ],
         ];
 
@@ -169,7 +154,9 @@ class PlanSeeder extends Seeder
      */
     private function retireCombinationPlans(): void
     {
-        $retired = ['finance-manager', 'business-pos', 'online-business', 'business-pos-online'];
+        // Enterprise joined them at launch: three plans, Premium on top. A shop
+        // already on it keeps it, switched off for sale; an unused one goes.
+        $retired = ['finance-manager', 'business-pos', 'online-business', 'business-pos-online', 'enterprise'];
 
         Plan::query()->whereIn('code', $retired)->withCount('tenants')->get()
             ->each(function (Plan $plan): void {

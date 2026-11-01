@@ -169,7 +169,7 @@ class SeedLoadTestShops extends Command
         $lines = max(200, (int) $this->option('products'));
 
         $this->shop('grocery', 'Al-Madina Cash & Carry', 'mart', $city, [
-            'plan' => 'enterprise',
+            'plan' => 'pro',
             'branches' => ['Main — Ferozepur Road', 'Johar Town', 'Model Town'],
             'lines' => $lines,
             'sizes' => 0,

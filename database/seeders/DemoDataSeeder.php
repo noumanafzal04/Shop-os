@@ -2410,7 +2410,7 @@ class DemoDataSeeder extends Seeder
             // Still add a nominal fee for demo realism on the free tiers, so
             // the billing screens have a ledger to show.
             $monthly = match ($plan->code) {
-                'enterprise' => 6000,
+                'pro' => 6000,
                 'premium' => 3000,
                 default => 1500,
             };
@@ -2561,7 +2561,7 @@ class DemoDataSeeder extends Seeder
             // per tenant a scoping bug looks exactly like a working one. Its
             // sales, expenses and refunds are spread across both.
             ['name' => 'Metro Chain Superstore', 'type' => 'mart', 'category' => 'supermarket',
-                'plan' => 'enterprise', 'items' => $this->catalogFor('mart'),
+                'plan' => 'pro', 'items' => $this->catalogFor('mart'),
                 'modules' => ['marketplace' => true, 'delivery' => true],
                 'branches' => ['Gulshan Branch', 'Korangi Branch'],
                 'limits' => ['branches' => 12, 'staff' => 120, 'registers' => 24]],

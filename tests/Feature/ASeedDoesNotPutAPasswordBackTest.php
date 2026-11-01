@@ -17,7 +17,8 @@ use Tests\TestCase;
  * anything, and nothing said so.
  *
  * A laptop keeps the old behaviour on purpose: there, a re-seed is how an
- * admin that a test or a person has broken is put right.
+ * admin that a test or a person has broken is put right. A live box gets only
+ * the admins named in .env (config/platform.php), each made once.
  */
 class ASeedDoesNotPutAPasswordBackTest extends TestCase
 {
@@ -28,24 +29,64 @@ class ASeedDoesNotPutAPasswordBackTest extends TestCase
         return User::query()->where('email', $email)->firstOrFail();
     }
 
-    public function test_on_a_live_box_a_changed_password_survives_a_seed(): void
+    /**
+     * The launch (2026-11-01): a live box gets the super admins named in .env
+     * and nobody else — none of the accounts whose passwords are written in
+     * this public repository.
+     */
+    private function onALiveBoxWith(array $admins): void
     {
         $this->app['env'] = 'production';
+        config(['platform.super_admins' => $admins]);
+    }
+
+    public function test_on_a_live_box_only_the_admins_named_in_env_are_made(): void
+    {
+        $this->onALiveBoxWith([
+            ['name' => 'Owner One', 'email' => 'one@platform.test', 'password' => 'a-long-first-password'],
+            ['name' => 'Platform Admin', 'email' => 'two@platform.test', 'password' => 'another-long-password'],
+        ]);
 
         // Run as the class, not through `db:seed`: on a live box that command
         // stops to ask "are you sure?", and nobody is here to answer.
         (new SuperAdminSeeder)->run();
-        foreach (['admin@shopos.test', 'admin@trueserve.app'] as $email) {
-            $this->admin($email)->update(['password' => 'chosen-by-whoever-runs-this-box']);
-        }
+
+        $this->assertSame(['one@platform.test', 'two@platform.test'], User::query()->orderBy('email')->pluck('email')->all());
+        $this->assertTrue($this->admin('one@platform.test')->isSuperAdmin());
+        $this->assertTrue(Hash::check('a-long-first-password', $this->admin('one@platform.test')->password));
+        $this->assertSame('Platform Admin', $this->admin('two@platform.test')->name);
+        $this->assertNull(User::query()->whereIn('email', ['admin@shopos.test', 'admin@trueserve.app'])->first());
+    }
+
+    public function test_on_a_live_box_a_changed_password_survives_a_seed(): void
+    {
+        $this->onALiveBoxWith([['name' => 'Owner One', 'email' => 'one@platform.test', 'password' => 'a-long-first-password']]);
+        (new SuperAdminSeeder)->run();
+        $this->admin('one@platform.test')->update(['password' => 'chosen-at-the-first-sign-in']);
 
         (new SuperAdminSeeder)->run();
 
-        foreach (['admin@shopos.test' => 'password', 'admin@trueserve.app' => 'Admin@123'] as $email => $published) {
-            $now = $this->admin($email)->password;
-            $this->assertTrue(Hash::check('chosen-by-whoever-runs-this-box', $now), "{$email} lost the password it was given");
-            $this->assertFalse(Hash::check($published, $now), "{$email} is back on the password written in the repository");
-        }
+        $now = $this->admin('one@platform.test')->password;
+        $this->assertTrue(Hash::check('chosen-at-the-first-sign-in', $now), 'the seed put the .env password back');
+        $this->assertSame(1, User::query()->where('email', 'one@platform.test')->count());
+    }
+
+    public function test_on_a_live_box_a_short_password_makes_no_account(): void
+    {
+        $this->onALiveBoxWith([['name' => 'Owner One', 'email' => 'one@platform.test', 'password' => 'short']]);
+
+        (new SuperAdminSeeder)->run();
+
+        $this->assertSame(0, User::query()->count());
+    }
+
+    public function test_on_a_live_box_with_nothing_in_env_nothing_is_made(): void
+    {
+        $this->onALiveBoxWith([['name' => 'Super Admin', 'email' => null, 'password' => null]]);
+
+        (new SuperAdminSeeder)->run();
+
+        $this->assertSame(0, User::query()->count());
     }
 
     public function test_on_a_laptop_a_seed_still_puts_the_test_admin_right(): void

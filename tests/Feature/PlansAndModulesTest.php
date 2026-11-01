@@ -78,7 +78,7 @@ class PlansAndModulesTest extends TestCase
         $pump = $this->shop('petroleum');
         $this->assertTrue($pump->featureEnabled('fuel'));
 
-        foreach (['basic', 'premium', 'enterprise', 'basic'] as $code) {
+        foreach (['basic', 'premium', 'pro', 'basic'] as $code) {
             $plan = Plan::query()->where('code', $code)->first();
             $this->asAdmin()->postJson("/api/v1/admin/tenants/{$pump->id}/assign-plan", ['plan_id' => $plan->id])
                 ->assertOk();
@@ -336,8 +336,10 @@ class PlansAndModulesTest extends TestCase
     {
         $plans = $this->asAdmin()->getJson('/api/v1/admin/plans')->assertOk()->json('data');
 
-        $this->assertSame(['basic', 'premium', 'pro', 'enterprise'], array_column($plans, 'code'));
-        $this->assertSame([2499, 4999, 7999, 15000], array_map(fn ($p) => (int) $p['price'], $plans));
+        // Three rungs since launch — Basic, Standard, Premium — as the market sells them.
+        $this->assertSame(['basic', 'premium', 'pro'], array_column($plans, 'code'));
+        $this->assertSame(['Basic', 'Standard', 'Premium'], array_column($plans, 'name'));
+        $this->assertSame([2499, 4999, 7999], array_map(fn ($p) => (int) $p['price'], $plans));
 
         /**
          * THE RUNGS DIFFER IN SOMETHING A BUYER CAN SEE.
@@ -348,12 +350,12 @@ class PlansAndModulesTest extends TestCase
          * identical on all three plans — so the ladder being sold did not
          * exist in the software.
          */
-        $this->assertSame([1, 3, 10, 50], array_map(fn ($p) => $p['limits']['branches'], $plans));
-        $this->assertSame([3, 10, 25, 200], array_map(fn ($p) => $p['limits']['staff'], $plans));
-        $this->assertSame([1, 3, 8, 50], array_map(fn ($p) => $p['limits']['registers'], $plans));
-        $this->assertSame([5000, 20000, 100000, null], array_map(fn ($p) => $p['limits']['orders_month'], $plans));
-        $this->assertSame([24, 60, 120, null], array_map(fn ($p) => $p['limits']['retention_months'], $plans));
-        $this->assertSame([1000, 10000, null, null], array_map(fn ($p) => $p['limits']['products'], $plans));
+        $this->assertSame([1, 3, 10], array_map(fn ($p) => $p['limits']['branches'], $plans));
+        $this->assertSame([3, 10, 25], array_map(fn ($p) => $p['limits']['staff'], $plans));
+        $this->assertSame([1, 3, 8], array_map(fn ($p) => $p['limits']['registers'], $plans));
+        $this->assertSame([5000, 20000, 100000], array_map(fn ($p) => $p['limits']['orders_month'], $plans));
+        $this->assertSame([24, 60, 120], array_map(fn ($p) => $p['limits']['retention_months'], $plans));
+        $this->assertSame([1000, 10000, null], array_map(fn ($p) => $p['limits']['products'], $plans));
 
         // Nothing in a plan says what a shop may DO.
         foreach ($plans as $plan) {
@@ -373,7 +375,7 @@ class PlansAndModulesTest extends TestCase
 
         $codes = array_column($this->asAdmin()->getJson('/api/v1/admin/plans')->json('data'), 'code');
 
-        $this->assertSame(['basic', 'premium', 'pro', 'enterprise', 'metro-chain'], $codes);
+        $this->assertSame(['basic', 'premium', 'pro', 'metro-chain'], $codes);
     }
 
     /**
