@@ -579,7 +579,7 @@ export default function LandingPage() {
               than its neighbours: three cards with the middle one raised was
               a shape; four with the second raised is a mistake. See
               `plans.ts` for where every figure comes from. */}
-          <div className="mt-14 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {PLANS.map((plan, i) => (
               <div
                 key={plan.code}
@@ -648,7 +648,7 @@ export default function LandingPage() {
               bills — and never a part of the product: the parts are switched
               on by the shop's trade. They were scattered across three cards
               as if Basic lacked them ("Online orders & delivery" stood on the
-              middle one). Said once, under all four, in the names the
+              middle one). Said once, under all three, in the names the
               section above gave them. */}
           <div className="settles mt-6 rounded-3xl border border-gray-200 bg-white p-7 sm:p-9 dark:border-white/10 dark:bg-gray-900">
             <div className="mx-auto max-w-2xl text-center">

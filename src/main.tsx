@@ -11,6 +11,7 @@ import { ToastProvider } from "./components/ui/toast";
 import { ConfirmProvider } from "./components/ui/confirm";
 import { queryClient } from "./common/api/queryClient.ts";
 import { bootTheme } from "./common/theme/rememberedTheme.ts";
+import { AppCouldNotStart, reloadOnceForAFreshCopy } from "./components/system/AppCouldNotStart.tsx";
 
 // The app's script ran. `index.html` reads this mark: a page that loaded
 // without it holds a broken stored copy, and mends itself once.
@@ -21,8 +22,16 @@ document.documentElement.dataset.booted = "1";
 // changed a moment later, when the shop's settings arrived.
 bootTheme();
 
+// A screen's file from the build before this one — a deploy took it away.
+// One reload fetches the new build; Vite would otherwise throw, and outside a
+// layout that was a white page. See AppCouldNotStart.
+window.addEventListener("vite:preloadError", (event) => {
+  if (reloadOnceForAFreshCopy()) event.preventDefault();
+});
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
+    <AppCouldNotStart>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <UiModeProvider>
@@ -36,5 +45,6 @@ createRoot(document.getElementById("root")!).render(
         </UiModeProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </AppCouldNotStart>
   </StrictMode>,
 );

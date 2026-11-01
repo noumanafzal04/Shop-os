@@ -24,7 +24,7 @@ import { numberIn, PKR } from "../../common/format/currency";
  *
  * Modules are not on a card, because no plan has them or lacks them: a
  * capability is switched on per shop, by its trade. They are listed once,
- * under all four, as what every plan comes with.
+ * under all three, as what every plan comes with.
  *
  * ── Keeping them true ────────────────────────────────────────────────
  *
@@ -36,7 +36,7 @@ import { numberIn, PKR } from "../../common/format/currency";
  */
 export interface LandingPlan {
   /** The plan's code in the product — `premium` is the one named Standard. */
-  code: "basic" | "premium" | "pro" | "enterprise";
+  code: "basic" | "premium" | "pro";
   name: string;
   /** A month, in the platform's own currency. */
   price: number;
@@ -69,14 +69,10 @@ export const PLANS: LandingPlan[] = [
     featured: true,
   },
   {
-    code: "pro", name: "Pro", price: 7999,
-    line: "A chain, with room to grow.",
+    // The top rung since launch (2026-11-01): code `pro`, named Premium.
+    code: "pro", name: "Premium", price: 7999,
+    line: "Everything your trade can use.",
     branches: 10, staff: 25, tills: 8, bills: 100000, products: null, historyMonths: 120, offlineDays: 7,
-  },
-  {
-    code: "enterprise", name: "Enterprise", price: 15000,
-    line: "Sized to the organisation.",
-    branches: 50, staff: 200, tills: 50, bills: null, products: null, historyMonths: null, offlineDays: 14,
   },
 ];
 

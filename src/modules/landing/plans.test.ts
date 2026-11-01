@@ -58,7 +58,9 @@ describe("the plans on the page are the plans in the product", () => {
 });
 
 describe("what a card says is written from the figures", () => {
-  const [basic, standard, pro, enterprise] = PLANS;
+  const [basic, standard, pro] = PLANS;
+  // No rung is unmetered since launch; the wording for one is still held.
+  const unmetered = { ...pro, bills: null, historyMonths: null };
 
   it("counts in words a person writes — one branch, three tills", () => {
     expect(pointsOf(basic).map((p) => p.text).slice(0, 3)).toEqual(["1 branch", "3 staff logins", "1 till"]);
@@ -69,13 +71,13 @@ describe("what a card says is written from the figures", () => {
     expect(pointsOf(basic).map((p) => p.text)).toContain("5,000 bills a month");
     expect(pointsOf(basic).map((p) => p.text)).toContain("1,000 products");
     expect(pointsOf(pro).map((p) => p.text)).toContain("Products without a ceiling");
-    expect(pointsOf(enterprise).map((p) => p.text)).toContain("Bills without a meter");
+    expect(pointsOf(unmetered).map((p) => p.text)).toContain("Bills without a meter");
   });
 
   it("says history in years, and for good where nothing is thrown away", () => {
     expect(pointsOf(basic).map((p) => p.text)).toContain("2 years of history");
     expect(pointsOf(pro).map((p) => p.text)).toContain("10 years of history");
-    expect(pointsOf(enterprise).map((p) => p.text)).toContain("History kept for good");
+    expect(pointsOf(unmetered).map((p) => p.text)).toContain("History kept for good");
   });
 
   it("does not leave out what a plan lacks: selling offline is named on Basic, and marked as not in it", () => {
@@ -91,7 +93,8 @@ describe("what a card says is written from the figures", () => {
   });
 
   it("prints a price with its thousands", () => {
-    expect(PLANS.map(priceOf)).toEqual(["2,499", "4,999", "7,999", "15,000"]);
+    expect(PLANS.map(priceOf)).toEqual(["2,499", "4,999", "7,999"]);
+    expect(PLANS.map((p) => p.name)).toEqual(["Basic", "Standard", "Premium"]);
   });
 
   it("recommends exactly one plan", () => {
