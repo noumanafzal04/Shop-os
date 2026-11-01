@@ -1,14 +1,2 @@
-<svg width="512" height="512" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- MASKABLE: a separate drawing, not the same file relabelled. Android crops
-       this to whatever shape the launcher uses — circle, squircle, teardrop —
-       so the ground is full-bleed and the basket sits inside the middle ~60%.
-       Handing it the rounded-square badge means the corners get cut off and the
-       mark inside them with it. -->
-  <rect width="32" height="32" fill="#465FFF"/>
-  <g transform="translate(16 16) scale(0.68) translate(-16.2 -17.1)">
-    <path d="M8 9.4h2.1l1 3m0 0 1.7 6.2a1.6 1.6 0 0 0 1.55 1.2h6.3a1.6 1.6 0 0 0 1.55-1.2l1.25-4.6a1.1 1.1 0 0 0-1.06-1.4H11.1"
-          stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <circle cx="14.4" cy="23.2" r="1.5" fill="white"/>
-    <circle cx="21.4" cy="23.2" r="1.5" fill="white"/>
-  </g>
-</svg>
+<!-- True Serve maskable icon. Source for icon-maskable-512.png. Full-bleed, mark inside the middle ~60% — a launcher crops it to its own shape. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none"><defs><linearGradient id="ts-mask-bg" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0D5155"/><stop offset="1" stop-color="#093C41"/></linearGradient></defs><rect width="512" height="512" fill="url(#ts-mask-bg)"/><g transform="translate(148.48 179.02) scale(0.27640)"><defs><linearGradient id="ts-mask" x1="0" y1="0" x2="778" y2="557" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2EBFC2"/><stop offset="1" stop-color="#29B5BD"/></linearGradient></defs><path d="M82.5 0L360.86 0A10 10 0 0 1 367.93 17.07L231.72 153.28A40 40 0 0 1 203.43 165L82.5 165A82.5 82.5 0 0 1 0 82.5L0 82.5A82.5 82.5 0 0 1 82.5 0Z" fill="#3CCFC4"/><path d="M449.57 0L695.5 0A82.5 82.5 0 0 1 778 82.5L778 82.5A82.5 82.5 0 0 1 695.5 165L524.64 165A45 45 0 0 0 492.82 178.18L265.49 405.51A12 12 0 0 1 245 397.03L245 200.43A30 30 0 0 1 253.79 179.21L421.28 11.72A40 40 0 0 1 449.57 0Z" fill="url(#ts-mask)"/><path d="M520 227.97L520 419.5A137.5 137.5 0 0 1 253.07 465.93L499.51 219.49A12 12 0 0 1 520 227.97Z" fill="url(#ts-mask)"/></g></svg>

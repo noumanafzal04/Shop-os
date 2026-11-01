@@ -35,11 +35,16 @@ import { PRODUCT } from "../../common/brand";
  * icon is masked by a launcher and sits beside other companies' logos with
  * nothing of ours around it; the palette has no claim on it.
  *
- * Both are cut from the same artwork by the script in `core/brand/`, so the
+ * Both are drawn from the same geometry — the sources are the SVGs in
+ * `public/images/logo/` (the mark, and `app-icon*.svg` for the icons) — so the
  * SHAPE cannot drift between them — only the pigment, deliberately.
  */
-const MARK = "/images/logo/true-serve-mark.png";
-const MARK_ON_DARK = "/images/logo/true-serve-mark-ondark.png";
+// SVG, drawn as geometry (the redraw of 2026-11-01: both cuts 45° and
+// parallel, equal gaps, straight stem — the lower cut used to run at about
+// 34° and the foot leaned). Sharp at every size, under 1 KB. The PNGs beside
+// them are re-renders of the same files, for anything that cannot take SVG.
+const MARK = "/images/logo/true-serve-mark.svg";
+const MARK_ON_DARK = "/images/logo/true-serve-mark-ondark.svg";
 
 /** The badge alone — for the collapsed rail, where there is no room for words. */
 export function BrandMark({ size = 32, tone = "auto" }: {

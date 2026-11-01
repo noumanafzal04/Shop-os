@@ -1,10 +1,2 @@
-<svg width="512" height="512" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- CartZe. Source for icon-192.png and icon-512.png — re-render rather than
-       re-draw. Same basket as components/brand/Brand.tsx; if one changes the
-       other has to. -->
-  <path d="M0 8.42105C0 3.77023 3.77023 0 8.42105 0H23.5789C28.2298 0 32 3.77023 32 8.42105V23.5789C32 28.2298 28.2298 32 23.5789 32H8.42105C3.77023 32 0 28.2298 0 23.5789V8.42105Z" fill="#465FFF"/>
-  <path d="M8 9.4h2.1l1 3m0 0 1.7 6.2a1.6 1.6 0 0 0 1.55 1.2h6.3a1.6 1.6 0 0 0 1.55-1.2l1.25-4.6a1.1 1.1 0 0 0-1.06-1.4H11.1"
-        stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <circle cx="14.4" cy="23.2" r="1.5" fill="white"/>
-  <circle cx="21.4" cy="23.2" r="1.5" fill="white"/>
-</svg>
+<!-- True Serve app icon. Source for icon-192.png, icon-512.png and favicon.png — re-render rather than re-draw. The mark's geometry is the redraw of 2026-11-01: both cuts 45° and parallel, equal gaps, straight stem. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none"><defs><linearGradient id="ts-icon-bg" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#0D5155"/><stop offset="1" stop-color="#093C41"/></linearGradient></defs><rect width="512" height="512" rx="105" fill="url(#ts-icon-bg)"/><g transform="translate(108.54 150.43) scale(0.37906)"><defs><linearGradient id="ts-icon" x1="0" y1="0" x2="778" y2="557" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2EBFC2"/><stop offset="1" stop-color="#29B5BD"/></linearGradient></defs><path d="M82.5 0L360.86 0A10 10 0 0 1 367.93 17.07L231.72 153.28A40 40 0 0 1 203.43 165L82.5 165A82.5 82.5 0 0 1 0 82.5L0 82.5A82.5 82.5 0 0 1 82.5 0Z" fill="#3CCFC4"/><path d="M449.57 0L695.5 0A82.5 82.5 0 0 1 778 82.5L778 82.5A82.5 82.5 0 0 1 695.5 165L524.64 165A45 45 0 0 0 492.82 178.18L265.49 405.51A12 12 0 0 1 245 397.03L245 200.43A30 30 0 0 1 253.79 179.21L421.28 11.72A40 40 0 0 1 449.57 0Z" fill="url(#ts-icon)"/><path d="M520 227.97L520 419.5A137.5 137.5 0 0 1 253.07 465.93L499.51 219.49A12 12 0 0 1 520 227.97Z" fill="url(#ts-icon)"/></g></svg>
