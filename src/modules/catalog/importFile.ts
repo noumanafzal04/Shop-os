@@ -147,16 +147,64 @@ function csvRecords(text: string): string[] {
   return records.filter((r) => r.trim() !== "");
 }
 
-/** The CSV as parts of at most `perPart` rows, each with the heading row. One part when it fits. */
-export function splitCsvText(text: string, perPart: number = ROWS_PER_SEND): string[] {
+/**
+ * The CSV as parts of at most `perPart` rows, each with the heading row — one
+ * part when it fits — and how many rows each part carries, so the screen can
+ * count rows going in rather than parts.
+ */
+export function splitCsv(text: string, perPart: number = ROWS_PER_SEND): { parts: string[]; rows: number[] } {
   const clean = text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text;
   const [head, ...rows] = csvRecords(clean);
-  if (head === undefined || rows.length <= perPart) return [text];
+  if (head === undefined || rows.length <= perPart) return { parts: [text], rows: [rows.length] };
 
   const parts: string[] = [];
-  for (let i = 0; i < rows.length; i += perPart) parts.push([head, ...rows.slice(i, i + perPart)].join("\n"));
+  const counts: number[] = [];
+  for (let i = 0; i < rows.length; i += perPart) {
+    const slice = rows.slice(i, i + perPart);
+    parts.push([head, ...slice].join("\n"));
+    counts.push(slice.length);
+  }
 
-  return parts;
+  return { parts, rows: counts };
+}
+
+/** What a long import says while it runs: rows, not parts, and a bar's worth of percent. */
+export type ImportProgressSaid = {
+  doing: "Checking" | "Bringing in";
+  /** "12,500 / 50,010 rows · 25%" */
+  rows: string;
+  percent: number;
+  /** "about 4 min left" — null until a part has come back to judge the pace by. */
+  left: string | null;
+  part: number;
+  parts: number;
+};
+
+/**
+ * A LONG IMPORT, SAID AS IT GOES (2026-11-01). The 50k walk took six minutes
+ * behind a grey line in the corner — "Bringing in part 52 of 101". Now: the
+ * rows in so far out of the whole file, a percent that never reads 100 before
+ * the last part is in, and how long is left at the pace so far.
+ */
+export function progressSaid(
+  p: { doing: ImportProgressSaid["doing"]; done: number; total: number; part: number; parts: number; startedAt: number },
+  now: number,
+): ImportProgressSaid {
+  const percent = p.total > 0 ? Math.min(99, Math.floor((p.done / p.total) * 100)) : 0;
+  let left: string | null = null;
+  if (p.done > 0 && p.done < p.total) {
+    const seconds = Math.round((((now - p.startedAt) / p.done) * (p.total - p.done)) / 1000);
+    left = seconds < 60 ? "less than a minute left" : `about ${Math.round(seconds / 60)} min left`;
+  }
+
+  return {
+    doing: p.doing,
+    rows: `${p.done.toLocaleString()} / ${p.total.toLocaleString()} rows · ${percent}%`,
+    percent,
+    left,
+    part: p.part,
+    parts: p.parts,
+  };
 }
 
 /**

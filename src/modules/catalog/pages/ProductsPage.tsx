@@ -22,6 +22,7 @@ import type { ItemTypeCode, Product } from "../types";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { FilterBar, FilterSelect, type AppliedFilter } from "../../../components/ui/filters";
 import { downloadFile } from "../../../common/api/download";
+import { countedList } from "../../../common/format/counted";
 import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import Pager from "../../../components/ui/pager";
@@ -258,6 +259,11 @@ export default function ProductsPage() {
                 <span className="font-medium">CSV — everything, to keep</span>
                 <span className="block text-theme-xs text-gray-500 dark:text-gray-400">Every column, as a backup</span>
               </DropdownItem>
+              {/* Asked 2026-11-01: "export b hoti sari products?" — every one
+                  that matches the filters on this screen, said where it is chosen. */}
+              <p className="mt-1 border-t border-gray-100 px-3 pb-1 pt-2 text-theme-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                {countedList(pagination?.total ?? rows.length, "items")} — every one that matches the filters on this screen.
+              </p>
             </Dropdown>
           </div>
           <Button size="sm" variant="outline" onClick={importModal.openModal}>Import</Button>
@@ -274,6 +280,13 @@ export default function ProductsPage() {
           </Link>
         </div>
       </div>
+      {/* A 50,000-item file takes seconds to make; the button alone said
+          "Exporting…" and nothing about how long or how much. */}
+      {exporting && (
+        <p role="status" data-testid="export-working" className="-mt-4 mb-4 text-right text-theme-xs text-gray-500 dark:text-gray-400">
+          Preparing {countedList(pagination?.total ?? rows.length, "items")} for download — a big list takes a few seconds.
+        </p>
+      )}
 
       <FilterBar
         search={{

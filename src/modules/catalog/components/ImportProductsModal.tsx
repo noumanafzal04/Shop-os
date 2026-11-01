@@ -14,14 +14,16 @@ import {
   failedRowsCsv,
   goingIn,
   mergeSummaries,
-  ROWS_PER_SEND,
   rowsToCorrect,
-  splitCsvText,
+  progressSaid,
+  splitCsv,
   startingChoices,
   undecided,
   type CategoryChoice,
+  type ImportProgressSaid,
   type ImportSummary,
 } from "../importFile";
+import { ImportProgress } from "./ImportProgress";
 
 /**
  * A CATALOGUE FROM A FILE — in three steps, and nothing saved before the third.
@@ -57,7 +59,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
 
   // A long CSV goes in parts (#GS1): which part is on its way, and what stopped one.
   const [working, setWorking] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgressSaid | null>(null);
   const [partFailed, setPartFailed] = useState<string | null>(null);
   const busy = importCsv.isPending || working;
   const said = (e: unknown) => (e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "It could not be sent.");
@@ -115,21 +117,27 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
    * answers are read as one. Null when a part was refused: what was refused,
    * and which part, is said on the screen.
    */
-  async function inParts(doing: string, request: (part: File) => Parameters<typeof importCsv.mutateAsync>[0]): Promise<ImportSummary | null> {
+  async function inParts(doing: ImportProgressSaid["doing"], request: (part: File) => Parameters<typeof importCsv.mutateAsync>[0]): Promise<ImportSummary | null> {
     if (!file) return null;
     setWorking(true);
     const done: Array<{ summary: ImportSummary; rowsBefore: number }> = [];
     try {
       const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type === "text/csv";
-      const texts = isCsv ? splitCsvText(await file.text()) : [];
-      const parts = texts.length > 1
-        ? texts.map((t, i) => new File([t], file.name.replace(/(\.[a-z]+)?$/i, `-part-${i + 1}.csv`), { type: "text/csv" }))
+      const split = isCsv ? splitCsv(await file.text()) : null;
+      const many = split !== null && split.parts.length > 1;
+      const parts = many
+        ? split.parts.map((t, i) => new File([t], file.name.replace(/(\.[a-z]+)?$/i, `-part-${i + 1}.csv`), { type: "text/csv" }))
         : [file];
+      // Said in rows, not parts: the rows in so far out of the whole file.
+      const total = many ? split.rows.reduce((a, b) => a + b, 0) : 0;
+      const startedAt = Date.now();
+      let rowsIn = 0;
       for (const [i, part] of parts.entries()) {
-        if (parts.length > 1) setProgress(`${doing} part ${i + 1} of ${parts.length} — ${ROWS_PER_SEND} rows each…`);
+        if (many) setProgress(progressSaid({ doing, done: rowsIn, total, part: i + 1, parts: parts.length, startedAt }, Date.now()));
         try {
           const { data } = await importCsv.mutateAsync(request(part));
-          done.push({ summary: data, rowsBefore: i * ROWS_PER_SEND });
+          done.push({ summary: data, rowsBefore: rowsIn });
+          rowsIn += many ? split.rows[i] : 0;
         } catch (e) {
           if (parts.length > 1) {
             setPartFailed(
@@ -233,7 +241,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
               {busy ? "Checking…" : "Check the file"}
             </Button>
           </div>
-          {progress && <p data-testid="import-progress" className="mt-2 text-right text-theme-xs text-gray-500 dark:text-gray-400">{progress}</p>}
+          {progress && <ImportProgress p={progress} />}
         </>
       )}
 
@@ -347,7 +355,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
               </Button>
             </div>
           </div>
-          {progress && <p data-testid="import-progress" className="mt-2 text-right text-theme-xs text-gray-500 dark:text-gray-400">{progress}</p>}
+          {progress && <ImportProgress p={progress} />}
           {unanswered.length > 0 && (
             <p className="mt-2 text-right text-theme-xs text-warning-600 dark:text-warning-400">
               Choose what to do with {unanswered.length === 1 ? `“${unanswered[0]}”` : `${unanswered.length} categories`} first.

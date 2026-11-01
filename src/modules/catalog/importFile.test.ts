@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   BYTE_ORDER_MARK,
   mergeSummaries,
-  splitCsvText,
+  splitCsv,
+  progressSaid,
   categoryPaths,
   choicesForServer,
   failedRowsCsv,
@@ -95,11 +96,12 @@ describe("a long CSV goes in parts by itself", () => {
   const sheet = (rows: number) => ["Name,SKU,Price", ...Array.from({ length: rows }, (_, i) => `Item ${i + 1},S-${i + 1},${100 + i}`)].join("\n");
 
   it("a file that fits is sent as it is", () => {
-    expect(splitCsvText(sheet(500))).toEqual([sheet(500)]);
+    expect(splitCsv(sheet(500))).toEqual({ parts: [sheet(500)], rows: [500] });
   });
 
   it("20,000 rows become forty parts of 500, each with the heading row, and none is lost", () => {
-    const parts = splitCsvText(sheet(20000));
+    const { parts, rows } = splitCsv(sheet(20000));
+    expect(rows).toEqual(Array(40).fill(500));
     expect(parts).toHaveLength(40);
     for (const part of parts) expect(part.split("\n")[0]).toBe("Name,SKU,Price");
     expect(parts.map((p) => p.split("\n").length - 1)).toEqual(Array(40).fill(500));
@@ -109,8 +111,16 @@ describe("a long CSV goes in parts by itself", () => {
 
   it("a quoted cell holding a comma or a line break stays one row", () => {
     const text = ['Name,Note', 'A,"one, two"', 'B,"line one\nline two"', 'C,plain'].join("\r\n");
-    const parts = splitCsvText(text, 2);
+    const { parts, rows } = splitCsv(text, 2);
+    expect(rows).toEqual([2, 1]);
     expect(parts).toEqual(['Name,Note\nA,"one, two"\nB,"line one\nline two"', "Name,Note\nC,plain"]);
+  });
+
+  it("the last part carries what is left, and the rows add up to the file", () => {
+    const { parts, rows } = splitCsv(sheet(50010));
+    expect(parts).toHaveLength(101);
+    expect(rows[100]).toBe(10);
+    expect(rows.reduce((a, b) => a + b, 0)).toBe(50010);
   });
 
   it("the parts' answers read as one, with row numbers in the whole file", () => {
@@ -125,5 +135,27 @@ describe("a long CSV goes in parts by itself", () => {
     expect(all.unknown_categories).toEqual([{ name: "Caps", rows: 5, suggestion: { id: "c1", path: "Accessories > Caps" } }]);
     const shifted = mergeSummaries([{ summary: two, rowsBefore: 0 }, { summary: one, rowsBefore: 200 }]);
     expect(shifted.failed_rows[0].row).toBe(207);
+  });
+});
+
+/** A long import is said in rows, a percent and the time left — not "part 52 of 101" in a corner. */
+describe("what a long import says while it runs", () => {
+  const start = 1_000_000;
+
+  it("counts rows out of the whole file, with thousands written as a person writes them", () => {
+    const said = progressSaid({ doing: "Bringing in", done: 12500, total: 50010, part: 26, parts: 101, startedAt: start }, start + 90_000);
+    expect(said.rows).toBe("12,500 / 50,010 rows · 24%");
+    expect(said.percent).toBe(24);
+  });
+
+  it("never says 100% before the last part is in", () => {
+    expect(progressSaid({ doing: "Bringing in", done: 50000, total: 50010, part: 101, parts: 101, startedAt: start }, start + 1000).percent).toBe(99);
+  });
+
+  it("says how long is left at the pace so far — and nothing before there is a pace", () => {
+    expect(progressSaid({ doing: "Checking", done: 0, total: 50010, part: 1, parts: 101, startedAt: start }, start).left).toBeNull();
+    // 12,500 rows in 90 s → 37,510 more at the same pace is about 4.5 min.
+    expect(progressSaid({ doing: "Bringing in", done: 12500, total: 50010, part: 26, parts: 101, startedAt: start }, start + 90_000).left).toBe("about 5 min left");
+    expect(progressSaid({ doing: "Bringing in", done: 49500, total: 50010, part: 100, parts: 101, startedAt: start }, start + 300_000).left).toBe("less than a minute left");
   });
 });
