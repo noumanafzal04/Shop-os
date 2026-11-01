@@ -27,6 +27,9 @@ const RULES: Array<{ what: string; found: RegExp; unless?: (file: string) => boo
   { what: "writes a clock the browser's way (toLocaleTimeString) — use timeOf", found: /\.toLocaleTimeString\(/ },
   { what: "writes a moment the browser's way (new Date(…).toLocaleString) — use shopDateTime", found: /new Date\([^)]*\)\.toLocaleString\(/ },
   { what: "writes a date the browser's way (toLocaleString with a day, month or hour) — use shopDateTime / shopShortDateTime", found: /\.toLocaleString\([^)]*\b(day|month|year|weekday|hour|minute)\s*:/ },
+  // A Date by the name it is nearly always given — the hardware test page wrote
+  // `now.toLocaleString()` ("11/2/2026, 1:30:56 AM") past every rule above.
+  { what: "writes a moment the browser's way (now / date / when .toLocaleString()) — use shopDateTime", found: /\b(now|date|when|moment|today|stamp|printedAt|createdAt)\.toLocaleString\(\s*\)/ },
   { what: "formats with Intl.DateTimeFormat — use common/format/date", found: /Intl\.DateTimeFormat/, unless: (file) => WORK_OUT_A_ZONE.has(file) },
   { what: 'is a browser date box (<input type="date">) — use <Input type="date">, which is the shop\'s own date field', found: /<input\b[^>]*\btype="date"/ },
 ];
@@ -74,6 +77,7 @@ describe("a date is written in one place", () => {
       "const a = new Date(sale.sold_at).toLocaleDateString();",
       "const b = at.toLocaleTimeString([], { hour: '2-digit' });",
       "const c = new Date(x).toLocaleString();",
+      "const g = `<div>${now.toLocaleString()}</div>`;",
       "const d = when.toLocaleString(undefined, { day: 'numeric', month: 'short' });",
       "const e = new Intl.DateTimeFormat('en-GB').format(now);",
       '<input type="date" value={v} />',

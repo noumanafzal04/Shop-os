@@ -1,4 +1,5 @@
 import { PRODUCT } from "../../common/brand";
+import { shopDateTime } from "../../common/format/date";
 
 /**
  * A test page, on the paper a device says it holds.
@@ -41,7 +42,7 @@ export function testPageHtml(d: TestPageDevice, now = new Date()): string {
     </style></head><body>
     <div class="r"><h2>${escaped(d.name)}</h2>
     <div>${escaped(d.brand)} ${escaped(d.model)}</div><hr/>
-    <div>Test print OK</div><div>${escaped(now.toLocaleString())}</div><hr/>
+    <div>Test print OK</div><div>${escaped(shopDateTime(now))}</div><hr/>
     <div>${escaped(PRODUCT.name)}</div></div>
     </body></html>`;
 }

@@ -87,6 +87,8 @@ import { parkCart, readParkedCart } from "../cartStorage";
 import { nextLineKey, rekeyed } from "../lineKeys";
 import { enterMeans } from "../enterKey";
 import { oneScanAtATime } from "../scanLine";
+import { useAskedSearch } from "../askedSearch";
+import { isScannedCode, scanCatcher } from "../scanAnywhere";
 import { shelfCouldNotLoad, type Asked } from "../shelfAnswer";
 import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
@@ -616,7 +618,10 @@ export default function PosPage() {
   // Not asked of a server the till knows it cannot reach (#OF5): every
   // keystroke of a search went out and failed while the device's own shelf
   // (above) quietly gave the answer — ten refused calls in three sales.
-  const products = useProducts({ search: search || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE }, connected);
+  // …and asked once the box is still, never per keystroke: a scan typed
+  // thirteen searches ahead of its own lookup (#POS1) — see askedSearch.
+  const { asked: askedSearch, settled: searchSettled } = useAskedSearch(search);
+  const products = useProducts({ search: askedSearch || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE }, connected);
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   // Which question those tiles are the answer to — see shelfAnswer.
   const [tilesAnswer, setTilesAnswer] = useState<Asked>({ search: "", categoryId: "" });
@@ -659,7 +664,7 @@ export default function PosPage() {
     // The list just given is the answer to what is in the box now. (While the
     // NEXT one is being fetched this effect does not run: the placeholder is
     // the same object it already saw.)
-    if (!products.isPlaceholderData) setTilesAnswer({ search, categoryId });
+    if (!products.isPlaceholderData) setTilesAnswer({ search: askedSearch, categoryId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products.data]);
   // Offline, the shelf comes from the till's own copy: the whole catalog is
@@ -2018,6 +2023,23 @@ export default function PosPage() {
     }
   };
 
+  // A scan finds the till wherever the cursor is (#POS2): after "+" it pressed
+  // "+" again and after a tile it rang the tile twice — see scanAnywhere.
+  // Caught before the focused button sees the Enter; never in a box to type in
+  // (the quantity box has its own rule, in commitQty), a dialog, or behind the
+  // lock screen.
+  const scanFromAnywhere = useRef<(code: string) => void>(() => {});
+  scanFromAnywhere.current = (code) => { void scan(code); scanRef.current?.focus(); };
+  useEffect(() => {
+    const catcher = scanCatcher({
+      isSearchBox: (target) => target === scanRef.current,
+      isBlocked: (target) => useTillStore.getState().locked || (target instanceof Element && target.closest('[role="dialog"]') !== null),
+      onScan: (code) => scanFromAnywhere.current(code),
+    });
+    window.addEventListener("keydown", catcher, true);
+    return () => window.removeEventListener("keydown", catcher, true);
+  }, []);
+
   /**
    * WHY THIS LINE CANNOT BE RUNG — or null if it can. One rule, every door.
    *
@@ -2158,7 +2180,9 @@ export default function PosPage() {
   // asked. Offline the shelf is the till's own copy and answers at once.
   const listAnswer: CatalogProduct[] | null = !connected
     ? offlineRows
-    : products.isPlaceholderData || products.isFetching
+    // Not yet asked about what is in the box (see askedSearch): the list on
+    // screen answers the words before, and Enter must wait for this one's.
+    : !searchSettled || products.isPlaceholderData || products.isFetching
       ? null
       // Past page one the cashier has been paging, and the highlight counts
       // through everything loaded so far.
@@ -2235,6 +2259,14 @@ export default function PosPage() {
     const raw = qtyDraft[l.key];
     clearQtyDraft(l.key);
     if (raw === undefined) return;
+    // A barcode scanned while the cursor sat in this box (#POS2): the line
+    // keeps its quantity and the code is rung — it became × 7,980,000,000,091.
+    if (isScannedCode(raw)) {
+      void scan(raw.trim());
+      scanRef.current?.focus();
+
+      return;
+    }
     const n = Number(raw);
     // Empty or nonsense → snap back to what it was. Never a deletion, and
     // never a silent zero.
@@ -3547,7 +3579,7 @@ export default function PosPage() {
                   : `${tiles.length}${hasMore ? "+" : ""} result${tiles.length === 1 ? "" : "s"} · ↑ ↓ to move · Enter to add`}
               </p>
             )}
-            {scanError && <p className="mt-1 text-theme-xs text-error-500">{scanError}</p>}
+            {scanError && <p role="alert" data-testid="scan-error" className="mt-1 text-theme-xs text-error-500">{scanError}</p>}
             {/* Hidden on a phone, where it is drawn above the pane switch
                 instead — see the note there. */}
             {posNotice && <div className="hidden sm:block">{noticeStrip}</div>}
