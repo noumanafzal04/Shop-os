@@ -20,4 +20,17 @@ class RequestOtpRequest extends FormRequest
             'purpose' => ['required', Rule::enum(OtpPurpose::class)],
         ];
     }
+
+    /**
+     * Said in the words on the screen. Without these the sign-in said "The
+     * identifier field is required." — the name of a field in the code.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'identifier.required' => 'Enter your email or phone number.',
+        ];
+    }
 }

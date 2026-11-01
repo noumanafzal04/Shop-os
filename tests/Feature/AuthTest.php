@@ -534,4 +534,13 @@ class AuthTest extends TestCase
         $this->assertCount(1, $this->withToken($phone['access_token'])
             ->getJson('/api/v1/auth/sessions')->json('data'));
     }
+
+    public function test_an_empty_sign_in_is_refused_in_the_words_on_the_screen(): void
+    {
+        // It said "The identifier field is required." — a field's name in the code.
+        $this->postJson('/api/v1/auth/login', ['identifier' => '', 'password' => ''])
+            ->assertStatus(422)
+            ->assertJsonPath('errors.identifier.0', 'Enter your email or phone number.')
+            ->assertJsonPath('errors.password.0', 'Enter your password.');
+    }
 }
