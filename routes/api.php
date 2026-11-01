@@ -32,7 +32,6 @@ use App\Http\Controllers\Api\V1\Marketplace\FavoriteController;
 use App\Http\Controllers\Api\V1\Marketplace\MarketplaceController;
 use App\Http\Controllers\Api\V1\Marketplace\ReviewController;
 use App\Http\Controllers\Api\V1\NotificationController;
-use App\Http\Controllers\Api\V1\Public\DemoController;
 use App\Http\Controllers\Api\V1\Public\EnquiryController;
 use App\Http\Controllers\Api\V1\Rider\RiderJobController;
 use App\Http\Controllers\Api\V1\Rider\RiderProfileController;
@@ -120,14 +119,12 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
-    // ── A shop of your own, from the landing page ──────────────────────
+    // ── No shop of your own from the landing page (launch, 2026-11-01) ─
     //
-    // Not under `auth/`, even though it hands back a token: what it DOES is
-    // create a shop, and a route list should say what a call does rather than
-    // what it happens to return. Public, because asking for an email before
-    // somebody has seen anything is how you lose the shopkeeper who was going
-    // to buy it — the email is asked for later, when they want to KEEP it.
-    Route::post('/demo', [DemoController::class, 'store'])->middleware('throttle:demo');
+    // `POST /demo` opened a stocked demo shop for any visitor, with a token.
+    // Withdrawn: a visitor now asks for a walkthrough or a question below,
+    // and a person answers. A demo shop already open keeps its keep/convert
+    // path and is cleared by `shopos:prune-demos` as before.
 
     // ── Ask for a person instead ───────────────────────────────────────
     //

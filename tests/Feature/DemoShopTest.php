@@ -38,11 +38,20 @@ class DemoShopTest extends TestCase
 
     // ── It hands over something that works ──────────────────────────
 
-    public function test_it_opens_a_stocked_shop_and_signs_you_straight_into_it(): void
+    public function test_the_landing_page_can_no_longer_open_one(): void
     {
-        $res = $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        // Launch, 2026-11-01: a visitor asks for a walkthrough instead; nobody
+        // can make a shop on this platform without an admin.
+        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertNotFound();
 
-        $this->assertNotEmpty($res->json('data.access_token'), 'no token — the visitor would land on a sign-in form');
+        $this->assertSame(0, Tenant::query()->count());
+    }
+
+    public function test_it_opens_a_stocked_shop_its_owner_is_signed_into(): void
+    {
+        $demo = $this->openDemoShop('food');
+
+        $this->assertNotEmpty($demo['token']);
 
         $tenant = Tenant::query()->where('is_demo', true)->firstOrFail();
         $this->assertSame('food', $tenant->business_type);
@@ -57,7 +66,7 @@ class DemoShopTest extends TestCase
     public function test_its_menu_is_in_the_brand_colour(): void
     {
         foreach (['food', 'mart', 'pharmacy'] as $trade) {
-            $this->postJson('/api/v1/demo', ['business_type' => $trade])->assertCreated();
+            $this->openDemoShop($trade);
         }
 
         $demos = Tenant::query()->where('is_demo', true)->get();
@@ -76,7 +85,7 @@ class DemoShopTest extends TestCase
         // `stock_quantity` is a rollup; the till sells from `branch_stock`. A
         // demo whose every item reads "out of stock" demonstrates the opposite
         // of the thing it exists to demonstrate.
-        $this->postJson('/api/v1/demo', ['business_type' => 'mart'])->assertCreated();
+        $this->openDemoShop('mart');
 
         $tenant = Tenant::query()->where('is_demo', true)->firstOrFail();
         $product = Product::withoutTenancy()->where('tenant_id', $tenant->id)->firstOrFail();
@@ -92,15 +101,8 @@ class DemoShopTest extends TestCase
         // The picker on the landing page offers all of them. A trade that 500s
         // here is a dead button on the page the product is sold from.
         foreach (BusinessTypes::codes() as $code) {
-            $this->postJson('/api/v1/demo', ['business_type' => $code])
-                ->assertCreated();
+            $this->openDemoShop($code);
         }
-    }
-
-    public function test_it_refuses_a_trade_that_does_not_exist(): void
-    {
-        $this->postJson('/api/v1/demo', ['business_type' => 'casino'])->assertStatus(422);
-        $this->assertSame(0, Tenant::query()->where('is_demo', true)->count());
     }
 
     public function test_it_builds_a_shop_even_with_another_tenant_in_context(): void
@@ -115,7 +117,7 @@ class DemoShopTest extends TestCase
         // test signed in and passed a token, believing that did it; it did
         // not, and the test passed against its own bug until a mutation showed
         // a different test catching the fault.
-        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $this->openDemoShop('food');
         $other = Tenant::query()->where('is_demo', true)->firstOrFail();
         app(TenantContext::class)->set($other);
 
@@ -132,7 +134,7 @@ class DemoShopTest extends TestCase
     {
         // The one that would actually hurt somebody: a customer ordering
         // dinner from a shop that will not exist tomorrow.
-        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $this->openDemoShop('food');
         $demo = Tenant::query()->where('is_demo', true)->firstOrFail();
         // Give it everything else a shop needs to be listed, so the ONLY thing
         // keeping it out is the demo flag.
@@ -149,7 +151,7 @@ class DemoShopTest extends TestCase
         // A demo is entered by the token and by nothing else. If a password
         // were set to something known, an abandoned shop could be signed back
         // into after the next visitor was handed one.
-        $this->postJson('/api/v1/demo', ['business_type' => 'retail'])->assertCreated();
+        $this->openDemoShop('retail');
         $owner = User::query()->whereNotNull('tenant_id')->latest('id')->firstOrFail();
 
         foreach (['password', 'demo', 'demo1234', '12345678'] as $guess) {
@@ -159,7 +161,7 @@ class DemoShopTest extends TestCase
 
     public function test_it_ends_a_day_from_now_and_says_when(): void
     {
-        $res = $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $this->openDemoShop('food');
 
         $tenant = Tenant::query()->where('is_demo', true)->firstOrFail();
         $this->assertEqualsWithDelta(
@@ -168,7 +170,7 @@ class DemoShopTest extends TestCase
             1,
         );
         // The banner prints this. "Expires soon" is not a sentence a shop can act on.
-        $this->assertNotNull($res->json('data.demo.expires_at'));
+        $this->assertNotNull($tenant->demo_expires_at);
     }
 
     public function test_the_shop_tells_the_panel_it_is_a_demo(): void
@@ -176,10 +178,11 @@ class DemoShopTest extends TestCase
         // Without these two the banner cannot be drawn, and a demo that looks
         // like a real shop is one somebody types real products into before
         // discovering it disappears.
-        $res = $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $demo = $this->openDemoShop('food');
+        $me = $this->withToken($demo['token'])->getJson('/api/v1/auth/me')->assertOk();
 
-        $this->assertTrue($res->json('data.user.tenant.is_demo'), 'the panel cannot tell this is a demo');
-        $this->assertNotNull($res->json('data.user.tenant.demo_expires_at'), 'the banner has no time to print');
+        $this->assertTrue($me->json('data.tenant.is_demo'), 'the panel cannot tell this is a demo');
+        $this->assertNotNull($me->json('data.tenant.demo_expires_at'), 'the banner has no time to print');
     }
 
     // ── The promise the software has to keep ────────────────────────
@@ -189,7 +192,7 @@ class DemoShopTest extends TestCase
         // The screen promises the shop "clears itself away after a day", and a
         // scheduled command that is registered but does nothing is how this
         // codebase has already broken a promise once.
-        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $this->openDemoShop('food');
         $demo = Tenant::query()->where('is_demo', true)->firstOrFail();
         $demo->forceFill(['demo_expires_at' => now()->subMinute()])->save();
 
@@ -200,7 +203,7 @@ class DemoShopTest extends TestCase
 
     public function test_the_prune_leaves_a_demo_that_still_has_time(): void
     {
-        $this->postJson('/api/v1/demo', ['business_type' => 'food'])->assertCreated();
+        $this->openDemoShop('food');
         $demo = Tenant::query()->where('is_demo', true)->firstOrFail();
 
         $this->artisan('shopos:prune-demos')->assertExitCode(0);

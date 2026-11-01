@@ -46,11 +46,9 @@ class ADemoShopSellsWhatItsTradeSellsTest extends TestCase
     /** Open a demo the way the landing page does. @return array{0: Tenant, 1: string} */
     private function open(string $trade): array
     {
-        $res = $this->postJson('/api/v1/demo', ['business_type' => $trade])->assertCreated();
-        $tenant = Tenant::query()->where('is_demo', true)->latest('created_at')->orderByDesc('id')
-            ->where('business_name', $res->json('data.demo.shop'))->firstOrFail();
+        $demo = $this->openDemoShop($trade);
 
-        return [$tenant, (string) $res->json('data.access_token')];
+        return [$demo['tenant']->fresh(), $demo['token']];
     }
 
     private function as(string $token): static

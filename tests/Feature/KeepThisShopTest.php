@@ -39,7 +39,7 @@ class KeepThisShopTest extends TestCase
     /** @return array{0: Tenant, 1: User} */
     private function aDemo(): array
     {
-        $this->postJson('/api/v1/demo', ['business_type' => 'mart'])->assertCreated();
+        $this->openDemoShop('mart');
         // LATEST, not first. Taking `first()` handed the second call the
         // first shop's owner back, so a test about two waiting shops was
         // quietly about one.

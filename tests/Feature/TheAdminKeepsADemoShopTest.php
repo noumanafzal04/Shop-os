@@ -441,7 +441,7 @@ class TheAdminKeepsADemoShopTest extends TestCase
     {
         $this->app['auth']->forgetGuards();
         $this->defaultHeaders = [];
-        $this->postJson('/api/v1/demo', ['business_type' => $trade])->assertCreated();
+        $this->openDemoShop($trade);
         // LATEST: `first()` would hand a second call the first shop back.
         $tenant = Tenant::query()->where('is_demo', true)->latest('created_at')->latest('id')->firstOrFail();
 
