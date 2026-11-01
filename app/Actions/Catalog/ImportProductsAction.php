@@ -149,7 +149,9 @@ class ImportProductsAction
         }
         if (count($sheet['rows']) > self::MAX_ROWS) {
             throw DomainException::unprocessable(
-                'This file has more than '.number_format(self::MAX_ROWS).' rows. Split it into files of up to '.number_format(self::MAX_ROWS).' — each one is checked and brought in on its own. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.',
+                // The import screen cuts a long CSV into parts by itself (#GS1);
+                // an Excel file cannot be cut in the browser, so it is told how.
+                'This file has more than '.number_format(self::MAX_ROWS).' rows. Save it as CSV and the import screen sends it in parts by itself — or split it into files of up to '.number_format(self::MAX_ROWS).'. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.',
                 'IMPORT_TOO_LARGE',
             );
         }

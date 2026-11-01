@@ -91,7 +91,7 @@ class CsvImportTest extends TestCase
         $this->upload("name,price,sku\n{$rows}")
             ->assertStatus(422)
             ->assertJsonPath('meta.error_code', 'IMPORT_TOO_LARGE')
-            ->assertJsonPath('message', 'This file has more than 500 rows. Split it into files of up to 500 — each one is checked and brought in on its own. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.');
+            ->assertJsonPath('message', 'This file has more than 500 rows. Save it as CSV and the import screen sends it in parts by itself — or split it into files of up to 500. Sending a file twice is safe: a row whose SKU is already in is updated, never added again.');
     }
 
     public function test_import_upserts_by_sku(): void
