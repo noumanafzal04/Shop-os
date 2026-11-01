@@ -5,6 +5,7 @@ import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { useToast } from "../../../components/ui/toast";
 import { downloadFile, saveBlob } from "../../../common/api/download";
+import { countedList } from "../../../common/format/counted";
 import { ApiError } from "../../../common/types/api";
 import { useCategories, useProductMutations } from "../hooks/useCatalog";
 import {
@@ -105,7 +106,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
     const merged = await inParts("Bringing in", (part) => ({ file: part, mapping, categories: choicesForServer(choices) }));
     if (merged === null) return;
     setDone(merged);
-    toast.success(`${goingIn(merged)} ${goingIn(merged) === 1 ? "item" : "items"} brought in`);
+    toast.success(`${countedList(goingIn(merged), "items")} brought in`);
   };
 
   /**
@@ -342,7 +343,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
                 onClick={runImport}
                 disabled={busy || stale || unanswered.length > 0 || willGoIn === 0}
               >
-                {busy && !stale ? "Importing…" : `Import ${willGoIn} ${willGoIn === 1 ? "item" : "items"}`}
+                {busy && !stale ? "Importing…" : `Import ${countedList(willGoIn, "items")}`}
               </Button>
             </div>
           </div>
@@ -403,7 +404,7 @@ function Figures({ summary, released }: { summary: ImportSummary; released: numb
     <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
       {tiles.map((t) => (
         <div key={t.key} data-testid={`import-${t.key}`} className="rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-800">
-          <div className={`text-xl font-semibold tabular-nums ${t.tone}`}>{t.n}</div>
+          <div className={`text-xl font-semibold tabular-nums ${t.tone}`}>{Number(t.n ?? 0).toLocaleString()}</div>
           <div className="text-theme-xs text-gray-500 dark:text-gray-400">{t.label}</div>
         </div>
       ))}
