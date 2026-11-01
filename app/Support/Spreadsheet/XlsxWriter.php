@@ -31,7 +31,8 @@ final class XlsxWriter
     private array $sheets = [];
 
     /**
-     * @param  array<int, array<int, string|int|float|null>>  $rows  the first row is the header
+     * @param  iterable<int, array<int, string|int|float|null>>  $rows  the first row is the header; a
+     *                                                                  generator is read once, row by row
      * @param  array{
      *   widths?: array<int, int|float>,
      *   text?: int[],
@@ -40,18 +41,43 @@ final class XlsxWriter
      *   hidden?: bool,
      *   header?: bool,
      *   rowsOfLists?: int,
-     * }  $options
+     *   columns?: int,
+     * }  $options  `columns` is needed for a generator, whose widest row cannot be known before it is read
      */
-    public function sheet(string $name, array $rows, array $options = []): self
+    public function sheet(string $name, iterable $rows, array $options = []): self
     {
         $this->sheets[] = ['name' => $name, 'rows' => $rows] + $options;
 
         return $this;
     }
 
+    /**
+     * The workbook. Each sheet is written row by row into a temporary file
+     * that spills to disk, and packed from there (#GS4): what is held in
+     * memory is the finished, compressed file — a few megabytes for a shelf
+     * of tens of thousands — never the sheet's XML as one string.
+     */
     public function bytes(): string
     {
-        $files = [
+        $spooled = [];
+        try {
+            $files = $this->parts();
+            foreach ($this->sheets as $i => $sheet) {
+                $files['xl/worksheets/sheet'.($i + 1).'.xml'] = $spooled[] = $this->worksheet($sheet);
+            }
+
+            return Zip::write($files);
+        } finally {
+            foreach ($spooled as $file) {
+                fclose($file);
+            }
+        }
+    }
+
+    /** @return array<string, string> the parts every workbook has, whatever its sheets */
+    private function parts(): array
+    {
+        return [
             '[Content_Types].xml' => $this->contentTypes(),
             '_rels/.rels' => self::XML_HEAD
                 .'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
@@ -61,12 +87,6 @@ final class XlsxWriter
             'xl/_rels/workbook.xml.rels' => $this->workbookRels(),
             'xl/styles.xml' => self::styles(),
         ];
-
-        foreach ($this->sheets as $i => $sheet) {
-            $files['xl/worksheets/sheet'.($i + 1).'.xml'] = $this->worksheet($sheet);
-        }
-
-        return Zip::write($files);
     }
 
     /** "A1"-style column letters: 0 → A, 27 → AB. */
@@ -161,16 +181,25 @@ final class XlsxWriter
             .'</styleSheet>';
     }
 
-    /** @param  array<string, mixed>  $sheet */
-    private function worksheet(array $sheet): string
+    /**
+     * One sheet's XML, written row by row into a temporary file that spills to
+     * disk past 2 MB — a generator of rows is read once and never held.
+     *
+     * @param  array<string, mixed>  $sheet
+     * @return resource
+     */
+    private function worksheet(array $sheet)
     {
-        /** @var array<int, array<int, string|int|float|null>> $rows */
+        /** @var iterable<int, array<int, string|int|float|null>> $rows */
         $rows = $sheet['rows'];
         $hasHeader = $sheet['header'] ?? true;
         $text = $sheet['text'] ?? [];
         $required = $sheet['required'] ?? [];
-        $columns = max(1, ...array_map('count', $rows ?: [[]]));
+        $columns = (int) ($sheet['columns'] ?? (is_array($rows)
+            ? max(1, ...array_map('count', $rows ?: [[]]))
+            : max(1, count($sheet['widths'] ?? []))));
 
+        $out = fopen('php://temp', 'w+b');
         $xml = self::XML_HEAD.'<worksheet xmlns="'.self::NS.'">';
 
         // The header stays put while the rows scroll under it.
@@ -187,9 +216,10 @@ final class XlsxWriter
         }
         $xml .= '</cols>';
 
-        $xml .= '<sheetData>';
-        foreach (array_values($rows) as $r => $cells) {
-            $xml .= '<row r="'.($r + 1).'">';
+        fwrite($out, $xml.'<sheetData>');
+        $r = 0;
+        foreach ($rows as $cells) {
+            $line = '<row r="'.($r + 1).'">';
             foreach (array_values($cells) as $c => $value) {
                 if ($value === null || $value === '') {
                     continue;
@@ -205,18 +235,20 @@ final class XlsxWriter
 
                 // A number only where it is one AND the column is not text: a
                 // SKU of 00417 in a text column must stay five characters.
-                $xml .= (is_int($value) || is_float($value)) && $style !== self::TEXT
+                $line .= (is_int($value) || is_float($value)) && $style !== self::TEXT
                     ? '<c r="'.$ref.'"'.$s.'><v>'.$value.'</v></c>'
                     : '<c r="'.$ref.'"'.$s.' t="inlineStr"><is><t xml:space="preserve">'.self::esc((string) $value).'</t></is></c>';
             }
-            $xml .= '</row>';
+            fwrite($out, $line.'</row>');
+            $r++;
         }
-        $xml .= '</sheetData>';
+        $xml = '</sheetData>';
 
         $lists = $sheet['lists'] ?? [];
         if ($lists !== []) {
-            // Enough rows for a whole catalogue, not only the examples.
-            $last = max(count($rows), (int) ($sheet['rowsOfLists'] ?? 3000));
+            // Enough rows for a whole catalogue, not only the examples — and,
+            // under the last row written, room to add 500 more.
+            $last = max($r + 500, (int) ($sheet['rowsOfLists'] ?? 3000));
 
             $xml .= '<dataValidations count="'.count($lists).'">';
             foreach ($lists as $list) {
@@ -239,7 +271,9 @@ final class XlsxWriter
             $xml .= '</dataValidations>';
         }
 
-        return $xml.'</worksheet>';
+        fwrite($out, $xml.'</worksheet>');
+
+        return $out;
     }
 
     private static function esc(string $s): string

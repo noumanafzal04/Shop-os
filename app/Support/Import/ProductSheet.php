@@ -13,7 +13,7 @@ use App\Support\ItemTypes;
 use App\Support\ProductCsv;
 use App\Support\Spreadsheet\XlsxWriter;
 use App\Support\Spreadsheet\Zip;
-use Illuminate\Support\Collection;
+use Generator;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -171,17 +171,19 @@ final class ProductSheet
      * The catalogue as rows that can be sent back: each product, then its
      * sizes and its packs under it, named by its SKU.
      *
-     * @param  Collection<int, Product>  $products  with category, taxGroup, barcodes, variants, units
+     * A generator (#GS4): handed a shelf read a page at a time, it builds each
+     * row as it is asked for, so no list of every row is ever held.
+     *
+     * @param  iterable<int, Product>  $products  with taxGroup, barcodes, variants, units
      * @param  array<string, string>  $columns
-     * @return array<int, array<string, string|int|float|null>>
+     * @return Generator<int, array<string, string|int|float|null>>
      */
-    public static function rows(Collection $products, array $columns): array
+    public static function rows(iterable $products, array $columns): Generator
     {
         $paths = CategoryPaths::ofThisShop();
-        $rows = [];
 
         foreach ($products as $p) {
-            $rows[] = self::only($columns, [
+            yield self::only($columns, [
                 'name' => $p->name,
                 'item_type' => $p->item_type,
                 'sku' => $p->sku,
@@ -228,7 +230,7 @@ final class ProductSheet
 
             /** @var ProductVariant $v */
             foreach ($p->variants as $v) {
-                $rows[] = self::only($columns, [
+                yield self::only($columns, [
                     'name' => $v->name,
                     'sku' => $v->sku,
                     'parent_sku' => $p->sku,
@@ -243,7 +245,7 @@ final class ProductSheet
 
             /** @var ProductUnit $u */
             foreach ($p->units as $u) {
-                $rows[] = self::only($columns, [
+                yield self::only($columns, [
                     'name' => $u->name,
                     'parent_sku' => $p->sku,
                     'pack_size' => (float) $u->factor,
@@ -255,23 +257,25 @@ final class ProductSheet
                 ]);
             }
         }
-
-        return $rows;
     }
 
     // ── handing it over ──────────────────────────────────────────────
 
     /**
+     * Read to the end HERE, while the shop is still known — both writers
+     * finish the file before the response leaves.
+     *
      * @param  array<string, string>  $columns  field => header
-     * @param  array<int, array<string, string|int|float|null>>  $rows  field-keyed
+     * @param  iterable<int, array<string, string|int|float|null>>  $rows  field-keyed
      */
-    public static function download(string $name, string $format, array $columns, array $rows, ?Tenant $tenant): Response
+    public static function download(string $name, string $format, array $columns, iterable $rows, ?Tenant $tenant): Response
     {
         $fields = array_keys($columns);
-        $grid = array_map(
-            fn (array $row): array => array_map(fn (string $f) => $row[$f] ?? '', $fields),
-            $rows,
-        );
+        $grid = (function () use ($rows, $fields): Generator {
+            foreach ($rows as $row) {
+                yield array_map(fn (string $f) => $row[$f] ?? '', $fields);
+            }
+        })();
 
         // Asked for Excel on a server that cannot zip: the CSV is the same
         // sheet, and a download beats an error page.
@@ -340,7 +344,10 @@ final class ProductSheet
         );
 
         $bytes = (new XlsxWriter)
-            ->sheet('Products', [array_values($columns), ...$grid], [
+            ->sheet('Products', (function () use ($columns, $grid): Generator {
+                yield array_values($columns);
+                yield from $grid;
+            })(), [
                 'widths' => array_map(fn (string $f): int => match (true) {
                     in_array($f, ['name', 'description', 'category'], true) => 32,
                     in_array($f, ['barcode', 'barcodes', 'generic_name'], true) => 22,
@@ -349,7 +356,7 @@ final class ProductSheet
                 'text' => array_keys(array_intersect($fields, self::AS_TEXT)),
                 'required' => array_keys(array_intersect($fields, ['name', 'price'])),
                 'lists' => $dropdowns,
-                'rowsOfLists' => max(3000, count($grid) + 500),
+                'columns' => count($fields),
             ])
             ->sheet('How to fill this in', $guide, ['widths' => [26, 110]])
             ->sheet('Lists', $listSheet, ['hidden' => true, 'widths' => [40, 18, 24, 22]])

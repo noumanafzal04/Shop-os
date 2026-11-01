@@ -5,10 +5,15 @@ namespace App\Support;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Small CSV download helper. Rows are materialised by the caller BEFORE this
- * is invoked — the streamed callback runs during response-send, by which point
- * the tenant context (and its global scope) may already be torn down, so we
- * never run a scoped query from inside it.
+ * Small CSV download helper.
+ *
+ * The streamed callback runs during response-send, by which point the tenant
+ * context (and its global scope) may already be torn down, so no scoped query
+ * may run from inside it. So the file is WRITTEN HERE, before the response
+ * leaves — into a temporary file that spills to disk past 2 MB — and the
+ * callback only hands that file over. The rows may therefore be a generator
+ * reading the shelf a page at a time (#GS4): it is read to the end now, while
+ * the shop is still known, and memory holds one page of it, not the list.
  */
 class CsvExport
 {
@@ -37,19 +42,22 @@ class CsvExport
 
     /**
      * @param  array<int, string>  $header
-     * @param  array<int, array<int, scalar|null>>  $rows
+     * @param  iterable<int, array<int, scalar|null>>  $rows
      */
-    public static function stream(string $filename, array $header, array $rows): StreamedResponse
+    public static function stream(string $filename, array $header, iterable $rows): StreamedResponse
     {
-        return response()->streamDownload(function () use ($header, $rows): void {
-            $out = fopen('php://output', 'w');
-            // UTF-8 BOM so Excel opens Urdu / accented names correctly.
-            fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, $header);
-            foreach ($rows as $row) {
-                fputcsv($out, array_map(self::text(...), $row));
-            }
-            fclose($out);
+        $file = fopen('php://temp', 'w+b');
+        // UTF-8 BOM so Excel opens Urdu / accented names correctly.
+        fwrite($file, "\xEF\xBB\xBF");
+        fputcsv($file, $header);
+        foreach ($rows as $row) {
+            fputcsv($file, array_map(self::text(...), $row));
+        }
+        rewind($file);
+
+        return response()->streamDownload(function () use ($file): void {
+            fpassthru($file);
+            fclose($file);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store, no-cache',

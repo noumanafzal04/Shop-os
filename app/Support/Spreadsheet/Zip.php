@@ -126,26 +126,79 @@ final class Zip
     }
 
     /**
-     * @param  array<string, string>  $files  path => contents
+     * @param  array<string, string|resource>  $files  path => contents
      */
     public static function write(array $files): string
     {
-        $body = '';
+        $out = fopen('php://temp', 'w+b');
+        try {
+            self::writeTo($out, $files);
+            rewind($out);
+
+            return (string) stream_get_contents($out);
+        } finally {
+            fclose($out);
+        }
+    }
+
+    /**
+     * The zip, written into `$out` as it goes (#GS4). An entry may be a STREAM
+     * — the sheet of a 20,000-item shelf is spooled to disk, never held as one
+     * string — and is packed a megabyte at a time. Each entry's header carries
+     * its checksum and size, known only once it is packed, so room is left for
+     * the header and it is written over that room afterwards: `$out` must be
+     * seekable.
+     *
+     * @param  resource  $out
+     * @param  array<string, string|resource>  $files  path => contents
+     */
+    public static function writeTo($out, array $files): void
+    {
+        $start = (int) ftell($out);
         $directory = '';
 
         foreach ($files as $name => $contents) {
-            $crc = crc32($contents);
-            $packed = gzdeflate($contents, 6);
-            $offset = strlen($body);
+            $offset = (int) ftell($out) - $start;
 
-            // version 2.0, no flags, deflate, a fixed timestamp (1 Jan 2026) so
-            // the same template is the same bytes.
-            $common = pack('vvvvvVVVvv', 20, 0, 8, 0, 0x5C21, $crc, strlen($packed), strlen($contents), strlen($name), 0);
+            if (is_string($contents)) {
+                $packed = (string) gzdeflate($contents, 6);
+                $common = self::common(crc32($contents), strlen($packed), strlen($contents), $name);
+                fwrite($out, "PK\x03\x04".$common.$name.$packed);
+            } else {
+                $room = (int) ftell($out);
+                fwrite($out, str_repeat("\0", 30 + strlen($name)));
 
-            $body .= "PK\x03\x04".$common.$name.$packed;
+                $crc = hash_init('crc32b');
+                $deflate = deflate_init(ZLIB_ENCODING_RAW, ['level' => 6]);
+                $size = 0;
+                $packedSize = 0;
+                rewind($contents);
+                while (($chunk = fread($contents, 1 << 20)) !== false && $chunk !== '') {
+                    $size += strlen($chunk);
+                    hash_update($crc, $chunk);
+                    $packedSize += (int) fwrite($out, (string) deflate_add($deflate, $chunk, ZLIB_NO_FLUSH));
+                }
+                $packedSize += (int) fwrite($out, (string) deflate_add($deflate, '', ZLIB_FINISH));
+
+                $common = self::common((int) hexdec(hash_final($crc)), $packedSize, $size, $name);
+                $end = (int) ftell($out);
+                fseek($out, $room);
+                fwrite($out, "PK\x03\x04".$common.$name);
+                fseek($out, $end);
+            }
+
             $directory .= "PK\x01\x02".pack('v', 20).$common.pack('vvvVV', 0, 0, 0, 0, $offset).$name;
         }
 
-        return $body.$directory."PK\x05\x06".pack('vvvvVVv', 0, 0, count($files), count($files), strlen($directory), strlen($body), 0);
+        $body = (int) ftell($out) - $start;
+        fwrite($out, $directory."PK\x05\x06".pack('vvvvVVv', 0, 0, count($files), count($files), strlen($directory), $body, 0));
+    }
+
+    /** What an entry's local header and its directory line share. */
+    private static function common(int $crc, int $packed, int $size, string $name): string
+    {
+        // version 2.0, no flags, deflate, a fixed timestamp (1 Jan 2026) so
+        // the same template is the same bytes.
+        return pack('vvvvvVVVvv', 20, 0, 8, 0, 0x5C21, $crc, $packed, $size, strlen($name), 0);
     }
 }

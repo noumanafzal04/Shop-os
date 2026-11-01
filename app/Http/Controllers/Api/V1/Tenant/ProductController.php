@@ -344,7 +344,12 @@ class ProductController extends Controller
             // One rule, shared with the reorder list — see LowStock.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderBy('name')
-            ->get();
+            // A page at a time, each page with its sizes, packs and codes, and
+            // written as it is read (#GS4): a 20,002-item shelf loaded as one
+            // list ran the server out of memory. stably() breaks a tie in name
+            // the same way on every page, so no item is lost or written twice.
+            ->stably()
+            ->lazy(500);
 
         $columns = $request->query('shape') === 'shop' ? ProductCsv::columnsFor($tenant) : ProductCsv::HEADERS;
 
