@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\BranchStock;
 use App\Models\Product;
 use App\Models\StockTransfer;
+use Generator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -53,10 +54,11 @@ class StockReportService
      */
     public const SCREEN_LINES = 200;
 
+    /** How far past the screen's lines a list may grow before it is cut back. */
+    private const SORT_EVERY = 2000;
+
     public function valuation(string $tenantId, ?string $branchId = null, ?int $limit = self::SCREEN_LINES): array
     {
-        $rows = $this->onHand($tenantId, $branchId);
-
         // STOCK ON THE ROAD IS STILL THE SHOP'S. A transfer takes the units off
         // the sender at Send and puts them on the receiver at Receive; nothing
         // held them in between, so the shop's stock value dropped by whatever
@@ -66,11 +68,29 @@ class StockReportService
         $road = $branchId === null ? $this->onTheRoad($tenantId) : collect();
         $roadUnits = 0.0;
         $roadCost = 0.0;
+        $travelling = [];
         foreach ($road as $moving) {
             $roadUnits += (float) $moving->quantity;
             $roadCost += (float) $moving->quantity * max(0.0, (float) ($moving->cost ?? 0));
+            $travelling[$moving->product_id.'|'.($moving->variant_id ?? '')] = $moving;
         }
-        $rows = $this->withRoad($rows, $road);
+
+        // The road onto the product's own line when it has one, as a line of
+        // its own when every unit of it is travelling — added as the shelf
+        // goes by, one row at a time.
+        $rows = (function () use ($tenantId, $branchId, &$travelling): Generator {
+            foreach ($this->onHand($tenantId, $branchId) as $row) {
+                $key = $row->product_id.'|'.($row->variant_id ?? '');
+                if (isset($travelling[$key])) {
+                    $row->quantity = (float) $row->quantity + (float) $travelling[$key]->quantity;
+                    unset($travelling[$key]);
+                }
+
+                yield $row;
+            }
+
+            yield from array_values($travelling);
+        })();
 
         $costValue = 0.0;
         $retailValue = 0.0;
@@ -78,6 +98,8 @@ class StockReportService
         $uncosted = 0;
         $uncostedUnits = 0.0;
         $byCategory = [];
+        $items = [];
+        $lines = 0;
 
         foreach ($rows as $row) {
             $qty = (float) $row->quantity;
@@ -103,11 +125,25 @@ class StockReportService
             $byCategory[$key]['units'] += $qty;
             $byCategory[$key]['cost_value'] += $qty * ($cost ?? 0);
             $byCategory[$key]['retail_value'] += $qty * $retail;
+
+            $lines++;
+            $items[] = [
+                'product_id' => $row->product_id,
+                'variant_id' => $row->variant_id,
+                'name' => $row->variant_name ? "{$row->product_name} · {$row->variant_name}" : $row->product_name,
+                'sku' => $row->variant_sku ?: $row->sku,
+                'category' => $row->category_name ?? 'Uncategorized',
+                'quantity' => round($qty, 3),
+                'cost' => $cost === null ? null : round($cost, 2),
+                'cost_value' => round($qty * ($cost ?? 0), 2),
+                'retail_value' => round($qty * $retail, 2),
+            ];
+            if ($limit !== null && count($items) >= $limit + self::SORT_EVERY) {
+                $items = self::mostFirst($items, 'cost_value', $limit);
+            }
         }
 
-        $items = $this->valuedItems($rows);
-        $lines = count($items);
-        $shown = $limit === null ? $items : array_slice($items, 0, $limit);
+        $shown = self::mostFirst($items, 'cost_value', $limit);
 
         return [
             'branch_scope' => $branchId,
@@ -177,6 +213,8 @@ class StockReportService
         $items = [];
         $value = 0.0;
         $units = 0.0;
+        $lines = 0;
+        $neverSold = 0;
 
         foreach ($rows as $row) {
             $qty = (float) $row->quantity;
@@ -210,15 +248,18 @@ class StockReportService
                 // and usually a buying mistake rather than a selling one.
                 'days_idle' => $lastAt?->diffInDays(now()),
             ];
+            $lines++;
+            $neverSold += $lastAt === null ? 1 : 0;
+            if ($limit !== null && count($items) >= $limit + self::SORT_EVERY) {
+                $items = self::mostFirst($items, 'value', $limit);
+            }
         }
 
         // Sorted by VALUE before the cap, so the two hundred lines a screen
         // is sent are the two hundred worth the most — the shelf holding
         // Rs 80,000 of unsold stock, not whichever rows the query returned
         // first.
-        usort($items, fn (array $a, array $b): int => $b['value'] <=> $a['value']);
-        $lines = count($items);
-        $shown = $limit === null ? $items : array_slice($items, 0, $limit);
+        $shown = self::mostFirst($items, 'value', $limit);
 
         return [
             'branch_scope' => $branchId,
@@ -227,7 +268,7 @@ class StockReportService
                 'lines' => $lines,
                 'units' => round($units, 3),
                 'value' => round($value, 2),
-                'never_sold' => count(array_filter($items, fn (array $i): bool => $i['last_sold_at'] === null)),
+                'never_sold' => $neverSold,
             ],
             'items' => $shown,
             'items_shown' => count($shown),
@@ -242,9 +283,15 @@ class StockReportService
      * own line. When no branch is named the branch rows are summed, which is
      * the same figure the product rollup carries but without trusting it.
      *
-     * @return Collection<int, object>
+     * ONE ROW AT A TIME (#GS6). The 50k garments shop held all 50,010 shelf
+     * rows as objects (52 MB) and every line valued again as an array (34 MB)
+     * to show two hundred — 295 MB in all, past the server's 128. The rows
+     * now come off a cursor, and each report keeps its totals as it goes and
+     * only the lines it will send.
+     *
+     * @return Generator<int, object>
      */
-    private function onHand(string $tenantId, ?string $branchId)
+    private function onHand(string $tenantId, ?string $branchId): Generator
     {
         $defaultBranchId = Branch::withoutTenancy()
             ->where('tenant_id', $tenantId)
@@ -294,16 +341,22 @@ class StockReportService
                 'COALESCE(product_variants.cost, products.cost) as cost',
                 'COALESCE(product_variants.price, products.price) as price',
                 'categories.name as category_name',
-            ]))
-            ->get();
+            ]));
+
+        yield from $stock->cursor();
 
         // Products that have never moved have no branch_stock row at all. On the
         // default branch their stock still lives in the legacy rollup, and a
         // valuation that skipped them would under-report the shelves — which is
         // the one direction a stock valuation must never be wrong in.
         if ($branchId === null || $branchId === $defaultBranchId) {
-            $seen = $stock->map(fn ($r): string => $r->product_id.'|'.($r->variant_id ?? ''))->all();
-
+            // ONLY THE ONES WITH NO SHELF ROW, ASKED OF THE DATABASE (#GS6).
+            // This loaded every item with stock as a full model — 50,002 on the
+            // 50k garments shop — and then looked each one up in a list of
+            // every shelf row, one by one: 295 MB and a fifty-thousand-squared
+            // scan, to keep the handful that had never moved. The same "has a
+            // shelf row of its own here" is now a NOT EXISTS, and what comes
+            // back is plain rows.
             $orphans = Product::query()
                 ->where('products.tenant_id', $tenantId)
                 ->where('products.type', ItemType::Product)
@@ -311,24 +364,27 @@ class StockReportService
                 ->where('products.stock_quantity', '>', 0)
                 ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
                 ->doesntHave('variants')
-                ->get([
+                ->whereNotExists(fn ($shelf) => $shelf->selectRaw('1')
+                    ->from('branch_stock')
+                    ->whereColumn('branch_stock.product_id', 'products.id')
+                    ->whereNull('branch_stock.variant_id')
+                    ->where('branch_stock.tenant_id', $tenantId)
+                    ->when($branchId, fn ($q) => $q->where('branch_stock.branch_id', $branchId)))
+                ->select([
                     'products.id as product_id', 'products.name as product_name', 'products.sku as sku',
                     'products.cost as cost', 'products.price as price', 'products.stock_quantity as quantity',
                     'categories.name as category_name',
-                ]);
+                ])
+                ->toBase();
 
-            foreach ($orphans as $orphan) {
-                if (in_array($orphan->product_id.'|', $seen, strict: true)) {
-                    continue;
-                }
+            foreach ($orphans->cursor() as $orphan) {
                 $orphan->variant_id = null;
                 $orphan->variant_name = null;
                 $orphan->variant_sku = null;
-                $stock->push($orphan);
+
+                yield $orphan;
             }
         }
-
-        return $stock;
     }
 
     /**
@@ -368,66 +424,19 @@ class StockReportService
     }
 
     /**
-     * The shelves with the road added in: onto the product's own line when it
-     * has one, as a line of its own when every unit of it is travelling.
+     * The lines worth the most, first — at most `$limit` of them (all, when
+     * null). A stable sort, so lines worth the same keep the order they came
+     * in; called on a growing list every SORT_EVERY lines, it holds a few
+     * thousand lines at a time instead of the whole shelf, and still keeps
+     * exactly the ones one sort of everything would.
      *
-     * @param  Collection<int, object>  $rows
-     * @param  Collection<int, object>  $road
-     * @return Collection<int, object>
-     */
-    private function withRoad(Collection $rows, Collection $road): Collection
-    {
-        if ($road->isEmpty()) {
-            return $rows;
-        }
-
-        $byKey = [];
-        foreach ($rows as $row) {
-            $byKey[$row->product_id.'|'.($row->variant_id ?? '')] = $row;
-        }
-
-        foreach ($road as $moving) {
-            $key = $moving->product_id.'|'.($moving->variant_id ?? '');
-            if (isset($byKey[$key])) {
-                $byKey[$key]->quantity = (float) $byKey[$key]->quantity + (float) $moving->quantity;
-            } else {
-                $rows->push($moving);
-                $byKey[$key] = $moving;
-            }
-        }
-
-        return $rows;
-    }
-
-    /**
-     * @param  Collection<int, object>  $rows
+     * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<string, mixed>>
      */
-    private function valuedItems($rows): array
+    private static function mostFirst(array $items, string $by, ?int $limit): array
     {
-        $items = $rows
-            ->filter(fn ($row): bool => (float) $row->quantity > 0)
-            ->map(function ($row): array {
-                $qty = (float) $row->quantity;
-                $cost = $row->cost === null ? null : (float) $row->cost;
+        usort($items, fn (array $a, array $b): int => $b[$by] <=> $a[$by]);
 
-                return [
-                    'product_id' => $row->product_id,
-                    'variant_id' => $row->variant_id,
-                    'name' => $row->variant_name ? "{$row->product_name} · {$row->variant_name}" : $row->product_name,
-                    'sku' => $row->variant_sku ?: $row->sku,
-                    'category' => $row->category_name ?? 'Uncategorized',
-                    'quantity' => round($qty, 3),
-                    'cost' => $cost === null ? null : round($cost, 2),
-                    'cost_value' => round($qty * ($cost ?? 0), 2),
-                    'retail_value' => round($qty * (float) $row->price, 2),
-                ];
-            })
-            ->values()
-            ->all();
-
-        usort($items, fn (array $a, array $b): int => $b['cost_value'] <=> $a['cost_value']);
-
-        return $items;
+        return $limit === null ? $items : array_slice($items, 0, $limit);
     }
 }

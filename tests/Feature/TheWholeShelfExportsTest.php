@@ -119,9 +119,9 @@ class TheWholeShelfExportsTest extends TestCase
     /**
      * THE POINT. Four times the shelf, not four times the memory: an export
      * that holds the whole list grows with it (and fails on this test); one
-     * that reads a page at a time does not. The smaller shelf is two full
-     * pages already — at a page's edge the page read and the page before it
-     * are both held for a moment, and that, not the shelf, is the ceiling.
+     * that reads a page at a time does not. The smaller shelf is a full page
+     * already (1,000 items): one page, let go of before the next is read, is
+     * the ceiling — not the shelf.
      */
     public function test_four_times_the_shelf_does_not_take_four_times_the_memory(): void
     {
@@ -158,6 +158,29 @@ class TheWholeShelfExportsTest extends TestCase
         $sorted = $inOrder;
         sort($sorted, SORT_STRING);
         $this->assertSame($sorted, $inOrder, 'The sheet runs in name order, as before.');
+    }
+
+    /**
+     * The order is asked for once, and every page is fetched by its ids. Paged
+     * by offset, page 100 of the 50k shop re-read the 49,500 rows before it —
+     * the export took 15 s, most of it walking past rows already written.
+     */
+    public function test_the_order_is_asked_once_and_no_page_walks_past_the_rows_before_it(): void
+    {
+        $this->stock(2500);
+        $as = $this->as();
+
+        $reads = [];
+        DB::listen(function ($query) use (&$reads): void {
+            if (preg_match('/^select .* from [`"]?products[`"]? /i', $query->sql)) {
+                $reads[] = $query->sql;
+            }
+        });
+        $csv = $as->get('/api/v1/products/export')->assertOk()->streamedContent();
+
+        $this->assertCount(2500, $this->skus($csv));
+        $this->assertSame([], array_values(array_filter($reads, fn (string $sql): bool => (bool) preg_match('/\boffset\b/i', $sql))), 'No page is an offset into the shelf.');
+        $this->assertCount(1, array_filter($reads, fn (string $sql): bool => (bool) preg_match('/order by .*name/i', $sql)), 'The shelf is put in order once.');
     }
 
     /** The Excel export of a long shelf opens, holds every row, and its drop-downs reach past the last row. */

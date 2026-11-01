@@ -31,6 +31,7 @@ use App\Support\ProductCsv;
 use App\Support\RecipeCost;
 use App\Support\ShopTime;
 use App\Support\TenantContext;
+use Generator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -315,7 +316,7 @@ class ProductController extends Controller
     {
         $tenant = $context->get();
 
-        $products = Product::query()
+        $shelf = Product::query()
             ->with([
                 'taxGroup:id,name', 'barcodes:id,product_id,variant_id,product_unit_id,barcode',
                 'variants', 'units.codes:id,product_unit_id,barcode',
@@ -344,12 +345,28 @@ class ProductController extends Controller
             // One rule, shared with the reorder list — see LowStock.
             ->when($request->boolean('low_stock'), fn ($q) => LowStock::apply($q))
             ->orderBy('name')
-            // A page at a time, each page with its sizes, packs and codes, and
-            // written as it is read (#GS4): a 20,002-item shelf loaded as one
-            // list ran the server out of memory. stably() breaks a tie in name
-            // the same way on every page, so no item is lost or written twice.
-            ->stably()
-            ->lazy(500);
+            ->stably();
+
+        // A page at a time, each page with its sizes, packs and codes, and
+        // written as it is read (#GS4): a 20,002-item shelf loaded as one list
+        // ran the server out of memory. The order is asked for ONCE — every id
+        // in name order — and each page is then fetched by its ids: paged by
+        // offset, page 100 of the 50k shop re-read the 49,500 rows before it
+        // and the export took 15 s, most of it walking past rows already sent.
+        $ids = (clone $shelf)->pluck('products.id')->all();
+        $products = (function () use ($shelf, $ids): Generator {
+            foreach (array_chunk($ids, 1000) as $page) {
+                $found = (clone $shelf)->reorder()->whereIn('products.id', $page)->get()->keyBy('id');
+                foreach ($page as $id) {
+                    if (isset($found[$id])) {
+                        yield $found[$id];
+                    }
+                }
+                // Let go of this page before the next is read, so one page —
+                // not two — is the most an export ever holds.
+                $found = null;
+            }
+        })();
 
         $columns = $request->query('shape') === 'shop' ? ProductCsv::columnsFor($tenant) : ProductCsv::HEADERS;
 

@@ -134,34 +134,6 @@ class PagesHoldStillTest extends TestCase
         $this->assertSame([], $offenders, 'paged without ->stably() — rows will be skipped or repeated across pages');
     }
 
-    /**
-     * The same promise for a list read a page at a time on the server
-     * (`->lazy(500)`, #GS4): each page is an offset into an order, and an
-     * order that can tie gives two pages the same item and neither the one
-     * beside it. `->stably()` is the step before it, on its line or the one
-     * above.
-     */
-    public function test_no_list_is_read_page_by_page_without_a_tiebreak(): void
-    {
-        $offenders = [];
-        $seen = 0;
-        foreach (File::allFiles(app_path()) as $file) {
-            $lines = explode("\n", $file->getContents());
-            foreach ($lines as $n => $line) {
-                if (! preg_match('/->lazy\(\d/', $line)) {
-                    continue;
-                }
-                $seen++;
-                if (! str_contains($line, '->stably(') && ! str_contains($lines[$n - 1] ?? '', '->stably(')) {
-                    $offenders[] = str_replace(app_path().'/', '', $file->getPathname()).':'.($n + 1);
-                }
-            }
-        }
-
-        $this->assertGreaterThan(0, $seen, 'The guard found no page-by-page read at all — it is looking at nothing.');
-        $this->assertSame([], $offenders, 'read page by page without ->stably() — items will be skipped or repeated');
-    }
-
     public function test_the_tiebreak_is_the_last_word_and_not_the_first(): void
     {
         // The date a person asked for still sorts first; the key only breaks ties.
