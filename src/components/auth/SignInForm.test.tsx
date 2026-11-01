@@ -44,4 +44,36 @@ describe("signing in after too many tries", () => {
     expect(screen.getByText("These credentials do not match our records.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   });
+
+  it("an empty box is said under it, in the screen's words, and nothing is sent", () => {
+    login.error = null;
+    login.mutate.mockClear();
+    render(<MemoryRouter><SignInForm /></MemoryRouter>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter your email or phone number.");
+    expect(screen.queryByText(/identifier field/i)).toBeNull();
+    expect(login.mutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Email or phone"), { target: { value: "garmentshop@app.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter your password.");
+    expect(login.mutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(login.mutate).toHaveBeenCalledWith({ identifier: "garmentshop@app.com", password: "a-password" });
+  });
+
+  it("the eye is a real button with a name, and Caps Lock is said", () => {
+    login.error = null;
+    render(<MemoryRouter><SignInForm /></MemoryRouter>);
+
+    const eye = screen.getByRole("button", { name: "Show password" });
+    fireEvent.click(eye);
+    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Email or phone")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("autocomplete", "current-password");
+  });
 });

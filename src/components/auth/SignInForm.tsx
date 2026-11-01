@@ -1,18 +1,41 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link } from "react-router";
 import { EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
-import Checkbox from "../form/input/Checkbox";
 import Button from "../ui/button/Button";
 import Alert from "../ui/alert/Alert";
 import { useLogin } from "../../modules/auth/hooks/useAuth";
 import { ApiError } from "../../common/types/api";
 import { useCoolDownState } from "../../common/api/coolDown";
+import { PRODUCT } from "../../common/brand";
 
+/**
+ * SIGNING IN — redone (2026-11-01).
+ *
+ * What changed from the template it began as, and why:
+ *
+ *   "Keep me logged in" is gone. It was a tick nobody's sign-in ever read —
+ *   the request carried the email and the password and nothing else — so it
+ *   promised a choice the product did not offer.
+ *
+ *   The eye that shows the password is a real button, with a name, reachable
+ *   by the keyboard. It was a <span> with an onClick.
+ *
+ *   The boxes say what they are to the browser (`username`,
+ *   `current-password`), so a saved password is offered where it belongs.
+ *
+ *   Caps Lock is said under the password while it is on — the most common
+ *   reason a right password is refused.
+ *
+ *   Somebody without an account is pointed at a walkthrough: shops are opened
+ *   by the platform, not from this screen.
+ */
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [keepLoggedIn, setKeepLoggedIn] = useState(true);
+  const [capsOn, setCapsOn] = useState(false);
+  // Which box was left empty at the press — said under it, before anything is sent.
+  const [missing, setMissing] = useState<"identifier" | "password" | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
 
@@ -37,90 +60,115 @@ export default function SignInForm() {
     e.preventDefault();
     // Tap-guard: never double-submit while a request is in flight.
     if (login.isPending || wait.left > 0) return;
+    // Said here, in the screen's words: an empty box went to the server and
+    // came back as "The identifier field is required." (2026-11-01).
+    const empty = !identifier.trim() ? "identifier" : !password ? "password" : null;
+    setMissing(empty);
+    if (empty) {
+      document.getElementById(`signin-${empty}`)?.focus();
+      return;
+    }
     login.mutate({ identifier: identifier.trim(), password });
   };
 
+  const readCaps = (e: KeyboardEvent<HTMLInputElement>) => setCapsOn(e.getModifierState?.("CapsLock") ?? false);
+
   return (
-    <div className="flex flex-col flex-1">
-      <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
-        <div>
-          <div className="mb-5 sm:mb-8">
-            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Sign In
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email or phone and password to sign in.
-            </p>
-          </div>
-          <div>
-            {errorMessage && (
-              <div className="mb-5">
-                <Alert variant="error" title="Sign in failed" message={errorMessage} />
-              </div>
-            )}
-            {wait.over && (
-              <div data-testid="sign-in-wait-over" className="mb-5">
-                <Alert variant="info" title="Ready" message="The wait is over — you can sign in again now." />
-              </div>
-            )}
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                <div>
-                  <Label>
-                    Email or Phone <span className="text-error-500">*</span>
-                  </Label>
-                  <Input
-                    placeholder="you@business.com"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>
-                    Password <span className="text-error-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <span
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
-                    >
-                      {showPassword ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400 size-5" />
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Checkbox checked={keepLoggedIn} onChange={setKeepLoggedIn} />
-                    <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
-                      Keep me logged in
-                    </span>
-                  </div>
-                  <Link
-                    to="/forgot-password"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                  >
-                    Forgot password?
-                  </Link>
-                </div>
-                <div>
-                  <Button type="submit" className="w-full" size="sm" disabled={login.isPending || wait.left > 0}>
-                    {login.isPending ? "Signing in…" : wait.left > 0 ? `Wait ${wait.left}s` : "Sign in"}
-                  </Button>
-                </div>
-              </div>
-            </form>
-          </div>
+    <div className="w-full">
+      <div>
+        <div className="mb-8 text-center">
+          <h1 className="text-[28px] font-semibold leading-tight tracking-tight text-gray-900 dark:text-white/90">
+            Welcome back
+          </h1>
+          <p className="mt-2 text-theme-sm text-gray-500 dark:text-gray-400">
+            Sign in with your email or phone number.
+          </p>
         </div>
+
+        {errorMessage && (
+          <div className="mb-5">
+            <Alert variant="error" title="Sign in failed" message={errorMessage} />
+          </div>
+        )}
+        {wait.over && (
+          <div data-testid="sign-in-wait-over" className="mb-5">
+            <Alert variant="info" title="Ready" message="The wait is over — you can sign in again now." />
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <Label htmlFor="signin-identifier">Email or phone</Label>
+            <Input
+              id="signin-identifier"
+              name="identifier"
+              autoComplete="username"
+              autoFocus
+              placeholder="you@business.com"
+              value={identifier}
+              onChange={(e) => { setIdentifier(e.target.value); if (missing === "identifier") setMissing(null); }}
+              error={missing === "identifier"}
+            />
+            {missing === "identifier" && (
+              <p role="alert" className="mt-1.5 text-theme-xs font-medium text-error-600 dark:text-error-400">Enter your email or phone number.</p>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <Label htmlFor="signin-password" className="mb-0">Password</Label>
+              <Link
+                to="/forgot-password"
+                className="text-theme-sm font-medium text-brand-600 transition hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300"
+              >
+                Forgot password?
+              </Link>
+            </div>
+            <div className="relative">
+              <Input
+                id="signin-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); if (missing === "password") setMissing(null); }}
+                onKeyDown={readCaps}
+                error={missing === "password"}
+                className="pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((shown) => !shown)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                aria-controls="signin-password"
+                className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-white/5"
+              >
+                {showPassword ? <EyeIcon className="size-5 fill-current" /> : <EyeCloseIcon className="size-5 fill-current" />}
+              </button>
+            </div>
+            {missing === "password" && (
+              <p role="alert" className="mt-1.5 text-theme-xs font-medium text-error-600 dark:text-error-400">Enter your password.</p>
+            )}
+            {capsOn && (
+              <p data-testid="caps-lock-on" role="status" className="mt-1.5 text-theme-xs font-medium text-warning-600 dark:text-warning-400">
+                Caps Lock is on.
+              </p>
+            )}
+          </div>
+
+          <Button type="submit" className="w-full" size="md" disabled={login.isPending || wait.left > 0}>
+            {login.isPending ? "Signing in…" : wait.left > 0 ? `Wait ${wait.left}s` : "Sign in"}
+          </Button>
+        </form>
+
+        <p className="mt-8 text-center text-theme-sm text-gray-500 dark:text-gray-400">
+          New to {PRODUCT.name}?{" "}
+          <a href="/#talk" className="font-medium text-brand-600 transition hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+            Ask for a walkthrough
+          </a>
+        </p>
       </div>
     </div>
   );
