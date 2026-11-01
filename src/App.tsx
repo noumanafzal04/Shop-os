@@ -27,7 +27,6 @@ const SignUp = lazy(() => import("./pages/AuthPages/SignUp"));
 const NotFound = lazy(() => import("./pages/OtherPage/NotFound"));
 const MarketPage = lazy(() => import("./modules/marketplace/pages/MarketPage"));
 const LandingPage = lazy(() => import("./modules/landing/pages/LandingPage"));
-const DemoPage = lazy(() => import("./modules/landing/pages/DemoPage"));
 const MarketShopPage = lazy(() => import("./modules/marketplace/pages/MarketShopPage"));
 const BrowsePage = lazy(() => import("./modules/marketplace/pages/BrowsePage"));
 const ProductPage = lazy(() => import("./modules/marketplace/pages/ProductPage"));
@@ -156,7 +155,8 @@ export default function App() {
               `/` redirects here until the landing page lands, so nothing a
               customer has bookmarked breaks in between. */}
           <Route path="/" element={<LandingPage />} />
-          <Route path="/demo" element={<DemoPage />} />
+          {/* Withdrawn at launch: an old "Try the demo" link lands on the walkthrough form. */}
+          <Route path="/demo" element={<Navigate to="/#talk" replace />} />
 
           {/* ── The storefront, under one frame ────────────────────
               Header, basket sheet and footer are declared once by

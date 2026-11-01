@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { homeForRole } from "../../../common/routing/guards";
 import { Wordmark } from "../../../components/brand/Brand";
 import { useAuthStore } from "../../../stores/authStore";
-import { TryDemo } from "./TryDemo";
+import { AskForWalkthrough } from "./AskForWalkthrough";
 import { PRODUCT } from "../../../common/brand";
 
 /**
@@ -43,6 +43,14 @@ const LINKS: Array<{ id: string; label: string }> = [
  * marketplace appears here, which is what a destination should be.
  */
 const STOREFRONT = { to: "/shops", label: "Marketplace" };
+
+/**
+ * Off the top nav at launch (the user, 2026-11-01): the site sells the
+ * software, and the marketplace is not being offered to shoppers yet. One
+ * switch — both the desktop pill and the phone menu read it. `/shops` itself
+ * still opens for anybody who has the address.
+ */
+const STOREFRONT_IN_NAV: boolean = false;
 
 /**
  * THE HEADER, INCLUDING FOR SOMEBODY WHO ALREADY HAS A SHOP.
@@ -227,16 +235,18 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
           ))}
           {/* Marked as the destination it is: a filled pill inside the pill,
               with a ring growing out of its border. See `ring-expands`. */}
-          <Link
-            to={STOREFRONT.to}
-            className={`ring-expands relative isolate rounded-full px-4 py-2 text-sm font-semibold transition ${
-              onDark
-                ? "bg-brand-500 text-white hover:bg-brand-400"
-                : "bg-brand-500 text-white shadow-sm shadow-brand-500/25 hover:bg-brand-600"
-            }`}
-          >
-            {STOREFRONT.label}
-          </Link>
+          {STOREFRONT_IN_NAV && (
+            <Link
+              to={STOREFRONT.to}
+              className={`ring-expands relative isolate rounded-full px-4 py-2 text-sm font-semibold transition ${
+                onDark
+                  ? "bg-brand-500 text-white hover:bg-brand-400"
+                  : "bg-brand-500 text-white shadow-sm shadow-brand-500/25 hover:bg-brand-600"
+              }`}
+            >
+              {STOREFRONT.label}
+            </Link>
+          )}
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
@@ -266,7 +276,7 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
               >
                 Sign in
               </Link>
-              <TryDemo />
+              <AskForWalkthrough />
             </>
           )}
 
@@ -310,13 +320,15 @@ export function SiteHeader({ overDark = false }: { overDark?: boolean }) {
               {item.label}
             </a>
           ))}
-          <Link
-            to={STOREFRONT.to}
-            onClick={() => setOpen(false)}
-            className="mt-1 flex min-h-12 items-center justify-center rounded-xl bg-brand-500 px-4 text-[15px] font-semibold text-white transition hover:bg-brand-600"
-          >
-            {STOREFRONT.label}
-          </Link>
+          {STOREFRONT_IN_NAV && (
+            <Link
+              to={STOREFRONT.to}
+              onClick={() => setOpen(false)}
+              className="mt-1 flex min-h-12 items-center justify-center rounded-xl bg-brand-500 px-4 text-[15px] font-semibold text-white transition hover:bg-brand-600"
+            >
+              {STOREFRONT.label}
+            </Link>
+          )}
           {!user && (
             <Link
               to="/signin"

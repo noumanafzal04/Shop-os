@@ -87,9 +87,7 @@ export function EnquiryForm() {
           {kind === "walkthrough" ? "We will confirm a time" : "We have your question"}
         </h3>
         <p className="mx-auto mt-2.5 max-w-sm text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          {send.data?.message ?? "Thank you — we will get back to you."} In the
-          meantime the demo is still there, and it opens a shop of your own in
-          one tap.
+          {send.data?.message ?? "Thank you — we will get back to you."}
         </p>
       </div>
     );

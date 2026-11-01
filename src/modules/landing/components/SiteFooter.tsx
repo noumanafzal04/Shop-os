@@ -65,7 +65,6 @@ export function SiteFooter() {
               <li><a href="#inside" className="transition hover:text-white">What is inside</a></li>
               <li><a href="#day" className="transition hover:text-white">The owner&rsquo;s day</a></li>
               <li><a href="#pricing" className="transition hover:text-white">Pricing</a></li>
-              <li><Link to="/demo" className="transition hover:text-white">Try the demo</Link></li>
             </ul>
           </nav>
 

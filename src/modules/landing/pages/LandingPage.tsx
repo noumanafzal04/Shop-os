@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { useEffect } from "react";
+import { useLocation } from "react-router";
 
 import PageMeta from "../../../components/common/PageMeta";
 import { ProductShot } from "../components/ProductShots";
@@ -7,7 +8,7 @@ import { SiteFooter } from "../components/SiteFooter";
 import { SiteHeader } from "../components/SiteHeader";
 import { TradeSwitcher } from "../components/TradeSwitcher";
 import { PLANS, pointsOf, priceOf } from "../plans";
-import { TryDemo } from "../components/TryDemo";
+import { AskForWalkthrough } from "../components/AskForWalkthrough";
 import { useSettlesIn } from "../components/useSettlesIn";
 
 /**
@@ -145,13 +146,22 @@ const FAQ: Array<{ q: string; a: string }> = [
     a: "Each branch counts its own stock, sells at its own counter and closes its own day. You can look up another branch's shelf, transfer stock across, and read the whole business from one place.",
   },
   {
-    q: "What exactly does the demo give me?",
-    a: "A working shop of your own for your trade, already stocked with products at real prices, with staff and an open till. It is yours alone, nobody else can see it, and it clears itself away after a day. If you want to keep it, press keep — what you built is converted, not rebuilt.",
+    q: "Can I see it before I pay?",
+    a: "Yes. Ask for a walkthrough below: tell us your trade and a good time, and a person shows you round a shop like yours and answers every question. When you are ready, we set your shop up on the plan you choose.",
   },
 ];
 
 export default function LandingPage() {
   useSettlesIn();
+
+  // An address with a section in it — "/#talk" from the header, the footer or
+  // an old "Try the demo" link — opens AT that section. The browser looks for
+  // it before the page is drawn and finds nothing, so it is looked for here.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView?.({ block: "start" });
+  }, [hash]);
 
   return (
     <div className="min-h-dvh bg-white text-gray-900 dark:bg-gray-950 dark:text-white/90">
@@ -218,17 +228,17 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-              <TryDemo big />
+              <AskForWalkthrough big />
               <a
-                href="#talk"
+                href="#pricing"
                 className="rounded-xl border border-white/20 px-6 py-4 text-base font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
               >
-                Ask for a walkthrough
+                See the prices
               </a>
             </div>
 
             <p className="mt-3 text-sm text-white/45">
-              No card, no phone call. The demo opens a real shop of your own.
+              No card needed. A person shows you round a shop like yours.
             </p>
           </div>
 
@@ -260,7 +270,7 @@ export default function LandingPage() {
               ["9", "trades, each with its own rules"],
               ["0", "sales lost when the line drops"],
               ["12", "parts of a shop, not twelve subscriptions"],
-              ["24h", "demo shop, yours alone"],
+              ["3", "plans, priced by the size of the shop"],
             ].map(([big, small]) => (
               <div key={small}>
                 <dt className="text-3xl font-bold tabular-nums tracking-tight text-white">{big}</dt>
@@ -553,7 +563,7 @@ export default function LandingPage() {
           </ol>
 
           <div className="settles mt-14 flex justify-center">
-            <TryDemo big />
+            <AskForWalkthrough big />
           </div>
         </div>
       </section>
@@ -630,16 +640,16 @@ export default function LandingPage() {
                   ))}
                 </ul>
 
-                <Link
-                  to="/demo"
+                <a
+                  href="#talk"
                   className={`mt-auto block rounded-xl py-3.5 text-center text-sm font-semibold transition ${
                     plan.featured
                       ? "bg-brand-500 text-white hover:bg-brand-600"
                       : "border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
                   }`}
                 >
-                  Try it first
-                </Link>
+                  Ask about this plan
+                </a>
               </div>
             ))}
           </div>
@@ -733,9 +743,9 @@ export default function LandingPage() {
                 Would you rather somebody showed you?
               </h2>
               <p className="mt-6 text-lg leading-relaxed text-gray-600 dark:text-gray-300">
-                The demo is there whenever you want it, and it needs nothing
-                from you. But if you would rather be walked through it, or you
-                have one question standing in the way, say so here.
+                Tell us your trade and a good time, and a person walks you
+                through a shop like yours. Or ask the one question standing in
+                the way — it is answered the same day.
               </p>
 
               <dl className="mt-10 space-y-6">
@@ -773,20 +783,20 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-3xl px-5 py-24 text-center sm:px-8 lg:py-32">
           <div className="settles">
             <h2 className="text-4xl font-bold leading-[1.06] tracking-[-0.02em] text-balance sm:text-5xl">
-              Open a shop of your own and ring a sale
+              See your own shop running before you pay
             </h2>
             <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/60">
-              A real shop for your trade, stocked and ready, with a till that is
-              already open. It is yours alone, and it clears itself away after a
-              day if you decide against it.
+              A walkthrough of a shop like yours — your trade, your counter,
+              your day — with every question answered. When you are ready, we
+              set yours up.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4">
-              <TryDemo big />
+              <AskForWalkthrough big />
               <a
-                href="#talk"
+                href="#pricing"
                 className="rounded-xl border border-white/20 px-6 py-4 text-base font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
               >
-                Ask for a walkthrough
+                See the prices
               </a>
             </div>
           </div>
