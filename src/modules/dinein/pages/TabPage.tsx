@@ -1075,6 +1075,7 @@ export default function TabPage() {
         </p>
         <Label>Table</Label>
         <Select
+          placeholder={null}
           value={moveTable}
           options={[
             { value: "", label: "No table (counter / takeaway)" },
@@ -1106,6 +1107,7 @@ export default function TabPage() {
         </p>
         <Label>Hand to</Label>
         <Select
+          placeholder={null}
           value={handTo}
           options={[
             { value: "", label: servers.isPending ? "Loading…" : "Choose a colleague" },
@@ -1142,6 +1144,7 @@ export default function TabPage() {
         </p>
         <Label>Tab to fold in</Label>
         <Select
+          placeholder={null}
           value={mergeSource}
           options={[
             // The list is fetched when this sheet opens. Until it answers the

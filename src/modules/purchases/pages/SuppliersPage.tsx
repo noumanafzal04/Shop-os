@@ -328,6 +328,7 @@ export default function SuppliersPage() {
             <div>
               <Label>Against</Label>
               <Select
+                placeholder={null}
                 aria-label="Which order this payment is against"
                 value={payAgainst}
                 onChange={setPayAgainst}
@@ -347,6 +348,7 @@ export default function SuppliersPage() {
               <Label>Method</Label>
               <Select
                 aria-label="Payment method"
+                placeholder={null}
                 value={payMethod}
                 onChange={setPayMethod}
                 options={PAY_METHODS}

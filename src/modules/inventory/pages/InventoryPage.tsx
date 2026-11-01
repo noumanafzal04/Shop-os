@@ -875,6 +875,7 @@ export default function InventoryPage() {
           <div className="mb-4">
             <Label>Size</Label>
             <Select
+              placeholder={null}
               aria-label="Which size this lot belongs to"
               value={bVariant}
               onChange={setBVariant}

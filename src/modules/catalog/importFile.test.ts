@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   BYTE_ORDER_MARK,
+  mergeSummaries,
+  splitCsvText,
   categoryPaths,
   choicesForServer,
   failedRowsCsv,
@@ -82,5 +84,46 @@ describe("the rows that did not go in, as a file", () => {
 
   it("starts with the mark Excel needs to read Urdu", () => {
     expect(failedRowsCsv(summary).charCodeAt(0)).toBe(0xfeff);
+  });
+});
+
+/**
+ * #GS1 — a garments shop's 20,000 items were refused as one file ("more than
+ * 500 rows") and had to be cut into forty by hand.
+ */
+describe("a long CSV goes in parts by itself", () => {
+  const sheet = (rows: number) => ["Name,SKU,Price", ...Array.from({ length: rows }, (_, i) => `Item ${i + 1},S-${i + 1},${100 + i}`)].join("\n");
+
+  it("a file that fits is sent as it is", () => {
+    expect(splitCsvText(sheet(500))).toEqual([sheet(500)]);
+  });
+
+  it("20,000 rows become forty parts of 500, each with the heading row, and none is lost", () => {
+    const parts = splitCsvText(sheet(20000));
+    expect(parts).toHaveLength(40);
+    for (const part of parts) expect(part.split("\n")[0]).toBe("Name,SKU,Price");
+    expect(parts.map((p) => p.split("\n").length - 1)).toEqual(Array(40).fill(500));
+    const last = parts[39].split("\n");
+    expect(last[last.length - 1]).toBe("Item 20000,S-20000,20099");
+  });
+
+  it("a quoted cell holding a comma or a line break stays one row", () => {
+    const text = ['Name,Note', 'A,"one, two"', 'B,"line one\nline two"', 'C,plain'].join("\r\n");
+    const parts = splitCsvText(text, 2);
+    expect(parts).toEqual(['Name,Note\nA,"one, two"\nB,"line one\nline two"', "Name,Note\nC,plain"]);
+  });
+
+  it("the parts' answers read as one, with row numbers in the whole file", () => {
+    const base = { dry_run: true, kind: "csv" as const, headers: ["Name"], ignored_columns: [], fields: {}, warnings: [], errors: [], skipped: 0, waiting: 0, same_name: 0 };
+    const one: ImportSummary = { ...base, total: 500, created: 499, updated: 0, failed: 1, failed_rows: [{ row: 7, status: "failed" as const, messages: ["Price"], cells: {} }], unknown_categories: [{ name: "Caps", rows: 3, suggestion: null }] };
+    const two: ImportSummary = { ...base, total: 200, created: 190, updated: 10, failed: 0, failed_rows: [], unknown_categories: [{ name: "Caps", rows: 2, suggestion: { id: "c1", path: "Accessories > Caps" } }] };
+
+    const all = mergeSummaries([{ summary: one, rowsBefore: 0 }, { summary: two, rowsBefore: 500 }]);
+
+    expect([all.total, all.created, all.updated, all.failed]).toEqual([700, 689, 10, 1]);
+    expect(all.failed_rows[0].row).toBe(7);
+    expect(all.unknown_categories).toEqual([{ name: "Caps", rows: 5, suggestion: { id: "c1", path: "Accessories > Caps" } }]);
+    const shifted = mergeSummaries([{ summary: two, rowsBefore: 0 }, { summary: one, rowsBefore: 200 }]);
+    expect(shifted.failed_rows[0].row).toBe(207);
   });
 });

@@ -120,3 +120,14 @@ it("#AZ25 a booking's cash with no drawer open is said before the press, on both
     expect(sheet).toMatch(/\{noDrawer && <div className="mt-4"><NoDrawerNote note=\{noDrawer\} \/><\/div>\}/);
   }
 });
+
+it("#GS2 a new item starts in the shop, and online only for an online-first business", () => {
+  expect(form).toMatch(/const \[visibleOnline, setVisibleOnline\] = useState\(businessType === "online"\);/);
+});
+
+it("garments round: an offline till does not dial for the shop's settings it keeps", () => {
+  const shop = read(import.meta.glob("../modules/shop/hooks/useShop.ts", { query: "?raw", import: "default", eager: true }));
+  const settings = shop.slice(shop.indexOf("export function useShopSettings"));
+
+  expect(settings.slice(0, settings.indexOf("});"))).toMatch(/networkMode: WATCHER_NETWORK_MODE,/);
+});

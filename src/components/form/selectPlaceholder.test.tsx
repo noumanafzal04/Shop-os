@@ -55,7 +55,42 @@ describe("no picker lists its empty choice twice", () => {
 
     expect(offences).toEqual([]);
   });
+
+  /**
+   * #GS3 — the same dead line without a placeholder written at all: a picker
+   * whose empty choice is one of its options ("Whole account", "No table")
+   * still drew the default "Select an option" above it. Seven of them.
+   */
+  it("a picker that lists its own empty choice says placeholder={null}", () => {
+    expect(silentlyDoubled('<Select value={x} options={[{ value: "", label: "Whole account" }, ...rest]} onChange={f} />')).toBe(true);
+    expect(silentlyDoubled('<Select placeholder={null} options={[{ value: "", label: "Whole account" }]} onChange={f} />')).toBe(false);
+
+    const offences = files(SRC).flatMap((f) => {
+      const code = fs.readFileSync(f, "utf8");
+      return [...code.matchAll(/<Select\b/g)]
+        .filter((m) => silentlyDoubled(elementAt(code, m.index ?? 0)))
+        .map((m) => `${path.relative(SRC, f)}:${code.slice(0, m.index).split("\n").length}`);
+    });
+
+    expect(offences).toEqual([]);
+  });
 });
+
+/** One `<Select … />` element, braces and all. */
+function elementAt(code: string, start: number): string {
+  let depth = 0;
+  for (let i = start; i < code.length; i++) {
+    if (code[i] === "{") depth++;
+    else if (code[i] === "}") depth--;
+    else if (depth === 0 && code.startsWith("/>", i)) return code.slice(start, i + 2);
+  }
+
+  return code.slice(start);
+}
+
+function silentlyDoubled(element: string): boolean {
+  return /\{\s*value:\s*""\s*,\s*label:/.test(element) && !/\bplaceholder\b/.test(element);
+}
 
 /** Placeholders whose words are also an empty choice listed just above them. */
 function doubled(code: string): string[] {

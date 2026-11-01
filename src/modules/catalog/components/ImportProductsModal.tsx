@@ -12,7 +12,10 @@ import {
   choicesForServer,
   failedRowsCsv,
   goingIn,
+  mergeSummaries,
+  ROWS_PER_SEND,
   rowsToCorrect,
+  splitCsvText,
   startingChoices,
   undecided,
   type CategoryChoice,
@@ -51,8 +54,13 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
   const [checkedWith, setCheckedWith] = useState("{}");
   const [downloading, setDownloading] = useState<string | null>(null);
 
-  const busy = importCsv.isPending;
-  const error = importCsv.error instanceof ApiError ? (importCsv.error.firstFieldError() ?? importCsv.error.message) : null;
+  // A long CSV goes in parts (#GS1): which part is on its way, and what stopped one.
+  const [working, setWorking] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [partFailed, setPartFailed] = useState<string | null>(null);
+  const busy = importCsv.isPending || working;
+  const said = (e: unknown) => (e instanceof ApiError ? (e.firstFieldError() ?? e.message) : "It could not be sent.");
+  const error = partFailed ?? (importCsv.error instanceof ApiError ? (importCsv.error.firstFieldError() ?? importCsv.error.message) : null);
 
   const startOver = () => {
     setFile(null);
@@ -61,6 +69,8 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
     setChoices({});
     setMapping({});
     setCheckedWith("{}");
+    setProgress(null);
+    setPartFailed(null);
     importCsv.reset();
   };
 
@@ -78,33 +88,66 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
    * always reports the categories the shop does not have, and the answers stay
    * here until Import.
    */
-  const runCheck = (using = mapping) => {
+  const runCheck = async (using = mapping) => {
     if (!file || busy) return;
-    importCsv.mutate(
-      { file, dryRun: true, mapping: using },
-      {
-        onSuccess: ({ data }) => {
-          setCheck(data);
-          setCheckedWith(JSON.stringify(using));
-          // Keep what has been answered; start the rest where they nearly are.
-          setChoices((was) => ({ ...startingChoices(data.unknown_categories), ...was }));
-        },
-      },
-    );
+    setPartFailed(null);
+    const merged = await inParts("Checking", (part) => ({ file: part, dryRun: true, mapping: using }));
+    if (merged === null) return;
+    setCheck(merged);
+    setCheckedWith(JSON.stringify(using));
+    // Keep what has been answered; start the rest where they nearly are.
+    setChoices((was) => ({ ...startingChoices(merged.unknown_categories), ...was }));
   };
 
-  const runImport = () => {
+  const runImport = async () => {
     if (!file || busy) return;
-    importCsv.mutate(
-      { file, mapping, categories: choicesForServer(choices) },
-      {
-        onSuccess: ({ data }) => {
-          setDone(data);
-          toast.success(`${goingIn(data)} ${goingIn(data) === 1 ? "item" : "items"} brought in`);
-        },
-      },
-    );
+    setPartFailed(null);
+    const merged = await inParts("Bringing in", (part) => ({ file: part, mapping, categories: choicesForServer(choices) }));
+    if (merged === null) return;
+    setDone(merged);
+    toast.success(`${goingIn(merged)} ${goingIn(merged) === 1 ? "item" : "items"} brought in`);
   };
+
+  /**
+   * The file, as the parts the server takes — a CSV longer than 500 rows is
+   * cut here; anything else goes as it is. Each part is sent in turn and the
+   * answers are read as one. Null when a part was refused: what was refused,
+   * and which part, is said on the screen.
+   */
+  async function inParts(doing: string, request: (part: File) => Parameters<typeof importCsv.mutateAsync>[0]): Promise<ImportSummary | null> {
+    if (!file) return null;
+    setWorking(true);
+    const done: Array<{ summary: ImportSummary; rowsBefore: number }> = [];
+    try {
+      const isCsv = /\.(csv|txt)$/i.test(file.name) || file.type === "text/csv";
+      const texts = isCsv ? splitCsvText(await file.text()) : [];
+      const parts = texts.length > 1
+        ? texts.map((t, i) => new File([t], file.name.replace(/(\.[a-z]+)?$/i, `-part-${i + 1}.csv`), { type: "text/csv" }))
+        : [file];
+      for (const [i, part] of parts.entries()) {
+        if (parts.length > 1) setProgress(`${doing} part ${i + 1} of ${parts.length} — ${ROWS_PER_SEND} rows each…`);
+        try {
+          const { data } = await importCsv.mutateAsync(request(part));
+          done.push({ summary: data, rowsBefore: i * ROWS_PER_SEND });
+        } catch (e) {
+          if (parts.length > 1) {
+            setPartFailed(
+              doing === "Checking"
+                ? `Part ${i + 1} of ${parts.length} could not be checked: ${said(e)}`
+                : `Parts 1–${i} are in. Part ${i + 1} of ${parts.length} could not be brought in: ${said(e)} Sending the file again is safe — rows already in are updated, never added twice.`,
+            );
+          }
+
+          return null;
+        }
+      }
+
+      return mergeSummaries(done);
+    } finally {
+      setWorking(false);
+      setProgress(null);
+    }
+  }
 
   const template = async (format: "xlsx" | "csv") => {
     setDownloading(format);
@@ -169,7 +212,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
             <li>• Rows are matched by <strong>SKU</strong>: one you already have is updated, a new one is added.</li>
             <li>• A <strong>blank cell leaves that detail as it is</strong> — to change prices, SKU and Price are enough.</li>
             <li>• A size or a pack is its own row, with the item&rsquo;s SKU under <strong>Parent SKU</strong>.</li>
-            <li>• Up to 500 rows in a file. Split a longer list into several — sending a file again is safe.</li>
+            <li>• A long CSV is sent in parts of 500 by itself; an Excel file takes up to 500 rows — save a longer one as CSV. Sending a file again is safe.</li>
           </ul>
 
           <label className="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="import-file">
@@ -189,6 +232,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
               {busy ? "Checking…" : "Check the file"}
             </Button>
           </div>
+          {progress && <p data-testid="import-progress" className="mt-2 text-right text-theme-xs text-gray-500 dark:text-gray-400">{progress}</p>}
         </>
       )}
 
@@ -302,6 +346,7 @@ export function ImportProductsModal({ isOpen, onClose }: { isOpen: boolean; onCl
               </Button>
             </div>
           </div>
+          {progress && <p data-testid="import-progress" className="mt-2 text-right text-theme-xs text-gray-500 dark:text-gray-400">{progress}</p>}
           {unanswered.length > 0 && (
             <p className="mt-2 text-right text-theme-xs text-warning-600 dark:text-warning-400">
               Choose what to do with {unanswered.length === 1 ? `“${unanswered[0]}”` : `${unanswered.length} categories`} first.

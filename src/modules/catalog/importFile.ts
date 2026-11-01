@@ -114,3 +114,80 @@ export function rowsToCorrect<T extends Pick<ImportSummary, "headers" | "failed_
 export function goingIn(summary: Pick<ImportSummary, "created" | "updated">): number {
   return summary.created + summary.updated;
 }
+
+/**
+ * A LONG LIST GOES IN PARTS, BY ITSELF (garments round, #GS1).
+ *
+ * The server takes up to 500 rows in one request — a check is the import run
+ * and undone, and a request has a time limit. A garments shop bringing 20,000
+ * items was told "Split it into files of up to 500" and made forty files by
+ * hand. A CSV is now cut here, on the device, into parts the server takes, and
+ * each part is checked and brought in on its own; the screen shows one answer.
+ * (An .xlsx cannot be cut in the browser; a long one is still refused, and the
+ * refusal says to save it as CSV.)
+ */
+export const ROWS_PER_SEND = 500;
+
+/** The records of a CSV — a quoted cell may hold commas and line breaks. */
+function csvRecords(text: string): string[] {
+  const records: string[] = [];
+  let start = 0;
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') quoted = !quoted;
+    else if (!quoted && (c === "\n" || c === "\r")) {
+      if (i > start) records.push(text.slice(start, i));
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      start = i + 1;
+    }
+  }
+  if (start < text.length && text.slice(start).trim() !== "") records.push(text.slice(start));
+
+  return records.filter((r) => r.trim() !== "");
+}
+
+/** The CSV as parts of at most `perPart` rows, each with the heading row. One part when it fits. */
+export function splitCsvText(text: string, perPart: number = ROWS_PER_SEND): string[] {
+  const clean = text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text;
+  const [head, ...rows] = csvRecords(clean);
+  if (head === undefined || rows.length <= perPart) return [text];
+
+  const parts: string[] = [];
+  for (let i = 0; i < rows.length; i += perPart) parts.push([head, ...rows.slice(i, i + perPart)].join("\n"));
+
+  return parts;
+}
+
+/**
+ * The answers of every part, as one. Row numbers are moved on by the rows that
+ * came before, so "row 12 of part 3" reads as the row it is in the whole file.
+ */
+export function mergeSummaries(parts: Array<{ summary: ImportSummary; rowsBefore: number }>): ImportSummary {
+  const [first] = parts;
+  const shift = <T extends { row: number }>(list: T[], by: number): T[] => list.map((r) => ({ ...r, row: r.row + by }));
+  const unknown = new Map<string, ImportSummary["unknown_categories"][number]>();
+  for (const { summary } of parts) {
+    for (const c of summary.unknown_categories) {
+      const had = unknown.get(c.name);
+      unknown.set(c.name, had ? { ...had, rows: had.rows + c.rows, suggestion: had.suggestion ?? c.suggestion } : { ...c });
+    }
+  }
+  const add = (key: "total" | "created" | "updated" | "failed" | "skipped" | "waiting" | "same_name") =>
+    parts.reduce((n, p) => n + (p.summary[key] ?? 0), 0);
+
+  return {
+    ...first.summary,
+    total: add("total"),
+    created: add("created"),
+    updated: add("updated"),
+    failed: add("failed"),
+    skipped: add("skipped"),
+    waiting: add("waiting"),
+    same_name: add("same_name"),
+    errors: parts.flatMap((p) => shift(p.summary.errors, p.rowsBefore)),
+    warnings: parts.flatMap((p) => shift(p.summary.warnings, p.rowsBefore)),
+    failed_rows: parts.flatMap((p) => shift(p.summary.failed_rows, p.rowsBefore)),
+    unknown_categories: [...unknown.values()],
+  };
+}

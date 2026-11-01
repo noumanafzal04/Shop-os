@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { ROWS_PER_SEND } from "../importFile";
 
 /**
  * THE SCREEN'S NUMBER IS THE SERVER'S (offline #OF1).
@@ -16,10 +17,13 @@ const MODAL = resolve(__dirname, "./ImportProductsModal.tsx");
 describe("the import screen's row limit", () => {
   it.skipIf(!existsSync(ACTION))("is the limit the server refuses at", () => {
     const server = /const MAX_ROWS = (\d+);/.exec(readFileSync(ACTION, "utf8"));
-    const screen = /Up to ([\d,]+) rows in a file/.exec(readFileSync(MODAL, "utf8"));
+    const screen = /sent in parts of ([\d,]+) by itself; an Excel file takes up to ([\d,]+) rows/.exec(readFileSync(MODAL, "utf8"));
 
     expect(server, "the server's MAX_ROWS was not found").not.toBeNull();
     expect(screen, "the screen no longer states a row limit").not.toBeNull();
+    // What the screen says, and what the device cuts a CSV into (#GS1), are the server's limit.
     expect(Number(screen![1].replace(/,/g, ""))).toBe(Number(server![1]));
+    expect(Number(screen![2].replace(/,/g, ""))).toBe(Number(server![1]));
+    expect(ROWS_PER_SEND).toBe(Number(server![1]));
   });
 });

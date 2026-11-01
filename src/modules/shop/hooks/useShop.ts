@@ -12,6 +12,7 @@ import {
 } from "../../../common/format/date";
 import { setShopDayRule, shopTodayDate } from "../../../common/shopDay";
 import { useKeptQuery } from "../../../common/kept/useKeptQuery";
+import { WATCHER_NETWORK_MODE } from "../../../common/api/queryClient";
 
 /**
  * What this shop has. Read-only — modules are the admin's decision, and this is
@@ -39,6 +40,10 @@ export function useShopSettings() {
     queryFn: async () => (await shopService.settings()).data,
     staleTime: 5 * 60 * 1000,
     enabled: isShop,
+    // The device keeps its own copy, so with no network there is nobody worth
+    // dialling: it was the one call an offline till still sent, and failed
+    // (garments round). Asked again when the line is back.
+    networkMode: WATCHER_NETWORK_MODE,
   });
 
   // WHICH DAY IT IS HERE. The shop's settings say when its day turns; every

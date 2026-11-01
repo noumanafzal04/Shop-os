@@ -235,6 +235,7 @@ export default function FuelDeliveriesPage() {
               <div>
                 <Label>From</Label>
                 <Select
+                  placeholder={null}
                   aria-label="Who the tanker came from"
                   options={[{ value: "", label: supplierOptions.length ? "Not said" : "No suppliers on record yet" }, ...supplierOptions]}
                   value={form.supplier_id}

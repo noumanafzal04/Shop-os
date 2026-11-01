@@ -1090,7 +1090,7 @@ export default function ShopSettingsPage() {
                         description="How much a cashier can discount without asking. Staff with the “Override discount limit” permission can go higher; everyone else is stopped at the counter."
                       >
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <Field label="Most they can discount" hint="As a share of the bill. Empty = no limit.">
+                          <Field label="Most they can discount" hint="As a percentage of the bill. Leave empty for no limit.">
                             <div className="relative">
                               <Input
                                 type="number"
@@ -1104,7 +1104,7 @@ export default function ShopSettingsPage() {
                               <Unit side="right">%</Unit>
                             </div>
                           </Field>
-                          <Field label="Or at most" hint="A cash ceiling, whatever the percentage works out to. Empty = no limit.">
+                          <Field label="Or at most" hint="The most in money, whatever the percentage comes to. Leave empty for no limit.">
                             <div className="relative">
                               <Input
                                 type="number"
@@ -1483,7 +1483,7 @@ export default function ShopSettingsPage() {
                 <ToggleRow
                   checked={!!prefs.loyalty_enabled}
                   onChange={(v) => setP("loyalty_enabled", v)}
-                  label="Enable loyalty points"
+                  label="Turn on loyalty points"
                   hint="Points are linked to the customer's phone — add the customer at the counter to earn or use points."
                 />
                 {!!prefs.loyalty_enabled && (

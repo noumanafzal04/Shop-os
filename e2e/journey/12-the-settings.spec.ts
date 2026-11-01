@@ -868,7 +868,7 @@ test("G10 · Loyalty: points are earned on what was bought and are worth what th
   const points = async () => (await ask<{ loyalty_points: number }>(request, "owner", `/customers-lookup?phone=${walkin}`)).loyalty_points;
 
   await openSettings(page, "Loyalty");
-  await setSwitch(page, "Enable loyalty points", true);
+  await setSwitch(page, "Turn on loyalty points", true);
   await page.getByLabel("Earn: Rs per point").fill("100");
   await page.getByLabel("Redeem: Rs per point").fill("2");
   await page.getByLabel("Minimum to redeem").fill("10");

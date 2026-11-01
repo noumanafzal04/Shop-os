@@ -247,7 +247,12 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // Kept and used, never sold — a recipe's flour. It was offered on the till
   // at 0, with no way to say otherwise (tester pass 5, B62).
   const [forSale, setForSale] = useState(true);
-  const [visibleOnline, setVisibleOnline] = useState(true);
+  // On the online shop by default only for a business that sells online first
+  // (#GS2). A garments counter on a plan that includes the online shop met
+  // "Not saved — this item is sold online, so it needs a description" on
+  // every item it made. A counter's items start in the shop; one tick puts
+  // an item online.
+  const [visibleOnline, setVisibleOnline] = useState(businessType === "online");
   const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [variants, setVariants] = useState<MatrixRow[]>([]);
 
