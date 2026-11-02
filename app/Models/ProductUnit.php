@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\ParentSku;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,6 +27,15 @@ class ProductUnit extends Model
             'factor' => 'decimal:3',
             'price' => 'decimal:2',
         ];
+    }
+
+    /**
+     * A pack is named in the product sheet by its item's SKU, so the item is
+     * given one when its first pack arrives (#GS5, see ParentSku).
+     */
+    protected static function booted(): void
+    {
+        static::created(fn (self $unit) => ParentSku::forParentOf($unit));
     }
 
     public function product(): BelongsTo

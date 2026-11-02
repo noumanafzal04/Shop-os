@@ -8,6 +8,7 @@ use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
 use App\Support\ItemTypes;
+use App\Support\ParentSku;
 use App\Support\SoldOut;
 use App\Support\TaxGroupRates;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -289,6 +290,14 @@ class Product extends BaseModel
             // whatever its listing switch said before (tester pass 5, B62).
             if ($product->for_sale === false) {
                 $product->visible_in_marketplace = false;
+            }
+
+            // An item with sizes or packs keeps a SKU: they are named by it
+            // in the product sheet, and without it they drop out of an export
+            // (#GS5). A cleared code goes back to what it was.
+            if ($product->exists && $product->isDirty('sku') && blank($product->sku) && ParentSku::hasChildren($product)) {
+                $product->sku = $product->getOriginal('sku');
+                ParentSku::give($product);
             }
         });
     }

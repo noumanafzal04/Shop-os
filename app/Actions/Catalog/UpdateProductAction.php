@@ -4,6 +4,7 @@ namespace App\Actions\Catalog;
 
 use App\Models\Product;
 use App\Support\BarcodeNamespace;
+use App\Support\ParentSku;
 use Illuminate\Support\Facades\DB;
 
 class UpdateProductAction
@@ -109,6 +110,9 @@ class UpdateProductAction
                 BarcodeNamespace::assertFree((string) $product->barcode, $product);
             }
         });
+
+        // A first size or pack gave the item its SKU on the way in (#GS5).
+        ParentSku::readBack($product);
 
         $product->load('category', 'variants', 'images', 'collections', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name');
 

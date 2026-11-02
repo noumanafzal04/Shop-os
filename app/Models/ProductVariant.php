@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
+use App\Support\ParentSku;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductVariant extends BaseModel
@@ -36,6 +37,15 @@ class ProductVariant extends BaseModel
             'low_stock_threshold' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * A size is named in the product sheet by its item's SKU, so the item is
+     * given one when its first size arrives (#GS5, see ParentSku).
+     */
+    protected static function booted(): void
+    {
+        static::created(fn (self $variant) => ParentSku::forParentOf($variant));
     }
 
     public function product(): BelongsTo

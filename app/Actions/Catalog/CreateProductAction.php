@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Support\BarcodeNamespace;
 use App\Support\ItemTypes;
 use App\Support\OpeningShelf;
+use App\Support\ParentSku;
 use App\Support\PlanLimits;
 use App\Support\TenantContext;
 use Illuminate\Support\Facades\DB;
@@ -268,6 +269,9 @@ class CreateProductAction
                 $warnings[] = "Variant \"{$variant['name']}\" sells below cost.";
             }
         }
+
+        // A first size or pack gave the item its SKU on the way in (#GS5).
+        ParentSku::readBack($product);
 
         return [
             'product' => $product->load('category', 'variants', 'images', 'collections', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'),
