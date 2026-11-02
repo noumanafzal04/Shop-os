@@ -47,10 +47,12 @@ class CsvImportTest extends TestCase
         return $this->withToken($token);
     }
 
-    private function upload(string $csv)
+    /** @param  array<string, mixed>  $with  more of the form — `dry_run` for the check */
+    private function upload(string $csv, array $with = [])
     {
         return $this->actingAsUser($this->owner)->post('/api/v1/products/import', [
             'file' => UploadedFile::fake()->createWithContent('products.csv', $csv),
+            ...$with,
         ], ['Accept' => 'application/json']);
     }
 
@@ -195,6 +197,30 @@ class CsvImportTest extends TestCase
 
         $this->assertSame(0, $res['failed'], json_encode($res['errors']));
         $this->assertSame(1, Product::withoutTenancy()->where('sku', 'TSHIRT')->firstOrFail()->variants()->count());
+    }
+
+    /**
+     * #GS7 (garments round, 2026-11-01). On the check, an item whose category
+     * is new waits for the shop to say "Create" on the screen — its sizes were called
+     * failed, "No product in this shop has the SKU", though they go in with it.
+     * The button then counted 50,002 rows where 50,010 went in.
+     */
+    public function test_a_size_waits_with_an_item_that_waits_on_its_category(): void
+    {
+        $res = $this->upload(<<<'CSV'
+        name,item_type,sku,parent_sku,price,category,stock_quantity
+        Kurta,physical_product,KURTA,,2950,Men > Kurta,0
+        Small,,KURTA-S,KURTA,2950,,4
+        Large,,KURTA-L,KURTA,2950,,2
+        Lost,,LOST-S,NOPE,100,,1
+        CSV, ['dry_run' => 1])->assertOk()->json('data');
+
+        $this->assertSame(3, $res['waiting'], json_encode($res['failed_rows']));
+        $this->assertSame(1, $res['failed'], 'a size whose item is in no row and no shelf still fails');
+        $said = collect($res['failed_rows'])->mapWithKeys(fn (array $r): array => [$r['cells']['name'] => [$r['status'], $r['messages'][0]]]);
+        $this->assertSame(['waiting', 'Its item (SKU "KURTA") is waiting on its category — this size goes in with it.'], $said['Small']);
+        $this->assertSame('failed', $said['Lost'][0]);
+        $this->assertStringContainsString('No product in this shop has the SKU "NOPE"', $said['Lost'][1]);
     }
 
     public function test_a_partial_file_never_retires_a_size_it_did_not_mention(): void

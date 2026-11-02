@@ -137,6 +137,14 @@ class ImportProductsAction
     private array $out = [];
 
     /**
+     * SKUs of the items in this file that wait on a category (#GS7). Their
+     * sizes and packs wait with them — they are not "nothing to belong to".
+     *
+     * @var array<string, true>
+     */
+    private array $waitingSkus = [];
+
+    /**
      * @param  array{dry_run?: bool, categories?: array<string, array{action?: string, id?: ?string}>, mapping?: array<string, ?string>}  $options
      * @return array<string, mixed>
      */
@@ -309,6 +317,7 @@ class ImportProductsAction
     private function run(array $rows): void
     {
         $this->categories = CategoryPaths::ofThisShop();
+        $this->waitingSkus = [];
 
         /**
          * TWO PASSES, so the order of the file does not matter.
@@ -352,6 +361,11 @@ class ImportProductsAction
 
             if ($outcome === 'waiting') {
                 $this->handBack($row, 'waiting', ['Its category is not in your shop yet — choose what to do with it.']);
+
+                [$sku] = Cell::code($row['cells']['sku'] ?? '');
+                if (filled($sku)) {
+                    $this->waitingSkus[(string) $sku] = true;
+                }
             }
         } catch (RowRefused $e) {
             $this->refuse($row, $e->messages);
@@ -955,6 +969,16 @@ class ImportProductsAction
     {
         foreach ($group as $row) {
             $this->out['total']++;
+
+            // Its item is in this file, waiting on a category chosen on the
+            // screen: the size goes in with it, so it waits too (#GS7).
+            if (isset($this->waitingSkus[$parentSku])) {
+                $this->out['waiting']++;
+                $this->handBack($row, 'waiting', ["Its item (SKU \"{$parentSku}\") is waiting on its category — this {$what} goes in with it."]);
+
+                continue;
+            }
+
             $this->refuse($row, ["No product in this shop has the SKU \"{$parentSku}\", so this {$what} has nothing to belong to."]);
         }
     }
