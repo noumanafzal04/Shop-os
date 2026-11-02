@@ -798,6 +798,7 @@ export default function SalesPage() {
                 <Label>Why is this being cancelled?</Label>
                 <Select
                   value={cancelCode}
+                  placeholder="Choose a reason"
                   options={VOID_REASONS.map((r) => ({ value: r.value, label: r.label }))}
                   onChange={(v) => setCancelCode(v as VoidReasonCode)}
                 />
