@@ -9,10 +9,15 @@ modules can be moved; limits mean nothing until something tries to exceed them.
 """
 
 import json
+import os
 
 from api import Api, Report
 
-ADMIN = "admin@shopos.test"
+# The platform admin the sweep signs in as. A database seeded for launch has the
+# admins named in the server's .env, not the old test one — so both are read
+# from the environment, and the password is never written here.
+ADMIN = os.environ.get("SWEEP_ADMIN", "admin@shopos.test")
+ADMIN_PASSWORD = os.environ.get("SWEEP_ADMIN_PASSWORD", "password")
 
 # The eight PRIMARY codes. The nine legacy ones (restaurant, grocery, clinic,
 # salon, workshop, service, wholesale, books, hardware) resolve into these via
@@ -24,7 +29,7 @@ TYPES = ["food", "mart", "pharmacy", "retail", "services", "automotive", "financ
 def run(api: Api, rep: Report) -> dict:
     """Returns {type_code: {tenant_id, owner_email}} for the later phases."""
 
-    token = api.login(ADMIN)
+    token = api.login(ADMIN, ADMIN_PASSWORD)
     if token is None:
         # The server's own answer, never a guess about the seeder. This line
         # said "is the seeder run?" about an account that logs in fine, and the

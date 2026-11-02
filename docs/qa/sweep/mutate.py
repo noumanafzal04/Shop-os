@@ -124,7 +124,7 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "e" in phases:
             phase_e.run(api, rep, sold)
         if "f" in phases:
-            api.token = api.login(phase_a.ADMIN)
+            api.token = api.login(phase_a.ADMIN, phase_a.ADMIN_PASSWORD)
             phase_f.run(api, rep, sold, tenants)
         # Phase Q's fuel checks need a forecourt, and phase G is what builds
         # one. Without it `/fuel/tanks` is empty, the delivery check reports
@@ -136,7 +136,7 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "h" in phases:
             phase_h.run(api, rep, sold)
         if "i" in phases:
-            api.token = api.login(phase_a.ADMIN)
+            api.token = api.login(phase_a.ADMIN, phase_a.ADMIN_PASSWORD)
             phase_i.run(api, rep, sold, tenants)
         if "j" in phases:
             phase_j.run(api, rep, sold)
@@ -155,7 +155,7 @@ def mutation(name: str, must_report: str, apply, undo, ran_marker: str,
         if "q" in phases:
             phase_q.run(api, rep, sold)
         if "r" in phases:
-            api.token = api.login(phase_a.ADMIN)
+            api.token = api.login(phase_a.ADMIN, phase_a.ADMIN_PASSWORD)
             phase_r.run(api, rep, sold, tenants)
         if "s" in phases:
             phase_s.run(api, rep, sold)

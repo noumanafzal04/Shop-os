@@ -35,7 +35,7 @@ person's things is meaningless with one person.
 import uuid
 
 from api import Api, Report
-from phase_a import ADMIN
+from phase_a import ADMIN, ADMIN_PASSWORD
 
 # Stable, so a second run signs in rather than registering — `throttle:auth` is
 # five per minute per IP and the sweep shares it with every other login.
@@ -200,7 +200,7 @@ def _open_for_shoppers(api: Api, rep: Report, sold: dict, tenants: dict) -> None
         rep.query("R", "a city to finish shop setup with", f"/cities → {status}")
         return
 
-    admin = api.login(ADMIN)
+    admin = api.login(ADMIN, ADMIN_PASSWORD)
 
     for code in want:
         state = sold[code]

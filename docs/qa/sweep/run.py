@@ -146,7 +146,7 @@ def main() -> int:
     if "f" in want:
         # Phase F needs the ADMIN token back to move a tenant's modules, and the
         # tenant ids to move them on.
-        api.token = api.login(phase_a.ADMIN)
+        api.token = api.login(phase_a.ADMIN, phase_a.ADMIN_PASSWORD)
         phase_f.run(api, rep, sold, tenants)
 
     if "g" in want:
