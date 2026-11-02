@@ -123,6 +123,28 @@ describe("a long CSV goes in parts by itself", () => {
     expect(rows.reduce((a, b) => a + b, 0)).toBe(50010);
   });
 
+  /** #GS7 — four kurta sizes straddling the edge of a part were "not going in" on the check. */
+  it("an item and its sizes are never cut apart: the part ends before the item instead", () => {
+    const head = "Name,SKU,Parent SKU,Price";
+    const plain = (n: number) => Array.from({ length: n }, (_, i) => `Item ${i + 1},S-${i + 1},,100`);
+    const kurta = ["Kurta,KUR,,2950", "S,KUR-S,KUR,2950", "M,KUR-M,KUR,2950", "L,KUR-L,KUR,2950", "XL,KUR-XL,KUR,2950"];
+    // 497 items, then the kurta at rows 498–502: a cut at 500 would fall between M and L.
+    const text = [head, ...plain(497), ...kurta, "Shawl,SH-1,,900"].join("\n");
+
+    const { parts, rows } = splitCsv(text, 500);
+
+    expect(rows).toEqual([497, 6]);
+    expect(parts[1].split("\n")).toEqual([head, ...kurta, "Shawl,SH-1,,900"]);
+    expect(rows.reduce((a, b) => a + b, 0)).toBe(503);
+  });
+
+  it("a quoted Parent SKU heading or cell is read, and an item with more sizes than a part holds is still cut", () => {
+    const head = 'Name,"Parent SKU",Price';
+    const sizes = Array.from({ length: 5 }, (_, i) => `Size ${i},"KUR",1`);
+    const { rows } = splitCsv([head, "Kurta,,1", ...sizes].join("\n"), 3);
+    expect(rows).toEqual([3, 3]);
+  });
+
   it("the parts' answers read as one, with row numbers in the whole file", () => {
     const base = { dry_run: true, kind: "csv" as const, headers: ["Name"], ignored_columns: [], fields: {}, warnings: [], errors: [], skipped: 0, waiting: 0, same_name: 0 };
     const one: ImportSummary = { ...base, total: 500, created: 499, updated: 0, failed: 1, failed_rows: [{ row: 7, status: "failed" as const, messages: ["Price"], cells: {} }], unknown_categories: [{ name: "Caps", rows: 3, suggestion: null }] };

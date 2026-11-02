@@ -147,22 +147,63 @@ function csvRecords(text: string): string[] {
   return records.filter((r) => r.trim() !== "");
 }
 
+/** The cells of one CSV record — a quoted cell may hold a comma, and "" is a quote. */
+function csvCells(record: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < record.length; i++) {
+    const c = record[i];
+    if (quoted) {
+      if (c !== '"') cell += c;
+      else if (record[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else quoted = false;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") {
+      cells.push(cell);
+      cell = "";
+    } else cell += c;
+  }
+  cells.push(cell);
+
+  return cells;
+}
+
 /**
  * The CSV as parts of at most `perPart` rows, each with the heading row — one
  * part when it fits — and how many rows each part carries, so the screen can
  * count rows going in rather than parts.
+ *
+ * AN ITEM AND ITS SIZES GO IN ONE PART (#GS7). Each part is checked on its own
+ * and the check is undone, so a size cut off from its item into the next part
+ * was told "No product in this shop has the SKU" — though the import itself
+ * brought it in. A part that would end just before a size (or a pack) ends
+ * instead before the item those rows follow, and the next part starts with it.
  */
 export function splitCsv(text: string, perPart: number = ROWS_PER_SEND): { parts: string[]; rows: number[] } {
   const clean = text.startsWith(BYTE_ORDER_MARK) ? text.slice(1) : text;
   const [head, ...rows] = csvRecords(clean);
   if (head === undefined || rows.length <= perPart) return { parts: [text], rows: [rows.length] };
 
+  const parentAt = csvCells(head).findIndex((h) => h.toLowerCase().replace(/[^a-z0-9]/g, "") === "parentsku");
+  const belongs = (row: string) => parentAt >= 0 && (csvCells(row)[parentAt] ?? "").trim() !== "";
+
   const parts: string[] = [];
   const counts: number[] = [];
-  for (let i = 0; i < rows.length; i += perPart) {
-    const slice = rows.slice(i, i + perPart);
+  for (let i = 0; i < rows.length; ) {
+    let end = Math.min(i + perPart, rows.length);
+    if (end < rows.length && belongs(rows[end])) {
+      let item = end - 1;
+      while (item > i && belongs(rows[item])) item--;
+      // An item with more sizes than a part holds is cut where it must be.
+      if (item > i) end = item;
+    }
+    const slice = rows.slice(i, end);
     parts.push([head, ...slice].join("\n"));
     counts.push(slice.length);
+    i = end;
   }
 
   return { parts, rows: counts };
