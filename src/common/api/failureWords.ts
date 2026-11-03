@@ -12,12 +12,18 @@
  *
  * Null when the server's own words stand: a refusal with a code, a validation
  * error, anything below 500 that is not a throttle or a lapsed sign-in.
+ *
+ * A READ is said without the write's half (2026-11-02). A list that failed to
+ * load read "nothing was saved — what you entered is still here": nobody had
+ * saved or entered anything. `reading` is a GET: the same what-and-what-next,
+ * without the promise about work that never existed.
  */
 export function failureWords(
   status: number | undefined,
   body: { message?: unknown; meta?: { error_code?: unknown } } | undefined,
   retryAfter: string | null | undefined,
   now: number = Date.now(),
+  reading: boolean = false,
 ): { message: string; code: string; meta: Record<string, unknown> } | null {
   if (status === undefined) return null;
   const said = typeof body?.message === "string" ? body.message : null;
@@ -27,7 +33,7 @@ export function failureWords(
     const seconds = waitFor(retryAfter, now);
 
     return {
-      message: `Too many tries in a short time — wait ${seconds} seconds, then try again. Nothing was saved.`,
+      message: `Too many tries in a short time — wait ${seconds} seconds, then try again.${reading ? "" : " Nothing was saved."}`,
       code: "TOO_MANY_ATTEMPTS",
       meta: { retry_after: seconds },
     };
@@ -35,19 +41,27 @@ export function failureWords(
 
   if (status >= 500 && !coded) {
     return {
-      message: "The server could not finish this, so nothing was saved — what you entered is still here. Try again in a moment.",
+      message: reading
+        ? "The server could not answer just now. Try again in a moment."
+        : "The server could not finish this, so nothing was saved — what you entered is still here. Try again in a moment.",
       code: "SERVER_FAILED",
       meta: {},
     };
   }
 
   if (status === 401 && !coded && (said === null || said === "Unauthenticated.")) {
-    return { message: "Your sign-in has run out, so nothing was saved. Sign in again to carry on.", code: "SIGNED_OUT", meta: {} };
+    return {
+      message: reading ? "Your sign-in has run out. Sign in again to carry on." : "Your sign-in has run out, so nothing was saved. Sign in again to carry on.",
+      code: "SIGNED_OUT",
+      meta: {},
+    };
   }
 
   if (status >= 400 && said === null && !coded) {
     return {
-      message: "The server answered with something this screen cannot read, so nothing was saved. Try again in a moment.",
+      message: reading
+        ? "The server answered with something this screen cannot read. Try again in a moment."
+        : "The server answered with something this screen cannot read, so nothing was saved. Try again in a moment.",
       code: "UNREADABLE_ANSWER",
       meta: {},
     };

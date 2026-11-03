@@ -48,6 +48,32 @@ describe("what a failed write tells a person", () => {
   });
 });
 
+/**
+ * 2026-11-02, the list-failed walk: a list that did not LOAD said "nothing was
+ * saved — what you entered is still here". A read is said without that half.
+ */
+describe("what a failed read tells a person", () => {
+  const read = (status: number, body?: { message?: string }, wait: string | null = null) =>
+    failureWords(status, body, wait, Date.now(), true)?.message;
+
+  it("says what happened and what to do, and never that nothing was saved", () => {
+    expect(read(429, { message: "Too many requests. Please slow down." }, "30")).toBe("Too many tries in a short time — wait 30 seconds, then try again.");
+    expect(read(500, { message: "Server Error" })).toBe("The server could not answer just now. Try again in a moment.");
+    expect(read(401, { message: "Unauthenticated." })).toBe("Your sign-in has run out. Sign in again to carry on.");
+    expect(failureWords(404, "<html>…</html>" as never, null, Date.now(), true)?.message).toBe(
+      "The server answered with something this screen cannot read. Try again in a moment.",
+    );
+    for (const status of [429, 500, 503, 401]) {
+      expect(read(status, { message: status === 401 ? "Unauthenticated." : "Server Error" })).not.toMatch(/saved|still here/);
+    }
+  });
+
+  it("keeps the same codes, so a screen reads a read and a write alike", () => {
+    expect(failureWords(429, undefined, null, Date.now(), true)?.code).toBe("TOO_MANY_ATTEMPTS");
+    expect(failureWords(502, undefined, null, Date.now(), true)?.code).toBe("SERVER_FAILED");
+  });
+});
+
 /** Next rounds #35: wifi off, and every list said "It may be down" — the server's fault. */
 describe("no answer at all", () => {
   it("says the device is offline when it knows, and sends a person to their own line first when it does not", () => {

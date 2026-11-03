@@ -254,7 +254,8 @@ api.interceptors.response.use(
     // it here is what left the till with only a sentence to show.
     // A server that broke, a throttle, a lapsed sign-in: said in the shop's
     // words with what to do next, not as an HTTP reason phrase (#30, #31).
-    const plain = error.response ? failureWords(status, body, error.response.headers?.["retry-after"]) : null;
+    const reading = (original?.method ?? "get").toLowerCase() === "get";
+    const plain = error.response ? failureWords(status, body, error.response.headers?.["retry-after"], Date.now(), reading) : null;
     if (plain) throw new ApiError(plain.message, status, plain.code, body?.errors ?? {}, { ...(body?.meta ?? {}), ...plain.meta });
 
     throw new ApiError(body?.message ?? fallback, status, code, body?.errors ?? {}, body?.meta ?? {});
