@@ -103,7 +103,11 @@ async function signIn(page: Page, who: string, into: string): Promise<void> {
   if (page.url().includes("/tenant/setup")) {
     // A native <select> whose placeholder is a DISABLED <option>. Clicking the
     // placeholder text waits forever for something that is never visible.
-    const city = page.locator("select").first();
+    //
+    // By its NAME, not its place: since country → province → city the first
+    // box on this form is the Country, which holds one country and has no
+    // second option — "the first select" waited seven minutes on it.
+    const city = page.locator('select[aria-label="City"]');
     await city.waitFor({ state: "attached", timeout: 15_000 });
     await expect
       .poll(async () => city.locator("option:not([disabled])").count(), { timeout: 20_000 })

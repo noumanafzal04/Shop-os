@@ -40,8 +40,10 @@ for (const trouble of [
   // `askedFrom`: which drawing of the shelf Try again is pressed on. Each has
   // its own button, and a button that asks nobody looks exactly like one that
   // does until it is pressed.
-  { status: 429, message: "Too many requests. Please slow down.", name: "the server slows the till down", askedFrom: "the other view" },
-  { status: 500, message: "Server Error", name: "the server fails", askedFrom: "the view it opened in" },
+  // `said`: what the cashier is told — the shop's words (common/api/failureWords.ts),
+  // not the server's phrase, and for a read without "nothing was saved".
+  { status: 429, message: "Too many requests. Please slow down.", said: "Too many tries in a short time — wait", name: "the server slows the till down", askedFrom: "the other view" },
+  { status: 500, message: "Server Error", said: "The server could not answer just now. Try again in a moment.", name: "the server fails", askedFrom: "the view it opened in" },
 ] as const) {
   test(`when ${trouble.name}, the till says its list did not load — and Try again brings the shelf back`, async ({ page }, info) => {
     test.skip(info.project.name !== "desktop", "one walk is enough; it is a sentence, not a layout");
@@ -52,8 +54,8 @@ for (const trouble of [
 
     const failed = page.getByRole("alert").filter({ hasText: "The product list could not be loaded." });
     await expect(failed, "a list that failed to arrive was not said to have failed").toBeVisible({ timeout: 30_000 });
-    // In the server's own words…
-    await expect(failed).toContainText(trouble.message);
+    // Why, in plain words…
+    await expect(failed).toContainText(trouble.said);
     // …and never as an empty shop.
     await expect(page.getByText("No products match.")).toHaveCount(0);
     await expect(tiles(page)).toHaveCount(0);
@@ -126,7 +128,7 @@ test("a search that is turned away says so — the shelf from before is not left
 
   const failed = page.getByRole("alert").filter({ hasText: "The product list could not be loaded." });
   await expect(failed, "a search that was turned away was not said to have failed").toBeVisible({ timeout: 20_000 });
-  await expect(failed).toContainText("Too many requests. Please slow down.");
+  await expect(failed).toContainText("Too many tries in a short time — wait");
   await expect(tiles(page), "the list from before the search was left on the shelf").toHaveCount(0);
   // …and nothing counts it as results, or offers Enter on it.
   await expect(page.getByTestId("search-hint")).toHaveText("That search did not go through — press Try again below.");

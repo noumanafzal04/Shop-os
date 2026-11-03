@@ -82,7 +82,11 @@ setup("stock the shelf so a cart can be filled", async ({ request }) => {
   const sized = new Set(
     shelvable.filter((p) => (p.variants?.length ?? 0) > 0).map((p) => p.id),
   );
-  for (let i = mine.size; i < WANTED; i++) {
+  // Counted in PLAIN products — the ones the stock loop below can fill. Counting
+  // every shelvable one let sized products stand in for plain ones, and a fresh
+  // shop with three sized items stopped two short of the cart (2026-11-02).
+  const plainOnShelf = () => [...mine.values()].filter((id) => !sized.has(id)).length;
+  for (let i = 0; plainOnShelf() < WANTED && i < WANTED * 3; i++) {
     const name = `E2E Shelf Item ${String(i + 1).padStart(2, "0")}`;
     if (mine.has(name)) continue;
     const made = await request.post(`${API}/products`, {

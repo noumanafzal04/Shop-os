@@ -86,7 +86,8 @@ test("a second code is put on the carton in the form — and at the till it ring
 
   // "Additional barcodes" says what it is for — and that a carton's code is
   // NOT it. It used to say "e.g. a different supplier's pack".
-  await expect(form.getByText("A code on a carton or a box goes on that pack, under Pack sizes.")).toBeVisible();
+  // (Reworded in the plain-English pass, fa85e4ac — same meaning.)
+  await expect(form.getByText("A carton or box barcode goes under Pack sizes.", { exact: false })).toBeVisible();
   await expect(form.getByText(/different supplier's pack of the same item/)).toHaveCount(0);
 
   const pack = form.getByTestId("pack-1");

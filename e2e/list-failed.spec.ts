@@ -18,7 +18,7 @@ import { ownerAuth, roomToWork } from "./api";
  * lists that are cards rather than tables). This walks the shop's lists with
  * each one's request failing and holds them to it:
  *
- *   it says THIS list could not be loaded, in the server's own words
+ *   it says THIS list could not be loaded, and why, in plain words
  *   it does not say there is nothing
  *   Try again asks again — and the list, or its real empty state, is there
  *
@@ -26,6 +26,14 @@ import { ownerAuth, roomToWork } from "./api";
  */
 
 const SLOWED = "Too many requests. Please slow down.";
+/**
+ * What the shop is TOLD, which is not the server's phrase: a throttle and a
+ * broken server are said in the shop's words with what to do next
+ * (common/api/failureWords.ts) — and, this being a read, without the write's
+ * "nothing was saved".
+ */
+const SAID_SLOWED = "Too many tries in a short time — wait";
+const SAID_BROKEN = "The server could not answer just now. Try again in a moment.";
 
 interface Listed {
   path: string;
@@ -103,8 +111,9 @@ for (const list of LISTS) {
     const failed = page.getByRole("alert").filter({ hasText: list.says });
     await expect(failed, `${list.path} did not say its list had failed to load`).toBeVisible({ timeout: 30_000 });
     expect(held.asked(), "the request this test fails was never made — it is failing the wrong one").toBeGreaterThan(0);
-    // In the server's own words…
-    await expect(failed).toContainText(SLOWED);
+    // Why, in plain words — and not the write's "nothing was saved"…
+    await expect(failed).toContainText(SAID_SLOWED);
+    await expect(failed).not.toContainText("saved");
     // …and never as a shop with nothing in it.
     await expect(page.getByText(list.empty), `${list.path} called a failed list an empty one`).toHaveCount(0);
     // …nor as one still being counted: nothing is.
@@ -158,7 +167,7 @@ test("a server that fails outright is said the same way, once it has stopped bei
 
   const failed = page.getByRole("alert").filter({ hasText: list.says });
   await expect(failed).toBeVisible({ timeout: 60_000 });
-  await expect(failed).toContainText("Server Error");
+  await expect(failed).toContainText(SAID_BROKEN);
   expect(held.asked(), "a failing server was asked only once").toBeGreaterThan(1);
   await expect(page.getByText(list.empty)).toHaveCount(0);
 });

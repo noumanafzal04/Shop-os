@@ -160,7 +160,14 @@ test("a run of labels is laid out on the sheets it will print on — a carton is
   await expect.poll(async () => (await settings(request)).barcode_show_price).toBe(false);
 
   // A roll is one sticker at a time.
+  // The shop's settings are KEPT on the device (useShopSettings): a save asks
+  // for them again, and a reload before that answer lands reads the copy from
+  // before the save. So the reload below waits for the re-read, as a person
+  // would never notice and a test does.
+  const reread = page.waitForResponse((r) => r.url().endsWith("/api/v1/shop/settings") && r.request().method() === "GET");
   await on.getByLabel("Printed on").selectOption("roll");
+  await expect.poll(async () => (await settings(request)).label_paper, { message: "the roll chosen here was not saved for the shop" }).toBe("roll");
+  await reread;
   await expect(count(page)).toContainText("73 labels off the roll");
   await expect(page.getByTestId("label-page")).toHaveText("Label 1 of 73");
   await expect(paper(page).locator(".lbl")).toHaveCount(1);

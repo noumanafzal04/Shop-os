@@ -67,7 +67,8 @@ test("the picture is beside the name, and a refusal on another tab is said where
   // ── a refusal nobody is looking at ────────────────────────────────
   await form.getByLabel("Name *", { exact: true }).fill(SECOND);
   await form.getByLabel("Price *", { exact: true }).fill("25");
-  await form.getByLabel("Description *", { exact: true }).fill("A second item, with a code that is already taken.");
+  // "Description", not "Description *": a new item starts in the shop only (#GS2), so its words are not asked for yet.
+  await form.getByLabel(/^Description/).fill("A second item, with a code that is already taken.");
   await form.getByRole("button", { name: "Codes & packs", exact: true }).click();
   await form.getByLabel("Barcode", { exact: true }).fill(TAKEN.barcode);
   await form.getByRole("button", { name: "Details", exact: true }).click();
@@ -82,11 +83,18 @@ test("the picture is beside the name, and a refusal on another tab is said where
   // It takes you there, where the field says it itself — once, not twice.
   await refused.getByRole("button", { name: "Open Codes & packs" }).click();
   await expect(form.getByLabel("Barcode", { exact: true })).toBeVisible();
-  await expect(form.getByText(/barcode.*(taken|already|another)/i)).toHaveCount(1);
+  // "taken" or "already", not "another": the tab's own hint now says "…or
+  // another supplier's code", and a pattern that matched it counted two.
+  await expect(form.getByText(/barcode.*(taken|already)/i)).toHaveCount(1);
   await expect(refused).toHaveCount(0);
 
   // ── the online tab says what a customer will find ─────────────────
   await form.getByRole("button", { name: "Online", exact: true }).click();
+  // A new item starts in the shop only (#GS2) — said, and one press away.
+  const online = form.getByRole("button", { name: /^Sell this item online/ });
+  await expect(online, "a new item started out listed online").toHaveAttribute("aria-pressed", "false");
+  await expect(form.getByTestId("online-ready")).toHaveCount(0);
+  await online.click();
   const ready = form.getByTestId("online-ready");
   await expect(ready).toContainText("No photo yet");
   await expect(ready).toContainText("A description");
