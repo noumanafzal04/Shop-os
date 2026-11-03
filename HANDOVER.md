@@ -1,6 +1,6 @@
 # ShopOS — handover & machine restore
 
-**Written 2026-08-07.** Read this first after a fresh install. Everything needed
+**Written 2026-08-07; current state updated 2026-11-03 (§4 "Now").** Read this first after a fresh install. Everything needed
 to rebuild the working setup is in git; this file says where it is and what
 state it was left in.
 
@@ -124,6 +124,34 @@ a false index. A backup that has never been restored is a belief, not a backup.
 ---
 
 ## 4. State at handover
+
+### Now — 2026-11-03 (read this first; the rest of §4–§6 is from August)
+
+**Product name True Serve** (code still says ShopOS: never rename `shopos-*` keys, `cartze.shop`,
+SMS sender `CartZe`, `shopos:*` commands). Heads: backend `offline/v1/backend` `249fdd3b`, panel
+`offline/v1/admin-panel` `cc10511b`, core `b750c2e`, mobile `3ea9a37`, partner `afe360b`.
+
+**Gates:** backend 4,157 passed / 22 skipped / 0 failed; panel vitest 3,921, eslint 0 errors,
+build OK; e2e desktop project all green on rebuilt sweep shops (other projects: see the session log).
+
+**Every QA round is in `../true-serve-qa-docs/reports/`** (not in git): retail, wholesale,
+services ×2, petrol, tyre, pharmacy, restaurant, mart, offline 10k, admin, online, finance,
+network, volume, devices, A-to-Z, garments 20k/50k, POS. Every finding in them is FIXED and
+re-tested except what the newest report says is open.
+
+**What stands between this and live shops is operations, not code:**
+1. Deploy — backend first (`php artisan migrate` — the newest migration is
+   `2026_11_02_000001_an_item_with_sizes_has_a_sku`), then the panel (built on the Mac, `dist/`
+   rsynced). Prompt for a new droplet: `../true-serve-qa-docs/DEPLOY-NEW-DROPLET-PROMPT.md`.
+2. Rotate the GitHub token and password, restrict the Google Maps and Geoapify keys.
+3. The DigitalOcean box audit.
+
+**Dev database** was reset on 2026-11-01 (backup in `~/.shopos/backups/`). It holds Garments
+Shop (20k items), Garments 50k Test, and the nine sweep shops the browser suite signs in as
+(rebuilt 2026-11-02 by `docs/qa/sweep/run.py` with `SWEEP_ADMIN` / `SWEEP_ADMIN_PASSWORD`).
+The load-test shops (`*@loadtest.test`) are gone; the volume e2e projects need them rebuilt.
+
+### August — as written then
 
 **Backend 2098 tests / 8916 assertions green. Panel 1022 tests green (81 files).** Gates all
 clean: `tsc`, `npm run build`, `pint`, `eslint` (0 errors, 18 warnings — the
@@ -306,6 +334,26 @@ session log).
 Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
+
+### 2026-10-28 → 2026-11-03 — rounds to launch, garments at 50k, the till's scanner, e2e back
+
+Kept short: each round has its own report in `../true-serve-qa-docs/reports/`.
+
+- **Rounds**: mart, offline 10k, services 2, admin, online, finance, network (phase 9), volume
+  (phase 10), devices (phase 11), A-to-Z (#AZ1–#AZ25). All findings fixed and re-tested.
+- **Launch seed** (2026-11-01): a live box seeds geo + three plans + the admins named in `.env`;
+  no demo shops; the public site opens no demo. Dev DB reset for the garments round.
+- **Garments 20k / 50k**: the browser cuts a long CSV into parts (#GS1); export and stock reports
+  run in flat memory at 50k (#GS4, #GS6); an item with sizes always has a SKU, by a model rule and
+  a migration (#GS5); an item and its sizes are never cut apart, and wait together (#GS7).
+- **POS**: one lookup per scan instead of ~13 searches (#POS1); a scan rings wherever the cursor
+  is, and a scanned code is never a quantity (#POS2).
+- **Brand**: the redrawn mark in the panel, and in the phones' teal in core/mobile/partner
+  (`core/brand/README.md`).
+- **e2e**: the sweep reads its admin from the environment and gives the shops the modules the
+  browser suite was written against; 26 desktop failures read one by one — 25 specs behind a
+  deliberate change, 1 real (a list that failed to LOAD said "nothing was saved"); a saved
+  setting is now kept on the device at once.
 
 
 ### 2026-10-16 — the owner's answers built: Q11, Q6, Q10 (B47)
