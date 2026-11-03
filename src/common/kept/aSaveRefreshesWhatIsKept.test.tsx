@@ -123,6 +123,20 @@ describe("the shop's settings", () => {
     expect(asked).not.toHaveBeenCalled();
   });
 
+  it("a reload straight after a save — before the re-read is back — still opens with what was saved", async () => {
+    const first = renderHook(useScreen, { wrapper });
+    await waitFor(() => expect(first.result.current.settings.data).toBeDefined());
+    // The re-read the save starts never comes back: the page is reloaded first.
+    asked.mockImplementation(() => new Promise(() => {}));
+    await act(async () => { await first.result.current.save.mutateAsync({ invoice_header: "Shukriya" }); });
+    first.unmount();
+
+    reload();
+    const again = renderHook(useScreen, { wrapper });
+    expect(again.result.current.settings.data?.invoice_header, "a reload inside the re-read opened with the settings from before the save").toBe("Shukriya");
+    expect((kept("shop-settings") as ShopSettings).invoice_header).toBe("Shukriya");
+  });
+
   it("is never asked for by somebody who is not in a shop", async () => {
     act(() => useAuthStore.setState({ user: { id: "a1", role: "super_admin", permissions: [], tenant: null } as never }));
 

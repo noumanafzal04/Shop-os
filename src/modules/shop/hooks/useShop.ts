@@ -12,6 +12,8 @@ import {
 } from "../../../common/format/date";
 import { setShopDayRule, shopTodayDate } from "../../../common/shopDay";
 import { useKeptQuery } from "../../../common/kept/useKeptQuery";
+import { ownerOf } from "../../../common/kept/kept";
+import { useKeptStore } from "../../../common/kept/keptStore";
 import { WATCHER_NETWORK_MODE } from "../../../common/api/queryClient";
 
 /**
@@ -226,7 +228,17 @@ export function useUpdateShopSettings() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: Partial<ShopSettings>) => shopService.updateSettings(payload),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      // The answer IS the settings as now saved (the same shape as the read).
+      // Held at once, on the screen and on the device: the re-read below takes
+      // a moment, and a reload inside it opened with the copy from before the
+      // save — a roll of labels came back as a sheet (labels e2e, 2026-11-03).
+      const { user } = useAuthStore.getState();
+      const owner = ownerOf(user?.tenant?.id, user?.id);
+      if (res?.data) {
+        queryClient.setQueryData(["shop-settings"], res.data);
+        if (owner !== null) useKeptStore.getState().keep(owner, "shop-settings", res.data, Date.now());
+      }
       queryClient.invalidateQueries({ queryKey: ["shop-settings"] });
       // Refresh the persisted session too — the sidebar/shell reads
       // tenant info from the auth store, not shop-settings, so it would
