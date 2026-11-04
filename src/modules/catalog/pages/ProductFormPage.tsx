@@ -120,6 +120,22 @@ function Section({ title, hint, action, children }: { title: string; hint?: stri
  */
 export default function ProductEditor({ id, onClose }: { id?: string; onClose: () => void }) {
   const toast = useToast();
+
+  /** The item's own barcode box: one fresh code, for goods that carry none. */
+  const [mintingOne, setMintingOne] = useState(false);
+  const generateOne = async () => {
+    if (mintingOne) return;
+    setMintingOne(true);
+    try {
+      const res = await catalogService.freshBarcodes(1);
+      setBarcode(res.data.codes[0] ?? "");
+    } catch {
+      toast.error("Couldn't get a new barcode — check the connection and try again.");
+    } finally {
+      setMintingOne(false);
+    }
+  };
+  const mintCodes = async (count: number) => (await catalogService.freshBarcodes(count)).data.codes;
   const isEdit = !!id;
 
   const hasPermission = useAuthStore((s) => s.hasPermission);
@@ -1643,6 +1659,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               tracksStock={stockManaged}
               isFood={isFood}
               trade={businessType}
+              mintCodes={posEnabled ? mintCodes : undefined}
               err={err}
             />
           </Section>
@@ -1743,8 +1760,22 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   {posEnabled && isGood && (
                     <div>
                       <Label>Barcode</Label>
-                      <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
+                      {/* Generate only while the box is empty: a packet's own
+                          code, once scanned in, is never replaced by a tap. */}
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
+                        </div>
+                        {!barcode.trim() && (
+                          <button type="button" className={`${ROW_ACTION} shrink-0 disabled:opacity-40`} disabled={mintingOne} onClick={() => void generateOne()}>
+                            {mintingOne ? "Generating…" : "Generate"}
+                          </button>
+                        )}
+                      </div>
                       {err("barcode") && <p className="mt-1 text-theme-xs text-error-500">{err("barcode")}</p>}
+                      {!err("barcode") && !barcode.trim() && (
+                        <p className="mt-1 text-theme-xs text-gray-400">Printed on the packet? Scan it. Your own goods? Generate one.</p>
+                      )}
                     </div>
                   )}
                   {isGood && (

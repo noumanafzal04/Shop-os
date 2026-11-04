@@ -184,6 +184,21 @@ export function axesFromRows(rows: MatrixRow[], names: string[] = []): Axis[] | 
   return expected === rows.length ? axes : null;
 }
 
+/** The sizes with no barcode of their own yet — what "Generate barcodes" would fill. */
+export function sizesWithoutACode(rows: MatrixRow[]): number {
+  return rows.filter((r) => !(r.barcode ?? "").trim()).length;
+}
+
+/**
+ * Hand fresh codes to the sizes still without one, in order. A size that
+ * already carries a code — its packet's, or one typed by hand — keeps it.
+ */
+export function giveCodes(rows: MatrixRow[], codes: string[]): MatrixRow[] {
+  let next = 0;
+
+  return rows.map((r) => ((r.barcode ?? "").trim() || next >= codes.length ? r : { ...r, barcode: codes[next++] }));
+}
+
 /** Set one field on every row — the "same price for all sizes" control. */
 export function fillAll<K extends "price" | "cost" | "stock_quantity">(
   rows: MatrixRow[],

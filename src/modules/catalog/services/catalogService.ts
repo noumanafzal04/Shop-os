@@ -79,6 +79,13 @@ export const catalogService = {
   generateBarcode: (id: string) =>
     apiPost<{ id: string; name: string; barcode: string }>(`/products/${id}/barcode`),
 
+  /** Codes nobody in the shop uses yet — the product form's Generate buttons. Checked again on save. */
+  freshBarcodes: (count: number) =>
+    // `ask` keeps two presses apart: the client hands an identical POST made a
+    // moment after a success the SAME answer, and the same code twice is what
+    // this exists to avoid.
+    apiPost<{ codes: string[] }>("/barcodes/fresh", { count, ask: `${Date.now()}-${Math.random()}` }),
+
   /**
    * Eighty-six: off the menu for now, back on when the delivery lands.
    *

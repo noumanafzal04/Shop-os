@@ -5,7 +5,9 @@ import Label from "../../../components/form/Label";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import {
   fillAll,
+  giveCodes,
   regenerate,
+  sizesWithoutACode,
   whatIsMissing,
   type Axis,
   type MatrixRow,
@@ -66,12 +68,31 @@ interface Props {
   isFood?: boolean;
   /** The shop's primary trade — a tyre shop's sizes are tyre sizes. */
   trade?: string | null;
+  /** Fresh codes from the server, for "Generate barcodes". Absent where nothing is scanned (no till). */
+  mintCodes?: (count: number) => Promise<string[]>;
 }
 
 export default function VariantMatrixEditor({
-  axes, onAxes, rows, onRows, suggestedNames, basePrice, tracksStock, err, isFood = false, trade = null,
+  axes, onAxes, rows, onRows, suggestedNames, basePrice, tracksStock, err, isFood = false, trade = null, mintCodes,
 }: Props) {
   const [bulkPrice, setBulkPrice] = useState("");
+  const [minting, setMinting] = useState(false);
+  const [mintFailed, setMintFailed] = useState(false);
+  const uncoded = sizesWithoutACode(rows);
+
+  /** Every size without a code gets its own; a size that has one keeps it. */
+  const generateCodes = async () => {
+    if (!mintCodes || uncoded === 0 || minting) return;
+    setMinting(true);
+    setMintFailed(false);
+    try {
+      onRows(giveCodes(rows, await mintCodes(uncoded)));
+    } catch {
+      setMintFailed(true);
+    } finally {
+      setMinting(false);
+    }
+  };
   const missing = whatIsMissing(rows);
 
   const setAxis = (i: number, patch: Partial<Axis>) => {
@@ -225,8 +246,29 @@ export default function VariantMatrixEditor({
               >
                 Apply to all
               </button>
+              {/* One code per size, so a scan rings the size without asking —
+                  whether the sizes cost the same (a shirt) or not (a drink). A
+                  packet that already carries its maker's code is scanned into
+                  its box instead; those boxes are left alone. */}
+              {mintCodes && (
+                <button
+                  type="button"
+                  disabled={uncoded === 0 || minting}
+                  className={`${ROW_ACTION} disabled:opacity-40`}
+                  onClick={() => void generateCodes()}
+                >
+                  {minting ? "Generating…" : uncoded === 0 ? "Every size has a barcode" : `Generate ${uncoded} barcode${uncoded === 1 ? "" : "s"}`}
+                </button>
+              )}
             </div>
           </div>
+          {mintCodes && (
+            <p className={`mb-2 text-theme-xs ${mintFailed ? "text-error-500" : "text-gray-400"}`}>
+              {mintFailed
+                ? "Couldn't get new barcodes — check the connection and try again."
+                : "Packet already has a barcode? Scan it into that size's box. Your own goods? Generate — each size gets its own, so one scan rings the right size."}
+            </p>
+          )}
 
           {/* A real table with real headers. The old grid's only column labels
               were placeholders, so past row one nobody could tell price from

@@ -4,8 +4,10 @@ import {
   axesFromRows,
   combinations,
   fillAll,
+  giveCodes,
   labelFor,
   regenerate,
+  sizesWithoutACode,
   toPayload,
   usableAxes,
   whatIsMissing,
@@ -272,5 +274,25 @@ describe("a size's own barcode travels with it", () => {
 
     expect(kept.find((r) => r.name === "S")?.barcode).toBe("111");
     expect(kept.find((r) => r.name === "M")?.barcode).toBeUndefined();
+  });
+});
+
+describe("Generate barcodes in the sizes grid", () => {
+  it("gives a code to every size without one, in order", () => {
+    const rows = [row("S"), row("M"), row("L")];
+
+    expect(sizesWithoutACode(rows)).toBe(3);
+    expect(giveCodes(rows, ["201", "202", "203"]).map((r) => r.barcode)).toEqual(["201", "202", "203"]);
+  });
+
+  it("never replaces a code a size already carries — its packet's, or one typed by hand", () => {
+    const rows = [row("500ml", { barcode: "8961000000015" }), row("1L"), row("1.5L", { barcode: "  " })];
+
+    expect(sizesWithoutACode(rows)).toBe(2);
+    expect(giveCodes(rows, ["201", "202"]).map((r) => r.barcode)).toEqual(["8961000000015", "201", "202"]);
+  });
+
+  it("leaves a size empty rather than inventing a code it was not given", () => {
+    expect(giveCodes([row("S"), row("M")], ["201"]).map((r) => r.barcode)).toEqual(["201", undefined]);
   });
 });
