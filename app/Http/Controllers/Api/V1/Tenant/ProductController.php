@@ -573,6 +573,18 @@ class ProductController extends Controller
     }
 
     /**
+     * Codes for the product form's Generate buttons: the item's own box, or
+     * every size still without one. Free in this shop when asked; the save
+     * checks them again.
+     */
+    public function freshBarcodes(Request $request, GenerateBarcodeAction $action, TenantContext $context): JsonResponse
+    {
+        $data = $request->validate(['count' => ['required', 'integer', 'min:1', 'max:100']]);
+
+        return ApiResponse::ok(['codes' => $action->fresh($context->id(), (int) $data['count'])]);
+    }
+
+    /**
      * Soft delete — sales/reservations referencing this item keep their
      * history (the "product in active sale" edge case).
      */

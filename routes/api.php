@@ -349,6 +349,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::post('products/{product}/images', [ProductImageController::class, 'store']);
                 Route::delete('products/{product}/images/{image}', [ProductImageController::class, 'destroy']);
                 Route::post('products/{product}/barcode', [ProductController::class, 'generateBarcode']);
+                // Fresh codes for the product form's Generate buttons — before
+                // the item exists, so a size can be given one while it is typed.
+                Route::post('barcodes/fresh', [ProductController::class, 'freshBarcodes']);
                 // Eighty-six: off the menu for now, back on when the delivery
                 // lands. NOT the same as deactivating — that is a catalog
                 // decision made once; this is a service decision made mid-shift

@@ -185,6 +185,45 @@ class VariantBarcodeTest extends TestCase
             'a second press made the size another code instead of keeping the one on its ticket');
     }
 
+    public function test_the_forms_generate_button_gets_codes_that_save_on_sizes_and_ring_them(): void
+    {
+        // The product form's Generate: codes for sizes that do not exist yet,
+        // typed into their boxes, saved with the item.
+        $codes = $this->login()->postJson('/api/v1/barcodes/fresh', ['count' => 3])
+            ->assertOk()->json('data.codes');
+
+        $this->assertCount(3, $codes);
+        $this->assertCount(3, array_unique($codes), 'one batch handed out the same code twice');
+        foreach ($codes as $code) {
+            $this->assertMatchesRegularExpression('/^\d{12}$/', $code);
+        }
+
+        $product = $this->drink([
+            ['name' => '500ml', 'price' => 80, 'barcode' => $codes[0], 'stock_quantity' => 10],
+            ['name' => '1L', 'price' => 140, 'barcode' => $codes[1], 'stock_quantity' => 10],
+        ]);
+
+        $big = collect($product['variants'])->firstWhere('name', '1L');
+        $res = $this->login()->getJson('/api/v1/pos/lookup?code='.$codes[1])->assertOk();
+        $this->assertSame($big['id'], $res->json('data.variant_id'), 'a generated code did not ring its size');
+    }
+
+    public function test_fresh_codes_are_never_one_the_shop_already_uses(): void
+    {
+        // Drawn from the same well as Labels' Generate, which checks every place
+        // a scan is answered from. Asked for many, none may already be taken.
+        $taken = $this->login()->postJson('/api/v1/barcodes/fresh', ['count' => 1])->json('data.codes.0');
+        $this->login()->postJson('/api/v1/products', [
+            'name' => 'Water', 'item_type' => 'physical_product', 'price' => 50, 'barcode' => $taken,
+        ])->assertCreated();
+
+        $codes = $this->login()->postJson('/api/v1/barcodes/fresh', ['count' => 100])->assertOk()->json('data.codes');
+        $this->assertNotContains($taken, $codes);
+
+        $this->login()->postJson('/api/v1/barcodes/fresh', ['count' => 0])->assertStatus(422);
+        $this->login()->postJson('/api/v1/barcodes/fresh', ['count' => 101])->assertStatus(422);
+    }
+
     public function test_editing_the_alternates_does_not_wipe_the_sizes_codes(): void
     {
         // `barcodes()` is every row for the product, and a size's code is one of

@@ -64,6 +64,26 @@ class GenerateBarcodeAction
     }
 
     /**
+     * Codes nobody in this shop uses yet, for the product form's Generate
+     * buttons. Not reserved: the save checks every code again
+     * (BarcodeNamespace), and two people drawing the same one of a hundred
+     * billion between asking and saving is the save's refusal to make, not a
+     * lock's.
+     *
+     * @return list<string>
+     */
+    public function fresh(string $tenantId, int $count): array
+    {
+        $codes = [];
+        while (count($codes) < $count) {
+            $code = $this->uniqueCode($tenantId);
+            $codes[$code] = $code; // distinct within the batch too
+        }
+
+        return array_values($codes);
+    }
+
+    /**
      * 12-digit numeric, free in EVERY place a scan is answered from — the item's
      * own code, its extra and size codes, a size's SKU and a pack's code
      * (BarcodeNamespace). Checking only the item's own code would let a new
