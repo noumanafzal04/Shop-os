@@ -252,11 +252,89 @@ final class ADayInTheShopTest extends TestCase
         $this->whatShouldBeInTheDrawer($wrong);
         $this->whatDoCustomersOweUs($wrong);
         $this->whatDidTheItemEarn($wrong, $price, $cost);
+        $this->whatWasTheProfit($wrong, $price, $cost);
         $this->whatLeftForTheBank($wrong);
         if ($this->buys) {
             $this->whatDoWeOweTheSupplier($wrong);
             $this->whatIsOnTheShelf($wrong);
         }
+
+        $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
+    }
+
+    /**
+     * THE SAME DAY, WITH NO SHIFT AT ALL.
+     *
+     * Most shops will never switch "Require open shift" on: one person behind
+     * the counter has no drawer to hand over, and the setting is off for every
+     * new shop. Their books must read exactly as a shift shop's do — the same
+     * takings, the same refunds, the same profit to the rupee — because the
+     * owner cannot tell which way the code went, only that the number is wrong.
+     *
+     * So this is the day above with every DRAWER step taken out (no till
+     * opened, no safe drop, no count, no close-off) and every question that
+     * does not need a drawer asked again, against the test's own books. The
+     * Day screen has no day to show; it must still say what was taken with no
+     * drawer, or the shop's cash is in nobody's figure (#SV1).
+     */
+    #[DataProvider('trades')]
+    public function test_a_day_with_no_shift_reads_the_same_on_every_screen(
+        string $type,
+        string $itemType,
+        float $price,
+        float $cost,
+    ): void {
+        $this->openTheShop($type);
+        $this->assertFalse(
+            (bool) ($this->shop->setting('pos_require_shift') ?? false),
+            'this shop asks for shifts — the day below is about one that does not',
+        );
+        $product = $this->cardTheItem($itemType, $price, $cost);
+
+        if ($this->buys) {
+            $this->buyStock($product, qty: 40, unitCost: $cost);
+        }
+
+        // The same counter day, tender for tender — and no till.
+        $cashSale = $this->sell($product, qty: 4, price: $price, tender: 'cash');
+        $this->sell($product, qty: 2, price: $price, tender: 'card');
+        $this->sellOnKhata($product, qty: 3, price: $price);
+        $this->refundOneLine($cashSale, $price);
+        $this->takeKhataPayment(300);
+        if ($this->buys) {
+            $this->paySupplier(4000);
+        }
+        $this->payABill(1200);
+
+        // ── THE DENOMINATOR ─────────────────────────────────────────
+        $this->assertEqualsWithDelta($price * 9, $this->rung, 0.01, 'the day rang nothing like nine items');
+        $this->assertEqualsWithDelta($price, $this->refunded, 0.01, 'nothing was handed back');
+        $this->assertSame(1200.0, $this->billsPaid, 'the bill was never paid');
+        $this->assertNull($this->sessionId, 'a shift was opened — this day has none');
+        $this->assertSame(
+            0,
+            Sale::withoutTenancy()->where('tenant_id', $this->shop->id)->whereNotNull('cash_session_id')->count(),
+            'a sale landed on a drawer though none was ever opened',
+        );
+        $this->assertGreaterThan(0, $this->onTheKhata, 'nothing was put on the khata');
+
+        // ── THE CHORUS ──────────────────────────────────────────────
+        $wrong = [];
+        $this->whatDidTheShopTake($wrong, withADay: false);
+        $this->whatWentBackOut($wrong);
+        $this->whatDoCustomersOweUs($wrong);
+        $this->whatDidTheItemEarn($wrong, $price, $cost);
+        $this->whatWasTheProfit($wrong, $price, $cost);
+        if ($this->buys) {
+            $this->whatDoWeOweTheSupplier($wrong);
+            $this->whatIsOnTheShelf($wrong);
+        }
+
+        // The Day screen has no day — and still owns up to the money.
+        $away = $this->readMeta('/api/v1/pos/day')['taken_with_no_drawer'] ?? null;
+        $this->assertNotNull($away, 'the Day screen said nothing of a day taken with no drawer');
+        $this->agree($wrong, 'sales taken with no drawer', 3, ['the Day screen' => $away['sales_count']]);
+        $this->agree($wrong, 'what was taken with no drawer', $this->rung, ['the Day screen' => $away['sales_total']]);
 
         $this->assertSame([], $wrong, "\n".implode("\n", $wrong)."\n");
     }
@@ -722,12 +800,13 @@ final class ADayInTheShopTest extends TestCase
      * look at whichever is nearest. Gross of refunds on every one of them: a
      * refunded sale still happened, and netting it at source hides both events.
      */
-    private function whatDidTheShopTake(array &$wrong): void
+    private function whatDidTheShopTake(array &$wrong, bool $withADay = true): void
     {
         $today = now()->toDateString();
 
         $this->agree($wrong, 'what the shop took', $this->rung, [
-            'the day, closed off' => $this->day()['sales_total'],
+            // A shop with no shifts has no day to close off; the rest still answer.
+            ...($withADay ? ['the day, closed off' => $this->day()['sales_total']] : []),
             'the cashbook' => $this->cashbookToday()['sales_revenue'],
             'the sales report' => $this->read("/api/v1/reports/summary?from={$today}&to={$today}")['totals']['revenue'],
             'the dashboard' => $this->read('/api/v1/dashboard')['today']['revenue'],
@@ -816,6 +895,33 @@ final class ADayInTheShopTest extends TestCase
         // margin table that still counts it reads as nine sold.
         $this->agree($wrong, 'units the item actually sold', 8.0, [
             'the margin report' => $line['units'],
+        ]);
+    }
+
+    /**
+     * Q6b — so what did the day make?
+     *
+     * The figure an owner closes the laptop on. Eight items kept their margin,
+     * the ninth came back, and the wage was paid out of it: nothing else
+     * happened that is income or cost. Asked of the P&L and of the dashboard's
+     * tile, which are two queries — and of the expenses each of them took off,
+     * because a right profit over a wrong expense is two mistakes cancelling.
+     */
+    private function whatWasTheProfit(array &$wrong, float $price, float $cost): void
+    {
+        $today = now()->toDateString();
+        $summary = $this->read("/api/v1/reports/summary?from={$today}&to={$today}")['totals'];
+        $tile = $this->read('/api/v1/dashboard')['today'];
+
+        $this->agree($wrong, 'what the day spent', $this->billsPaid, [
+            'the P&L' => $summary['expenses'],
+            'the dashboard' => $tile['expenses'],
+            'the cashbook' => $this->cashbookToday()['expenses'],
+        ]);
+
+        $this->agree($wrong, 'what the day made', round(8 * ($price - $cost) - $this->billsPaid, 2), [
+            "the P&L's net profit" => $summary['net_profit'],
+            'the dashboard' => $tile['profit'],
         ]);
     }
 
@@ -1249,6 +1355,15 @@ final class ADayInTheShopTest extends TestCase
         );
 
         return $res->json('data') ?? [];
+    }
+
+    /** @return array<string, mixed> the reply's `meta` — where the Day screen says what no drawer holds */
+    private function readMeta(string $url): array
+    {
+        $res = $this->as()->getJson($url);
+        $this->assertSame(200, $res->status(), "GET {$url} answered {$res->status()}: ".$res->content());
+
+        return $res->json('meta') ?? [];
     }
 
     /** @return array<string, mixed> */
