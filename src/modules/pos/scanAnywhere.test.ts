@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { isScannedCode, scanCatcher, SCAN_KEY_GAP_MS } from "./scanAnywhere";
+import { backToTheScanBox, cursorFellToThePage, isScannedCode, scanCatcher, SCAN_KEY_GAP_MS } from "./scanAnywhere";
 
 /**
  * #POS2 — measured on the 50k shop: a scan after pressing "+" pressed it again
@@ -107,5 +107,83 @@ describe("a quantity box knows a barcode by its length", () => {
     const commit = till.slice(till.indexOf("const commitQty = "), till.indexOf("const setLineDiscount = "));
     expect(commit).toMatch(/if \(isScannedCode\(raw\)\) \{[^}]*scan\(raw\.trim\(\)\)/s);
     expect(commit.indexOf("isScannedCode(raw)")).toBeLessThan(commit.indexOf("setQty(l.key, n)"));
+  });
+});
+
+/**
+ * #POS3 — a shop's USB scanner: scan, press a line's ✕ (or Reset), scan again —
+ * nothing until a reload. The ✕ took the cursor with it, and the scanner was
+ * slower than the catcher's old 50 ms. Both halves are fixed: the cursor goes
+ * back to the box, and the catcher keeps a slow scanner's pace.
+ */
+describe("after ✕ or Reset the scanner still scans", () => {
+  const setup = () => {
+    document.body.innerHTML = "";
+    const box = document.createElement("input");
+    const other = document.createElement("input");
+    const btn = document.createElement("button");
+    document.body.append(box, other, btn);
+    return { box, other, btn };
+  };
+  const keyboard = { locked: false, finePointer: true };
+
+  it("the cursor that fell to the page goes back to the scan box", () => {
+    const { box } = setup();
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(cursorFellToThePage(document)).toBe(true);
+    expect(backToTheScanBox(box, keyboard)).toBe(true);
+    expect(document.activeElement).toBe(box);
+  });
+
+  it("so does one left on a button that switched itself off — Reset with the cart empty", () => {
+    const { box, btn } = setup();
+    btn.focus();
+    btn.disabled = true;
+    expect(backToTheScanBox(box, keyboard)).toBe(true);
+    expect(document.activeElement).toBe(box);
+  });
+
+  it("never takes the cursor from a box somebody is typing in", () => {
+    const { box, other } = setup();
+    other.focus();
+    expect(backToTheScanBox(box, keyboard)).toBe(false);
+    expect(document.activeElement).toBe(other);
+  });
+
+  it("never on a tablet, behind the lock screen, or while a dialog is open", () => {
+    const { box } = setup();
+    expect(backToTheScanBox(box, { locked: false, finePointer: false })).toBe(false);
+    expect(backToTheScanBox(box, { locked: true, finePointer: true })).toBe(false);
+
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    Object.assign(dialog, { checkVisibility: () => true });
+    document.body.append(dialog);
+    expect(backToTheScanBox(box, keyboard)).toBe(false);
+    expect(document.activeElement).not.toBe(box);
+  });
+
+  it("a hidden dialog — the Appearance panel is always in the page — does not count", () => {
+    const { box } = setup();
+    const hidden = document.createElement("div");
+    hidden.setAttribute("role", "dialog");
+    Object.assign(hidden, { checkVisibility: () => false });
+    document.body.append(hidden);
+    expect(backToTheScanBox(box, keyboard)).toBe(true);
+  });
+
+  it("a scanner that types a key every 80 ms is still a scanner off the box", () => {
+    const h = harness();
+    expect(h.scanInto(document.body, "8964001234561", 80).prevented).toBe(true);
+    expect(h.scans).toEqual(["8964001234561"]);
+  });
+
+  it("the till sends the cursor back after ✕, after Reset, and whenever it falls to the page", () => {
+    const till = readFileSync(resolve(__dirname, "pages/PosPage.tsx"), "utf8");
+    const remove = till.slice(till.indexOf("const removeLine = "), till.indexOf("const commitQty = "));
+    const reset = till.slice(till.indexOf("const clearSale = "), till.indexOf("const clearSale = ") + 3000);
+    expect(remove).toContain("backToTheScanBox(scanRef.current");
+    expect(reset.slice(0, reset.indexOf("\n  };") + 5)).toContain("backToTheScanBox(scanRef.current");
+    expect(till).toMatch(/addEventListener\("focusout", fell\)/);
   });
 });

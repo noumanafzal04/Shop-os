@@ -89,7 +89,7 @@ import { nextLineKey, rekeyed } from "../lineKeys";
 import { enterMeans } from "../enterKey";
 import { oneScanAtATime } from "../scanLine";
 import { useAskedSearch } from "../askedSearch";
-import { isScannedCode, scanCatcher } from "../scanAnywhere";
+import { backToTheScanBox, handsOnAKeyboard, isScannedCode, scanCatcher } from "../scanAnywhere";
 import { shelfCouldNotLoad, type Asked } from "../shelfAnswer";
 import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
@@ -1412,6 +1412,8 @@ export default function PosPage() {
     const said = lineNotice.current;
     lineNotice.current = null;
     setPosNotice((showing) => (showing !== null && showing === said ? null : showing));
+    // Reset switches itself off with the cart empty, and keeps the cursor (#POS3).
+    requestAnimationFrame(() => backToTheScanBox(scanRef.current, { locked: useTillStore.getState().locked, finePointer: handsOnAKeyboard() }));
   };
 
   /**
@@ -2041,6 +2043,19 @@ export default function PosPage() {
     return () => window.removeEventListener("keydown", catcher, true);
   }, []);
 
+  // The cursor goes back to the scan box when it falls to the page (#POS3):
+  // a line's ✕ or Reset took it with them, and a slow USB scanner then rang
+  // nothing until a reload. A frame later, so the page has settled where focus
+  // actually landed — see backToTheScanBox for where it never steals from.
+  useEffect(() => {
+    const fell = (e: FocusEvent) => {
+      if (e.relatedTarget !== null) return;
+      requestAnimationFrame(() => backToTheScanBox(scanRef.current, { locked: useTillStore.getState().locked, finePointer: handsOnAKeyboard() }));
+    };
+    document.addEventListener("focusout", fell);
+    return () => document.removeEventListener("focusout", fell);
+  }, []);
+
   /**
    * WHY THIS LINE CANNOT BE RUNG — or null if it can. One rule, every door.
    *
@@ -2249,6 +2264,8 @@ export default function PosPage() {
   const removeLine = (key: string) => {
     setCart((c) => c.filter((l) => l.key !== key));
     clearQtyDraft(key);
+    // The ✕ goes with its line, and a removed button announces nothing: say it here (#POS3).
+    requestAnimationFrame(() => backToTheScanBox(scanRef.current, { locked: useTillStore.getState().locked, finePointer: handsOnAKeyboard() }));
   };
 
   /**

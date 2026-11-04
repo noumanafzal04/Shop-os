@@ -22,8 +22,15 @@
  * every digit typed into a quantity box re-draws the till and the next key
  * waits behind it. A quantity box knows a barcode by its LENGTH instead — see
  * isScannedCode.
+ *
+ * THE PACE IS A SLOW SCANNER'S, NOT A FAST ONE'S (2026-11-05, #POS3). It was
+ * 50 ms a key, and a shop's USB scanner rang in the search box and was never
+ * caught anywhere else — it types slower than that. A person who types six
+ * keys under a tenth of a second apart and ends with Enter is, for this
+ * purpose, a scanner: what they typed is rung as a code, which is what Enter
+ * in the search box would have done with it.
  */
-export const SCAN_KEY_GAP_MS = 50;
+export const SCAN_KEY_GAP_MS = 100;
 export const SCAN_MIN_LENGTH = 6;
 
 /**
@@ -44,6 +51,51 @@ export interface ScanCatcherOptions {
   /** For tests. In the browser the pace is read from each key's own timeStamp — see below. */
   now?: () => number;
 }
+
+/**
+ * THE CURSOR GOES BACK TO THE SCAN BOX (2026-11-05, #POS3).
+ *
+ * A shop with a USB scanner: scan, press a line's ✕ (or Reset), scan again —
+ * and nothing, until the page was reloaded. The ✕ took the cursor with it: the
+ * button was gone, the cursor fell to the page, and on the page only a scan at
+ * the catcher's pace is caught — the box, which reads any scanner at any pace,
+ * was out of reach. A reload put the cursor back in the box, which is why
+ * reloading "fixed" it.
+ *
+ * So when the cursor falls to the page — its button removed or switched off, a
+ * click on empty space — it goes back to the scan box. Only where the hands are
+ * on a mouse and keyboard: on a tablet a box that takes the cursor opens the
+ * on-screen keyboard over the cart, and a Bluetooth scanner there is caught by
+ * the catcher anyway. Never while a dialog is open or the till is locked, and
+ * never away from a box somebody is typing in.
+ */
+export function cursorFellToThePage(doc: Document): boolean {
+  const at = doc.activeElement;
+
+  return at === null || at === doc.body || !at.isConnected || (at instanceof HTMLButtonElement && at.disabled);
+}
+
+/** Is a dialog on screen? One is always in the page, hidden (the Appearance panel) — that one does not count. */
+export function aDialogIsOpen(doc: Document): boolean {
+  return [...doc.querySelectorAll<HTMLElement>('[role="dialog"]')].some((d) =>
+    typeof d.checkVisibility === "function" ? d.checkVisibility() : d.getClientRects().length > 0);
+}
+
+/** Put the cursor back in the scan box if it fell to the page. True when it did. */
+export function backToTheScanBox(
+  box: HTMLInputElement | null,
+  o: { locked: boolean; finePointer: boolean; doc?: Document },
+): boolean {
+  const doc = o.doc ?? document;
+  if (!box || o.locked || !o.finePointer || aDialogIsOpen(doc) || !cursorFellToThePage(doc)) return false;
+  box.focus();
+
+  return true;
+}
+
+/** Mouse and keyboard — where a box taking the cursor opens no on-screen keyboard. */
+export const handsOnAKeyboard = (): boolean =>
+  typeof window.matchMedia !== "function" || window.matchMedia("(pointer: fine)").matches;
 
 /** A keydown listener for the till's window, in the capture phase. */
 export function scanCatcher(o: ScanCatcherOptions): (e: KeyboardEvent) => void {
