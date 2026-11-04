@@ -137,6 +137,54 @@ class VariantBarcodeTest extends TestCase
         ])->assertStatus(422);
     }
 
+    public function test_generating_codes_gives_every_size_its_own_and_a_scan_rings_that_size(): void
+    {
+        // Labels → Generate barcodes. A clothing shop prints a ticket per size;
+        // one code for the whole item made every scan stop and ask which size.
+        $product = $this->drink([
+            ['name' => '500ml', 'price' => 80, 'stock_quantity' => 10],
+            ['name' => '1L', 'price' => 140, 'stock_quantity' => 10],
+        ]);
+
+        $this->login()->postJson("/api/v1/products/{$product['id']}/barcode")->assertOk();
+
+        $codes = ProductBarcode::query()->where('product_id', $product['id'])->whereNotNull('variant_id')
+            ->pluck('barcode', 'variant_id');
+        $this->assertCount(2, $codes, 'a size was left without a code of its own');
+        $this->assertCount(2, $codes->unique(), 'two sizes were given the same code');
+        foreach ($codes as $code) {
+            $this->assertMatchesRegularExpression('/^\d{12}$/', $code);
+        }
+
+        $big = collect($product['variants'])->firstWhere('name', '1L');
+        $res = $this->login()->getJson('/api/v1/pos/lookup?code='.$codes[$big['id']])->assertOk();
+        $this->assertSame($big['id'], $res->json('data.variant_id'),
+            'the generated code did not ring the size it was printed for');
+    }
+
+    public function test_generating_again_keeps_the_codes_already_printed(): void
+    {
+        // A size that already carries a code (its packet's EAN, or a ticket
+        // printed last week) keeps it; only the size without one gets a new code.
+        $product = $this->drink([
+            ['name' => '500ml', 'price' => 80, 'barcode' => '8961000000015', 'stock_quantity' => 10],
+            ['name' => '1L', 'price' => 140, 'stock_quantity' => 10],
+        ]);
+        $small = collect($product['variants'])->firstWhere('name', '500ml');
+        $big = collect($product['variants'])->firstWhere('name', '1L');
+
+        $this->login()->postJson("/api/v1/products/{$product['id']}/barcode")->assertOk();
+        $first = ProductBarcode::query()->where('variant_id', $big['id'])->value('barcode');
+
+        $this->login()->postJson("/api/v1/products/{$product['id']}/barcode")->assertOk();
+
+        $this->assertSame('8961000000015', ProductBarcode::query()->where('variant_id', $small['id'])->value('barcode'),
+            "the size's own printed code was replaced");
+        $this->assertNotNull($first);
+        $this->assertSame([$first], ProductBarcode::query()->where('variant_id', $big['id'])->pluck('barcode')->all(),
+            'a second press made the size another code instead of keeping the one on its ticket');
+    }
+
     public function test_editing_the_alternates_does_not_wipe_the_sizes_codes(): void
     {
         // `barcodes()` is every row for the product, and a size's code is one of
