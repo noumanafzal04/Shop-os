@@ -128,8 +128,16 @@ a false index. A backup that has never been restored is a belief, not a backup.
 ### Now — 2026-11-03 (read this first; the rest of §4–§6 is from August)
 
 **Product name True Serve** (code still says ShopOS: never rename `shopos-*` keys, `cartze.shop`,
-SMS sender `CartZe`, `shopos:*` commands). Heads: backend `offline/v1/backend` `249fdd3b`, panel
-`offline/v1/admin-panel` `cc10511b`, core `b750c2e`, mobile `3ea9a37`, partner `afe360b`.
+SMS sender `CartZe`, `shopos:*` commands). Heads: backend `offline/v1/backend` `d1d4039d`, panel
+`offline/v1/admin-panel` `42452204`, core `b750c2e`, mobile `3ea9a37`, partner `afe360b`.
+
+**2026-11-04 (laptop-shop tutorial findings, all pushed, no migration):** Generate barcodes now
+gives every size its own code (one code per item before); the till/table ask "Which model?" in
+the item's own word; the sizes grid heads and counts in the shop's words and stops breaking long
+names; a tyre shop gets tyre-size chips, a service its own trade's example (not "Haircut"); the
+installment sheet no longer jumps when the plan arrives. `ADayInTheShopTest` now also walks a
+day with NO shift for all seven trades and asks both days the expenses and net profit — books
+read the same with shifts on or off.
 
 **Gates:** backend 4,157 passed / 22 skipped / 0 failed; panel vitest 3,921, eslint 0 errors,
 build OK; e2e desktop project all green on rebuilt sweep shops (other projects: see the session log).
