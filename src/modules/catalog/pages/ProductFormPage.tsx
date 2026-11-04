@@ -1642,6 +1642,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               basePrice={price}
               tracksStock={stockManaged}
               isFood={isFood}
+              trade={businessType}
               err={err}
             />
           </Section>

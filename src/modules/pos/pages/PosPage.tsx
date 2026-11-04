@@ -61,6 +61,7 @@ import { ownerOf } from "../../vehicles/ownerOf";
 import { catalogService } from "../../catalog/services/catalogService";
 import { catalogSizeStock, catalogStock, offersEquivalent, sizesOf, whyNotSellable as sellableRule } from "../availability";
 import type { Product as CatalogProduct, ProductUnit, ProductVariant } from "../../catalog/types";
+import { axisNames, sizeWord } from "../../catalog/sizeWord";
 // The till prints the kitchen's slip through the same call the dine-in tab's
 // Fire button uses — one renderer, so a counter docket and a floor docket
 // cannot come out of the printer looking like two different products.
@@ -5809,7 +5810,8 @@ export default function PosPage() {
           <div>
             <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{sizeFor.name}</h3>
             <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">
-              Which size? Each one has its own price.
+              {/* In the item's own word: a laptop is asked for its model, not its size. */}
+              Which {sizeWord(axisNames(sizeFor.attributes))}? Each one has its own price.
             </p>
             <div className="space-y-2">
               {sizesOf(sizeFor).map((v) => {

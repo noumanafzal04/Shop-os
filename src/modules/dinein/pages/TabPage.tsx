@@ -18,6 +18,7 @@ import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { sizePrice } from "../../catalog/pricing";
 import { catalogService } from "../../catalog/services/catalogService";
 import type { Product, ModifierGroup, ProductVariant } from "../../catalog/types";
+import { axisNames, sizeWord } from "../../catalog/sizeWord";
 import { usePickableProducts } from "../../catalog/hooks/useCatalog";
 import { sizesOf, whyNotSellable } from "../../pos/availability";
 import { useTicket, useDineInMutations, useOpenTickets, useServers, useSettleWorth, useTables, useTabLines } from "../hooks/useDineIn";
@@ -1004,7 +1005,7 @@ export default function TabPage() {
         {sizeFor && (
           <div>
             <h3 className="mb-1 text-lg font-semibold text-gray-800 dark:text-white/90">{sizeFor.name}</h3>
-            <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Which size?</p>
+            <p className="mb-4 text-theme-sm text-gray-500 dark:text-gray-400">Which {sizeWord(axisNames(sizeFor.attributes))}?</p>
             <div className="space-y-2">
               {sizesOf(sizeFor).map((v) => {
                 const gone = whyNot(sizeFor, v) !== null;

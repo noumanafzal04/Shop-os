@@ -10,6 +10,8 @@ import {
   type Axis,
   type MatrixRow,
 } from "../variantMatrix";
+import { sizeCount, sizeHeading } from "../sizeWord";
+import { valueSuggestions } from "../variantSuggestions";
 
 /**
  * NAME THE AXES, AND THE SIZES FALL OUT.
@@ -47,30 +49,6 @@ import {
  * spreadsheet, not a form.
  */
 
-/**
- * One-tap values, by what the axis is called.
- *
- * The axis NAMES already exist per trade — `BusinessTypes::VARIANT_ATTRIBUTES`
- * gives a diner "Size · Flavor", a chemist "Strength · Pack Size", a tyre shop
- * "Size · Brand · Load Rating". They were being spent on one line of grey hint
- * text. These are the values that go with them, so a shop taps rather than types.
- *
- * Colour and Flavor are deliberately absent: a shop's colours are its own and a
- * guessed list would be wrong in a way that looks authoritative.
- */
-const SUGGESTED: Record<string, string[]> = {
-  size: ["S", "M", "L", "XL", "XXL"],
-  volume: ["250ml", "500ml", "1L", "1.5L", "2.25L"],
-  weight: ["250g", "500g", "1kg", "5kg"],
-  strength: ["250mg", "500mg", "650mg"],
-  "pack size": ["Single", "Pack of 6", "Pack of 12", "Carton"],
-  duration: ["30 min", "45 min", "1 hour"],
-  grade: ["Petrol", "Hi-Octane", "Diesel"],
-};
-
-/** A food shop's "Size" means something different from a shirt's. */
-const FOOD_SIZES = ["Small", "Medium", "Large"];
-
 interface Props {
   axes: Axis[];
   onAxes: (axes: Axis[]) => void;
@@ -86,10 +64,12 @@ interface Props {
   err: (path: string) => string | undefined;
   /** A dish's sizes read Small/Medium/Large, not S/M/L. */
   isFood?: boolean;
+  /** The shop's primary trade — a tyre shop's sizes are tyre sizes. */
+  trade?: string | null;
 }
 
 export default function VariantMatrixEditor({
-  axes, onAxes, rows, onRows, suggestedNames, basePrice, tracksStock, err, isFood = false,
+  axes, onAxes, rows, onRows, suggestedNames, basePrice, tracksStock, err, isFood = false, trade = null,
 }: Props) {
   const [bulkPrice, setBulkPrice] = useState("");
   const missing = whatIsMissing(rows);
@@ -120,12 +100,7 @@ export default function VariantMatrixEditor({
     setAxis(i, { values: [...axes[i].values, ...values] });
   };
 
-  const suggestionsFor = (name: string): string[] => {
-    const key = name.trim().toLowerCase();
-    if (key === "size" && isFood) return FOOD_SIZES;
-
-    return SUGGESTED[key] ?? [];
-  };
+  const suggestionsFor = (name: string): string[] => valueSuggestions(name, { isFood, trade });
 
   return (
     <div>
@@ -223,7 +198,7 @@ export default function VariantMatrixEditor({
         <div className="mt-4">
           <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
             <p className="text-theme-xs font-medium uppercase tracking-wide text-gray-400">
-              {rows.length} {rows.length === 1 ? "size" : "sizes"}
+              {sizeCount(axes.map((a) => a.name), rows.length)}
             </p>
 
             {/* Set one price on all of them. Disabled when it would change
@@ -264,7 +239,8 @@ export default function VariantMatrixEditor({
             <table data-variant-grid className="w-full min-w-[34rem] text-left text-theme-sm">
               <thead className="border-b border-gray-100 text-theme-xs uppercase tracking-wide text-gray-400 dark:border-gray-800">
                 <tr>
-                  <th className="px-3 py-2">Size</th>
+                  {/* What the shop called them — "Model", "Size / Colour". */}
+                  <th className="px-3 py-2">{sizeHeading(axes.map((a) => a.name))}</th>
                   {/* Two columns, because they were one under a header that
                       promised both and stored a SKU. The SKU is the shop's own
                       reference; the barcode is what the scanner reads off the
@@ -281,7 +257,11 @@ export default function VariantMatrixEditor({
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.id ?? r.name} className="border-b border-gray-50 last:border-0 dark:border-gray-800/60">
-                    <td className="px-3 py-2 font-medium text-gray-800 dark:text-white/90">
+                    {/* Wide enough for a tyre's "175/70 R13" on one line and a
+                        laptop's "Core i5 / 8GB / 256GB" on two — the column
+                        used to shrink to the inputs beside it and broke a
+                        size into pieces ("175" over "/70"). */}
+                    <td className="min-w-[9rem] px-3 py-2 font-medium text-gray-800 dark:text-white/90">
                       {r.name}
                       {err(`variants.${i}.name`) && (
                         <span className="block text-theme-xs text-error-500">{err(`variants.${i}.name`)}</span>

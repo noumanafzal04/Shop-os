@@ -26,7 +26,6 @@
 
 /** Keyed by `item_type` — beats the trade, because the shop already said so. */
 const BY_ITEM_TYPE: Record<string, string> = {
-  service: "Haircut",
   medicine: "Cough syrup 120ml",
   food_item: "Chicken biryani",
   deal: "Family deal — 2 pizzas + 1.5L",
@@ -51,6 +50,30 @@ const BY_TRADE: Record<string, string> = {
   finance: "Consultancy fee",
 };
 
+/**
+ * A SERVICE IS STILL SOME TRADE'S SERVICE.
+ *
+ * The item type rightly beats the trade's product example — a tyre shop billing
+ * fitting is not adding "Tyre 185/65 R15". But every service then read
+ * "e.g. Haircut", which a tyre shop adding its alignment saw as software built
+ * for a salon. The shape is the item type's (labour, not goods); the example is
+ * the trade's.
+ */
+const SERVICE_BY_TRADE: Record<string, string> = {
+  services: "Haircut",
+  automotive: "Wheel alignment",
+  retail: "Repair or installation",
+  mart: "Home delivery",
+  pharmacy: "Blood pressure check",
+  food: "Outdoor catering",
+  wholesale: "Loading and unloading",
+  petroleum: "Car wash",
+  finance: "Consultancy fee",
+};
+
+/** A service in a trade this file does not know yet. */
+const GENERIC_SERVICE_EXAMPLE = "Repair or labour";
+
 /** What every form said before this file, and what an unknown trade still gets. */
 export const GENERIC_PRODUCT_EXAMPLE = "T-Shirt / Haircut";
 
@@ -64,6 +87,7 @@ export function productExampleFor(
   businessType: string | null | undefined,
   itemType?: string | null,
 ): string {
+  if (itemType === "service") return SERVICE_BY_TRADE[businessType ?? ""] ?? GENERIC_SERVICE_EXAMPLE;
   if (itemType && BY_ITEM_TYPE[itemType]) return BY_ITEM_TYPE[itemType];
 
   return BY_TRADE[businessType ?? ""] ?? GENERIC_PRODUCT_EXAMPLE;

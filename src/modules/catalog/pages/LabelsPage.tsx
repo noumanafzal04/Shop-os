@@ -12,7 +12,7 @@ import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
-import { GAP, PAD, PAGE, STOCKS, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
+import { GAP, PAD, PAGE, STOCKS, codesWanted, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
 import { LABEL_FIELDS, labelPrefs, toSettings, type LabelPrefs } from "../labels/prefs";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 
@@ -106,7 +106,9 @@ export default function LabelsPage() {
   const fit = perSheet(stock);
   const rows = products.data?.data ?? [];
   const pagination = products.data?.meta.pagination;
-  const missing = rows.filter((p) => !p.barcode && printables(p).length === 0);
+  const missing = rows.filter((p) => codesWanted(p) > 0);
+  /** Codes, not items: a kurta in four sizes is four tickets. */
+  const codesToMake = missing.reduce((n, p) => n + codesWanted(p), 0);
 
   const queue = useMemo(
     () => Object.entries(qtys)
@@ -172,15 +174,16 @@ export default function LabelsPage() {
     let done = 0;
     try {
       for (const p of missing) {
+        const wanted = codesWanted(p);
         await generate.mutateAsync(p.id);
-        done++;
+        done += wanted;
       }
       toast.success(`${done} barcode${done === 1 ? "" : "s"} generated`);
     } catch (e) {
       toast.error(
         done === 0
           ? `Couldn't generate barcodes. ${e instanceof Error ? e.message : ""}`.trim()
-          : `Stopped after ${done} of ${missing.length}. ${e instanceof Error ? e.message : ""}`.trim(),
+          : `Stopped after ${done} of ${codesToMake}. ${e instanceof Error ? e.message : ""}`.trim(),
       );
     } finally {
       setBulkBusy(false);
@@ -258,7 +261,7 @@ export default function LabelsPage() {
         <div className="flex items-center gap-2">
           {missing.length > 0 && (
             <Button size="sm" variant="outline" onClick={generateAll} disabled={bulkBusy}>
-              {bulkBusy ? "Generating…" : `Generate ${missing.length} barcode${missing.length > 1 ? "s" : ""}`}
+              {bulkBusy ? "Generating…" : `Generate ${codesToMake} barcode${codesToMake > 1 ? "s" : ""}`}
             </Button>
           )}
           <Button size="sm" onClick={() => window.print()} disabled={total === 0}>

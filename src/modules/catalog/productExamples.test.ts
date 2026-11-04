@@ -37,8 +37,17 @@ describe("the product name example", () => {
   it("lets the item type win, because the shop already said what it is", () => {
     // A tyre shop billing a fitting charge is adding a SERVICE, and "Tyre
     // 185/65 R15" would be the wrong shape for that field.
-    expect(productExampleFor("automotive", "service")).toBe("Haircut");
+    expect(productExampleFor("automotive", "service")).not.toBe(productExampleFor("automotive"));
     expect(productExampleFor("mart", "medicine")).toBe("Cough syrup 120ml");
+  });
+
+  it("gives a service its own trade's example, not a salon's", () => {
+    // Every service read "e.g. Haircut" — in a tyre shop adding its alignment.
+    expect(productExampleFor("automotive", "service")).toBe("Wheel alignment");
+    expect(productExampleFor("services", "service")).toBe("Haircut");
+    for (const trade of Object.keys(TRADE_FEATURES).filter((t) => t !== "services")) {
+      expect(productExampleFor(trade, "service"), `${trade} is shown a salon's service`).not.toBe("Haircut");
+    }
   });
 
   it("falls back rather than showing nothing to a shop it does not know", () => {

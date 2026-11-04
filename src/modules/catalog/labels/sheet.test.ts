@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { perSheet, printables, sheets, STOCKS } from "./sheet";
+import { codesWanted, perSheet, printables, sheets, STOCKS } from "./sheet";
 import type { Product } from "../types";
 
 describe("how many stickers a sheet takes", () => {
@@ -126,5 +126,39 @@ describe("what there is to print for a product", () => {
     const sugar = { id: "p4", name: "Sugar", barcode: "444", price: "180", sold_by: "weight", unit: "KG", variants: [], barcodes: [], units: [] } as unknown as Product;
 
     expect(printables(sugar)[0].perUnit).toBe("/KG");
+  });
+});
+
+describe("how many codes Generate barcodes makes for an item", () => {
+  const kurta = (barcode: string | null, coded: string[]) => ({
+    id: "k1", name: "Kurta", barcode, price: "2950", sold_by: "unit", units: [],
+    variants: [
+      { id: "s", name: "S", price: "2950", is_active: true },
+      { id: "m", name: "M", price: "2950", is_active: true },
+      { id: "l", name: "L", price: "2950", is_active: true },
+      { id: "x", name: "XL", price: "2950", is_active: false },
+    ],
+    barcodes: coded.map((v, i) => ({ id: `b${i}`, barcode: `20000000000${i}`, variant_id: v })),
+  }) as unknown as Product;
+
+  it("one per active size without a code — a rack is scanned a size at a time", () => {
+    expect(codesWanted(kurta(null, []))).toBe(3);
+    expect(codesWanted(kurta(null, ["s"]))).toBe(2);
+  });
+
+  it("still wants the sizes' codes when the item itself has one", () => {
+    // The old count skipped this kurta: it had a code, so it "had something to print".
+    expect(codesWanted(kurta("200000000099", []))).toBe(3);
+  });
+
+  it("wants nothing once every size has its ticket", () => {
+    expect(codesWanted(kurta(null, ["s", "m", "l"]))).toBe(0);
+  });
+
+  it("an item without sizes wants one code, and only while it has none", () => {
+    const plain = (barcode: string | null) => ({ id: "p", name: "Soap", barcode, price: "90", variants: [], barcodes: [], units: [] }) as unknown as Product;
+
+    expect(codesWanted(plain(null))).toBe(1);
+    expect(codesWanted(plain("8961234567890"))).toBe(0);
   });
 });

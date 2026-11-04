@@ -163,3 +163,23 @@ export function printables(p: Product): Printable[] {
 
   return out;
 }
+
+/**
+ * How many codes "Generate barcodes" would make for this item — 0 when it
+ * already has all it needs.
+ *
+ * AN ITEM IN SIZES WANTS ONE PER SIZE. The rack's tickets are scanned one size
+ * at a time, so a size with no code of its own is a ticket that cannot be
+ * printed — even when the item itself carries a code. This used to count only
+ * items with nothing printable at all, so a kurta whose sizes had no codes was
+ * either skipped or given ONE code for the whole rack. Same rule as the server
+ * (GenerateBarcodeAction): every active size without a code.
+ */
+export function codesWanted(p: Product): number {
+  const sizes = (p.variants ?? []).filter((v) => v.is_active !== false);
+  if (sizes.length > 0) {
+    return sizes.filter((v) => !(p.barcodes ?? []).some((b) => b.variant_id === v.id)).length;
+  }
+
+  return !p.barcode && printables(p).length === 0 ? 1 : 0;
+}
