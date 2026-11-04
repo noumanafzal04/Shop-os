@@ -182,7 +182,13 @@ export default function StartInstallmentModal({
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-brand-200 bg-brand-50/40 p-3 text-theme-sm dark:border-brand-500/30 dark:bg-brand-500/[0.06]" data-testid="installment-preview">
+      {/* HOLDS ITS HEIGHT. The plan arrives a moment after the phone is typed and
+          grew this box from one line to five; the sheet is centred, so every
+          field above it jumped up while the hand was on its way to "Installment
+          charge %" — and the press landed on the advance or the payment method
+          (three tutorial recordings saved 0% over 6 months that way). The box
+          is as tall as a full plan from the start. */}
+      <div className="mt-4 min-h-[9.5rem] rounded-xl border border-brand-200 bg-brand-50/40 p-3 text-theme-sm dark:border-brand-500/30 dark:bg-brand-500/[0.06]" data-testid="installment-preview">
         {!current ? (
           <p className="text-gray-500 dark:text-gray-400">{refused ?? "Working out the plan…"}</p>
         ) : (
@@ -198,11 +204,10 @@ export default function StartInstallmentModal({
         )}
       </div>
 
-      {(why || shiftWhy) && (
-        <div className="mt-3">
-          {shiftWhy ? <ShiftNeeded why={shiftWhy} /> : <p className="text-theme-xs text-warning-600 dark:text-warning-400">{why}</p>}
-        </div>
-      )}
+      {/* One line kept for the reason, so it going away (the phone typed) moves nothing either. */}
+      <div className="mt-3 min-h-[1.25rem]">
+        {shiftWhy ? <ShiftNeeded why={shiftWhy} /> : why ? <p className="text-theme-xs text-warning-600 dark:text-warning-400">{why}</p> : null}
+      </div>
 
       <div className="mt-5 flex justify-end gap-3">
         <Button size="sm" variant="outline" onClick={onClose}>Back</Button>
