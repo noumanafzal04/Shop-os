@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   axesFromRows,
+  barcodeModeOf,
   combinations,
   fillAll,
   giveCodes,
   labelFor,
   regenerate,
+  sizesPriceDiffer,
   sizesWithoutACode,
   toPayload,
   usableAxes,
@@ -294,5 +296,22 @@ describe("Generate barcodes in the sizes grid", () => {
 
   it("leaves a size empty rather than inventing a code it was not given", () => {
     expect(giveCodes([row("S"), row("M")], ["201"]).map((r) => r.barcode)).toEqual(["201", undefined]);
+  });
+});
+
+describe("how the sizes are scanned", () => {
+  it("reads ONE for all sizes from an item code with no size codes", () => {
+    expect(barcodeModeOf([row("S"), row("M")], "200000000099")).toBe("one");
+  });
+
+  it("reads EACH whenever a size has a code, or nothing has one yet", () => {
+    expect(barcodeModeOf([row("S", { barcode: "201" }), row("M")], "200000000099")).toBe("each");
+    expect(barcodeModeOf([row("S"), row("M")], "")).toBe("each");
+    expect(barcodeModeOf([row("S"), row("M")], "   ")).toBe("each");
+  });
+
+  it("knows when one label could not show every size's price", () => {
+    expect(sizesPriceDiffer([row("S", { price: 1500 }), row("M", { price: 1500 })])).toBe(false);
+    expect(sizesPriceDiffer([row("500ml", { price: 80 }), row("1.5L", { price: 180 })])).toBe(true);
   });
 });

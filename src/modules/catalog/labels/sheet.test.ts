@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { codesWanted, perSheet, printables, sheets, STOCKS } from "./sheet";
+import { codesWanted, oneCodeForAllSizes, perSheet, printables, sheets, STOCKS } from "./sheet";
 import type { Product } from "../types";
 
 describe("how many stickers a sheet takes", () => {
@@ -146,9 +146,16 @@ describe("how many codes Generate barcodes makes for an item", () => {
     expect(codesWanted(kurta(null, ["s"]))).toBe(2);
   });
 
-  it("still wants the sizes' codes when the item itself has one", () => {
-    // The old count skipped this kurta: it had a code, so it "had something to print".
-    expect(codesWanted(kurta("200000000099", []))).toBe(3);
+  it("wants nothing from an item that chose ONE code for all its sizes", () => {
+    // The item carries a code and no size has one: the shop prints that label
+    // on every size and the till asks which size. Not a gap to fill.
+    expect(oneCodeForAllSizes(kurta("200000000099", []))).toBe(true);
+    expect(codesWanted(kurta("200000000099", []))).toBe(0);
+  });
+
+  it("once one size has its own code, the rest are wanted too", () => {
+    expect(oneCodeForAllSizes(kurta("200000000099", ["s"]))).toBe(false);
+    expect(codesWanted(kurta("200000000099", ["s"]))).toBe(2);
   });
 
   it("wants nothing once every size has its ticket", () => {

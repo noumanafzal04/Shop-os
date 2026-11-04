@@ -4,8 +4,11 @@ import Input from "../../../components/form/input/InputField";
 import Label from "../../../components/form/Label";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import {
+  type BarcodeMode,
+  barcodeModeOf,
   fillAll,
   giveCodes,
+  sizesPriceDiffer,
   regenerate,
   sizesWithoutACode,
   whatIsMissing,
@@ -70,15 +73,50 @@ interface Props {
   trade?: string | null;
   /** Fresh codes from the server, for "Generate barcodes". Absent where nothing is scanned (no till). */
   mintCodes?: (count: number) => Promise<string[]>;
+  /** The item's own barcode — the one code every size carries when the shop picks "One for all sizes". */
+  itemBarcode?: string;
+  onItemBarcode?: (code: string) => void;
 }
+
 
 export default function VariantMatrixEditor({
   axes, onAxes, rows, onRows, suggestedNames, basePrice, tracksStock, err, isFood = false, trade = null, mintCodes,
+  itemBarcode = "", onItemBarcode,
 }: Props) {
   const [bulkPrice, setBulkPrice] = useState("");
   const [minting, setMinting] = useState(false);
   const [mintFailed, setMintFailed] = useState(false);
   const uncoded = sizesWithoutACode(rows);
+
+  // How the sizes are scanned: read from what is saved until the shop picks.
+  const canChoose = !!mintCodes && !!onItemBarcode;
+  const [picked, setPicked] = useState<BarcodeMode | null>(null);
+  const mode: BarcodeMode = canChoose ? (picked ?? barcodeModeOf(rows, itemBarcode)) : "each";
+  // The sizes' own codes, kept while "One for all" is tried, so going back loses nothing.
+  const [stash, setStash] = useState<Record<string, string>>({});
+  const choose = (next: BarcodeMode) => {
+    if (next === mode) return;
+    if (next === "one") {
+      setStash(Object.fromEntries(rows.filter((r) => (r.barcode ?? "").trim()).map((r) => [r.name, r.barcode as string])));
+      onRows(rows.map((r) => ({ ...r, barcode: "" })));
+    } else {
+      onRows(rows.map((r) => (!(r.barcode ?? "").trim() && stash[r.name] ? { ...r, barcode: stash[r.name] } : r)));
+    }
+    setPicked(next);
+  };
+  const [mintingOne, setMintingOne] = useState(false);
+  const generateOne = async () => {
+    if (!mintCodes || !onItemBarcode || mintingOne) return;
+    setMintingOne(true);
+    setMintFailed(false);
+    try {
+      onItemBarcode((await mintCodes(1))[0] ?? "");
+    } catch {
+      setMintFailed(true);
+    } finally {
+      setMintingOne(false);
+    }
+  };
 
   /** Every size without a code gets its own; a size that has one keeps it. */
   const generateCodes = async () => {
@@ -250,7 +288,7 @@ export default function VariantMatrixEditor({
                   whether the sizes cost the same (a shirt) or not (a drink). A
                   packet that already carries its maker's code is scanned into
                   its box instead; those boxes are left alone. */}
-              {mintCodes && (
+              {mintCodes && mode === "each" && (
                 <button
                   type="button"
                   disabled={uncoded === 0 || minting}
@@ -262,7 +300,58 @@ export default function VariantMatrixEditor({
               )}
             </div>
           </div>
-          {mintCodes && (
+          {/* ── how the sizes are scanned ───────────────────────────────
+              A choice the shop makes once per item, said in its words: a
+              drink's sizes each carry the maker's code; a shirt's can share
+              one. Nothing is stored for it — what is saved says it. */}
+          {canChoose && (
+            <div className="mb-3">
+              <p className="mb-1.5 text-theme-xs font-medium text-gray-500 dark:text-gray-400">Barcodes</p>
+              <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-white/[0.05]" role="group" aria-label="Barcodes for the sizes">
+                {([["each", "Each size its own"], ["one", "One for all sizes"]] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={mode === key}
+                    onClick={() => choose(key)}
+                    className={`whitespace-nowrap rounded-lg px-3.5 py-1.5 text-theme-sm font-medium transition ${
+                      mode === key
+                        ? "bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
+                        : "text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {mode === "one" ? (
+            <div className="mb-3 rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+              <Label htmlFor="one-barcode">Barcode for all sizes</Label>
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input id="one-barcode" value={itemBarcode} onChange={(e) => onItemBarcode?.(e.target.value)} placeholder="Scan or type" />
+                </div>
+                {!itemBarcode.trim() && (
+                  <button type="button" className={`${ROW_ACTION} shrink-0 disabled:opacity-40`} disabled={mintingOne} onClick={() => void generateOne()}>
+                    {mintingOne ? "Generating…" : "Generate"}
+                  </button>
+                )}
+              </div>
+              <p className={`mt-1.5 text-theme-xs ${mintFailed ? "text-error-500" : "text-gray-400"}`}>
+                {mintFailed
+                  ? "Couldn't get a new barcode — check the connection and try again."
+                  : "Every size's label carries this code. At the till a scan asks which size."}
+              </p>
+              {sizesPriceDiffer(rows) && (
+                <p className="mt-1.5 text-theme-xs text-warning-600 dark:text-warning-400">
+                  Your sizes have different prices, and one label shows one price. Choose “Each size its own” so each label shows its size's price.
+                </p>
+              )}
+            </div>
+          ) : mintCodes && (
             <p className={`mb-2 text-theme-xs ${mintFailed ? "text-error-500" : "text-gray-400"}`}>
               {mintFailed
                 ? "Couldn't get new barcodes — check the connection and try again."
@@ -289,7 +378,7 @@ export default function VariantMatrixEditor({
                       packet, and a drinks shop's 500ml and 1L carry different
                       ones. */}
                   <th className="px-3 py-2">SKU</th>
-                  <th className="px-3 py-2">Barcode</th>
+                  {mode === "each" && <th className="px-3 py-2">Barcode</th>}
                   <th className="px-3 py-2 text-right">Price</th>
                   <th className="px-3 py-2 text-right">Cost</th>
                   {tracksStock && <th className="px-3 py-2 text-right">Opening stock</th>}
@@ -320,17 +409,19 @@ export default function VariantMatrixEditor({
                         <span className="block text-theme-xs text-error-500">{err(`variants.${i}.sku`)}</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
-                      <Cell
-                        label={`Barcode for ${r.name}`}
-                        value={r.barcode ?? ""}
-                        onChange={(v) => onRows(rows.map((x, j) => (j === i ? { ...x, barcode: v } : x)))}
-                        width="w-36"
-                      />
-                      {err(`variants.${i}.barcode`) && (
-                        <span className="block text-theme-xs text-error-500">{err(`variants.${i}.barcode`)}</span>
-                      )}
-                    </td>
+                    {mode === "each" && (
+                      <td className="px-3 py-2">
+                        <Cell
+                          label={`Barcode for ${r.name}`}
+                          value={r.barcode ?? ""}
+                          onChange={(v) => onRows(rows.map((x, j) => (j === i ? { ...x, barcode: v } : x)))}
+                          width="w-36"
+                        />
+                        {err(`variants.${i}.barcode`) && (
+                          <span className="block text-theme-xs text-error-500">{err(`variants.${i}.barcode`)}</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right">
                       <Cell
                         label={`Price for ${r.name}`}

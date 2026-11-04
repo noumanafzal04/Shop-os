@@ -165,19 +165,36 @@ export function printables(p: Product): Printable[] {
 }
 
 /**
+ * ONE BARCODE FOR ALL SIZES — chosen, not missing.
+ *
+ * An item in sizes that carries a code of its own and no size has one: the
+ * shop prints the item's label on every size and the till asks which size
+ * (barcodeModeOf in the form; GenerateBarcodeAction on the server). Generate
+ * leaves it alone rather than talk the shop out of what it picked.
+ */
+export function oneCodeForAllSizes(p: Product): boolean {
+  const sized = (p.variants ?? []).some((v) => v.is_active !== false);
+  const sizeCoded = (p.barcodes ?? []).some((b) => b.variant_id);
+
+  return sized && !!p.barcode && !sizeCoded;
+}
+
+/**
  * How many codes "Generate barcodes" would make for this item — 0 when it
  * already has all it needs.
  *
- * AN ITEM IN SIZES WANTS ONE PER SIZE. The rack's tickets are scanned one size
- * at a time, so a size with no code of its own is a ticket that cannot be
- * printed — even when the item itself carries a code. This used to count only
- * items with nothing printable at all, so a kurta whose sizes had no codes was
- * either skipped or given ONE code for the whole rack. Same rule as the server
- * (GenerateBarcodeAction): every active size without a code.
+ * AN ITEM IN SIZES WANTS ONE PER SIZE, unless the shop chose one code for all
+ * of them (oneCodeForAllSizes). The rack's tickets are scanned one size at a
+ * time, so a size with no code is a ticket that cannot be printed; this used
+ * to give the whole kurta ONE code without asking. Same rule as the server
+ * (GenerateBarcodeAction): every active size without a code — none when the
+ * item's own code serves them all.
  */
 export function codesWanted(p: Product): number {
   const sizes = (p.variants ?? []).filter((v) => v.is_active !== false);
   if (sizes.length > 0) {
+    if (oneCodeForAllSizes(p)) return 0;
+
     return sizes.filter((v) => !(p.barcodes ?? []).some((b) => b.variant_id === v.id)).length;
   }
 

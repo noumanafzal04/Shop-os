@@ -12,7 +12,7 @@ import { code128BarsSvg, code128ModuleCount } from "../utils/code128";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import Pager from "../../../components/ui/pager";
 import { Dropdown } from "../../../components/ui/dropdown/Dropdown";
-import { GAP, PAD, PAGE, STOCKS, codesWanted, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
+import { GAP, PAD, PAGE, STOCKS, codesWanted, oneCodeForAllSizes, perSheet, printables, sheets, type Printable, type Stock, type StockKey } from "../labels/sheet";
 import { LABEL_FIELDS, labelPrefs, toSettings, type LabelPrefs } from "../labels/prefs";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 
@@ -328,7 +328,11 @@ export default function LabelsPage() {
                         <div className="mt-0.5 flex items-center gap-2 text-theme-xs text-gray-400">
                           <span className="tabular-nums">{money(p.price)}</span>
                           {p.barcode ? (
-                            <span className="truncate font-mono">{p.barcode}</span>
+                            <>
+                              <span className="truncate font-mono">{p.barcode}</span>
+                              {/* Said, so a rack printed from one code is not mistaken for a missing size. */}
+                              {oneCodeForAllSizes(p) && <span className="shrink-0">· one for all sizes</span>}
+                            </>
                           ) : parts.length > 0 ? (
                             <span>labels by size or pack</span>
                           ) : (

@@ -184,6 +184,32 @@ export function axesFromRows(rows: MatrixRow[], names: string[] = []): Axis[] | 
   return expected === rows.length ? axes : null;
 }
 
+/**
+ * HOW THE SIZES ARE SCANNED — a shop's choice, read from what it saved.
+ *
+ *   each   every size carries its own code; one scan rings the size. The
+ *          default, and the only right answer when the sizes cost different
+ *          amounts (a drink's 500ml and 1.5L) — a label can show one price.
+ *   one    the item's code is on every size's label and the till asks which
+ *          size. Fine for a shirt whose sizes all cost the same.
+ *
+ * Nothing is stored for it: an item with a code of its own and no size codes
+ * has chosen ONE; anything else is EACH. The editor's toggle only changes what
+ * is saved, so the Labels page and the server read the same answer back.
+ */
+export type BarcodeMode = "each" | "one";
+
+export function barcodeModeOf(rows: MatrixRow[], itemBarcode: string): BarcodeMode {
+  const sizeCoded = rows.some((r) => (r.barcode ?? "").trim() !== "");
+
+  return !sizeCoded && itemBarcode.trim() !== "" ? "one" : "each";
+}
+
+/** Do the sizes cost different amounts? Then one label (one price) cannot serve them all. */
+export function sizesPriceDiffer(rows: MatrixRow[]): boolean {
+  return new Set(rows.map((r) => Number(r.price ?? 0))).size > 1;
+}
+
 /** The sizes with no barcode of their own yet — what "Generate barcodes" would fill. */
 export function sizesWithoutACode(rows: MatrixRow[]): number {
   return rows.filter((r) => !(r.barcode ?? "").trim()).length;

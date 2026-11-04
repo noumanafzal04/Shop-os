@@ -1660,6 +1660,8 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
               isFood={isFood}
               trade={businessType}
               mintCodes={posEnabled ? mintCodes : undefined}
+              itemBarcode={barcode}
+              onItemBarcode={setBarcode}
               err={err}
             />
           </Section>
