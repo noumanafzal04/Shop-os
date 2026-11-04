@@ -16,8 +16,12 @@ use Illuminate\Support\Facades\DB;
  * whole kurta ONE code — so every label in the rack was the same, and every
  * scan stopped to ask which size. Now each active size without a code gets one
  * of its own: a `product_barcodes` row naming the size, which is the row the
- * scan lookup already resolves to that one size (VariantBarcodeTest). The
- * item's own code, if it has one, is left as it was.
+ * scan lookup already resolves to that one size (VariantBarcodeTest).
+ *
+ * ONE CODE FOR ALL SIZES is a choice, not a gap: an item that carries a code
+ * of its own while no size has one prints that label on every size, and the
+ * till asks which size (a shirt whose sizes cost the same). Generate leaves
+ * it as it is — the product form's "One for all sizes" is what said so.
  *
  * An item without sizes gets its own code, as before. Existing codes are kept
  * unless $force is set (the item's own code only — a size's printed ticket is
@@ -36,6 +40,10 @@ class GenerateBarcodeAction
                     ->whereNotNull('variant_id')
                     ->pluck('variant_id')
                     ->all();
+
+                if ($product->barcode !== null && $coded === []) {
+                    return; // one code for all sizes, chosen
+                }
 
                 foreach ($sizes as $size) {
                     if (in_array($size->id, $coded, true)) {

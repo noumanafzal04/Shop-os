@@ -185,6 +185,32 @@ class VariantBarcodeTest extends TestCase
             'a second press made the size another code instead of keeping the one on its ticket');
     }
 
+    public function test_an_item_with_one_code_for_all_its_sizes_is_left_as_it_chose(): void
+    {
+        // "One for all sizes": the item's code on every label, the till asks
+        // which size. Labels' Generate must not hand each size a code anyway.
+        $res = $this->login()->postJson('/api/v1/products', [
+            'name' => 'Polo', 'item_type' => 'physical_product', 'price' => 1500,
+            'barcode' => '8961000000091', 'track_inventory' => true,
+            'variants' => [
+                ['name' => 'S', 'price' => 1500, 'stock_quantity' => 5],
+                ['name' => 'M', 'price' => 1500, 'stock_quantity' => 5],
+            ],
+        ])->assertCreated();
+        $id = $res->json('data.id');
+
+        $this->login()->postJson("/api/v1/products/{$id}/barcode")->assertOk();
+
+        $this->assertSame(0, ProductBarcode::query()->where('product_id', $id)->whereNotNull('variant_id')->count(),
+            'the sizes were given codes of their own though the shop chose one for all');
+        $this->assertSame('8961000000091', Product::query()->whereKey($id)->value('barcode'));
+
+        // And the shared code still rings the item, leaving the size to be asked.
+        $lookup = $this->login()->getJson('/api/v1/pos/lookup?code=8961000000091')->assertOk();
+        $this->assertSame($id, $lookup->json('data.product.id'));
+        $this->assertNull($lookup->json('data.variant_id'), 'one shared code picked a size by itself');
+    }
+
     public function test_the_forms_generate_button_gets_codes_that_save_on_sizes_and_ring_them(): void
     {
         // The product form's Generate: codes for sizes that do not exist yet,
