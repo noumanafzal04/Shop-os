@@ -90,6 +90,7 @@ import { enterMeans } from "../enterKey";
 import { oneScanAtATime } from "../scanLine";
 import { useAskedSearch } from "../askedSearch";
 import { backToTheScanBox, handsOnAKeyboard, isScannedCode, scanCatcher } from "../scanAnywhere";
+import { packChoices } from "../packChoices";
 import { shelfCouldNotLoad, type Asked } from "../shelfAnswer";
 import { firstOwing, numbersOn, owed, strangers, unitsOn, withNumber, writtenTwice } from "../unitNumbers";
 import { canKick, kickDrawer } from "../../../common/escpos";
@@ -2145,6 +2146,22 @@ export default function PosPage() {
   };
 
   /**
+   * A pack button under the row (#POS4): the same refusals as a tap — sold out,
+   * out of stock with the same-salt offer, a size or extras to ask about — then
+   * the line in that pack. The base unit's button IS a tap.
+   */
+  const commitPack = (p: CatalogProduct, unitId: string | null) => {
+    if (unitId === null || p.sold_out || whyNotSellable(p) !== null || p.modifier_groups?.length || sizesOf(p).length > 0) {
+      commitProduct(p);
+      return;
+    }
+    addLine(p, null, undefined, undefined, undefined, unitId);
+    posSound.success();
+    setSearch("");
+    setActiveIndex(0);
+  };
+
+  /**
    * A size was chosen: price the line from it, and ask about extras if there are
    * any.
    *
@@ -3881,9 +3898,13 @@ export default function PosPage() {
                   const sale = onSale(p);
                   const out = !!p.sold_out || (p.type === "product" && p.track_inventory && shownStock(p) <= 0);
                   const active = i === activeIndex;
+                  // A button per pack under the row (#POS4) — a chemist sells a strip, not a tablet.
+                  const packs = sizesOf(p).length === 0
+                    ? packChoices({ base: sellingPrice(p), unit: p.unit, units: p.units, left: p.type === "product" && p.track_inventory ? shownStock(p) : null })
+                    : [];
                   return (
+                    <div key={p.id}>
                     <button
-                      key={p.id}
                       data-pos-item="row"
                       // Same marker as the tile — see the note there.
                       data-pos-sized={sizesOf(p).length > 0 ? "1" : undefined}
@@ -3928,6 +3949,25 @@ export default function PosPage() {
                         {out ? (p.sold_out ? "86" : asksForEquivalent(p) ? "Same salt?" : "Out") : "Add"}
                       </span>
                     </button>
+                    {packs.length > 0 && !out && (
+                      <div className="flex flex-wrap gap-1.5 px-3 pb-2.5" data-pos-packs>
+                        {packs.map((c) => (
+                          <button
+                            key={c.unitId ?? "base"}
+                            type="button"
+                            data-pos-pack={c.label}
+                            disabled={c.why !== null}
+                            title={c.why ?? undefined}
+                            aria-label={`Add one ${c.label} of ${p.name}`}
+                            onClick={() => commitPack(p, c.unitId)}
+                            className="rounded-lg border border-brand-300/70 bg-brand-500/10 px-2.5 py-1 text-[12px] font-semibold tabular-nums text-brand-700 transition hover:border-brand-500 hover:bg-brand-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-400/40 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
+                          >
+                            + {c.label} · {money(c.price)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    </div>
                   );
                 })
               )}
