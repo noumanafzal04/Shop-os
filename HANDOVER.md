@@ -129,7 +129,7 @@ a false index. A backup that has never been restored is a belief, not a backup.
 
 **Product name True Serve** (code still says ShopOS: never rename `shopos-*` keys, `cartze.shop`,
 SMS sender `CartZe`, `shopos:*` commands). Heads: backend `offline/v1/backend` `df7fb01b`, panel
-`offline/v1/admin-panel` `5ab5e2f9`, core `b750c2e`, mobile `3ea9a37`, partner `afe360b`.
+`offline/v1/admin-panel` `8131f427`, core `b750c2e`, mobile `3ea9a37`, partner `afe360b`.
 
 **2026-11-04 (laptop-shop tutorial findings, all pushed, no migration):** Generate barcodes now
 gives every size its own code (one code per item before); the till/table ask "Which model?" in
@@ -155,6 +155,12 @@ re-tested except what the newest report says is open.
    rsynced). Prompt for a new droplet: `../true-serve-qa-docs/DEPLOY-NEW-DROPLET-PROMPT.md`.
 2. Rotate the GitHub token and password, restrict the Google Maps and Geoapify keys.
 3. The DigitalOcean box audit.
+
+**2026-11-05 (pharmacy + wholesale tutorials, panel only, no migration):** the till's scanner scans
+again after a line's ✕ / Reset (#POS3); a button per pack under the till's row — "+ Tablet · + Strip
+(10) · + Box (100)" (#POS4); lot expiry dates in the shop's own format (expiring banner, dispensing
+register, recall); the khata tender sheet says what the customer owes now, after this bill and the room
+left under their limit, and warns in red when the bill would cross it.
 
 **Dev database** was reset on 2026-11-01 (backup in `~/.shopos/backups/`). It holds Garments
 Shop (20k items), Garments 50k Test, and the nine sweep shops the browser suite signs in as
