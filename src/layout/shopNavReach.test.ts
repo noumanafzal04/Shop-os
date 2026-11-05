@@ -72,6 +72,7 @@ function everyReachablePath(): Set<string> {
  */
 const NOT_IN_MENU: Record<string, string> = {
   "/tenant/setup": "the setup wizard runs before a menu exists",
+  "/tenant/pos2": "the till's second layout, opened by its address while the shop tries it — the menu's POS stays the first one",
   "/tenant/sales/new": "reached from the Sales screen, not the menu",
   "/tenant/orders/new": "reached from the Orders screen, not the menu",
   "/tenant/products/new": "reached from the Products screen, not the menu",

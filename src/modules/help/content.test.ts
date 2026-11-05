@@ -212,6 +212,7 @@ describe("what each person is shown", () => {
  */
 const NEEDS_NO_ARTICLE: Record<string, string> = {
   "/tenant/help": "the Help Centre itself",
+  "/tenant/pos2": "the same till as /tenant/pos in a second layout — the till's articles are its articles",
   "/tenant/pharmacy": "documented as the prescription counter article",
   "/tenant/warranty": "documented as the serial numbers article",
   "/tenant/cashbook": "has its own article, linked from the money group",

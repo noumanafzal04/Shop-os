@@ -55,6 +55,7 @@ const SCREENS: Array<{ path: string; name: string }> = [
   // said 1 tap target where the till has fifty, which is the only reason
   // anybody found out.
   { path: "/tenant/pos", name: "the till" },
+  { path: "/tenant/pos2", name: "the till, second layout" },
 
   // ── the other thirty-two ────────────────────────────────────────────
   //

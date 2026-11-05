@@ -32,6 +32,8 @@ const SCREEN_PERMISSIONS: Record<string, string | string[]> = {
   // the day and its banking sit here too — CLOSING a day off is manager-only
   // and enforced on the server, not by hiding the screen.
   "/tenant/pos": "sales.manage",
+  // The same till, laid out for fewer steps — the same right to ring a sale.
+  "/tenant/pos2": "sales.manage",
   "/tenant/dine-in": "sales.manage",
   // The pass takes EITHER key. A kitchen hand holds kitchen.manage alone, so
   // the board is all they are offered; in a small kitchen the same person cooks

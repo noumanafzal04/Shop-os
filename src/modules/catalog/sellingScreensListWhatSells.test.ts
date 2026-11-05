@@ -22,6 +22,7 @@ const sources = import.meta.glob("../**/*.tsx", { query: "?raw", import: "defaul
 /** Screens whose product list is something to SELL from. */
 const SELLS = [
   "../pos/pages/PosPage.tsx",
+  "../pos/pages/PosPage2.tsx",
   "../sales/pages/NewSalePage.tsx",
   "../sales/pages/SalesPage.tsx",
   "../orders/pages/TakeOrderPage.tsx",

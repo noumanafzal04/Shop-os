@@ -85,6 +85,8 @@ const ForecourtShiftPage = lazy(() => import("./modules/fuel/pages/ForecourtShif
 const FuelSetupPage = lazy(() => import("./modules/fuel/pages/FuelSetupPage"));
 const FuelDeliveriesPage = lazy(() => import("./modules/fuel/pages/FuelDeliveriesPage"));
 const PosPage = lazy(() => import("./modules/pos/pages/PosPage"));
+// POS 2 — the same till laid out for fewer steps; reached by its address only.
+const PosPage2 = lazy(() => import("./modules/pos/pages/PosPage2"));
 const FloorPage = lazy(() => import("./modules/dinein/pages/FloorPage"));
 const TabPage = lazy(() => import("./modules/dinein/pages/TabPage"));
 const KitchenPage = lazy(() => import("./modules/kitchen/pages/KitchenPage"));
@@ -274,6 +276,7 @@ export default function App() {
                     {/* A warehouse has no counter: see SellsHere. */}
                     <Route element={<SellsHere />}>
                       <Route path="/tenant/pos" element={<PosPage />} />
+                      <Route path="/tenant/pos2" element={<PosPage2 />} />
                     </Route>
                   </Route>
                 </Route>

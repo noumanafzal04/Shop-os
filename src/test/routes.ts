@@ -13,6 +13,8 @@ export const TENANT_ROUTES = new Set([
   "/tenant",
   "/tenant/setup",
   "/tenant/pos",
+  // POS 2: the same till, laid out for fewer steps — by address only.
+  "/tenant/pos2",
   "/tenant/dine-in",
   "/tenant/kitchen",
   "/tenant/sales",
