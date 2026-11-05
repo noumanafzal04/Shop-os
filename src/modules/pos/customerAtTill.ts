@@ -6,6 +6,9 @@ export interface CustomerAtTill {
   name: string;
   phone: string;
   loyalty_points: number;
+  /** What they owe on the khata now (negative = paid ahead), and their limit — null for none. */
+  credit_balance?: number;
+  credit_limit?: number | null;
   /** Absent from a server older than the field; null for no group. */
   group?: GroupAtTill | null;
 }

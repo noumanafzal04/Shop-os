@@ -31,6 +31,7 @@ import { lineDiscountAmt, lineDiscountPctLabel, lineGross, lineNet, lineUnit, pa
 import { followLevel, shortBy, taxableShown, tillBill, type BillGroup } from "../tillBill";
 import { SHORTCUT_KEYS, keyLabel, keyTitle, shortcutFor, type ShortcutAction } from "../shortcuts";
 import { groupAtTill, type CustomerAtTill } from "../customerAtTill";
+import { khataOutlook } from "../khataOutlook";
 import { billKey, serverDueFrom } from "../tenderRecovery";
 import { completeOffline, linesFromCatalog, OfflineRefused, promotionLocally } from "../../offline/outbox/offlineCheckout";
 import { DEALT_WITH, settleRefused } from "../../offline/outbox/settleRefused";
@@ -907,6 +908,8 @@ export default function PosPage() {
    * Null for nobody, for a walk-in, and while the lookup is still out.
    */
   const [customerGroup, setCustomerGroup] = useState<(BillGroup & { name: string }) | null>(null);
+  // Their khata as the lookup found it — where this bill leaves it is said on the tender sheet.
+  const [customerKhata, setCustomerKhata] = useState<{ balance: number | null | undefined; limit: number | null | undefined } | null>(null);
   /** The name the phone lookup last put in the customer box, so it can be replaced by the next one. */
   const namedByLookup = useRef("");
   const [redeemPts, setRedeemPts] = useState("");
@@ -1292,7 +1295,7 @@ export default function PosPage() {
     const phone = customerPhone.trim();
     // Customers & Khata is a module. Without it there is no record to find.
     if (phone.length < 7 || !hasKhata) {
-      setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null);
+      setCustomerPoints(null); setRedeemPts(""); setCustomerGroup(null); setCustomerKhata(null);
       // The number is gone, so the name it brought goes with it.
       setCustomer((typed) => (typed !== "" && typed === namedByLookup.current ? "" : typed));
       namedByLookup.current = "";
@@ -1306,6 +1309,7 @@ export default function PosPage() {
         if (!alive) return;
         setCustomerPoints(loyaltyOn ? data?.loyalty_points ?? 0 : null);
         setCustomerGroup(groupAtTill(data?.group));
+        if (data) setCustomerKhata({ balance: data.credit_balance, limit: data.credit_limit }); else setCustomerKhata(null);
         // WHO THIS IS. The cashier types a phone; the shop already knows the
         // name. It was never shown, so the chip read "0300…" and the sale went
         // out with no name on it. Filled in when the box is empty or still
@@ -1324,6 +1328,7 @@ export default function PosPage() {
       .catch(async () => {
         if (!alive) return;
         setCustomerPoints(null);
+        setCustomerKhata(null);
         const cached = await memberGroupFor(phone);
         if (alive) setCustomerGroup(groupAtTill(cached));
       }), 500);
@@ -5178,6 +5183,27 @@ export default function PosPage() {
                   {creditNeedsCustomer
                     ? customerPhone.trim() !== "" && <p className="text-theme-xs">A phone number has at least 10 digits.</p>
                     : <p>Adds <span className="font-semibold">{money(payable)}</span> to {customer.trim() || customerPhone}&rsquo;s khata (to pay later).</p>}
+                  {/* What they owe now, after this bill, and the room left under
+                      their limit — told before Complete, not refused after it. */}
+                  {(() => {
+                    const k = !creditNeedsCustomer && customerKhata ? khataOutlook({ ...customerKhata, adding: payable }) : null;
+                    if (!k) return null;
+
+                    return (
+                      <div data-khata-outlook className="space-y-0.5 text-theme-xs">
+                        <p className="tabular-nums">
+                          {k.owes < 0 ? <>In credit <span className="font-semibold">{money(-k.owes)}</span></> : <>Owes now <span className="font-semibold">{money(k.owes)}</span></>}
+                          {" · "}after this <span className="font-semibold">{money(k.after)}</span>
+                          {k.limit !== null && <>{" · "}limit {money(k.limit)}{k.over === 0 && k.left !== null ? ` (${money(k.left)} left)` : ""}</>}
+                        </p>
+                        {k.over > 0 && (
+                          <p className="font-semibold text-error-600 dark:text-error-400">
+                            Over the limit by {money(k.over)} — the sale will be refused. Take part of it in cash, or raise the limit under Customers.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
                 {(customer.trim() !== "" || customerPhone.trim() !== "") && (
                   <CustomerSuggestions name={customer} phone={customerPhone} onPick={(c) => { setCustomer(c.name ?? ""); setCustomerPhone(c.phone ?? ""); }} />
