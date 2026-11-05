@@ -352,7 +352,8 @@ export default function InventoryPage() {
                 </span>
                 <span className="flex items-center gap-2">
                   <Badge size="sm" color={b.expired ? "error" : "warning"}>
-                    {b.expired ? "EXPIRED" : `expires ${b.expiry_date}`}
+                    {/* In the shop's own date, as every other lot line says it — this one printed the raw date. */}
+                    {b.expired ? "EXPIRED" : lotExpiry(b.expiry_date)}
                   </Badge>
                   {/* The action belongs where the shop is TOLD about it. Writing
                       the batch off was always possible, but only by leaving this

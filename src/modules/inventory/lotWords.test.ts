@@ -33,3 +33,10 @@ describe("a lot's date", () => {
     expect(PAGE).toMatch(/aria-label=\{`Expiry of lot \$\{b\.batch_number\}`\}/);
   });
 });
+
+describe("the expiring-stock banner says its dates the shop's way", () => {
+  it("never prints a lot's raw date — a chemist read 'expires 2026-12-31' over the shop's own format", () => {
+    expect(PAGE).not.toMatch(/`expires \$\{b\.expiry_date\}`/);
+    expect(PAGE).toMatch(/b\.expired \? "EXPIRED" : lotExpiry\(b\.expiry_date\)/);
+  });
+});

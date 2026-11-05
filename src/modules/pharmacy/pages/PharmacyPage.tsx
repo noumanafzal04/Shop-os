@@ -167,7 +167,7 @@ function RegisterRow({ row }: { row: DispensingRow }) {
           : (row.batches ?? []).map((b) => (
               <div key={b.batch_number} className="font-mono">
                 {b.batch_number}
-                {b.expiry_date ? ` · exp ${b.expiry_date}` : ""}
+                {b.expiry_date ? ` · exp ${shopDate(b.expiry_date.slice(0, 10))}` : ""}
               </div>
             ))}
       </td>
@@ -233,7 +233,7 @@ function RecallTab() {
                   <li key={i} className="flex items-center justify-between gap-3 px-5 py-3 text-theme-sm">
                     <span className="text-gray-800 dark:text-white/90">{b.product_name ?? "—"}</span>
                     <span className="text-gray-500 dark:text-gray-400">
-                      {b.quantity} in stock{b.expiry_date ? ` · exp ${b.expiry_date}` : ""}
+                      {b.quantity} in stock{b.expiry_date ? ` · exp ${shopDate(b.expiry_date.slice(0, 10))}` : ""}
                     </span>
                   </li>
                 ))}

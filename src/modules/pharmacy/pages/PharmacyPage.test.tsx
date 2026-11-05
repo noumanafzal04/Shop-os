@@ -51,3 +51,21 @@ describe("the dispensing register", () => {
     expect(within(row).getByText("Hina")).toBeInTheDocument();
   });
 });
+
+describe("a lot's expiry on the register", () => {
+  it("is said in the shop's own date, never the raw one", () => {
+    // The register and the recall printed `exp 2027-08-31` under a shop that writes 31 Aug 2027.
+    register.data.rows[0].batches = [{ batch_number: "AG5503", expiry_date: "2027-08-31" }] as never;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <PharmacyPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const lot = screen.getByText(/AG5503/);
+    expect(lot.textContent).not.toContain("2027-08-31");
+    expect(lot.textContent).toMatch(/exp .*2027/);
+  });
+});
