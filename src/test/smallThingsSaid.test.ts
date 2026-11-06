@@ -72,7 +72,7 @@ it("#RS3 #RS4 the table's settle sheet offers a discount, a coupon and a split b
 });
 
 it("#OF5 the till does not search a server it knows it cannot reach", () => {
-  expect(pos).toMatch(/for_sale: true, page, per_page: POS_PAGE_SIZE \}, connected\);/);
+  expect(pos).toMatch(/for_sale: true, sold_here: true, page, per_page: POS_PAGE_SIZE \}, connected\);/);
 });
 
 it("A-to-Z B7: an offline till prices its promotion itself and asks no server", () => {

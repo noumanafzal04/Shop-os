@@ -5,7 +5,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { resetDbCache } from "./open";
 import { getAll, getSingleton, put, putSingleton } from "./repo";
 import { STORE } from "./schema";
-import { ensureDatabaseBelongsTo } from "./tillOwner";
+import { ensureCatalogIsFor, ensureDatabaseBelongsTo } from "./tillOwner";
 import type { SyncMeta } from "../sync/applyPull";
 import { enqueue, newRow, owedCount } from "../outbox/outbox";
 
@@ -137,5 +137,36 @@ describe("what must NOT set it off", () => {
 
     expect(result.cleared).toBe(false);
     expect((await getSingleton<SyncMeta>(STORE.SYNC_META))?.tenantId).toBe(MART);
+  });
+});
+
+describe("a till switched to another branch (v2)", () => {
+  it("pulls again from the start, keeping its rows until the new ones land", async () => {
+    await stockTheMart();
+    await putSingleton(STORE.SYNC_META, meta({ askedBranch: "b-main" }));
+
+    expect(await ensureCatalogIsFor("b-town")).toBe(true);
+
+    const after = await getSingleton<SyncMeta>(STORE.SYNC_META);
+    expect(after?.cursors).toEqual({});
+    expect(after?.askedBranch).toBe("b-town");
+    expect(after?.tenantId).toBe(MART);
+    expect(await getAll(STORE.CATALOG)).toHaveLength(1);
+  });
+
+  it("leaves a till at the same branch alone", async () => {
+    await putSingleton(STORE.SYNC_META, meta({ askedBranch: "b-main" }));
+
+    expect(await ensureCatalogIsFor("b-main")).toBe(false);
+    expect((await getSingleton<SyncMeta>(STORE.SYNC_META))?.cursors).toEqual({ products: "cursor-1" });
+  });
+
+  it("claims an unknown branch rather than pulling everything again on upgrade", async () => {
+    await putSingleton(STORE.SYNC_META, meta());
+
+    expect(await ensureCatalogIsFor("b-main")).toBe(false);
+    const after = await getSingleton<SyncMeta>(STORE.SYNC_META);
+    expect(after?.cursors).toEqual({ products: "cursor-1" });
+    expect(after?.askedBranch).toBe("b-main");
   });
 });

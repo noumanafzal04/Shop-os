@@ -9,6 +9,9 @@ export interface Category {
   is_active: boolean;
   products_count?: number;
   children?: Category[];
+  /** Shown at every branch (true), or only at `branch_ids` — v2, see branches/soldAt. */
+  all_branches?: boolean;
+  branch_ids?: string[];
 }
 
 export type ItemTypeCode = "physical_product" | "food_item" | "medicine" | "service" | "deal";
@@ -79,6 +82,9 @@ export interface Product {
   type: ItemType;
   item_type: ItemTypeCode;
   name: string;
+  /** Sold at every branch (true), or only at `places` — v2, see branches/soldAt. */
+  all_branches?: boolean;
+  places?: Array<{ id: string; name: string }>;
   description: string | null;
   category_id: string | null;
   category?: { id: string; name: string } | null;
@@ -314,6 +320,9 @@ export interface ProductInput {
   type?: ItemType;
   item_type?: ItemTypeCode;
   name: string;
+  /** Sent only when the "Sold at" field was touched — the server's rule decides otherwise. */
+  all_branches?: boolean;
+  branch_ids?: string[];
   description?: string;
   category_id?: string | null;
   sku?: string;
@@ -404,6 +413,12 @@ export interface ProductFilters {
    * switched back on.
    */
   for_sale?: boolean;
+  /**
+   * What the branch this sale RINGS at sells (v2) — every selling screen asks.
+   * The owner's "All branches" view still rings at one branch, and a till that
+   * offered another branch's item would be refused at the last press.
+   */
+  sold_here?: boolean;
   page?: number;
   /** Server caps this at 100; omitted means the API's own default of 15. */
   per_page?: number;

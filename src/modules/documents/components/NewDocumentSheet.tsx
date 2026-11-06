@@ -49,7 +49,7 @@ export default function NewDocumentSheet({
   const [lines, setLines] = useState<SheetLine[]>([]);
   const [saving, setSaving] = useState(false);
   const asked = useDebouncedValue(search.trim(), 250);
-  const found = useProducts({ search: asked || undefined, for_sale: true, per_page: 8 });
+  const found = useProducts({ search: asked || undefined, for_sale: true, sold_here: true, per_page: 8 });
 
   const about = lines.reduce((sum, l) => sum + unitPriceOf(l) * l.quantity, 0);
   const closeAll = () => {

@@ -89,6 +89,14 @@ export interface SyncMeta {
    * happened. See `ensureDatabaseBelongsTo`.
    */
   tenantId?: string | null;
+  /**
+   * The branch the till ASKED for when this catalogue was pulled — the header's
+   * X-Branch-Id, or null for "the server decides" (v2). Each branch sells its
+   * own items and holds its own stock, and a delta only carries rows changed
+   * since the cursor: a till switched to another branch would go on holding
+   * the first one's shelf. See `ensureCatalogIsFor`. Absent on older databases.
+   */
+  askedBranch?: string | null;
 }
 
 /**

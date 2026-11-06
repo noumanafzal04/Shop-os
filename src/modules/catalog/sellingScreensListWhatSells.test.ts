@@ -59,6 +59,11 @@ describe("a screen that sells lists only what is on sale", () => {
       // screen: what a customer hands OVER is not something on sale here.
       const forgot = selling.filter((args) => !/for_sale:\s*true/.test(args));
       expect(forgot, `${path} lists products to sell without asking for those on sale`).toEqual([]);
+      // …and only what the branch it rings at sells (v2): the owner's "All
+      // branches" view still rings at one branch, and the server refuses
+      // another branch's item at the last press — NOT_SOLD_HERE.
+      const elsewhere = selling.filter((args) => !/sold_here:\s*true/.test(args));
+      expect(elsewhere, `${path} lists products to sell without asking what this branch sells`).toEqual([]);
     }
   });
 

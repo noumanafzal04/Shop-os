@@ -15,10 +15,10 @@ export const catalogService = {
   // ── Categories ──────────────────────────────────────────────────
   categories: () => apiGet<Category[]>("/categories"),
 
-  createCategory: (payload: { name: string; parent_id?: string | null }) =>
+  createCategory: (payload: { name: string; parent_id?: string | null; all_branches?: boolean; branch_ids?: string[] }) =>
     apiPost<Category>("/categories", payload),
 
-  updateCategory: (id: string, payload: Partial<Pick<Category, "name" | "parent_id" | "is_active">>) =>
+  updateCategory: (id: string, payload: Partial<Pick<Category, "name" | "parent_id" | "is_active" | "all_branches" | "branch_ids">>) =>
     apiPut<Category>(`/categories/${id}`, payload),
 
   deleteCategory: (id: string, reassignTo?: string) =>
@@ -58,6 +58,8 @@ export const catalogService = {
         is_active: filters.for_sale ? 1 : undefined,
         // …and not an item kept only as an ingredient (tester pass 5, B62).
         for_sale: filters.for_sale ? 1 : undefined,
+        // …and only what the branch it rings at sells (v2).
+        sold_here: filters.sold_here ? 1 : undefined,
         page: filters.page ?? 1,
         per_page: filters.per_page || undefined,
       },

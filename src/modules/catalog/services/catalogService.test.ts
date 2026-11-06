@@ -77,6 +77,7 @@ describe("every filter the screens can set is sent", () => {
       out_of_stock: true,
       track_inventory: true,
       for_sale: true,
+      sold_here: true,
       page: 2,
       per_page: 50,
     };

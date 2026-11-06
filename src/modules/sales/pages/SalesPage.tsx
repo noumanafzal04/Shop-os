@@ -276,7 +276,7 @@ export default function SalesPage() {
   const [approval, setApproval] = useState<ApprovalState>(NO_APPROVAL);
   const [exAmount, setExAmount] = useState("");
   // What the customer takes INSTEAD is a sale like any other: only what is on sale.
-  const exProducts = useProducts({ search: exSearch || undefined, for_sale: true });
+  const exProducts = useProducts({ search: exSearch || undefined, for_sale: true, sold_here: true });
 
   const rows = sales.data?.data ?? [];
   const pagination = sales.data?.meta.pagination;

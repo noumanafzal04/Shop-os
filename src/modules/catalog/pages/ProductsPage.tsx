@@ -410,6 +410,13 @@ export default function ProductsPage() {
                             {(p.variants ?? []).length > 0 && <span>{(p.variants ?? []).length} variants</span>}
                             {p.sku && <span>SKU: {p.sku}</span>}
                             {p.requires_prescription && <span className="text-error-400">℞</span>}
+                            {/* Sold at only some branches (v2): which. The
+                                common case — every branch — says nothing. */}
+                            {moreShops && p.all_branches === false && (
+                              <span className="text-blue-light-600 dark:text-blue-light-400" data-product-branches>
+                                {(p.places ?? []).map((b) => b.name).join(", ") || "No branch"}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

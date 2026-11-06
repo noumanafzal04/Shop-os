@@ -647,7 +647,7 @@ export default function PosPage2() {
   // …and asked once the box is still, never per keystroke: a scan typed
   // thirteen searches ahead of its own lookup (#POS1) — see askedSearch.
   const { asked: askedSearch, settled: searchSettled } = useAskedSearch(search);
-  const products = useProducts({ search: askedSearch || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, page, per_page: POS_PAGE_SIZE }, connected);
+  const products = useProducts({ search: askedSearch || undefined, category_id: categoryId || undefined, tyre_size: tyreFilter || undefined, for_sale: true, sold_here: true, page, per_page: POS_PAGE_SIZE }, connected);
   const [tiles, setTiles] = useState<CatalogProduct[]>([]);
   // Which question those tiles are the answer to — see shelfAnswer.
   const [tilesAnswer, setTilesAnswer] = useState<Asked>({ search: "", categoryId: "" });

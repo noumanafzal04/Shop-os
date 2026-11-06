@@ -13,6 +13,12 @@ import { useCategories, useCategoryMutations } from "../hooks/useCatalog";
 import type { Category } from "../types";
 import { CategoryTree } from "../components/CategoryTree";
 import { ListEmpty } from "../../../common/ui/ListEmpty";
+import { useAuthStore } from "../../../stores/authStore";
+import { useShopSettings } from "../../shop/hooks/useShop";
+import { useBranches } from "../../branches/hooks/useBranches";
+import { byKind, hasSecondShop } from "../../branches/places";
+import { SoldAtField } from "../../branches/components/SoldAtField";
+import { ANY_BRANCH, soldAtForNew, soldAtOf, soldAtPayload, type SoldAt } from "../../branches/soldAt";
 
 /** Depth-first flatten for the reassign picker and the counts. */
 function flatten(nodes: Category[], depth = 0): Array<{ node: Category; depth: number }> {
@@ -50,6 +56,23 @@ export default function CategoriesPage() {
   const [newName, setNewName] = useState("");
   const [search, setSearch] = useState("");
 
+  // Where a category is shown (v2, branches/soldAt) — only once a second
+  // branch sells. `newSoldAt` is null until touched: the server's rule stands.
+  const twoShops = hasSecondShop(useShopSettings().data);
+  const branches = useBranches(twoShops);
+  const chooses = useAuthStore((s) => s.hasPermission(ANY_BRANCH));
+  const isOwner = useAuthStore((s) => s.user?.role === "shop_owner");
+  const ownBranch = useAuthStore((s) => s.user?.branch_id ?? null);
+  const branchNames = useMemo(
+    () => (twoShops ? new Map(byKind((branches.data ?? []).filter((b) => b.is_active)).shops.map((b) => [b.id, b.name] as const)) : undefined),
+    [twoShops, branches.data],
+  );
+  const [newSoldAt, setNewSoldAt] = useState<SoldAt | null>(null);
+  const placesModal = useModal();
+  const [placesOf, setPlacesOf] = useState<Category | null>(null);
+  const [placesNext, setPlacesNext] = useState<SoldAt | null>(null);
+  const placesError = update.error instanceof ApiError && placesModal.isOpen ? update.error.message : null;
+
   const deleteModal = useModal();
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [reassignTo, setReassignTo] = useState("");
@@ -65,7 +88,22 @@ export default function CategoriesPage() {
   const addRoot = (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || create.isPending) return;
-    create.mutate({ name: newName.trim(), parent_id: null }, { onSuccess: () => setNewName("") });
+    create.mutate(
+      { name: newName.trim(), parent_id: null, ...soldAtPayload(newSoldAt) },
+      { onSuccess: () => { setNewName(""); setNewSoldAt(null); } },
+    );
+  };
+
+  const askPlaces = (c: Category) => {
+    update.reset();
+    setPlacesOf(c);
+    setPlacesNext(null);
+    placesModal.openModal();
+  };
+
+  const savePlaces = () => {
+    if (!placesOf || placesNext === null || update.isPending) return placesModal.closeModal();
+    update.mutate({ id: placesOf.id, ...soldAtPayload(placesNext) }, { onSuccess: () => placesModal.closeModal() });
   };
 
   const askDelete = (c: Category) => {
@@ -118,6 +156,7 @@ export default function CategoriesPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
+            <SoldAtField noun="category" value={newSoldAt ?? soldAtForNew(isOwner, ownBranch)} onChange={setNewSoldAt} />
             <Button type="submit" size="sm" className="w-full" disabled={create.isPending || !newName.trim()}>
               {create.isPending ? "Adding…" : "Add category"}
             </Button>
@@ -207,6 +246,8 @@ export default function CategoriesPage() {
                   failed(toast, `"${c.name}" is unchanged — it is still ${c.is_active ? "visible" : "hidden"}.`),
                 ),
                 onAddSub: (parentId, name) => create.mutate({ name, parent_id: parentId }),
+                branchNames,
+                onBranches: branchNames && chooses ? askPlaces : undefined,
                 onDelete: askDelete,
                 onReorder: (rows) => reorder.mutate(rows, failed(toast, "The new order was not saved.")),
               }}
@@ -214,6 +255,29 @@ export default function CategoriesPage() {
           )}
         </div>
       </div>
+
+      <Modal isOpen={placesModal.isOpen} onClose={placesModal.closeModal} className="max-w-md p-6">
+        <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
+          Where is "{placesOf?.name}" shown?
+        </h3>
+        {placesError && (
+          <div className="mb-3">
+            <Alert variant="error" title="Not saved" message={placesError} />
+          </div>
+        )}
+        <SoldAtField noun="category" value={placesNext ?? soldAtOf(placesOf)} onChange={setPlacesNext} existing={placesOf} />
+        <p className="mt-3 text-theme-xs text-gray-400">
+          A branch also shows this category while it sells any item in it.
+        </p>
+        <div className="mt-6 flex justify-end gap-3">
+          <Button size="sm" variant="outline" onClick={placesModal.closeModal}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={savePlaces} disabled={update.isPending || placesNext === null}>
+            {update.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </Modal>
 
       <Modal isOpen={deleteModal.isOpen} onClose={deleteModal.closeModal} className="max-w-md p-6">
         <h3 className="mb-2 text-lg font-semibold text-gray-800 dark:text-white/90">

@@ -90,4 +90,37 @@ export async function ensureDatabaseBelongsTo(tenantId: string | null): Promise<
   return { cleared: true, previous: owner };
 }
 
+/**
+ * WHICH BRANCH IS THIS CATALOGUE FOR? (v2)
+ *
+ * A branch sells its own items and holds its own stock, and the till learns
+ * both by delta — rows changed since its cursor. Switch the header from Main
+ * to Johar Town and nothing about Main's items has CHANGED, so nothing comes:
+ * the till goes on offering Main's shelf under Johar Town's name, and the
+ * server refuses each at the last press (NOT_SOLD_HERE).
+ *
+ * So a different branch asked for than the one pulled for forgets the cursors,
+ * and the next pull is a first load — every row, live or tombstoned, for the
+ * branch now asked. The rows stay until it lands: an empty shelf while it
+ * arrives would be worse than a stale one, and the server still guards.
+ *
+ * Unknown (a database from before this) is claimed, not reset — the same rule
+ * as the shop's own stamp above.
+ *
+ * @returns true when the catalogue will be pulled again from the start
+ */
+export async function ensureCatalogIsFor(branch: string | null): Promise<boolean> {
+  const meta = (await getSingleton<SyncMeta>(STORE.SYNC_META)) ?? null;
+  if (meta === null) return false;
+
+  if (meta.askedBranch === undefined) {
+    await putSingleton(STORE.SYNC_META, { ...meta, askedBranch: branch });
+    return false;
+  }
+  if (meta.askedBranch === branch) return false;
+
+  await putSingleton(STORE.SYNC_META, { ...meta, cursors: {}, pulledAt: null, askedBranch: branch });
+  return true;
+}
+
 const emptyish = (): SyncMeta => ({ cursors: {}, clockSkewMs: 0, lastPullAt: null, tenantId: null });

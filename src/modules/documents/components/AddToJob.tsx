@@ -28,7 +28,7 @@ export function AddToJob({
 
   const found = useQuery({
     queryKey: ["job-card", "add", term],
-    queryFn: async () => (await catalogService.products({ search: term, per_page: 8 })).data,
+    queryFn: async () => (await catalogService.products({ search: term, per_page: 8, sold_here: true })).data,
     enabled: term.trim().length >= 2,
   });
 

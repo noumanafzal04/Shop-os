@@ -60,7 +60,7 @@ export default function NewSalePage() {
 
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search, 300);
-  const results = useProducts({ search: debounced, for_sale: true, page: 1 });
+  const results = useProducts({ search: debounced, for_sale: true, sold_here: true, page: 1 });
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [channel, setChannel] = useState<SaleChannel>("walk_in");

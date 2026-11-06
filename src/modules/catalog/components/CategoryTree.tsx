@@ -5,6 +5,7 @@ import Input from "../../../components/form/input/InputField";
 import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
 import type { Category } from "../types";
 import { insertionFor, moveTo, sameOrder } from "./reorder";
+import { soldAtOf, soldAtWords } from "../../branches/soldAt";
 
 /**
  * The category tree: one row per category, nested, draggable, collapsible.
@@ -26,6 +27,13 @@ import { insertionFor, moveTo, sameOrder } from "./reorder";
  */
 
 export interface TreeHandlers {
+  /**
+   * Branch names, once the shop has a second branch that sells (v2) — a row
+   * shown at only some of them says which. Absent: one shop, nothing to say.
+   */
+  branchNames?: ReadonlyMap<string, string>;
+  /** "Branches" on a row — for whoever may choose where it is shown. */
+  onBranches?: (c: Category) => void;
   onRename: (c: Category, name: string) => void;
   onToggleVisible: (c: Category) => void;
   onAddSub: (parentId: string, name: string) => void;
@@ -293,6 +301,17 @@ function Branch({
                       </span>
                     )}
 
+                    {/* Shown at only some branches: which. "All" on every row
+                        would be noise, so the common case says nothing. */}
+                    {handlers.branchNames && c.all_branches === false && (
+                      <span
+                        className="shrink-0 rounded-full bg-blue-light-50 px-2 py-0.5 text-theme-xs font-medium text-blue-light-700 dark:bg-blue-light-500/15 dark:text-blue-light-400"
+                        data-category-branches
+                      >
+                        {soldAtWords(soldAtOf(c), handlers.branchNames)}
+                      </span>
+                    )}
+
                     {/* Collapsing must not hide the fact that there is
                         something under here. */}
                     {kids.length > 0 && !open && (
@@ -327,6 +346,11 @@ function Branch({
                     >
                       Rename
                     </button>
+                    {handlers.onBranches && (
+                      <button className={ROW_ACTION} onClick={() => handlers.onBranches!(c)}>
+                        Branches
+                      </button>
+                    )}
                     <button className={ROW_ACTION} onClick={() => handlers.onToggleVisible(c)}>
                       {c.is_active ? "Hide" : "Show"}
                     </button>

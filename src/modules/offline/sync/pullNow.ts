@@ -4,9 +4,10 @@ import { flushVariances } from "../pricing/varianceService";
 import { touchIfDue } from "../device/touch";
 import { flushOutbox, type FlushResult } from "../outbox/flush";
 import { flushShifts, type ShiftFlushResult } from "../shift/flushShifts";
-import { ensureDatabaseBelongsTo } from "../db/tillOwner";
+import { ensureCatalogIsFor, ensureDatabaseBelongsTo } from "../db/tillOwner";
 import { useAuthStore } from "../../../stores/authStore";
 import { useOfflineStore } from "../offlineStore";
+import { useBranchStore } from "../../../stores/branchStore";
 
 /**
  * Fetching everything the server has for this till, and stopping.
@@ -109,6 +110,9 @@ async function run(force = false): Promise<PullResult> {
   // It cannot fail the pull: a till that could not check ownership must still
   // sync, and the check runs again on the next pull a few seconds later.
   await ensureDatabaseBelongsTo(tenantId).catch(() => undefined);
+  // …and which BRANCH it is for (v2): another branch's items and stock are
+  // another catalogue. Cannot fail the pull either.
+  await ensureCatalogIsFor(useBranchStore.getState().activeBranchId ?? null).catch(() => false);
 
   // SHIFT OPENS FIRST, and the order is not a preference.
   //

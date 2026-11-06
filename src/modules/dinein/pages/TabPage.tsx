@@ -87,7 +87,7 @@ export default function TabPage() {
    * shared hook that already does exactly this, and reusing it means the two
    * screens cannot drift on how much of the catalogue they can see.
    */
-  const products = usePickableProducts(true);
+  const products = usePickableProducts(true, true);
   const categories = useQuery({
     queryKey: ["categories"],
     queryFn: async () => (await catalogService.categories()).data,

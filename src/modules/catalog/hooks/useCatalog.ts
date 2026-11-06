@@ -160,9 +160,12 @@ export function useProducts(filters: ProductFilters, enabled = true) {
  * so every shopkeeper editing a plain tin of beans paid for a catalogue fetch
  * they had no use for. Now the picker's data is fetched when there is a picker.
  */
-export function usePickableProducts(enabled: boolean) {
+export function usePickableProducts(enabled: boolean, soldHere = false) {
   return useQuery({
-    queryKey: ["products", "pickable"],
+    // `soldHere`: a screen that SELLS from it (the dine-in tab) asks for what
+    // the branch it rings at sells (v2); a picker that builds the catalogue
+    // (a deal's contents) reads all of it.
+    queryKey: ["products", "pickable", soldHere],
     enabled,
     // This drains pages, so a remount that refetches costs several round trips
     // rather than one. The dine-in tab mounts it every time a waiter opens a
@@ -172,12 +175,12 @@ export function usePickableProducts(enabled: boolean) {
       const PER_PAGE = 100; // the endpoint's own ceiling
       const MAX_PAGES = 10; // 1,000 items; loud if ever reached, see below
 
-      const first = await catalogService.products({ page: 1, per_page: PER_PAGE });
+      const first = await catalogService.products({ page: 1, per_page: PER_PAGE, sold_here: soldHere || undefined });
       const pages = first.meta?.pagination?.last_page ?? 1;
       const rows = [...first.data];
 
       for (let page = 2; page <= Math.min(pages, MAX_PAGES); page++) {
-        rows.push(...(await catalogService.products({ page, per_page: PER_PAGE })).data);
+        rows.push(...(await catalogService.products({ page, per_page: PER_PAGE, sold_here: soldHere || undefined })).data);
       }
 
       return { rows, missing: pages > MAX_PAGES ? (pages - MAX_PAGES) * PER_PAGE : 0 };

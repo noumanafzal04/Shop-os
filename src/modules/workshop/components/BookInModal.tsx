@@ -92,7 +92,7 @@ export function BookInModal({ onClose, onBooked, vehicle = null }: Props) {
   const items = useQuery({
     queryKey: ["workshop", "items", debouncedItem],
     queryFn: async () =>
-      (await catalogService.products({ search: debouncedItem, per_page: 8 })).data,
+      (await catalogService.products({ search: debouncedItem, per_page: 8, sold_here: true })).data,
     enabled: debouncedItem.trim().length >= 2 && item === null,
   });
 

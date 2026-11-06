@@ -37,6 +37,8 @@ import { PriceHistory } from "../components/PriceHistory";
 import { formatQuantity } from "../../../common/format/quantity";
 import { TAB_LABEL, refusalsOutOfSight, tabOfField, tabsFor, type FormTab } from "../formTabs";
 import { GoesOnShelf } from "../../branches/components/StandingAt";
+import { SoldAtField } from "../../branches/components/SoldAtField";
+import { soldAtForNew, soldAtOf, soldAtPayload, type SoldAt } from "../../branches/soldAt";
 import { pictureRefusal } from "../pictureFile";
 
 /** The on/off pill — inside a Toggle, and beside the title of a section that can be switched off. */
@@ -263,6 +265,11 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
   // Kept and used, never sold — a recipe's flour. It was offered on the till
   // at 0, with no way to say otherwise (tester pass 5, B62).
   const [forSale, setForSale] = useState(true);
+  // Where it is sold (v2, branches/soldAt): null until the field is touched,
+  // so an untouched form sends nothing and the server's own rule stands.
+  const [soldAt, setSoldAt] = useState<SoldAt | null>(null);
+  const isOwner = useAuthStore((s) => s.user?.role === "shop_owner");
+  const ownBranch = useAuthStore((s) => s.user?.branch_id ?? null);
   // On the online shop by default only for a business that sells online first
   // (#GS2). A garments counter on a plan that includes the online shop met
   // "Not saved — this item is sold online, so it needs a description" on
@@ -518,6 +525,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       wasCounted.current = p.track_inventory;
       setIsActive(p.is_active);
       setForSale(p.for_sale !== false);
+      setSoldAt(null);
       setVisibleOnline(p.visible_in_marketplace);
       setCollectionIds((p.collections ?? []).map((c) => c.id));
       setModifierGroups(
@@ -625,6 +633,7 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
       low_stock_threshold: stockManaged && trackStock && lowStockThreshold ? Number(lowStockThreshold) : undefined,
       is_active: isActive,
       for_sale: forSale,
+      ...soldAtPayload(soldAt),
       // The server lists nothing kept only as an ingredient; say the same here.
       visible_in_marketplace: forSale && visibleOnline,
       collection_ids: collectionIds,
@@ -1543,6 +1552,14 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
             hint="Turn off for things you use in the shop but never sell, like flour or cooking oil. Stock is still counted and used in recipes, but it never shows on the POS, the menu or your online shop."
           />
         )}
+
+        {/* Where it is sold — drawn only once there is a second branch. */}
+        <SoldAtField
+          noun="item"
+          value={soldAt ?? (isEdit ? soldAtOf(existing.data) : soldAtForNew(isOwner, ownBranch))}
+          onChange={setSoldAt}
+          existing={isEdit ? existing.data : null}
+        />
 
         {/* What this item used to cost, and who moved it. Edit only — a new item
             has no history, and the section renders nothing for anyone whose job
