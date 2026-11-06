@@ -89,8 +89,8 @@ export default function TabPage() {
    */
   const products = usePickableProducts(true, true);
   const categories = useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => (await catalogService.categories()).data,
+    queryKey: ["categories", "sold-here"],
+    queryFn: async () => (await catalogService.categories(true)).data,
     staleTime: 5 * 60_000,
   });
 

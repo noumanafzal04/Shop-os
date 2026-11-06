@@ -9,10 +9,10 @@ import type { CollectionInput, ModifierGroup, ProductFilters, ProductInput } fro
 
 // ── Categories ────────────────────────────────────────────────────
 
-export function useCategories() {
+export function useCategories(soldHere = false) {
   return useQuery({
-    queryKey: ["categories"],
-    queryFn: async () => (await catalogService.categories()).data,
+    queryKey: ["categories", soldHere ? "sold-here" : "catalogue"],
+    queryFn: async () => (await catalogService.categories(soldHere)).data,
   });
 }
 

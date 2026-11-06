@@ -107,7 +107,7 @@ export default function TakeOrderPage() {
   const [shelf, setShelf] = useState<Product[]>([]);
   /** Which section of the menu is open — "" is all of it. */
   const [section, setSection] = useState("");
-  const sections = (useCategories().data ?? []).filter((c) => c.is_active !== false);
+  const sections = (useCategories(true).data ?? []).filter((c) => c.is_active !== false);
   const results = useProducts({ search: debounced || undefined, category_id: section || undefined, for_sale: true, sold_here: true, page, per_page: PAGE_SIZE });
   const pagination = results.data?.meta.pagination;
 

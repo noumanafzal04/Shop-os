@@ -609,7 +609,7 @@ export default function PosPage2() {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [page, setPage] = useState(1);
-  const categories = useCategories();
+  const categories = useCategories(true);
 
   /**
    * The same shelf, from the till's own copy, when there is no line.

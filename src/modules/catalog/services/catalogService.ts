@@ -13,7 +13,8 @@ import type { ImportSummary } from "../importFile";
 
 export const catalogService = {
   // ── Categories ──────────────────────────────────────────────────
-  categories: () => apiGet<Category[]>("/categories"),
+  /** `soldHere`: a selling screen's chips — what the branch it rings at shows (v2). */
+  categories: (soldHere = false) => apiGet<Category[]>("/categories", soldHere ? { params: { sold_here: 1 } } : undefined),
 
   createCategory: (payload: { name: string; parent_id?: string | null; all_branches?: boolean; branch_ids?: string[] }) =>
     apiPost<Category>("/categories", payload),
