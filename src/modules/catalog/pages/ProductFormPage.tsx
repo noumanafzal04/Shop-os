@@ -1778,12 +1778,16 @@ export default function ProductEditor({ id, onClose }: { id?: string; onClose: (
                   {/* Barcode — POS/scanner only */}
                   {posEnabled && isGood && (
                     <div>
-                      <Label>Barcode</Label>
+                      {/* Joined by id: beside its Generate button the box is
+                          one of two controls, and the nearby-label rule names
+                          neither — a reader heard "edit text", and a test
+                          asking for "Barcode" found nothing. */}
+                      <Label htmlFor="item-barcode">Barcode</Label>
                       {/* Generate only while the box is empty: a packet's own
                           code, once scanned in, is never replaced by a tap. */}
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
-                          <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
+                          <Input id="item-barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Scan or type" />
                         </div>
                         {!barcode.trim() && (
                           <button type="button" className={`${ROW_ACTION} shrink-0 disabled:opacity-40`} disabled={mintingOne} onClick={() => void generateOne()}>
