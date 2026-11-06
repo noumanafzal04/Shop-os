@@ -132,6 +132,36 @@ class ABranchSellsWhatItListsTest extends TestCase
         $this->as($plain)->postJson('/api/v1/categories', ['name' => 'Not Mine To Spread', 'all_branches' => true])->assertStatus(403);
     }
 
+    public function test_someone_allowed_reads_every_branchs_catalogue_but_sells_from_their_own(): void
+    {
+        // Pinned to Johar Town, running the catalogue for all: a Main-only item
+        // they are never shown is one they cannot change.
+        $trusted = $this->staff($this->town, [Permissions::PRODUCTS_ANY_BRANCH]);
+        $this->item('Main Bread', $this->main);
+        $this->as($this->owner)->postJson('/api/v1/categories', ['name' => 'Main Bakery', 'all_branches' => false, 'branch_ids' => [$this->main->id]])->assertCreated();
+
+        $list = collect($this->as($trusted)->getJson('/api/v1/products')->json('data'))->pluck('name')->all();
+        $sells = collect($this->as($trusted)->getJson('/api/v1/products?sold_here=1')->json('data'))->pluck('name')->all();
+        $shelves = collect($this->as($trusted)->getJson('/api/v1/categories')->json('data'))->pluck('name')->all();
+
+        $this->assertContains('Main Bread', $list, 'the catalogue head cannot see an item they are allowed to change');
+        $this->assertNotContains('Main Bread', $sells, 'their till offered another branch\'s item');
+        $this->assertContains('Main Bakery', $shelves);
+    }
+
+    public function test_the_tills_chips_are_the_shelves_of_the_branch_it_rings_at(): void
+    {
+        $this->as($this->owner)->postJson('/api/v1/categories', ['name' => 'Town Bakery', 'all_branches' => false, 'branch_ids' => [$this->town->id]])->assertCreated();
+        $this->as($this->owner)->postJson('/api/v1/categories', ['name' => 'Grocery'])->assertCreated();
+
+        // The owner's All-branches view rings at Main.
+        $chips = collect($this->as($this->owner)->getJson('/api/v1/categories?sold_here=1')->json('data'))->pluck('name')->all();
+        $all = collect($this->as($this->owner)->getJson('/api/v1/categories')->json('data'))->pluck('name')->all();
+
+        $this->assertNotContains('Town Bakery', $chips, 'Main\'s till offered a Johar Town shelf');
+        $this->assertContains('Town Bakery', $all);
+    }
+
     public function test_the_permission_is_offered_on_the_staff_screen_and_in_no_preset(): void
     {
         $this->assertContains(Permissions::PRODUCTS_ANY_BRANCH, Permissions::tenant());

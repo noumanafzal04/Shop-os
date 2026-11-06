@@ -50,7 +50,7 @@ class ProductController extends Controller
             // What this branch sells (CatalogPlaces). The owner's "All branches" list is everything; a selling screen
             // (`sold_here`) asks for the branch the sale will ring at, which is
             // the operating one even while the owner looks at All (v2).
-            ->listedAt($request->boolean('sold_here') ? $branch->id() : $branch->scopeId())
+            ->listedAt($request->boolean('sold_here') ? $branch->id() : CatalogPlaces::listScope($request->user(), $branch))
             ->with(['places', 'category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {

@@ -46,6 +46,17 @@ final class CatalogPlaces
             ->all();
     }
 
+    /**
+     * The branch a CATALOGUE list (products, categories) is read at. Someone
+     * the owner let run every branch reads them all — they cannot change a
+     * Johar Town item they are never shown — though they work at one.
+     * Everybody else: their branch, or the owner's choice in the header.
+     */
+    public static function listScope(User $user, BranchContext $branch): ?string
+    {
+        return ! $user->isShopOwner() && self::choosesBranches($user) ? null : $branch->scopeId();
+    }
+
     /** The owner, or someone the owner let list at every branch. */
     public static function choosesBranches(User $user): bool
     {

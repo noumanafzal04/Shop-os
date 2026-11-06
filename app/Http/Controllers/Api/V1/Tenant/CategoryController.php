@@ -28,7 +28,10 @@ class CategoryController extends Controller
     {
         // What this branch shows (CatalogPlaces): listed here, or holding something
         // sold here, and the parents above it. The owner's "All branches": everything.
-        $this->shown = CatalogPlaces::categoriesShownAt($branch->scopeId());
+        // A selling screen's chips (`sold_here`) are the branch it rings at.
+        $this->shown = CatalogPlaces::categoriesShownAt(
+            $request->boolean('sold_here') ? $branch->id() : CatalogPlaces::listScope($request->user(), $branch),
+        );
         $this->placesOf = DB::table('branch_category')->get(['category_id', 'branch_id'])
             ->groupBy('category_id')->map(fn ($rows) => $rows->pluck('branch_id')->map(fn ($b) => (string) $b)->all())->all();
 
