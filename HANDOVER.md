@@ -351,6 +351,29 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-11-06 — v2: products and categories by branch
+
+On `v2/backend` + `v2/admin-panel` only (the next version; v1 is the launch line).
+
+- **Rules** (owner's decisions 2026-10-18 and 2026-11-06): the owner lists a product or a
+  category at All branches (the default; every old row reads as All) or the ones ticked; a
+  branch manager lists at their own branch and cannot change an All item (only its price and
+  stock at their branch). **`products.any_branch`** ("Products at every branch") lets the owner
+  give that to one trusted person instead of sharing his login — in no preset. One selling
+  branch: nothing changes. A godown is never a listing.
+- **Everywhere**: `App\Support\CatalogPlaces` holds every rule; the till scan, the sale, a
+  kitchen ticket and a quote refuse an item not sold here (`NOT_SOLD_HERE`; never an offline
+  replay); the offline catalogue tombstones it and re-pulls when the header's branch changes; an
+  online order goes to the nearest branch that sells the basket; reorder list, count sheet,
+  search, dashboard and pharmacy alternatives ask the branch; stock that arrives lists the item
+  where it landed; a manager's CSV lists at their branch. Selling screens send `sold_here`.
+- **Tests**: 36 backend (every fence mutation-checked), `sold-at.spec.ts` 4 e2e; full backend
+  suite and 3,973 panel tests green. Item form's Barcode box had lost its label beside Generate
+  (from 2026-11-04) — fixed on v1 and v2.
+- **Demo (dev)**: Barkat Super Store, Lahore — 3 branches + a godown, a manager each and a
+  catalogue head; logins in `docs/qa/LOGINS.local.md`.
+
+
 ### 2026-10-28 → 2026-11-03 — rounds to launch, garments at 50k, the till's scanner, e2e back
 
 Kept short: each round has its own report in `../true-serve-qa-docs/reports/`.
