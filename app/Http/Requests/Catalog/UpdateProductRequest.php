@@ -199,6 +199,10 @@ class UpdateProductRequest extends FormRequest
             'available_from' => ['nullable', 'required_with:available_until', 'date_format:H:i,H:i:s'],
             'available_until' => ['nullable', 'required_with:available_from', 'date_format:H:i,H:i:s'],
             'is_active' => ['sometimes', 'boolean'],
+            // Where it is sold (CatalogPlaces): every branch, or the ones named.
+            'all_branches' => ['sometimes', 'boolean'],
+            'branch_ids' => ['sometimes', 'array', 'max:100'],
+            'branch_ids.*' => ['uuid'],
             'visible_in_marketplace' => ['sometimes', 'boolean'],
             // False = kept and used (a recipe's flour), never sold. See Product::saving.
             'for_sale' => ['sometimes', 'boolean'],

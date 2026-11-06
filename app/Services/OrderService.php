@@ -23,6 +23,7 @@ use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BranchContext;
+use App\Support\CatalogPlaces;
 use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
@@ -471,6 +472,13 @@ class OrderService
                     isset($data['latitude']) ? (float) $data['latitude'] : null,
                     isset($data['longitude']) ? (float) $data['longitude'] : null,
                 );
+                // Only a branch that SELLS every line may fill it (v2): an
+                // item listed at Johar Town only is not Main's to send, however
+                // near Main is. None that sells it all → the nearest, and the
+                // per-line check below names the item it does not sell.
+                $selling = $ranked->filter(fn (Branch $b): bool => collect($lines)
+                    ->every(fn (array $l): bool => CatalogPlaces::isSoldAt($l['product'], $b->id)))->values();
+                $ranked = $selling->isNotEmpty() ? $selling : $ranked;
                 $branch = FulfillingBranch::holdingAll($ranked, self::needFrom($lines))
                     ?? $ranked->first();
 
@@ -494,6 +502,7 @@ class OrderService
                 // since run out is a shop that cannot close its own tab. That
                 // exemption is only safe if placement refused first.
                 foreach ($lines as $line) {
+                    $line['product']->mustBeSoldAt($branch?->id);
                     SoldOut::assertSellable($line['product'], $line['variant'], $branch?->id);
                 }
 

@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\TaxGroup;
 use App\Models\Tenant;
 use App\Services\InventoryService;
+use App\Support\CatalogPlaces;
 use App\Support\Import\CategoryPaths;
 use App\Support\Import\Cell;
 use App\Support\ItemTypes;
@@ -109,6 +110,18 @@ class ImportProductsAction
 
     private CategoryPaths $categories;
 
+    /**
+     * Where a row this file MAKES is listed, and who may change a row it
+     * already has (v2, CatalogPlaces): a branch manager's file lists at their
+     * branch and cannot rewrite what is sold everywhere.
+     *
+     * @var array{all: bool, ids: list<string>}
+     */
+    private array $places = ['all' => true, 'ids' => []];
+
+    /** @var (\Closure(Product): bool)|null */
+    private ?\Closure $mayChange = null;
+
     /** @var array<string, array{action: string, id?: ?string}> what the person chose, by category as compared */
     private array $decisions = [];
 
@@ -166,6 +179,8 @@ class ImportProductsAction
 
         $this->tenant = $this->context->get();
         $this->dry = (bool) ($options['dry_run'] ?? false);
+        $this->places = $options['places'] ?? ['all' => true, 'ids' => []];
+        $this->mayChange = $options['may_change'] ?? null;
         $this->kinds = ProductCsv::importableTypes($this->tenant);
         $this->unknown = [];
         $this->sameName = 0;
@@ -517,7 +532,7 @@ class ImportProductsAction
         return DB::transaction(function () use ($data, $existing, $cells, $category, $row): string {
             if ($category !== null) {
                 $data['category_id'] = $category['create'] ?? false
-                    ? $this->categories->create($cells['category'])
+                    ? $this->categories->create($cells['category'], $this->places)
                     : $category['id'];
             }
 
@@ -527,9 +542,20 @@ class ImportProductsAction
             unset($data['batch_number'], $data['parent_sku'], $data['pack_size']);
 
             if ($existing === null) {
-                $this->note($row, $this->create->execute($data)['warnings'] ?? []);
+                $made = $this->create->execute($data);
+                if (! $this->places['all']) {
+                    CatalogPlaces::save($made['product'], $this->places);
+                }
+                $this->note($row, $made['warnings'] ?? []);
 
                 return 'created';
+            }
+
+            if ($this->mayChange !== null && ! ($this->mayChange)($existing)) {
+                throw DomainException::forbidden(
+                    "\"{$existing->name}\" is sold at other branches too — only the owner, or someone the owner allows, can change it.",
+                    'BRANCH_NOT_YOURS',
+                );
             }
 
             // Stock is NEVER mass-assigned on update — a recount goes through

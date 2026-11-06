@@ -11,8 +11,11 @@ use App\Http\Requests\Catalog\StoreCategoryRequest;
 use App\Http\Requests\Catalog\UpdateCategoryRequest;
 use App\Models\Category;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
+use App\Support\CatalogPlaces;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class CategoryController extends Controller
@@ -21,8 +24,14 @@ class CategoryController extends Controller
      * Full tree (roots with UNLIMITED nested children) — categories are small
      * per tenant, so no pagination here.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, BranchContext $branch): JsonResponse
     {
+        // What this branch shows (CatalogPlaces): listed here, or holding something
+        // sold here, and the parents above it. The owner's "All branches": everything.
+        $this->shown = CatalogPlaces::categoriesShownAt($branch->scopeId());
+        $this->placesOf = DB::table('branch_category')->get(['category_id', 'branch_id'])
+            ->groupBy('category_id')->map(fn ($rows) => $rows->pluck('branch_id')->map(fn ($b) => (string) $b)->all())->all();
+
         $categories = Category::query()
             ->whereNull('parent_id')
             ->with('childrenRecursive')
@@ -32,8 +41,17 @@ class CategoryController extends Controller
             ->get();
 
         // Present the recursive subtree under the stable `children` key.
-        return ApiResponse::ok($categories->map(fn (Category $c) => $this->nodeToArray($c))->all());
+        return ApiResponse::ok($categories
+            ->filter(fn (Category $c) => $this->shown === null || isset($this->shown[(string) $c->id]))
+            ->values()
+            ->map(fn (Category $c) => $this->nodeToArray($c))->all());
     }
+
+    /** @var array<string, true>|null the categories shown at this branch; null = all */
+    private ?array $shown = null;
+
+    /** @var array<string, list<string>> category id → the branches it is listed at by name */
+    private array $placesOf = [];
 
     /** Recursively serialize a category node + its unlimited-depth children. */
     private function nodeToArray(Category $category): array
@@ -45,8 +63,12 @@ class CategoryController extends Controller
             'image_path' => $category->image_path,
             'sort_order' => $category->sort_order,
             'is_active' => $category->is_active,
+            'all_branches' => (bool) ($category->all_branches ?? true),
+            'branch_ids' => $this->placesOf[(string) $category->id] ?? [],
             'products_count' => $category->products_count ?? 0,
             'children' => $category->childrenRecursive
+                ->filter(fn (Category $child) => $this->shown === null || isset($this->shown[(string) $child->id]))
+                ->values()
                 ->map(fn (Category $child) => $this->nodeToArray($child))
                 ->all(),
         ];
@@ -80,9 +102,13 @@ class CategoryController extends Controller
         return ApiResponse::ok(null, 'Order saved');
     }
 
-    public function store(StoreCategoryRequest $request): JsonResponse
+    public function store(StoreCategoryRequest $request, BranchContext $branch): JsonResponse
     {
-        $category = Category::query()->create($request->validated());
+        $data = $request->validated();
+        $places = CatalogPlaces::resolve($request->user(), array_key_exists('all_branches', $data) ? (bool) $data['all_branches'] : null, $data['branch_ids'] ?? null, $branch->id())
+            ?? CatalogPlaces::forNew($request->user(), $branch->id());
+        $category = Category::query()->create(Arr::except($data, ['all_branches', 'branch_ids']));
+        CatalogPlaces::save($category, $places);
 
         return ApiResponse::created($category->load('parent'));
     }
@@ -94,17 +120,26 @@ class CategoryController extends Controller
         );
     }
 
-    public function update(UpdateCategoryRequest $request, string $id, UpdateCategoryAction $action): JsonResponse
+    public function update(UpdateCategoryRequest $request, string $id, UpdateCategoryAction $action, BranchContext $branch): JsonResponse
     {
-        $category = $action->execute(Category::query()->findOrFail($id), $request->validated());
+        $found = Category::query()->findOrFail($id);
+        CatalogPlaces::assertMayChange($request->user(), $found, $branch->id());
+        $data = $request->validated();
+        $places = CatalogPlaces::resolve($request->user(), array_key_exists('all_branches', $data) ? (bool) $data['all_branches'] : null, $data['branch_ids'] ?? null, $branch->id());
+        $category = $action->execute($found, Arr::except($data, ['all_branches', 'branch_ids']));
+        if ($places !== null) {
+            CatalogPlaces::save($category, $places);
+        }
 
         return ApiResponse::ok($category, 'Category updated');
     }
 
-    public function destroy(Request $request, string $id, DeleteCategoryAction $action): JsonResponse
+    public function destroy(Request $request, string $id, DeleteCategoryAction $action, BranchContext $branch): JsonResponse
     {
+        $found = Category::query()->findOrFail($id);
+        CatalogPlaces::assertMayChange($request->user(), $found, $branch->id());
         $action->execute(
-            Category::query()->findOrFail($id),
+            $found,
             $request->query('reassign_to'),
         );
 

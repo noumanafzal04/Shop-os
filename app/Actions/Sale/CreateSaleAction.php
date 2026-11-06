@@ -459,6 +459,12 @@ class CreateSaleAction
                     if (! $trusted) {
                         $product->mustBeForSale();
                     }
+                    // …and only an item this branch sells (v2). Not on an
+                    // offline replay: that sale already happened, and refusing
+                    // it now loses money that is in the drawer.
+                    if (! $trusted && ! $trustedOffline) {
+                        $product->mustBeSoldAt($branchId);
+                    }
 
                     $variant = null;
                     if (! empty($item['variant_id'])) {

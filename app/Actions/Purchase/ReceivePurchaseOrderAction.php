@@ -14,6 +14,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\StockMovement;
 use App\Services\InventoryService;
 use App\Support\BranchContext;
+use App\Support\CatalogPlaces;
 use App\Support\ItemTypes;
 use App\Support\MovingCost;
 use App\Support\StockPlace;
@@ -191,6 +192,9 @@ class ReceivePurchaseOrderAction
                             'EXPIRY_REQUIRED',
                         );
                     }
+
+                    // Delivered to a branch that did not sell it: now it does.
+                    CatalogPlaces::listArrivalAt($product, $this->receivingBranchId($product->tenant_id));
 
                     $this->inventory->adjust([
                         'product_id' => $item->product_id,

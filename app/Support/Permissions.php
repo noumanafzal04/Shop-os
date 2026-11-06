@@ -83,6 +83,20 @@ class Permissions
 
     public const PRODUCTS_MANAGE = 'products.manage';
 
+    /**
+     * Lists products and categories at EVERY branch — or at any branches
+     * ticked — and changes what is sold everywhere (v2, the owner's ask of
+     * 2026-11-06). The owner always can; a branch manager without this lists
+     * only at their own branch, and an item sold anywhere else is the owner's.
+     *
+     * So the owner never has to share their own login to have one trusted
+     * person run the whole catalogue: they tick this on that person.
+     *
+     * It adds reach to `products.manage`; it grants nothing without it. Not in
+     * any preset — a branch manager is branch-level until the owner says so.
+     */
+    public const PRODUCTS_ANY_BRANCH = 'products.any_branch';
+
     public const INVENTORY_MANAGE = 'inventory.manage';
 
     /**
@@ -378,6 +392,10 @@ class Permissions
         // Tenant scope
         self::STAFF_MANAGE => ['label' => 'Manage staff'],
         self::PRODUCTS_MANAGE => ['label' => 'Products & categories'],
+        self::PRODUCTS_ANY_BRANCH => [
+            'label' => 'Products at every branch',
+            'hint' => 'Add products and categories for all branches or any branches, and change ones sold everywhere. Without it, only their own branch.',
+        ],
         self::INVENTORY_MANAGE => ['label' => 'Inventory adjustments'],
         self::INVENTORY_ANY_PLACE => [
             'label' => 'Move stock at any place',
@@ -451,6 +469,7 @@ class Permissions
      */
     public const NEEDS_MODULE = [
         self::PRODUCTS_MANAGE => ['products', 'services'],
+        self::PRODUCTS_ANY_BRANCH => ['products', 'services'],
         self::INVENTORY_MANAGE => ['inventory'],
         self::INVENTORY_ANY_PLACE => ['inventory'],
         // `purchasing`, not `inventory`: Suppliers & Purchases was split out
@@ -579,6 +598,7 @@ class Permissions
         return [
             self::STAFF_MANAGE,
             self::PRODUCTS_MANAGE,
+            self::PRODUCTS_ANY_BRANCH,
             self::INVENTORY_MANAGE,
             self::INVENTORY_ANY_PLACE,
             self::SUPPLIERS_MANAGE,

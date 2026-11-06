@@ -11,6 +11,7 @@ use App\Models\Product;
 use App\Models\StockCount;
 use App\Models\StockCountItem;
 use App\Models\User;
+use App\Support\CatalogPlaces;
 use App\Support\DocumentCounter;
 use Illuminate\Support\Facades\DB;
 
@@ -90,6 +91,8 @@ class StartStockCountAction
             ->where('type', ItemType::Product)
             ->where('track_inventory', true)
             ->where('is_active', true)
+            // What this branch sells or still holds (v2, CatalogPlaces).
+            ->tap(fn ($q) => CatalogPlaces::narrowHeld($q, $count->branch_id))
             // A category is counted with everything filed under it (B15).
             ->when(
                 $count->scope === 'category' && $count->category_id !== null,

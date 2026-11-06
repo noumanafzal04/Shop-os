@@ -3,9 +3,11 @@
 namespace App\Actions\Inventory;
 
 use App\Exceptions\DomainException;
+use App\Models\Product;
 use App\Models\StockTransfer;
 use App\Models\StockTransferItem;
 use App\Services\InventoryService;
+use App\Support\CatalogPlaces;
 use App\Support\StockPlace;
 use App\Support\TransferLots;
 use Illuminate\Support\Facades\DB;
@@ -89,6 +91,12 @@ class ReceiveStockTransferAction
                     ]);
 
                     TransferLots::putDown($transfer->tenant_id, $transfer->to_branch_id, $item->product_id, $item->variant_id, $arriving);
+
+                    // Arrived where it was not sold: now it is (CatalogPlaces).
+                    $arrived = Product::query()->find($item->product_id);
+                    if ($arrived !== null) {
+                        CatalogPlaces::listArrivalAt($arrived, $transfer->to_branch_id);
+                    }
                 }
 
                 $item->forceFill([

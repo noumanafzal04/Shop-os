@@ -7,10 +7,12 @@ use App\Exceptions\DomainException;
 use App\Models\Concerns\Auditable;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\HidesCostPrice;
+use App\Support\CatalogPlaces;
 use App\Support\ItemTypes;
 use App\Support\ParentSku;
 use App\Support\SoldOut;
 use App\Support\TaxGroupRates;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -90,6 +92,7 @@ class Product extends BaseModel
     {
         return [
             'type' => ItemType::class,
+            'all_branches' => 'boolean',
             'price' => 'decimal:2',
             'cost' => 'decimal:2',
             'discount_price' => 'decimal:2',
@@ -189,6 +192,18 @@ class Product extends BaseModel
     public function hasRecipe(): bool
     {
         return $this->recipeItems()->exists();
+    }
+
+    /** The branches it is sold at by name — empty when `all_branches` (CatalogPlaces). */
+    public function places(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_product')->select(['branches.id', 'branches.name']);
+    }
+
+    /** Sold at this branch — every branch on null (the owner's "All") or a godown. */
+    public function scopeListedAt(Builder $query, ?string $branchId): Builder
+    {
+        return CatalogPlaces::narrow($query, $branchId, 'products', 'branch_product', 'product_id');
     }
 
     public function category(): BelongsTo
@@ -312,6 +327,21 @@ class Product extends BaseModel
             throw DomainException::unprocessable(
                 "{$this->name} is kept as an ingredient and is not sold.",
                 'NOT_FOR_SALE',
+            );
+        }
+    }
+
+    /**
+     * An item listed only at other branches is refused on a sale rung here
+     * (v2). Not on an offline replay or a trusted settlement — those were
+     * checked when they were taken, and the money is already in the drawer.
+     */
+    public function mustBeSoldAt(?string $branchId): void
+    {
+        if (! CatalogPlaces::isSoldAt($this, $branchId)) {
+            throw DomainException::unprocessable(
+                "{$this->name} is not sold at this branch.",
+                'NOT_SOLD_HERE',
             );
         }
     }

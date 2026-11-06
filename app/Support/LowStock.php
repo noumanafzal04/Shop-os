@@ -43,7 +43,9 @@ final class LowStock
      */
     public static function apply(Builder $query, ?string $branchId = null): Builder
     {
-        return self::watched($query)
+        // Running low at a branch is asked of what that branch SELLS (v2): an
+        // item listed only at Johar Town is not Main's to reorder.
+        return self::watched(CatalogPlaces::narrow($query, $branchId, 'products', 'branch_product', 'product_id'))
             ->when(
                 $branchId !== null,
                 fn (Builder $q): Builder => $q->whereRaw(
@@ -78,7 +80,7 @@ final class LowStock
      */
     public static function soldOut(Builder $query, ?string $branchId = null): Builder
     {
-        return $query
+        return CatalogPlaces::narrow($query, $branchId, 'products', 'branch_product', 'product_id')
             ->where('track_inventory', true)
             ->when(
                 $branchId !== null,

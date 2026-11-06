@@ -156,6 +156,10 @@ class PosController extends Controller
         if ($product === null) {
             throw DomainException::unprocessable('No item found for that code.', 'POS_ITEM_NOT_FOUND');
         }
+        // Found, and listed only at other branches: said so, by name — "no
+        // item found" for a code printed on the box sends the cashier looking
+        // for a typing mistake (v2).
+        $product->mustBeSoldAt($this->branch->id());
 
         return ApiResponse::ok([
             'product' => $product,
@@ -237,6 +241,7 @@ class PosController extends Controller
                 'POS_SCALE_ITEM_NOT_FOUND',
             );
         }
+        $product->mustBeSoldAt($this->branch->id());
 
         if ($scale['mode'] === 'weight') {
             $quantity = (float) $scale['weight'];

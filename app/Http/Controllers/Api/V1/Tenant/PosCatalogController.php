@@ -16,6 +16,7 @@ use App\Models\TaxGroup;
 use App\Models\User;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\CatalogPlaces;
 use App\Support\PlanLimits;
 use App\Support\PosDelta;
 use App\Support\PosProjection;
@@ -212,6 +213,7 @@ class PosCatalogController extends Controller
             // number back.
             'totals' => [
                 'products' => Product::query()
+                    ->listedAt($this->branch->id())
                     ->where(fn ($q) => $q->where('is_active', true)->orWhereNull('is_active'))
                     ->where(fn ($q) => $q->where('for_sale', true)->orWhereNull('for_sale'))
                     ->count(),
@@ -301,7 +303,14 @@ class PosCatalogController extends Controller
         // An item kept and not sold (a recipe's flour) is not the till's to
         // offer: it goes as a tombstone, so a till that held it drops it
         // (tester pass 5, B62).
-        $sells = fn (Product $p): bool => $this->alive($p) && $p->for_sale !== false;
+        //
+        // …and one listed only at other branches is not THIS till's to offer
+        // (v2). Filtered here, not in the query: a page that left it out would
+        // never carry its tombstone, and a till that held it from yesterday —
+        // before the owner moved it to Johar Town — would go on selling it.
+        $here = CatalogPlaces::productsSoldAt($this->branch->id(), $page['rows']);
+        $sells = fn (Product $p): bool => $this->alive($p) && $p->for_sale !== false
+            && ($here === null || isset($here[(string) $p->id]));
         $live = $page['rows']->filter($sells);
         // Stock for the whole page in one query rather than one per row.
         $stock = PosProjection::stockAt($this->branch->id(), $live->pluck('id'));
@@ -317,8 +326,12 @@ class PosCatalogController extends Controller
         // Their own rows rather than denormalised onto every product: a rename
         // then costs one row instead of re-sending the whole catalog.
         $page = PosDelta::page(Category::query()->withTrashed(), $cursor, self::PAGE);
+        // Shown at this branch: listed here, holding an item sold here, or
+        // above one of those (v2). A tombstone otherwise, for the same reason
+        // as products.
+        $shown = CatalogPlaces::categoriesShownAt($this->branch->id());
 
-        return $this->shape($page, fn (Category $c): ?array => $this->alive($c)
+        return $this->shape($page, fn (Category $c): ?array => $this->alive($c) && ($shown === null || isset($shown[(string) $c->id]))
             ? ['id' => $c->id, 'name' => $c->name, 'parent_id' => $c->parent_id, 'sort_order' => $c->sort_order]
             : null);
     }

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 /**
@@ -135,6 +136,24 @@ class NearestBranchFillsTheOrderTest extends TestCase
             ->where('branch_id', $near->id)->value('quantity'), 'the near branch gave up the stock');
         $this->assertEquals(10, BranchStock::withoutTenancy()
             ->where('branch_id', $far->id)->value('quantity'), 'the far branch was untouched');
+    }
+
+    public function test_a_branch_that_does_not_sell_it_is_passed_over_however_near(): void
+    {
+        // v2: the item is listed at Airport Road only. Zamzama is nearer and
+        // has ten on the shelf — and is still not the branch to send it.
+        $near = $this->branch('Zamzama', 31.5150, 74.3500);
+        $far = $this->branch('Airport Road', 31.4600, 74.2700);
+        $this->stock($near, 10);
+        $this->stock($far, 10);
+        $this->product->forceFill(['all_branches' => false])->save();
+        DB::table('branch_product')->insert([
+            'tenant_id' => $this->shop->id, 'product_id' => $this->product->id, 'branch_id' => $far->id,
+        ]);
+
+        $order = $this->place();
+
+        $this->assertSame($far->id, $order['branch_id'] ?? Order::query()->find($order['id'])->branch_id, 'the order went to a branch that does not sell the item');
     }
 
     public function test_the_nearest_one_that_can_actually_fill_it(): void

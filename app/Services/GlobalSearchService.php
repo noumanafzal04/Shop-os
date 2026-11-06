@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BranchContext;
 use App\Support\Permissions;
 
 /**
@@ -92,6 +93,8 @@ class GlobalSearchService
         $like = "%{$q}%";
 
         return Product::query()
+            // What this branch sells; the owner's "All branches" finds everything (v2).
+            ->listedAt(app(BranchContext::class)->scopeId())
             ->where(fn ($w) => $w
                 ->where('name', 'like', $like)
                 ->orWhere('sku', 'like', $like)

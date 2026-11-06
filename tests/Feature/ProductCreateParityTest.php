@@ -81,6 +81,11 @@ class ProductCreateParityTest extends TestCase
         // rides the maximal payload as a whole and asserting on one key inside
         // it would be asserting on a different thing than this file measures.
         'variant_axes' => "products.attributes['variant_axes']",
+        // Where it is sold (v2): written by CatalogPlaces::save after the
+        // action, never by it — the owner's and a branch manager's rules live
+        // there. Round-tripped by AnItemIsListedAtItsBranchesTest.
+        'all_branches' => 'products.all_branches, via CatalogPlaces::save',
+        'branch_ids' => 'branch_product pivot, via CatalogPlaces::save',
     ];
 
     /**

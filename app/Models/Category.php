@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\CatalogPlaces;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Category extends BaseModel
@@ -15,7 +18,20 @@ class Category extends BaseModel
         return [
             'is_active' => 'boolean',
             'sort_order' => 'integer',
+            'all_branches' => 'boolean',
         ];
+    }
+
+    /** The branches it is shown at by name — empty when `all_branches` (CatalogPlaces). */
+    public function places(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'branch_category')->select(['branches.id', 'branches.name']);
+    }
+
+    /** Listed at this branch — every branch on null (the owner's "All") or a godown. */
+    public function scopeListedAt(Builder $query, ?string $branchId): Builder
+    {
+        return CatalogPlaces::narrow($query, $branchId, 'categories', 'branch_category', 'category_id');
     }
 
     public function parent(): BelongsTo

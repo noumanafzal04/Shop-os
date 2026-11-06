@@ -23,6 +23,7 @@ use App\Models\Product;
 use App\Models\ProductSerial;
 use App\Support\ApiResponse;
 use App\Support\BranchContext;
+use App\Support\CatalogPlaces;
 use App\Support\Import\ProductSheet;
 use App\Support\ItemTypes;
 use App\Support\LowStock;
@@ -34,6 +35,7 @@ use App\Support\TenantContext;
 use Generator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -45,7 +47,11 @@ class ProductController extends Controller
     public function index(Request $request, BranchContext $branch): JsonResponse
     {
         $products = Product::query()
-            ->with(['category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
+            // What this branch sells (CatalogPlaces). The owner's "All branches" list is everything; a selling screen
+            // (`sold_here`) asks for the branch the sale will ring at, which is
+            // the operating one even while the owner looks at All (v2).
+            ->listedAt($request->boolean('sold_here') ? $branch->id() : $branch->scopeId())
+            ->with(['places', 'category:id,name', 'variants', 'images', 'collections:id,name', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name'])
             ->when($request->query('search'), function ($q, $search): void {
                 $q->where(function ($q) use ($search): void {
                     // Match name, brand, generic/salt (pharmacy), SKU, primary
@@ -208,9 +214,15 @@ class ProductController extends Controller
         }
     }
 
-    public function store(StoreProductRequest $request, CreateProductAction $action): JsonResponse
+    public function store(StoreProductRequest $request, CreateProductAction $action, BranchContext $branch): JsonResponse
     {
-        $result = $action->execute($request->validated());
+        $data = $request->validated();
+        // Where it will be sold — decided before anything is made, so a refusal makes nothing.
+        $places = CatalogPlaces::resolve($request->user(), self::askedAll($data), $data['branch_ids'] ?? null, $branch->id())
+            ?? CatalogPlaces::forNew($request->user(), $branch->id());
+        $result = $action->execute(Arr::except($data, ['all_branches', 'branch_ids']));
+        CatalogPlaces::save($result['product'], $places);
+        $result['product']->load('places');
 
         return response()->json([
             'success' => true,
@@ -231,7 +243,7 @@ class ProductController extends Controller
      * Both arrive as JSON text, because they sit beside a file in a form and a
      * category name is not a safe thing to use as a form field's name.
      */
-    public function import(Request $request, ImportProductsAction $action): JsonResponse
+    public function import(Request $request, ImportProductsAction $action, BranchContext $branch): JsonResponse
     {
         // Read as a sheet and never stored or served. `extensions`, not
         // `mimes`: what a browser calls an .xlsx depends on the machine it was
@@ -265,10 +277,14 @@ class ProductController extends Controller
             set_time_limit(120);
         }
 
+        $user = $request->user();
         $summary = $action->execute($request->file('file')->get(), [
             'dry_run' => $request->boolean('dry_run'),
             'categories' => $categories,
             'mapping' => $mapping,
+            // A file is a lot of product forms at once: the same branch rules.
+            'places' => CatalogPlaces::forNew($user, $branch->id()),
+            'may_change' => fn (Product $p): bool => CatalogPlaces::mayChange($user, $p, $branch->id()),
         ]);
 
         return ApiResponse::ok(
@@ -387,7 +403,7 @@ class ProductController extends Controller
             // computed from these and the selection used to stop at the name,
             // so the figure could not be produced from the row it was already
             // loading.
-            ->with(['category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
+            ->with(['places', 'category', 'variants', 'images', 'collections', 'modifierGroups.options', 'barcodes:id,product_id,variant_id,product_unit_id,barcode', 'units.codes:id,product_unit_id,barcode', 'comboItems.component:id,name', 'recipeItems.ingredient:id,name,cost'])
             ->findOrFail($id);
 
         // The list stamps what THIS branch has run out of, charges and holds;
@@ -551,9 +567,22 @@ class ProductController extends Controller
         return ApiResponse::ok($action->execute($product, $groups), 'Modifiers saved');
     }
 
-    public function update(UpdateProductRequest $request, string $id, UpdateProductAction $action): JsonResponse
+    public function update(UpdateProductRequest $request, string $id, UpdateProductAction $action, BranchContext $branch): JsonResponse
     {
-        $result = $action->execute(Product::query()->findOrFail($id), $request->validated());
+        $product = Product::query()->findOrFail($id);
+        // Sold at other branches too: only the owner, or whoever they allow, changes it (CatalogPlaces).
+        CatalogPlaces::assertMayChange($request->user(), $product, $branch->id());
+        $data = $request->validated();
+        $places = CatalogPlaces::resolve($request->user(), self::askedAll($data), $data['branch_ids'] ?? null, $branch->id());
+        $result = $action->execute($product, Arr::except($data, ['all_branches', 'branch_ids']));
+        if ($places !== null) {
+            CatalogPlaces::save($result['product'], $places);
+        } elseif ($result['product']->wasChanged('category_id')) {
+            // Moved to another shelf: that shelf may now show at a branch it
+            // did not, and the till hears of a category by its own stamp.
+            CatalogPlaces::touchShelf($result['product']);
+        }
+        $result['product']->load('places');
 
         return response()->json([
             'success' => true,
@@ -564,10 +593,18 @@ class ProductController extends Controller
         ]);
     }
 
-    /** Assign a unique scannable barcode to an item that lacks one. */
-    public function generateBarcode(string $id, GenerateBarcodeAction $action): JsonResponse
+    /** `all_branches` as asked: null when the write did not mention it. @param array<string, mixed> $data */
+    private static function askedAll(array $data): ?bool
     {
-        $product = $action->execute(Product::query()->findOrFail($id));
+        return array_key_exists('all_branches', $data) ? (bool) $data['all_branches'] : null;
+    }
+
+    /** Assign a unique scannable barcode to an item that lacks one. */
+    public function generateBarcode(Request $request, string $id, GenerateBarcodeAction $action, BranchContext $branch): JsonResponse
+    {
+        $found = Product::query()->findOrFail($id);
+        CatalogPlaces::assertMayChange($request->user(), $found, $branch->id());
+        $product = $action->execute($found);
 
         return ApiResponse::ok($product->only('id', 'name', 'barcode'), 'Barcode generated');
     }
@@ -588,9 +625,10 @@ class ProductController extends Controller
      * Soft delete — sales/reservations referencing this item keep their
      * history (the "product in active sale" edge case).
      */
-    public function destroy(string $id): JsonResponse
+    public function destroy(Request $request, string $id, BranchContext $branch): JsonResponse
     {
         $product = Product::query()->findOrFail($id);
+        CatalogPlaces::assertMayChange($request->user(), $product, $branch->id());
 
         DB::transaction(function () use ($product): void {
             // ITS CODES GO WITH IT.

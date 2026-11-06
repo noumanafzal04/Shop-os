@@ -246,6 +246,7 @@ class DashboardService
             'products_count' => $hasCatalog
                 ? Product::query()
                     ->where('tenant_id', $tenant->id)
+                    ->listedAt($branchId)
                     ->where('is_active', true)
                     ->count()
                 : 0,

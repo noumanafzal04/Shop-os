@@ -3,6 +3,7 @@
 namespace App\Support\Import;
 
 use App\Models\Category;
+use App\Support\CatalogPlaces;
 
 /**
  * A category, as a shopkeeper writes it in a sheet: "Grocery > Beverages".
@@ -114,7 +115,8 @@ final class CategoryPaths
      *
      * Only ever called because somebody was shown the name and chose "create".
      */
-    public function create(string $typed): string
+    /** @param array{all: bool, ids: list<string>}|null $places where a shelf made here is shown (CatalogPlaces); null = everywhere */
+    public function create(string $typed, ?array $places = null): string
     {
         $parent = null;
         $id = null;
@@ -129,7 +131,11 @@ final class CategoryPaths
             }
 
             if ($id === null) {
-                $id = (string) Category::query()->create(['name' => $name, 'parent_id' => $parent])->id;
+                $made = Category::query()->create(['name' => $name, 'parent_id' => $parent]);
+                if ($places !== null && ! $places['all']) {
+                    CatalogPlaces::save($made, $places);
+                }
+                $id = (string) $made->id;
                 $this->nodes[$id] = ['parent' => $parent, 'name' => $name];
                 $this->index($id);
             }

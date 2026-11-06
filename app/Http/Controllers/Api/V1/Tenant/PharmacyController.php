@@ -12,6 +12,7 @@ use App\Models\SaleReturn;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Support\ApiResponse;
+use App\Support\BranchContext;
 use App\Support\ShopDay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,7 +36,7 @@ class PharmacyController extends Controller
      * match, since 2 × 250mg is a real answer a pharmacist can give and
      * silently hiding it would be worse than showing it with its strength.
      */
-    public function alternatives(Request $request): JsonResponse
+    public function alternatives(Request $request, BranchContext $branch): JsonResponse
     {
         $data = $request->validate([
             'product_id' => ['required', 'uuid'],
@@ -56,6 +57,8 @@ class PharmacyController extends Controller
         }
 
         $alternatives = Product::query()
+            // Offered at the counter: only what THIS branch sells (v2).
+            ->listedAt($branch->id())
             ->where('is_active', true)
             ->whereKeyNot($source->id)
             ->whereRaw('LOWER(generic_name) = ?', [mb_strtolower(trim($source->generic_name))])

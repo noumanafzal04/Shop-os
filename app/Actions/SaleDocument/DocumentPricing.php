@@ -41,6 +41,7 @@ final class DocumentPricing
             );
         }
         $product->mustBeForSale();
+        $product->mustBeSoldAt($branchId);
 
         $variant = null;
         if (! empty($item['variant_id'])) {

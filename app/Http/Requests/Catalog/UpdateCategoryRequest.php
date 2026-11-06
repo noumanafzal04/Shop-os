@@ -35,6 +35,10 @@ class UpdateCategoryRequest extends FormRequest
             ],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            // Where it is sold (CatalogPlaces): every branch, or the ones named.
+            'all_branches' => ['sometimes', 'boolean'],
+            'branch_ids' => ['sometimes', 'array', 'max:100'],
+            'branch_ids.*' => ['uuid'],
         ];
     }
 }
