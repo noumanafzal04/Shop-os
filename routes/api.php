@@ -225,6 +225,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // Which currencies there are, which this shop is on, and whether
             // it may still change. Asked by the settings screen only.
             Route::get('/shop/currencies', [ShopController::class, 'currencies']);
+            // The clocks it may keep, the one it is on, and whether it may
+            // still change. Asked by the settings screen only.
+            Route::get('/shop/timezones', [ShopController::class, 'timezones']);
             // WHAT THIS SHOP HAS, and what it does not.
             //
             // Read-only, and behind no permission beyond being in the shop: it
@@ -1452,6 +1455,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
             Route::get('/orders', [CustomerOrderController::class, 'index']);
             Route::post('/orders', [CustomerOrderController::class, 'store']);
+            // What the basket comes to, by the placing path itself: tax, the
+            // shop's promotion, a member's discount, the coupon, delivery.
+            Route::post('/orders/worth', [CustomerOrderController::class, 'worth']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
         });

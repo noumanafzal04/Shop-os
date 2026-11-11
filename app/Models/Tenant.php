@@ -10,6 +10,7 @@ use App\Support\DateFormats;
 use App\Support\Geo;
 use App\Support\Modules;
 use App\Support\ShopSettings;
+use App\Support\ShopZone;
 use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -714,6 +715,33 @@ class Tenant extends BaseModel
         if (Currencies::code($code) !== $this->currency() && $this->hasMoneyOnItsBooks()) {
             throw DomainException::conflict($this->whyItsCurrencyIsFixed(), 'CURRENCY_LOCKED');
         }
+    }
+
+    /**
+     * Refuses a CHANGE of clock once there is money on the books.
+     *
+     * The clock decides which day every sale, expense and banked drawer
+     * belongs to. Moved after trading, sales near midnight would slide into
+     * days already counted and closed, and last month's reports would add up
+     * differently from the paper the owner already has — so, like the
+     * currency, it is chosen before the business trades. The same zone sent
+     * again is not a change.
+     */
+    public function mayKeepTimeIn(string $zone): void
+    {
+        if ($zone !== ($this->timezone ?: ShopZone::FALLBACK) && $this->hasMoneyOnItsBooks()) {
+            throw DomainException::conflict($this->whyItsClockIsFixed(), 'TIMEZONE_LOCKED');
+        }
+    }
+
+    /** Why a business that has traded keeps its clock — in words a shopkeeper can act on. */
+    public function whyItsClockIsFixed(): string
+    {
+        $zone = str_replace('_', ' ', $this->timezone ?: ShopZone::FALLBACK);
+
+        return "This business already has sales and money on its books on {$zone} time. "
+            .'Changing the time zone would move sales from one day to another in days already counted, '
+            .'so it is fixed once trading has begun.';
     }
 
     /** Why a business that has traded keeps its currency — in words a shopkeeper can act on. */

@@ -519,22 +519,25 @@ class MarketLevelFixesTest extends TestCase
                 ->assertOk();
         }
 
-        // The sale mirrors the checkout money exactly: 2 × 5000, and no tax
-        // the customer was never quoted.
+        // The sale mirrors the checkout money exactly: 2 × 5000 and the 17%
+        // the customer was quoted (an order is taxed by the till's rule since
+        // 2026-11-11 — AnOrderIsPricedLikeTheTillTest), never more, never less.
+        $this->assertSame('1700.00', (string) $order['tax']);
+        $this->assertSame('11850.00', (string) $order['total']); // + 150 delivery
         $sale = Sale::withoutTenancy()->where('tenant_id', $tenant->id)->firstOrFail();
-        $this->assertSame('10000.00', (string) $sale->total);
-        $this->assertSame('0.00', (string) $sale->tax);
+        $this->assertSame('11700.00', (string) $sale->total);
+        $this->assertSame('1700.00', (string) $sale->tax);
 
-        // And the sale lines carry a 0% rate — NOT the product's catalog 17% —
-        // so a return refunds exactly what was paid, no phantom tax. (The sale
-        // was rung by an internal customer; refund via the owner.)
+        // And the sale line carries the rate it was QUOTED at, so a return
+        // refunds exactly what was paid — the tax included, nothing phantom.
+        // (The sale was rung by an internal customer; refund via the owner.)
         $item = $sale->items()->first();
-        $this->assertSame('0.00', (string) $item->tax_rate);
+        $this->assertSame('17.00', (string) $item->tax_rate);
         $return = $this->actingAsUser($owner)->postJson("/api/v1/sales/{$sale->id}/returns", [
             'items' => [['sale_item_id' => $item->id, 'quantity' => 2]],
         ])->assertCreated()->json('data');
-        $this->assertSame('10000.00', (string) $return['refund_total']);
-        $this->assertSame('0.00', (string) $return['refund_tax']);
+        $this->assertSame('11700.00', (string) $return['refund_total']);
+        $this->assertSame('1700.00', (string) $return['refund_tax']);
     }
 
     public function test_reservation_pickup_honors_the_promised_price(): void

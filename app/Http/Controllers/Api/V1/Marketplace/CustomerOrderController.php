@@ -42,10 +42,45 @@ class CustomerOrderController extends Controller
 
     public function store(Request $request, OrderService $service): JsonResponse
     {
-        $data = $request->validate([
+        $data = $request->validate($this->rules());
+
+        $shop = Tenant::query()->marketplaceVisible()->where('slug', $data['shop_slug'])->firstOrFail();
+
+        $order = $service->place($request->user(), $shop, $data);
+
+        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug,settings', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
+    }
+
+    /**
+     * WHAT THIS ORDER WOULD COME TO — asked, not placed.
+     *
+     * The checkout added the basket up itself: the goods and the delivery
+     * fee, and "a coupon comes off when the shop accepts it". Now that an
+     * order is taxed and takes the shop's promotions and a member's discount,
+     * a sum done in the browser is a different figure from the one charged.
+     * This runs the placing path and stops before anything is written — no
+     * order, no stock held, no coupon spent — so the figure on the checkout
+     * IS the figure the order will carry, and a refusal (a minimum not met, a
+     * coupon that is spent) is said before the button, in the same words.
+     */
+    public function worth(Request $request, OrderService $service): JsonResponse
+    {
+        // The address is not asked for: the total is wanted while it is
+        // still being typed, and it changes nothing the order is charged.
+        $data = $request->validate($this->rules(placing: false));
+
+        $shop = Tenant::query()->marketplaceVisible()->where('slug', $data['shop_slug'])->firstOrFail();
+
+        return ApiResponse::ok($service->worth($request->user(), $shop, $data));
+    }
+
+    /** One set of rules for placing an order and for asking what it comes to. */
+    private function rules(bool $placing = true): array
+    {
+        return [
             'shop_slug' => ['required', 'string'],
             'fulfillment_type' => ['required', Rule::enum(FulfillmentType::class)],
-            'delivery_address' => ['required_if:fulfillment_type,delivery', 'nullable', 'string', 'max:500'],
+            'delivery_address' => [...($placing ? ['required_if:fulfillment_type,delivery'] : []), 'nullable', 'string', 'max:500'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'payment_method' => ['sometimes', Rule::in(['cod', 'paid'])],
@@ -59,13 +94,7 @@ class CustomerOrderController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
             'idempotency_key' => ['nullable', 'string', 'max:64'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
-        ]);
-
-        $shop = Tenant::query()->marketplaceVisible()->where('slug', $data['shop_slug'])->firstOrFail();
-
-        $order = $service->place($request->user(), $shop, $data);
-
-        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug,settings', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
+        ];
     }
 
     public function cancel(Request $request, string $id, OrderService $service): JsonResponse
@@ -193,6 +222,13 @@ class CustomerOrderController extends Controller
             ] : null,
             'subtotal' => $o->subtotal,
             'discount' => $o->discount,
+            // How the money off was made up — the coupon's share is what is
+            // left of `discount` — and the tax the order was quoted.
+            'promotion_name' => $o->promotion_name,
+            'promotion_discount' => $o->promotion_discount,
+            'member_discount' => $o->member_discount,
+            'tax' => $o->tax,
+            'tax_inclusive' => (bool) $o->tax_inclusive,
             'coupon_code' => $o->coupon_code,
             'delivery_fee' => $o->delivery_fee,
             'total' => $o->total,

@@ -5,10 +5,12 @@ namespace App\Actions\Tenant;
 use App\Actions\Shop\ApplyBusinessTypeDefaultsAction;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\City;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\ModulePackages;
+use App\Support\ShopZone;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -46,6 +48,12 @@ class CreateTenantAction
                 'phone' => $data['phone'] ?? null,
                 'business_category' => $data['business_category'] ?? null,
                 'city_id' => $data['city_id'] ?? null,
+                // The clock of the city it is in (ShopZone); with no city,
+                // the product's default, as before. The owner may choose
+                // another until the business trades.
+                'timezone' => ShopZone::forCity(
+                    isset($data['city_id']) ? City::query()->find($data['city_id']) : null,
+                ) ?? ShopZone::FALLBACK,
             ]);
 
             // ① The type: features proposed, categories and terminology seeded.

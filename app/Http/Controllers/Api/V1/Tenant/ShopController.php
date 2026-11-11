@@ -18,6 +18,7 @@ use App\Support\Currencies;
 use App\Support\Modules;
 use App\Support\PlanLimits;
 use App\Support\ShopDay;
+use App\Support\ShopZone;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -51,9 +52,36 @@ class ShopController extends Controller
     public function update(UpdateShopRequest $request): JsonResponse
     {
         $tenant = $this->context->get();
-        $tenant->fill($request->validated())->save();
+        $asked = $request->validated();
+
+        // A clock is chosen before a business trades, not after — see
+        // Tenant::mayKeepTimeIn(). Sent unchanged it is not a change.
+        if (isset($asked['timezone'])) {
+            $tenant->mayKeepTimeIn($asked['timezone']);
+        }
+
+        $tenant->fill($asked)->save();
 
         return ApiResponse::ok(new TenantResource($tenant->load('city', 'plan')), 'Settings saved');
+    }
+
+    /**
+     * The clocks a shop may keep, which one it is on, and whether it may
+     * still change — the currency's question, asked of the time zone. The
+     * shop's own country's zones come first.
+     */
+    public function timezones(): JsonResponse
+    {
+        $tenant = $this->context->get();
+        $locked = $tenant->hasMoneyOnItsBooks();
+
+        return ApiResponse::ok([
+            'current' => $tenant->timezone ?: ShopZone::FALLBACK,
+            'locked' => $locked,
+            'why' => $locked ? $tenant->whyItsClockIsFixed() : null,
+            'suggested' => ShopZone::ofCountryOf($tenant->city),
+            'options' => ShopZone::options(),
+        ]);
     }
 
     /**

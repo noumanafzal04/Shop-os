@@ -32,6 +32,13 @@ class CompleteSetupRequest extends FormRequest
             // The money the shop trades in — asked at setup, while nothing is on its books.
             'currency' => ['sometimes', 'nullable', 'string', Rule::in(Currencies::codes())],
             'address' => ['nullable', 'string', 'max:500'],
+            // The number on the receipt, and the one a delivery rings.
+            'phone' => ['sometimes', 'nullable', 'string', 'max:32'],
+            // What delivery costs the customer — asked on the online step.
+            'delivery_fee' => ['sometimes', 'numeric', 'min:0', 'max:99999'],
+            // The shop's clock, when the owner chose one on the setup steps.
+            // Left out, it follows the city (CompleteShopSetupAction).
+            'timezone' => ['sometimes', 'nullable', 'string', 'timezone:all'],
             // Edge case: invalid location — coordinates must be a valid pair in range.
             'latitude' => ['nullable', 'required_with:longitude', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'required_with:latitude', 'numeric', 'between:-180,180'],

@@ -28,6 +28,7 @@ use App\Services\BankOfferService;
 use App\Services\CouponService;
 use App\Services\InventoryService;
 use App\Services\PromotionService;
+use App\Support\BillTax;
 use App\Support\BillToAddTo;
 use App\Support\BooksDrawer;
 use App\Support\BranchContext;
@@ -921,6 +922,16 @@ class CreateSaleAction
                         }
                     }
                 }
+                // An online order applied its promotion when it was placed and
+                // carries the discount in its settled total; the sale it
+                // becomes keeps the attribution (the money is already in
+                // `discount`). Only our own completing order sends these.
+                if ($trusted && ! empty($data['promotion_id'])) {
+                    $promotionId = (string) $data['promotion_id'];
+                    $promoName = isset($data['promo_name']) ? (string) $data['promo_name'] : null;
+                    // Already inside `discount`, as the till's is: never more than it.
+                    $promoDiscount = round(min((float) ($data['promo_discount'] ?? 0), (float) ($data['discount'] ?? 0)), 2);
+                }
 
                 // ── Customer-group members' discount ─────────────────────
                 // An automatic percent off for a customer in a discounting group
@@ -930,12 +941,10 @@ class CreateSaleAction
                 $customerGroupId = null;
                 if ($customerGroup !== null) {
                     $customerGroupId = $customerGroup->id;
-                    $groupPct = $customerGroup->discount_percent !== null ? (float) $customerGroup->discount_percent : 0.0;
-                    if ($groupPct > 0) {
-                        $groupDiscount = round(max(0.0, round($subtotal - $discount, 2)) * min($groupPct, 100) / 100, 2);
-                        if ($groupDiscount > 0) {
-                            $discount = round($discount + $groupDiscount, 2);
-                        }
+                    // The same rule an order applies (CustomerGroup::discountOn).
+                    $groupDiscount = $customerGroup->discountOn(round($subtotal - $discount, 2));
+                    if ($groupDiscount > 0) {
+                        $discount = round($discount + $groupDiscount, 2);
                     }
                 }
 
@@ -1055,26 +1064,8 @@ class CreateSaleAction
                     // Computed from each line's snapshotted effective rate — also
                     // serves trusted callers that DIDN'T pre-settle tax (dine-in
                     // settlement prices from the tab snapshot but taxes fresh).
-                    $taxableBase = $subtotal - $discount;
-                    $tax = 0.0;
-                    foreach ($lines as $line) {
-                        $rate = (float) $line['tax_rate'];
-                        if ($rate <= 0 || $subtotal <= 0) {
-                            continue; // exempt / zero-rated, or nothing to tax
-                        }
-                        // Each line's discounted share of the taxable base.
-                        $lineShare = (float) $line['line_total'] * ($taxableBase / $subtotal);
-                        if ($taxInclusive) {
-                            // Price already holds the tax — extract the portion
-                            // within: share − share ÷ (1 + rate). The total is not
-                            // inflated (see below).
-                            $net = $lineShare / (1 + $rate / 100);
-                            $tax = round($tax + ($lineShare - $net), 2);
-                        } else {
-                            // Exclusive — tax is added on top of the share.
-                            $tax = round($tax + $lineShare * $rate / 100, 2);
-                        }
-                    }
+                    // The same sum an order is priced with (BillTax).
+                    $tax = BillTax::of($lines, $subtotal, $discount, $taxInclusive);
                 }
 
                 // Inclusive: tax lives inside the price, so it is NOT added again.

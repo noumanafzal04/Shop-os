@@ -33,4 +33,18 @@ class CustomerGroup extends BaseModel
     {
         return $this->hasMany(Customer::class);
     }
+
+    /**
+     * The members' discount on what is still owed — never more than it, never
+     * below nothing. One rule for the till and for an order.
+     */
+    public function discountOn(float $owed): float
+    {
+        $pct = $this->discount_percent !== null ? (float) $this->discount_percent : 0.0;
+        if ($pct <= 0) {
+            return 0.0;
+        }
+
+        return round(max(0.0, $owed) * min($pct, 100) / 100, 2);
+    }
 }

@@ -3,7 +3,9 @@
 namespace App\Actions\Shop;
 
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\Tenant;
+use App\Support\ShopZone;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -25,10 +27,24 @@ class CompleteShopSetupAction
                 'business_category' => $data['business_category'] ?? $tenant->business_category,
                 'city_id' => $data['city_id'],
                 'address' => $data['address'] ?? $tenant->address,
+                'phone' => $data['phone'] ?? $tenant->phone,
+                'delivery_fee' => $data['delivery_fee'] ?? $tenant->delivery_fee,
                 'latitude' => $data['latitude'] ?? $tenant->latitude,
                 'longitude' => $data['longitude'] ?? $tenant->longitude,
                 'business_hours' => $data['business_hours'] ?? $tenant->business_hours,
             ]);
+
+            // THE CLOCK. Chosen on the setup steps, it is kept (and refused,
+            // in words, for a business that has traded). Not chosen, it
+            // follows the city the owner just confirmed — a shop moved from
+            // Lahore to Dubai at setup keeps Dubai's time — but only before
+            // the first sale, the same fence the currency has.
+            if (! empty($data['timezone'])) {
+                $tenant->mayKeepTimeIn($data['timezone']);
+                $tenant->timezone = $data['timezone'];
+            } elseif ($tenant->isDirty('city_id') && ! $tenant->hasMoneyOnItsBooks()) {
+                $tenant->timezone = ShopZone::forCity(City::query()->find($data['city_id'])) ?? $tenant->timezone;
+            }
 
             $tenant->setup_completed = true;
             $tenant->save();

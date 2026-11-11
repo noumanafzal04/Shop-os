@@ -23,6 +23,7 @@ class OrderItem extends Model
             'unit_price' => 'decimal:2',
             'unit_cost' => 'decimal:2',
             'line_total' => 'decimal:2',
+            'tax_rate' => 'decimal:2',
         ];
     }
 

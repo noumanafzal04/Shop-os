@@ -22,6 +22,7 @@ use App\Models\Sale;
 use App\Models\StockMovement;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\BillTax;
 use App\Support\BranchContext;
 use App\Support\CatalogPlaces;
 use App\Support\FulfillingBranch;
@@ -451,6 +452,62 @@ class OrderService
                     $couponCode = $result['code'];
                 }
 
+                // ── THE TILL'S RULES, ON AN ORDER TOO ─────────────────
+                //
+                // The till took "Lunch −20%" and a member's 10% off and
+                // charged 5% tax; the same basket ordered online or on the
+                // phone got only the coupon and no tax. The owner asked for
+                // the market standard: one price whichever door the customer
+                // came in by. Same order as the till — coupon, then the best
+                // live promotion, then the member's discount on what is still
+                // owed — and each only while the shop HAS the module, as the
+                // till asks. Loyalty points stay a till's act; earning them
+                // already happens when the order completes (Q6).
+                $promotionDiscount = 0.0;
+                $promotionId = null;
+                $promotionName = null;
+                if ($shop->featureEnabled('promotions')) {
+                    $best = app(PromotionService::class)->best(
+                        array_map(fn (array $l): array => [
+                            'product' => $l['product'],
+                            'quantity' => $l['qty'],
+                            'line_total' => $l['line_total'],
+                        ], $lines),
+                        $subtotal,
+                        now()->setTimezone($shop->timezone ?: 'Asia/Karachi'),
+                    );
+                    if ($best !== null) {
+                        $off = round(min($best['discount'], round($subtotal - $discount, 2)), 2);
+                        if ($off > 0) {
+                            $promotionDiscount = $off;
+                            $discount = round($discount + $off, 2);
+                            $promotionId = $best['promotion']->id;
+                            $promotionName = $best['promotion']->name;
+                        }
+                    }
+                }
+
+                $memberDiscount = 0.0;
+                if ($shop->featureEnabled('customers')) {
+                    $group = Customer::byPhone($shop->id, $customer?->phone ?? ($data['customer_phone'] ?? null))?->group;
+                    if ($group !== null) {
+                        $memberDiscount = $group->discountOn(round($subtotal - $discount, 2));
+                        $discount = round($discount + $memberDiscount, 2);
+                    }
+                }
+
+                // Tax by the till's rule: each line at its own rate, on its
+                // share of the bill after the money off, in the shop's mode.
+                // The delivery fee is not goods and is not taxed here.
+                $taxInclusive = (bool) $lockedShop->setting('tax_inclusive', false);
+                $defaultTaxRate = (float) ($lockedShop->setting('default_tax_rate', 0) ?? 0);
+                foreach ($lines as $i => $line) {
+                    $lines[$i]['tax_rate'] = $line['product']->effectiveTaxRate($defaultTaxRate);
+                }
+                $tax = BillTax::of($lines, $subtotal, $discount, $taxInclusive);
+                $goods = round($subtotal - $discount + ($taxInclusive ? 0.0 : $tax), 2);
+                $total = round($goods + $deliveryFee, 2);
+
                 // ── WHICH BRANCH IS FILLING THIS ──────────────────────
                 //
                 // The nearest one that actually holds the whole basket. Not
@@ -515,8 +572,16 @@ class OrderService
                         'subtotal' => $subtotal,
                         'discount' => $discount,
                         'coupon_code' => $couponCode,
+                        // How the money off was made up, so a screen can say
+                        // each in its own line. The coupon's is what is left.
+                        'coupon_discount' => round($discount - $promotionDiscount - $memberDiscount, 2),
+                        'promotion_name' => $promotionName,
+                        'promotion_discount' => $promotionDiscount,
+                        'member_discount' => $memberDiscount,
+                        'tax' => $tax,
+                        'tax_inclusive' => $taxInclusive,
                         'delivery_fee' => $deliveryFee,
-                        'total' => round($subtotal - $discount + $deliveryFee, 2),
+                        'total' => $total,
                         'lines' => array_map(fn (array $l): array => [
                             'product_id' => $l['product']->id,
                             'variant_id' => $l['variant']?->id,
@@ -555,9 +620,15 @@ class OrderService
                     'longitude' => $data['longitude'] ?? null,
                     'subtotal' => $subtotal,
                     'discount' => $discount,
+                    'promotion_discount' => $promotionDiscount,
+                    'member_discount' => $memberDiscount,
+                    'promotion_id' => $promotionId,
+                    'promotion_name' => $promotionName,
                     'coupon_code' => $couponCode,
+                    'tax' => $tax,
+                    'tax_inclusive' => $taxInclusive,
                     'delivery_fee' => $deliveryFee,
-                    'total' => round($subtotal - $discount + $deliveryFee, 2),
+                    'total' => $total,
                     'notes' => $data['notes'] ?? null,
                     'idempotency_key' => $data['idempotency_key'] ?? null,
                     'placed_at' => now(),
@@ -578,6 +649,9 @@ class OrderService
                         'unit_price' => $line['unit_price'],
                         'unit_cost' => $line['unit_cost'],
                         'line_total' => $line['line_total'],
+                        // The rate it was quoted at, so the sale it becomes —
+                        // and any return off that sale — uses exactly this.
+                        'tax_rate' => $line['tax_rate'],
                     ]);
 
                     // Hold stock now (audited, row-locked), at the branch that
@@ -832,7 +906,12 @@ class OrderService
             // a second use). The sale records goods revenue only, so
             // amount_paid equals the sale total exactly and a discounted order
             // can always complete. The delivery fee is booked below.
-            $goodsPaid = round((float) $order->subtotal - (float) $order->discount, 2);
+            //
+            // Its tax too: settled when the order was placed, in the mode it
+            // was quoted in. An order from before orders were taxed carries
+            // 0 and exclusive, and completes exactly as it always did.
+            $taxOnTop = $order->tax_inclusive ? 0.0 : (float) $order->tax;
+            $goodsPaid = round((float) $order->subtotal - (float) $order->discount + $taxOnTop, 2);
 
             /** @var Sale $sale */
             $sale = $this->createSale->execute([
@@ -857,8 +936,17 @@ class OrderService
                     // re-pricing or re-validating (a required group must not
                     // reject a completing order).
                     'modifiers' => $i->modifiers,
+                    // The rate this line was quoted at. Absent on an order from
+                    // before orders were taxed — the sale then blends the
+                    // order's (zero) tax over its lines, as it always did.
+                    ...($i->tax_rate !== null ? ['tax_rate' => (float) $i->tax_rate] : []),
                 ])->all(),
                 'discount' => (float) $order->discount,
+                // The promotion it was given, for the record; the money is
+                // already in `discount`, as the till's is.
+                'promotion_id' => $order->promotion_id,
+                'promo_name' => $order->promotion_name,
+                'promo_discount' => (float) $order->promotion_discount,
                 'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
                 'amount_paid' => max(0, $goodsPaid),
                 'trusted_prices' => true,
@@ -872,11 +960,12 @@ class OrderService
                 // reached them. `fulfillment_type` is the only field that knows
                 // the difference. See BooksDrawer::tillFor.
                 'collected_at_the_counter' => $order->fulfillment_type === FulfillmentType::Pickup,
-                // Replay the money the customer actually paid at checkout: the
-                // order quoted NO tax, so the sale must not invent one — a
-                // GST-rated product would otherwise make completion throw
-                // PAYMENT_INSUFFICIENT on every taxed order.
-                'tax' => 0.0,
+                // Replay the money the customer was quoted at checkout — the
+                // tax settled at placement, never today's catalogue rate: a
+                // rate changed while the order was out would otherwise make
+                // completion ask for a different sum (PAYMENT_INSUFFICIENT).
+                'tax' => (float) $order->tax,
+                'tax_inclusive' => (bool) $order->tax_inclusive,
                 'notes' => "Online order {$order->order_number}"
                     .($order->coupon_code !== null ? " (coupon {$order->coupon_code})" : ''),
                 'idempotency_key' => "order-sale-{$order->id}",
