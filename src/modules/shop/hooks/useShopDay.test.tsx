@@ -21,6 +21,12 @@ import { setShopDayRule, shopToday } from "../../../common/shopDay";
 
 // One in the morning on the 7th in Karachi.
 const ONE_AM = new Date("2026-10-07T01:00:00+05:00");
+// Half past five on the 7th in Karachi — 00:30 on the 7th in UTC. A shop that
+// turns at SIX is still on the 6th, and a device on EITHER clock says the 7th,
+// so the first test proves the rule arrived on the Mac and on the CI runner
+// alike. (Karachi turning at five is the UTC date exactly — on a UTC device
+// "before the rule" and "after it" agree, and the test would prove nothing.)
+const HALF_FIVE = new Date("2026-10-07T05:30:00+05:00");
 
 const envelope = <T,>(data: T) => ({ success: true, message: "", data, errors: {}, meta: {} });
 const settings = (turnsAt: number | undefined) =>
@@ -51,13 +57,13 @@ beforeEach(() => {
 afterEach(() => setShopDayRule(null));
 
 describe("the shop's settings say when its day turns", () => {
-  it("makes one in the morning last night, for a shop that turns at five", async () => {
-    vi.spyOn(shopService, "settings").mockResolvedValue(settings(300));
-    expect(shopToday(ONE_AM)).not.toBe("2026-10-06");
+  it("makes the small hours last night, for a shop that turns at six", async () => {
+    vi.spyOn(shopService, "settings").mockResolvedValue(settings(360));
+    expect(shopToday(HALF_FIVE)).not.toBe("2026-10-06");
 
     mount();
 
-    await waitFor(() => expect(shopToday(ONE_AM)).toBe("2026-10-06"));
+    await waitFor(() => expect(shopToday(HALF_FIVE)).toBe("2026-10-06"));
   });
 
   it("follows the shop when it chooses midnight", async () => {

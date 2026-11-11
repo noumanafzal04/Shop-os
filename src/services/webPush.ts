@@ -115,8 +115,8 @@ export async function enablePush(): Promise<PushState> {
       `/firebase-messaging-sw.js?${params.toString()}`,
     );
 
-    const { initializeApp } = await import("firebase/app");
-    const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
+    const { initializeApp } = await import("@firebase/app");
+    const { getMessaging, getToken, onMessage } = await import("@firebase/messaging");
 
     const app = initializeApp(CONFIG as Record<string, string>, "cartze-push");
     const messaging = getMessaging(app);

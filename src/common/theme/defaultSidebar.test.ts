@@ -4,6 +4,8 @@ import path from "node:path";
 
 import { applyTenantTheme, DEFAULT_SIDEBAR, SIDEBAR_CHOICES } from "./tenantTheme";
 
+const SERVER_SETTINGS = path.resolve(__dirname, "../../../../backend/app/Support/ShopSettings.php");
+
 /**
  * THE MENU IS IN THE SHOP'S OWN COLOUR UNLESS SOMEBODY SAYS OTHERWISE.
  *
@@ -82,8 +84,11 @@ describe("nobody keeps a default of their own", () => {
     expect(stale, `${file} still falls back to a white sidebar`).toEqual([]);
   });
 
-  it("and the server's default is the same one", () => {
-    const server = fs.readFileSync(path.resolve(__dirname, "../../../../backend/app/Support/ShopSettings.php"), "utf8");
+  // The server is PHP in the repository beside this one. A checkout of the
+  // panel alone (CI) has no such file: the comparison is skipped and says so,
+  // as plans.test.ts and importRowLimit.test.ts do.
+  it.skipIf(!fs.existsSync(SERVER_SETTINGS))("and the server's default is the same one", () => {
+    const server = fs.readFileSync(SERVER_SETTINGS, "utf8");
     const found = /'theme_sidebar'\s*=>\s*'([a-z]+)'/.exec(server);
 
     // THE DENOMINATOR: a renamed key would make the next line compare undefined.
