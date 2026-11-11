@@ -14,6 +14,13 @@ export interface SetupPayload {
   address?: string;
   latitude?: number;
   longitude?: number;
+  /** The number on the receipt. */
+  phone?: string;
+  /** The shop's clock, when it was chosen on the setup steps; left out it follows the city. */
+  timezone?: string;
+  /** Opening hours, day 0 = Sunday. */
+  business_hours?: Array<{ day: number; open: string; close: string }>;
+  delivery_fee?: number;
 }
 
 export interface City {
