@@ -69,6 +69,12 @@ return new class extends Migration
             $table->dropForeign(['province_id']);
             $table->dropForeign(['country_id']);
             $table->dropUnique(['province_id', 'name']);
+            // Every index that names a column goes before the column: SQLite
+            // rebuilds the table on a drop and refuses an index left pointing
+            // at nothing (CI's "migrations go back down" check, 2026-11-11).
+            $table->dropUnique(['geo_id']);
+            $table->dropIndex(['province_id']);
+            $table->dropIndex(['country_id']);
             $table->unique('name');
             $table->dropColumn(['geo_id', 'province_id', 'country_id']);
         });

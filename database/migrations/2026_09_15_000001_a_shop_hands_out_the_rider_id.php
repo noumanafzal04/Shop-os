@@ -77,8 +77,10 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('rider_profiles', function (Blueprint $table): void {
-            $table->dropConstrainedForeignId('vouched_by_tenant_id');
-            $table->dropColumn('claimed_at');
+            // The index first: SQLite refuses a column dropped from under it.
+            $table->dropForeign(['vouched_by_tenant_id']);
+            $table->dropIndex(['vouched_by_tenant_id']);
+            $table->dropColumn(['vouched_by_tenant_id', 'claimed_at']);
         });
 
         Schema::table('rider_profiles', function (Blueprint $table): void {
