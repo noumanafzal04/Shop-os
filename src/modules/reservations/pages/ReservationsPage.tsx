@@ -88,13 +88,13 @@ export default function ReservationsPage() {
 
   return (
     <>
-      <PageMeta title="Reservations" description="Customer reservations" />
+      <PageMeta title="Items on hold" description="Items customers asked you to keep for them" />
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Reservations</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-white/90">Items on hold</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Accepting a reservation puts stock on hold until pickup or expiry.
+            Items customers asked you to keep for them. Accepting one holds the stock until they collect it or the hold runs out.
           </p>
         </div>
         <div className="w-48">

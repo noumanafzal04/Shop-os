@@ -90,9 +90,9 @@ describe("what goes where", () => {
     expect(part("finance", "basic", "Expense Manager")).toBe("Daily work");
   });
 
-  it("somebody waiting to hear about a reservation is daily work, not an entry in the customer book", () => {
-    expect(part("retail", "advanced", "Reservations")).toBe("Daily work");
-    expect(part("retail", "basic", "Reservations")).toBe("Daily work");
+  it("somebody waiting to hear about an item on hold is daily work, not an entry in the customer book", () => {
+    expect(part("retail", "advanced", "Items on hold")).toBe("Daily work");
+    expect(part("retail", "basic", "Items on hold")).toBe("Daily work");
   });
 
   it("settings and help close the rail", () => {

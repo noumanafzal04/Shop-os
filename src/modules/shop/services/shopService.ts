@@ -149,6 +149,21 @@ export interface GalleryImage {
 }
 
 /** What the settings screen is told about the shop's currency. */
+/**
+ * The clocks a shop may keep, the one it keeps, and whether it may still
+ * change — fixed once it has traded, like the currency, because moving it
+ * would move sales from one counted day into another.
+ */
+export interface ShopTimezones {
+  current: string;
+  locked: boolean;
+  why: string | null;
+  /** The zones of the shop's own country — offered first. */
+  suggested: string[];
+  /** Every zone the server keeps, with what it reads against UTC now. */
+  options: Array<{ id: string; label: string }>;
+}
+
 export interface ShopCurrencies {
   current: CurrencyFormat;
   /** There is money on the books: the currency is fixed. */
@@ -308,6 +323,8 @@ export const shopService = {
   settings: () => apiGet<ShopSettings>("/shop/settings"),
   /** Which currencies there are, which this shop is on, and whether it may still change. */
   currencies: () => apiGet<ShopCurrencies>("/shop/currencies"),
+  /** Which clocks there are, which this shop keeps, and whether it may still change. */
+  timezones: () => apiGet<ShopTimezones>("/shop/timezones"),
   /**
    * What this shop has, and what it has not.
    *

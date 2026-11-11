@@ -6,6 +6,7 @@ import Badge from "../../../components/ui/badge/Badge";
 import Button from "../../../components/ui/button/Button";
 import { Modal } from "../../../components/ui/modal";
 import { nextStep } from "../orderFlow";
+import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import { STAGE } from "./orderStage";
 import type { OrderStatus, OwnerOrder, Rider } from "../services/ordersService";
 import { HowItReaches } from "./HowItReaches";
@@ -165,12 +166,19 @@ export function OrderDetail({
                 </span>
               </li>
             ))}
-            {Number(order.delivery_fee) > 0 && (
-              <li className="flex justify-between gap-3 px-3.5 py-2.5 text-theme-sm text-gray-500 dark:text-gray-400">
-                <span>Delivery</span>
-                <span className="tabular-nums">{money(order.delivery_fee)}</span>
-              </li>
-            )}
+            {/* The money off, the tax and the delivery — each as the server
+                priced it, so the lines and the total add up on the sheet. */}
+            {orderMoneyLines(order, order.fulfillment_type)
+              .filter((line) => line.kind !== "goods" && line.kind !== "total")
+              .filter((line) => line.kind !== "delivery" || line.amount > 0)
+              .map((line) => (
+                <li key={line.key} className="flex justify-between gap-3 px-3.5 py-2.5 text-theme-sm text-gray-500 dark:text-gray-400">
+                  <span>{line.label}</span>
+                  <span className={`tabular-nums ${line.kind === "off" ? "text-success-600 dark:text-success-400" : ""}`}>
+                    {moneyLineValue(line, money)}
+                  </span>
+                </li>
+              ))}
             <li className="flex justify-between gap-3 bg-gray-50 px-3.5 py-3 dark:bg-white/[0.04]">
               <span className="font-semibold text-gray-800 dark:text-white/90">Total</span>
               <span className="text-lg font-bold tabular-nums text-gray-800 dark:text-white/90">

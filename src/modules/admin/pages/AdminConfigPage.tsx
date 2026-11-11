@@ -24,7 +24,7 @@ import { platformMoney } from "../../../common/format/currency";
 
 const FEATURE_LABEL: Record<string, string> = {
   products: "Products", services: "Services", inventory: "Inventory",
-  marketplace: "Online", reservations: "Reservations", delivery: "Delivery",
+  marketplace: "Online", reservations: "Items on hold", delivery: "Delivery",
   dine_in: "Dine-in", pos: "POS", expenses: "Expense & Income", images: "Images",
 };
 

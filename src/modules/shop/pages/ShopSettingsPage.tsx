@@ -14,7 +14,7 @@ import { useToast } from "../../../components/ui/toast";
 import { FilterTabs } from "../../../components/ui/tabs/FilterTabs";
 import { ApiError } from "../../../common/types/api";
 import { apiGet, apiPut } from "../../../common/api/client";
-import { useCurrency, useShopCurrencies, useShopSettings, useUpdateShopSettings } from "../hooks/useShop";
+import { useCurrency, useShopCurrencies, useShopSettings, useShopTimezones, useUpdateShopSettings } from "../hooks/useShop";
 import { cityForPin, useCities } from "../../../common/geo/places";
 import { CityPicker } from "../../../common/geo/CityPicker";
 import { formatIn } from "../../../common/format/currency";
@@ -229,6 +229,8 @@ export default function ShopSettingsPage() {
     mutationFn: (payload: Record<string, unknown>) => apiPut<Tenant>("/shop", payload),
     onSuccess: ({ data }) => {
       queryClient.invalidateQueries({ queryKey: ["shop"] });
+      queryClient.invalidateQueries({ queryKey: ["shop-settings", "timezones"] });
+      setZone(null);
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       if (user) setUser({ ...user, tenant: data });
       toast.success("Shop profile saved.");
@@ -239,6 +241,9 @@ export default function ShopSettingsPage() {
     business_name: "", city_id: "", phone: "", address: "", delivery_fee: "0", latitude: "", longitude: "",
   });
   const [profileDirty, setProfileDirty] = useState(false);
+  // The shop's clock — sent only when it was changed here (see Location).
+  const timezones = useShopTimezones();
+  const [zone, setZone] = useState<string | null>(null);
   const set = (k: string, v: string) => { setForm((f) => ({ ...f, [k]: v })); setProfileDirty(true); };
 
   // ── The shop's mark, as printed on its invoices ──────────────────────
@@ -313,6 +318,7 @@ export default function ShopSettingsPage() {
       delivery_fee: Number(form.delivery_fee) || 0,
       latitude: form.latitude !== "" ? Number(form.latitude) : null,
       longitude: form.longitude !== "" ? Number(form.longitude) : null,
+      ...(zone !== null && !timezones.data?.locked ? { timezone: zone } : {}),
     });
   };
 
@@ -727,6 +733,34 @@ export default function ShopSettingsPage() {
                     <p className="text-theme-xs text-success-600 dark:text-success-400">
                       Pinned at {Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)}
                     </p>
+                  )}
+                  {/* THE SHOP'S CLOCK. Set from the city when the shop was
+                      made; chosen here until the first sale, then fixed — the
+                      currency's rule, said in the server's own words. */}
+                  {timezones.data && (
+                    timezones.data.locked ? (
+                      <div data-testid="timezone-locked">
+                        <p className="text-sm font-medium text-gray-800 dark:text-white/90">Time zone: {timezones.data.current.replace(/_/g, " ")}</p>
+                        <p className="mt-1.5 rounded-lg bg-gray-50 px-3 py-2 text-theme-xs text-gray-600 dark:bg-white/5 dark:text-gray-300">{timezones.data.why}</p>
+                      </div>
+                    ) : (
+                      <Field label="Time zone" hint="Your shop's clock — when its day starts, when offers run, when it opens. Pick it before your first sale; it is locked after that.">
+                        <Select
+                          aria-label="Time zone"
+                          className="max-w-sm"
+                          value={zone ?? timezones.data.current}
+                          options={[
+                            ...timezones.data.options.filter((o) => timezones.data!.suggested.includes(o.id)),
+                            ...timezones.data.options.filter((o) => !timezones.data!.suggested.includes(o.id)),
+                          ].map((o) => ({ value: o.id, label: o.label }))}
+                          onChange={(v) => {
+                            if (!v) return;
+                            setZone(v === timezones.data!.current ? null : v);
+                            setProfileDirty(true);
+                          }}
+                        />
+                      </Field>
+                    )
                   )}
                 </SectionCard>
               }

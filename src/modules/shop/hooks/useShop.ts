@@ -125,6 +125,15 @@ export function useShopCurrencies(enabled: boolean = true) {
   });
 }
 
+/** The clocks a shop may keep, and whether it still may — asked by the settings screen alone. */
+export function useShopTimezones(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["shop-settings", "timezones"],
+    queryFn: async () => (await shopService.timezones()).data,
+    enabled,
+  });
+}
+
 /**
  * The shop's currency as the server describes it — its mark, where its commas
  * go, whether a whole amount carries ".00". The default (rupees) until the

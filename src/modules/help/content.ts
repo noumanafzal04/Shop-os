@@ -1746,7 +1746,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: "reservations",
-    title: "Reservations",
+    title: "Items on hold",
     summary: "Holding stock for a customer who is coming back for it.",
     group: "Selling",
     modules: ["reservations"],

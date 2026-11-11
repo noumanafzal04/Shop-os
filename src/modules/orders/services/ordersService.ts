@@ -31,8 +31,19 @@ export interface CustomerOrder {
    */
   branch?: { name: string; address: string | null; phone: string | null } | null;
   subtotal: string;
-  /** A coupon's rupees off. The total is subtotal − discount + delivery. */
+  /**
+   * All the money off the goods — coupon, the shop's promotion and a member's
+   * discount (orders are priced by the till's rules since 2026-11-11). The
+   * shares say how it was made up; the coupon's is what is left.
+   */
   discount?: string;
+  promotion_name?: string | null;
+  promotion_discount?: string;
+  member_discount?: string;
+  /** The tax it was quoted — inside the prices or on top of them. */
+  tax?: string;
+  tax_inclusive?: boolean;
+  coupon_code?: string | null;
   delivery_fee: string;
   total: string;
   items?: OrderItem[];
@@ -98,8 +109,15 @@ export type OrderAsked = Pick<CounterOrderPayload, "channel" | "fulfillment_type
 /** The server's own figures for an order that has not been placed. */
 export interface OrderWorth {
   subtotal: number;
+  /** All the money off — the shares below say how it was made up. */
   discount: number;
   coupon_code: string | null;
+  coupon_discount: number;
+  promotion_name: string | null;
+  promotion_discount: number;
+  member_discount: number;
+  tax: number;
+  tax_inclusive: boolean;
   delivery_fee: number;
   total: number;
   lines: Array<{ product_id: string; variant_id: string | null; quantity: number; unit_price: number; line_total: number }>;
@@ -174,6 +192,14 @@ export interface OwnerOrder {
   channel: string;
   delivery_address: string | null;
   subtotal: string;
+  /** The money off and how it was made up; the tax it was quoted. Absent shares = an order from before offers reached orders. */
+  discount?: string;
+  coupon_code?: string | null;
+  promotion_name?: string | null;
+  promotion_discount?: string;
+  member_discount?: string;
+  tax?: string;
+  tax_inclusive?: boolean;
   delivery_fee: string;
   total: string;
   notes: string | null;
@@ -236,6 +262,8 @@ export const ordersService = {
   // customer
   myOrders: (page = 1) => apiGet<CustomerOrder[]>("/customer/orders", { params: { page } }),
   place: (payload: PlaceOrderPayload) => apiPost<CustomerOrder>("/customer/orders", payload),
+  /** What this basket comes to at this shop — the placing path, stopped before it places. */
+  myWorth: (payload: Omit<PlaceOrderPayload, "idempotency_key">) => apiPost<OrderWorth>("/customer/orders/worth", payload),
   cancelMine: (id: string) => apiPost<CustomerOrder>(`/customer/orders/${id}/cancel`),
 
   // owner

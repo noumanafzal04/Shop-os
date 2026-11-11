@@ -15,6 +15,7 @@ import { SearchGlyph } from "../../../components/ui/filters";
 import { useToast } from "../../../components/ui/toast";
 import { useCategories, useProducts } from "../../catalog/hooks/useCatalog";
 import { leftOf, whyNotOrderable } from "../whatIsLeft";
+import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import { sellingPrice, sizePrice } from "../../catalog/pricing";
 import { useMoney, useShopSettings } from "../../shop/hooks/useShop";
 import { printTheSlip, slipSays } from "../kitchenSlip";
@@ -606,8 +607,13 @@ export default function TakeOrderPage() {
               <>
                 <Figure label="Items" value={String(units)} />
                 <Figure label="The order" value={money(worth.subtotal)} />
-                {worth.discount > 0 && <Figure label={`Coupon ${worth.coupon_code ?? ""}`.trim()} value={`−${money(worth.discount)}`} tone="good" />}
-                {fulfillment === "delivery" && <Figure label="Delivery" value={worth.delivery_fee > 0 ? money(worth.delivery_fee) : "Free"} />}
+                {/* Coupon, offer, member discount, tax, delivery — each as the
+                    server priced it; nothing here is added up on the screen. */}
+                {orderMoneyLines(worth, fulfillment)
+                  .filter((line) => line.kind !== "goods" && line.kind !== "total")
+                  .map((line) => (
+                    <Figure key={line.key} label={line.label} value={moneyLineValue(line, money)} tone={line.kind === "off" ? "good" : undefined} />
+                  ))}
               </>
             )}
             {short.length > 0 && (

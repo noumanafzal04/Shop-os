@@ -56,7 +56,7 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
   "coupons.manage": { label: "Coupons & promotions" },
   "expenses.manage": { label: "Expenses" },
   "reports.view": { label: "View reports" },
-  "reservations.manage": { label: "Reservations" },
+  "reservations.manage": { label: "Items on hold" },
   "orders.manage": { label: "Online orders" },
   "settings.manage": { label: "Shop settings" },
 };

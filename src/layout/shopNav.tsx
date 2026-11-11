@@ -210,11 +210,13 @@ export function shopMenuInFull(
     // shopkeeper holding customers' money needs it where they'll see it daily.
     ...(has("documents") ? [{ icon: <DocsIcon />, name: "Quotes & Advances", path: "/tenant/documents" }] : []),
     ...(has("marketplace") || has("delivery") ? [{ icon: <PaperPlaneIcon />, name: "Orders", path: "/tenant/orders" }] : []),
-    // Somebody asked for a table or an appointment and is waiting to hear. It
-    // was the last row of the Customers folder — a queue of people, filed with
-    // the address book. Still needs something to sell first.
+    // A customer asked the shop to keep something for them and is waiting to
+    // hear. It was the last row of the Customers folder — a queue of people,
+    // filed with the address book. Still needs something to sell first.
+    // Named "Items on hold", not "Reservations": on a restaurant's menu that
+    // word read as table bookings, which this is not (owner, 2026-11-11).
     ...(hasSomethingToSell && has("reservations")
-      ? [{ icon: <BookmarkIcon />, name: "Reservations", path: "/tenant/reservations" }]
+      ? [{ icon: <BookmarkIcon />, name: "Items on hold", path: "/tenant/reservations" }]
       : []),
     ...(has("delivery") ? [{ icon: <UserIcon />, name: "Riders", path: "/tenant/riders" }] : []),
     ...forecourt,

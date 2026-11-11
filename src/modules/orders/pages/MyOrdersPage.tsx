@@ -10,6 +10,7 @@ import { MyReservations } from "../../marketplace/components/MyReservations";
 import Pager from "../../../components/ui/pager";
 import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
 import { customerSays } from "../orderFlow";
+import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ROW_ACTION_DANGER } from "../../../components/ui/table/rowAction";
@@ -90,19 +91,17 @@ export default function MyOrdersPage() {
                   ))}
                   {/* The lines and the total did not add up, and nothing said
                       why: the delivery charge (and any coupon) were in the
-                      total and on no line. */}
-                  {Number(o.discount ?? 0) > 0 && (
-                    <div className="flex justify-between">
-                      <span>Coupon</span>
-                      <span>− {money(o.discount ?? 0, o.shop?.currency)}</span>
-                    </div>
-                  )}
-                  {Number(o.delivery_fee) > 0 && (
-                    <div className="flex justify-between">
-                      <span>Delivery</span>
-                      <span>{money(o.delivery_fee, o.shop?.currency)}</span>
-                    </div>
-                  )}
+                      total and on no line. Now every share the server priced —
+                      coupon, offer, member discount, tax, delivery — is a line. */}
+                  {orderMoneyLines(o, o.fulfillment_type)
+                    .filter((line) => line.kind !== "goods" && line.kind !== "total")
+                    .filter((line) => line.kind !== "delivery" || line.amount > 0)
+                    .map((line) => (
+                      <div key={line.key} className="flex justify-between">
+                        <span>{line.label}</span>
+                        <span>{moneyLineValue(line, (x) => money(x, o.shop?.currency))}</span>
+                      </div>
+                    ))}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">

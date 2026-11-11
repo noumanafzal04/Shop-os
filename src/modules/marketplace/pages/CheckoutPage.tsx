@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQueries } from "@tanstack/react-query";
+
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 
 import { uuid } from "../../../common/uuid";
 import PageMeta from "../../../components/common/PageMeta";
@@ -10,6 +12,8 @@ import { ApiError } from "../../../common/types/api";
 import { useAuthStore } from "../../../stores/authStore";
 import { basketCurrency, useCartStore } from "../../../stores/cartStore";
 import { usePlaceOrder } from "../../orders/hooks/useOrders";
+import { moneyLineValue, orderMoneyLines } from "../../orders/orderMoney";
+import { ordersService, type PlaceOrderPayload } from "../../orders/services/ordersService";
 import { DeliveryAddressField } from "../components/DeliveryAddressField";
 import { money } from "../components/format";
 import { BagIcon, CheckIcon, StoreIcon, TruckIcon } from "../components/MarketIcons";
@@ -114,13 +118,65 @@ export default function CheckoutPage() {
   };
   const figuresFor = (g: (typeof groups)[number]) => orderFigures(g.subtotal, howFor(g.shop_slug), termsFor(g.shop_slug) ?? {});
 
+  /**
+   * WHAT EACH ORDER WILL COME TO — ASKED OF THE SHOP, NOT ADDED UP HERE.
+   *
+   * An order is priced by the till's rules: the shop's tax, its best offer
+   * and a member's discount, beside the coupon and the delivery. A sum done
+   * in this page would be a different figure from the one charged, so each
+   * shop's order is put to the server's placing path, stopped before it
+   * places (`/customer/orders/worth`): no order, no stock held, no coupon
+   * spent. The coupon box is asked once the typing stops.
+   */
+  // Debounced as TEXT: a fresh array every render is a fresh value every
+  // render, and the timer would fire, re-render and fire again for ever.
+  const askedText = useDebouncedValue(JSON.stringify(
+    groups.map((g) => {
+      const how = howFor(g.shop_slug);
+      const mine = choicesFor(g.shop_slug);
+
+      return {
+        shop_slug: g.shop_slug,
+        fulfillment_type: how,
+        latitude: how === "delivery" ? (mine.lat ?? undefined) : undefined,
+        longitude: how === "delivery" ? (mine.lng ?? undefined) : undefined,
+        coupon_code: mine.coupon.trim() || undefined,
+        items: g.lines.map((l) => ({
+          product_id: l.product_id,
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+          modifier_option_ids: l.modifier_option_ids,
+        })),
+      };
+    }),
+  ), 400);
+  const asked = useMemo(() => JSON.parse(askedText) as Array<Omit<PlaceOrderPayload, "idempotency_key"> & { shop_slug: string }>, [askedText]);
+  const worths = useQueries({
+    queries: asked.map((payload) => ({
+      queryKey: ["market", "order-worth", JSON.stringify(payload)],
+      queryFn: async () => (await ordersService.myWorth(payload)).data,
+      staleTime: 0,
+      retry: false,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const worthFor = (slug: string) => {
+    const at = asked.findIndex((a) => a.shop_slug === slug);
+
+    return at === -1 ? undefined : worths[at];
+  };
+  // Every shop has answered for the order as it stands now — not the one
+  // before the last tap, and not a refusal.
+  const allPriced =
+    asked.length === groups.length && worths.every((w) => w.data !== undefined && !w.isFetching && !w.isError);
+
   const needsAddress = groups.some(
     (g) => howFor(g.shop_slug) === "delivery" && choicesFor(g.shop_slug).address.trim() === "",
   );
   // Below a shop's minimum for delivery: the server would refuse it, so it is
   // not sent — the card says by how much, and that collecting it has none.
   const belowMinimum = groups.some((g) => figuresFor(g).short > 0);
-  const grandTotal = groups.reduce((sum, g) => sum + figuresFor(g).total, 0);
+  const grandTotal = groups.reduce((sum, g) => sum + Number(worthFor(g.shop_slug)?.data?.total ?? 0), 0);
 
   const place = async () => {
     setPlacing(true);
@@ -238,6 +294,9 @@ export default function CheckoutPage() {
               const mine = choicesFor(group.shop_slug);
               const how = howFor(group.shop_slug);
               const figures = figuresFor(group);
+              const worth = worthFor(group.shop_slug);
+              const priced = worth?.data !== undefined && !worth.isFetching ? worth.data : null;
+              const refused = worth?.error instanceof ApiError ? worth.error.message : null;
               const minimum = termsFor(group.shop_slug)?.min_order_amount ?? null;
               const problem = failed[group.shop_slug];
 
@@ -306,19 +365,22 @@ export default function CheckoutPage() {
                       ))}
                     </div>
 
-                    {/* What it comes to, delivery and all — before it is placed. */}
-                    <div className="space-y-1 rounded-2xl bg-gray-50 px-4 py-3 text-sm dark:bg-white/5">
-                      <div className="flex justify-between gap-3">
-                        <span className="text-gray-500 dark:text-gray-400">Items</span>{" "}
-                        <span className="tabular-nums text-gray-900 dark:text-white">{money(group.subtotal, group.currency)}</span>
-                      </div>
-                      {how === "delivery" && (
-                        <div className="flex justify-between gap-3">
-                          <span className="text-gray-500 dark:text-gray-400">Delivery</span>{" "}
-                          <span className="tabular-nums text-gray-900 dark:text-white">
-                            {figures.delivery > 0 ? money(figures.delivery, group.currency) : "Free"}
-                          </span>
-                        </div>
+                    {/* What it comes to — the shop's own figures, tax, offers and
+                        delivery included — before it is placed. */}
+                    <div className="space-y-1 rounded-2xl bg-gray-50 px-4 py-3 text-sm dark:bg-white/5" data-testid="checkout-figures">
+                      {priced !== null ? (
+                        orderMoneyLines(priced, how).map((line) => (
+                          <div key={line.key} className={`flex justify-between gap-3 ${line.kind === "total" ? "border-t border-gray-200 pt-1 font-semibold dark:border-white/10" : ""}`}>
+                            <span className={line.kind === "total" ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"}>{line.label}</span>{" "}
+                            <span className={`tabular-nums ${line.kind === "off" ? "text-success-600 dark:text-success-400" : "text-gray-900 dark:text-white"}`}>
+                              {moneyLineValue(line, (x) => money(x, group.currency))}
+                            </span>
+                          </div>
+                        ))
+                      ) : refused !== null ? (
+                        <p role="alert" className="text-warning-800 dark:text-warning-300">{refused}</p>
+                      ) : (
+                        <p className="text-gray-500 dark:text-gray-400">Working out the total…</p>
                       )}
                       {figures.toFreeDelivery !== null && figures.short === 0 && (
                         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -379,7 +441,9 @@ export default function CheckoutPage() {
                 {groups.map((group) => (
                   <div key={group.shop_slug} className="flex items-center justify-between gap-3">
                     <dt className="min-w-0 truncate text-gray-600 dark:text-gray-300">{group.shop_name}</dt>
-                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">{money(figuresFor(group).total, group.currency)}</dd>
+                    <dd className="shrink-0 tabular-nums text-gray-900 dark:text-white">
+                      {worthFor(group.shop_slug)?.data ? money(worthFor(group.shop_slug)?.data?.total, group.currency) : "—"}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -387,19 +451,19 @@ export default function CheckoutPage() {
               <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-white/5">
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">Total</span>
                 <span data-testid="checkout-total" className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
-                  {one ? money(grandTotal, one) : <span className="text-sm font-medium text-gray-500 dark:text-gray-400" title="These shops trade in different currencies, so there is no single figure that adds them up.">per shop, above</span>}
+                  {!allPriced ? <span className="text-sm font-medium text-gray-500 dark:text-gray-400">…</span> : one ? money(grandTotal, one) : <span className="text-sm font-medium text-gray-500 dark:text-gray-400" title="These shops trade in different currencies, so there is no single figure that adds them up.">per shop, above</span>}
                 </span>
               </div>
 
               <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-brand-500" />
-                Delivery is included. A coupon comes off this when the shop accepts it. You pay on delivery.
+                Tax, offers, your coupon and delivery are included — this is what you pay.
               </p>
 
               <button
                 type="button"
                 onClick={place}
-                disabled={placing || needsAddress || belowMinimum}
+                disabled={placing || needsAddress || belowMinimum || !allPriced}
                 className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-500 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/10 dark:disabled:text-gray-500"
               >
                 {placing
