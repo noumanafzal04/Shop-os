@@ -383,16 +383,20 @@ export default function ShopSettingsPage() {
   const savePrefs = () => {
     if (!prefs) return;
     const sending = [...touched.current];
-    updatePrefs.mutate(Object.fromEntries(sending.map((k) => [k, prefs[k]])) as never, {
-      onSuccess: () => {
+    // The PROMISE, not mutate()'s own callbacks: the save re-reads the shell
+    // and this page is mounted afresh under it, and a callback given to
+    // mutate() belongs to the copy that was unmounted — the settings were
+    // saved and nobody was told (date-format e2e, 2026-11-12). A promise
+    // settles whoever is still on screen.
+    updatePrefs.mutateAsync(Object.fromEntries(sending.map((k) => [k, prefs[k]])) as never).then(
+      () => {
         // Only what was SENT is settled: a switch flipped while the save was
         // on the wire is still unsaved, and stays lit.
         for (const key of sending) touched.current.delete(key);
         setPrefsDirty(touched.current.size > 0);
         toast.success("Settings saved.");
       },
-      onError: failed("Couldn't save your settings."),
-    });
+    ).catch(failed("Couldn't save your settings."));
   };
 
   const online = shop.data?.online_shop_enabled;

@@ -4003,7 +4003,7 @@ export default function PosPage2() {
                             title={c.why ?? undefined}
                             aria-label={`Add one ${c.label} of ${p.name}`}
                             onClick={() => commitPack(p, c.unitId)}
-                            className="rounded-lg border border-brand-300/70 bg-brand-500/10 px-2.5 py-1 text-[12px] font-semibold tabular-nums text-brand-700 transition hover:border-brand-500 hover:bg-brand-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-400/40 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
+                            className="inline-flex min-h-8 items-center rounded-lg border border-brand-300/70 bg-brand-500/10 px-2.5 py-1 text-[12px] font-semibold tabular-nums text-brand-700 transition hover:border-brand-500 hover:bg-brand-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-400/40 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
                           >
                             + {c.label} · {money(c.price)}
                           </button>
