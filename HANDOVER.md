@@ -379,9 +379,14 @@ Deploy guide: `../true-serve-qa-docs/DEPLOY-NEW-DROPLET-PROMPT.md` (updated for 
   orders (the last two only where the shop has them); every step after the first skippable.
 - "Reservations" reads **"Items on hold"** (labels only). Not now (owner): a per-shop full backup
   export/import command.
-- **Still open:** the MySQL CI job's failing test (read its annotations); MySQL `migrate:rollback`
-  stops at `2026_08_27_000001_add_offline_seq_to_sales` (CI does not run it); speed v1 vs v2 on
-  Garments 50k; #AZ24/#AZ25 re-test.
+- **2026-11-12:** CI fully GREEN on both v2 branches (SQLite + MySQL jobs) — the MySQL job's one
+  red test was named by the suite's own annotation (admin activity order tied within a second;
+  now broken by the key). Rollback runs to the bottom on SQLite and MySQL. Full desktop e2e on v2:
+  207 passed, 2 real failures fixed (till pack buttons 28px → 32px; Settings saved silently —
+  reported from the mutateAsync promise). Speed v1 vs v2 on Garments 50k is level after
+  `CatalogPlaces::narrowsNothing` (one selling branch reads nothing).
+- **Still open:** #AZ24/#AZ25 browser re-test; why the Settings page remounts after a save (the
+  toast is fixed, the remount is not explained).
 
 ### 2026-11-06 — v2: products and categories by branch
 
