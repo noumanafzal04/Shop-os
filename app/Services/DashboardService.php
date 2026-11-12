@@ -2020,6 +2020,12 @@ class DashboardService
         return AuditLog::query()
             ->with('user:id,name,email')
             ->latest('created_at')
+            // Rows written in the same second — one tenant's create audits
+            // three or four — came back in whatever order the engine liked:
+            // SQLite and MySQL 9 by insertion, MySQL 8 not, and the newest
+            // entry on the console was a coin toss. The key breaks the tie
+            // (time-ordered ids), the same way every time.
+            ->latest('id')
             ->limit(8)
             ->get()
             ->map(fn (AuditLog $log): array => [

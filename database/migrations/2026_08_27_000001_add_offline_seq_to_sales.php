@@ -37,9 +37,21 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('sales', function (Blueprint $table): void {
+        // On MySQL the device's foreign key had taken this index as its own
+        // (it starts with pos_device_id), so it cannot simply be dropped:
+        // the key comes off, the index goes, and the key goes back on — MySQL
+        // makes it a fresh index of its own. SQLite has no such rule.
+        $mysql = Schema::getConnection()->getDriverName() === 'mysql';
+
+        Schema::table('sales', function (Blueprint $table) use ($mysql): void {
+            if ($mysql) {
+                $table->dropForeign(['pos_device_id']);
+            }
             $table->dropIndex('sales_device_offline_seq_index');
             $table->dropColumn('offline_seq');
+            if ($mysql) {
+                $table->foreign('pos_device_id')->references('id')->on('pos_devices')->nullOnDelete();
+            }
         });
     }
 };

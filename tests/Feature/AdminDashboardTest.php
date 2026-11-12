@@ -470,7 +470,10 @@ class AdminDashboardTest extends TestCase
             $this->assertContains($entry['action'], ['created', 'updated', 'deleted']);
         }
 
-        $latest = AuditLog::query()->latest('created_at')->first();
+        // "Latest" as the console defines it: newest second, then newest key —
+        // created_at alone ties within a second, and MySQL 8 broke the tie its
+        // own way (CI, red from October until its annotation named this test).
+        $latest = AuditLog::query()->latest('created_at')->latest('id')->first();
         $this->assertSame(class_basename($latest->auditable_type), $activity[0]['subject']);
     }
 
