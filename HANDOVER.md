@@ -385,8 +385,16 @@ Deploy guide: `../true-serve-qa-docs/DEPLOY-NEW-DROPLET-PROMPT.md` (updated for 
   207 passed, 2 real failures fixed (till pack buttons 28px → 32px; Settings saved silently —
   reported from the mutateAsync promise). Speed v1 vs v2 on Garments 50k is level after
   `CatalogPlaces::narrowsNothing` (one selling branch reads nothing).
-- **Still open:** #AZ24/#AZ25 browser re-test; why the Settings page remounts after a save (the
-  toast is fixed, the remount is not explained).
+- **Closed the same day:** #AZ24 re-tested in a browser — PASS on both tills (POS and POS 2): "-50"
+  is refused in red, Done stays shut, the total stays the cart's. #AZ25 — PASS on both booking
+  sheets (park as advance, hold a quotation's goods): with shifts not required and no drawer open,
+  cash typed shows the no-drawer note BEFORE the press, with "Open the till". Shop: AZ Retest Store
+  (dev, azretest@app.com). The Settings remount is BY DESIGN: `layout/WrittenTheShopsWay.tsx` keys
+  every page on the date format, so changing it redraws all pages in the new dates; any other
+  setting keeps the page (checked in a browser). The save is now reported from the promise, so
+  that redraw no longer swallows "Settings saved.".
+- **Nothing open on the code side for launch.** What is left is operations: deploy (guide above),
+  rotate tokens/passwords, restrict the map keys, DO VPS audit.
 
 ### 2026-11-06 — v2: products and categories by branch
 
