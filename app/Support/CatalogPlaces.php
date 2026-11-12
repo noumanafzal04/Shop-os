@@ -216,7 +216,7 @@ final class CatalogPlaces
     /** Is this item sold at that branch? Null (no branch) and a godown: yes. */
     public static function isSoldAt(Model $item, ?string $branchId): bool
     {
-        if ($branchId === null || self::isGodown($branchId) || $item->getAttribute('all_branches') !== false) {
+        if ($item->getAttribute('all_branches') !== false || self::narrowsNothing($branchId)) {
             return true;
         }
 
@@ -235,7 +235,7 @@ final class CatalogPlaces
      */
     public static function productsSoldAt(?string $branchId, iterable $products): ?array
     {
-        if ($branchId === null || self::isGodown($branchId)) {
+        if (self::narrowsNothing($branchId)) {
             return null;
         }
         $sold = [];
@@ -265,7 +265,7 @@ final class CatalogPlaces
      */
     public static function narrow(Builder $query, ?string $branchId, string $table, string $pivot, string $key): Builder
     {
-        if ($branchId === null || self::isGodown($branchId)) {
+        if (self::narrowsNothing($branchId)) {
             return $query;
         }
 
@@ -283,7 +283,7 @@ final class CatalogPlaces
      */
     public static function narrowHeld(Builder $query, ?string $branchId): Builder
     {
-        if ($branchId === null || self::isGodown($branchId)) {
+        if (self::narrowsNothing($branchId)) {
             return $query;
         }
 
@@ -308,7 +308,7 @@ final class CatalogPlaces
      */
     public static function categoriesShownAt(?string $branchId): ?array
     {
-        if ($branchId === null || self::isGodown($branchId)) {
+        if (self::narrowsNothing($branchId)) {
             return null;
         }
 
@@ -326,6 +326,42 @@ final class CatalogPlaces
         }
 
         return $keep;
+    }
+
+    /**
+     * NOTHING TO NARROW: no branch named (the owner's "All"), a godown, or a
+     * shop with ONE selling branch.
+     *
+     * That last one is the rule the whole feature was built on — a shop with
+     * one selling branch is unaffected — and it was kept by the data alone:
+     * every row says "All branches", so every filter let everything through,
+     * after reading all of it. On a 50,000-item shop the till's category chips
+     * took 0.35 s against v1's 0.18 s and the till's catalogue page 0.81 s
+     * against 0.61 s, to arrive at the answer "everything" (2026-11-12). Asked
+     * here, once, every reader agrees — the list, the count, the categories
+     * and the till's own "is this sold here" — and none of them reads a row.
+     * An item left listed only at a branch since closed is sold at the one
+     * that remains, as it was before branches had listings at all.
+     */
+    private static function narrowsNothing(?string $branchId): bool
+    {
+        if ($branchId === null || self::isGodown($branchId)) {
+            return true;
+        }
+
+        return Branch::withoutTenancy()
+            ->where('tenant_id', self::tenantOf($branchId))
+            ->where('is_active', true)
+            ->where('kind', Branch::KIND_SHOP)
+            ->count() <= 1;
+    }
+
+    /** A branch's shop never changes, so it is asked once. */
+    private static function tenantOf(string $branchId): ?string
+    {
+        static $tenants = [];
+
+        return $tenants[$branchId] ??= Branch::withoutTenancy()->whereKey($branchId)->value('tenant_id');
     }
 
     private static function isGodown(string $branchId): bool
