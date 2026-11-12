@@ -351,9 +351,41 @@ Newest first. Appended as work happens, not at the end of a sprint — this
 machine may be rebuilt at any time, and anything not written down here and
 pushed is gone. See `docs/decisions/shopos-docs-discipline.md`.
 
+### 2026-11-11/12 — v2 is the launch line: CI green, orders priced like the till, clocks, setup in steps
+
+**The owner (2026-11-06): launch from `v2/backend` + `v2/admin-panel`.** Everything below is on
+those two branches. Never push `backend` / `admin-panel` (their Actions deploy to the OLD droplet).
+Deploy guide: `../true-serve-qa-docs/DEPLOY-NEW-DROPLET-PROMPT.md` (updated for v2; updates run
+`php artisan migrate --force` only — never `migrate:fresh` once a shop exists).
+
+- **CI had been red on every push since October** (300 runs). Fixed: panel tests that passed only
+  on the Mac (a Karachi-time test; a test reading `../backend`), shipped-package audit (axios,
+  follow-redirects, re2js; the umbrella `firebase` swapped for `@firebase/app` + `messaging`, which
+  dropped Firestore/grpc; `@types/node` made explicit); Laravel 13.19 → 13.42 + patched Symfony,
+  commonmark, flysystem (`composer audit` clean); two migration `down()`s that dropped a column under
+  its index (CI's rollback step). Panel CI and the backend SQLite gate are green. The MySQL job: the
+  whole suite passes on local MySQL 9.7; the suite now names any failure itself on GitHub
+  (`tests/Support/GithubAnnotations.php`, readable via the public check-runs annotations API).
+- **An order is priced by the till's rules** (owner: "market standard"): coupon, the best live
+  promotion, a member's discount, then tax per line — one sum, `App\Support\BillTax`, shared with
+  the till. The order keeps its shares, tax, mode and each line's rate; completion replays them.
+  Old orders (0 / null) complete as before. `POST /customer/orders/worth`; checkout, Take order,
+  the order sheet and My orders show the server's lines (`orders/orderMoney.ts`). Migration
+  `2026_11_11_000001_an_order_is_priced_by_the_tills_rules`.
+- **A shop keeps its city's clock** (`App\Support\ShopZone`, PHP's own IANA data — no library);
+  chosen until the first sale, then fixed like the currency (`GET /shop/timezones`, Settings →
+  Location, setup).
+- **First-time setup in steps**: your shop → money & tax → counter & receipt → hours & online
+  orders (the last two only where the shop has them); every step after the first skippable.
+- "Reservations" reads **"Items on hold"** (labels only). Not now (owner): a per-shop full backup
+  export/import command.
+- **Still open:** the MySQL CI job's failing test (read its annotations); MySQL `migrate:rollback`
+  stops at `2026_08_27_000001_add_offline_seq_to_sales` (CI does not run it); speed v1 vs v2 on
+  Garments 50k; #AZ24/#AZ25 re-test.
+
 ### 2026-11-06 — v2: products and categories by branch
 
-On `v2/backend` + `v2/admin-panel` only (the next version; v1 is the launch line).
+On `v2/backend` + `v2/admin-panel` only (now the launch line — see 2026-11-11).
 
 - **Rules** (owner's decisions 2026-10-18 and 2026-11-06): the owner lists a product or a
   category at All branches (the default; every old row reads as All) or the ones ticked; a
