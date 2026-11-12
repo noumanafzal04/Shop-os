@@ -19,6 +19,11 @@
             <group>every-demo-shop</group>
         </exclude>
     </groups>
+    <extensions>
+        <!-- Under GitHub Actions only: each failing test becomes an `::error`
+             annotation, which anybody can read — the job log needs admin. -->
+        <bootstrap class="Tests\Support\GithubAnnotations"/>
+    </extensions>
     <source>
         <include>
             <directory>app</directory>
