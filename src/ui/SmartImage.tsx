@@ -190,5 +190,5 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
       backgroundColor: c.surfaceAlt,
     },
-    initial: { ...typography.display, fontSize: 26, color: c.gray[300] },
+    initial: { ...typography.display, fontSize: 28, lineHeight: 34, color: c.gray[300] },
   });

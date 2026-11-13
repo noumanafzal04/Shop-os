@@ -10,18 +10,30 @@ import { Platform, type ViewStyle } from "react-native";
  */
 export * from "./palette";
 
+/**
+ * One spacing ladder (2026-11-13): 2 · 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
+ * Gutter 16, card padding 12, gap between cards 12, between sections 24.
+ */
 export const spacing = {
+  xxs: 2,
   xs: 4,
   sm: 8,
+  ms: 12,
   md: 16,
+  ml: 20,
   lg: 24,
   xl: 32,
   xxl: 48,
 } as const;
 
+/**
+ * Corners by what they hold: a badge 6, a button / field / thumbnail 12, a
+ * card or banner 16, a sheet 20, a chip / stepper / round button a pill.
+ */
 export const radius = {
-  sm: 10,
-  md: 14,
+  xs: 6,
+  sm: 12,
+  md: 16,
   lg: 20,
   xl: 28,
   full: 9999,
@@ -32,15 +44,41 @@ export const radius = {
  * because a heading that changes size with the theme is a heading nobody
  * designed.
  */
+/**
+ * ONE TYPE SCALE, SPLASH TO RECEIPT (2026-11-13).
+ *
+ * Every size carries its line height, so a line of text is the same height
+ * wherever it sits and rows line up without anybody nudging a margin. One
+ * family — the platform's own, which costs no download and no flash. Money
+ * is set in tabular figures so a column of prices lines up.
+ *
+ *   display 28/34  the ETA, a confirmation
+ *   title   22/28  screen titles
+ *   h3      18/24  section headings
+ *   name    16/22  a shop's or an item's name
+ *   body    15/22  · subtitle 15/22
+ *   label   14/18  buttons (M), chips, field labels
+ *   small   13/18  descriptions
+ *   caption 12/16  small labels
+ *   tiny    11/14  the floor — a date, a count
+ *   micro   11/14  bold: badges only
+ *   price   15/20 · total 18/24 · button 16/20
+ */
 export const typography = {
-  display: { fontSize: 30, fontWeight: "700" as const, letterSpacing: -0.5 },
-  title: { fontSize: 22, fontWeight: "700" as const, letterSpacing: -0.3 },
-  h3: { fontSize: 17, fontWeight: "600" as const },
-  subtitle: { fontSize: 15, fontWeight: "400" as const },
-  body: { fontSize: 15, fontWeight: "400" as const },
-  label: { fontSize: 14, fontWeight: "600" as const },
-  small: { fontSize: 13, fontWeight: "400" as const },
-  tiny: { fontSize: 11, fontWeight: "500" as const },
+  display: { fontSize: 28, lineHeight: 34, fontWeight: "700" as const, letterSpacing: -0.4 },
+  title: { fontSize: 22, lineHeight: 28, fontWeight: "700" as const, letterSpacing: -0.3 },
+  h3: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const, letterSpacing: -0.2 },
+  name: { fontSize: 16, lineHeight: 22, fontWeight: "600" as const },
+  subtitle: { fontSize: 15, lineHeight: 22, fontWeight: "400" as const },
+  body: { fontSize: 15, lineHeight: 22, fontWeight: "400" as const },
+  label: { fontSize: 14, lineHeight: 18, fontWeight: "600" as const },
+  small: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const },
+  caption: { fontSize: 12, lineHeight: 16, fontWeight: "500" as const },
+  tiny: { fontSize: 11, lineHeight: 14, fontWeight: "500" as const },
+  micro: { fontSize: 11, lineHeight: 14, fontWeight: "700" as const, letterSpacing: 0.2 },
+  price: { fontSize: 15, lineHeight: 20, fontWeight: "600" as const, fontVariant: ["tabular-nums"] as ("tabular-nums")[] },
+  total: { fontSize: 18, lineHeight: 24, fontWeight: "700" as const, fontVariant: ["tabular-nums"] as ("tabular-nums")[] },
+  button: { fontSize: 16, lineHeight: 20, fontWeight: "600" as const },
 } as const;
 
 /**

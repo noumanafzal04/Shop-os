@@ -142,5 +142,5 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 6,
     },
     pressed: { opacity: 0.6 },
-    text: { ...typography.tiny, color: c.textSecondary, fontWeight: "600", fontSize: 11 },
+    text: { ...typography.tiny, color: c.textSecondary, fontWeight: "600", fontSize: 11, lineHeight: 14 },
   });

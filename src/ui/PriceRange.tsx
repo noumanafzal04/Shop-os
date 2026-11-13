@@ -186,7 +186,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     readout: { flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: spacing.sm },
-    bound: { ...typography.label, color: c.text, fontSize: 15 },
+    bound: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     dash: { ...typography.small, color: c.textMuted },
 
     trackRow: { height: THUMB + 8, justifyContent: "center" },

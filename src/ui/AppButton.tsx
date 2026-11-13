@@ -133,5 +133,5 @@ const makeStyles = (c: ThemeColors) =>
    */
   disabled: { backgroundColor: c.surfaceAlt, borderWidth: 0, opacity: 1 },
   pressed: { opacity: 0.9 },
-  text: { fontSize: 15, fontWeight: "700" },
+  text: { fontSize: 15, lineHeight: 22, fontWeight: "700" },
 });

@@ -35,5 +35,5 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: spacing.xs,
     alignItems: "center",
   },
-  text: { color: c.white, fontSize: 12, fontWeight: "600" },
+  text: { color: c.white, fontSize: 12, lineHeight: 16, fontWeight: "600" },
 });

@@ -86,6 +86,6 @@ const makeStyles = (c: ThemeColors) =>
   },
   focused: { borderColor: c.brand[500], backgroundColor: c.surface },
   errored: { borderColor: c.error },
-  input: { flex: 1, fontSize: 15, color: c.gray[900], paddingVertical: 12 },
+  input: { flex: 1, fontSize: 15, lineHeight: 22, color: c.gray[900], paddingVertical: 12 },
   errorText: { ...typography.small, color: c.error, marginTop: 4 },
 });

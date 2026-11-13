@@ -189,7 +189,6 @@ const makeStyles = (c: ThemeColors) =>
       ...typography.tiny,
       color: c.onWarm,
       fontWeight: "800",
-      fontSize: 9.5,
       letterSpacing: 0.2,
     },
   });

@@ -114,8 +114,8 @@ const styles = (c: ThemeColors) =>
       borderColor: c.border,
     },
     chipOn: { backgroundColor: c.primary, borderColor: c.primary },
-    label: { ...typography.label, fontSize: 13, color: c.textSecondary },
+    label: { ...typography.label, fontSize: 13, lineHeight: 18, color: c.textSecondary },
     labelOn: { color: c.onPrimary },
-    count: { ...typography.label, fontSize: 13, color: c.textMuted },
+    count: { ...typography.label, fontSize: 13, lineHeight: 18, color: c.textMuted },
     countOn: { color: c.onPrimary, opacity: 0.85 },
   });

@@ -115,7 +115,7 @@ export function ConfirmHost() {
         >
           <View style={[styles.grabber, { backgroundColor: c.border }]} />
 
-          <Text style={[typography.title, { color: c.text, fontSize: 20 }]}>{request.title}</Text>
+          <Text style={[typography.title, { color: c.text, fontSize: 18, lineHeight: 24 }]}>{request.title}</Text>
           {!!request.message && (
             <Text style={[typography.body, { color: c.textSecondary }]}>{request.message}</Text>
           )}

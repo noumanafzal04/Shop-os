@@ -1,4 +1,4 @@
-import { brand, cream, gray, green, gradients, ink, meadow, oceanBrand, warm, type ColorScale } from "./tokens";
+import { brand, cream, dealOrange, gray, green, gradients, ink, meadow, tealBrand, tealDarkBrand, tealDarkGray, tealGray, tealSignal, warm, type ColorScale } from "./tokens";
 
 /**
  * The two themes.
@@ -249,11 +249,13 @@ export const lightColors: ThemeColors = {
    */
   error: "#9f1239",
   errorBg: "#fff1f2",
-  success: green[600],
-  successBg: green[100],
+  // Measured, and the same in both modes (2026-11-13): #157F3C is 5.1:1 on
+  // white where the olive it replaces was not a text colour at all.
+  success: "#157f3c",
+  successBg: "#ecfdf3",
   // The DARKER step: warning copy is text, and warm[500] is a fill.
-  warning: warm[700],
-  warningBg: warm[100],
+  warning: "#b54708",
+  warningBg: "#fffaeb",
   info: "#2e90fa",
   infoBg: "#eff8ff",
 
@@ -363,73 +365,8 @@ export const darkColors: ThemeColors = {
  * on a marketplace home screen.
  */
 
-/**
- * On a dark ground the ladder runs the other way — see `darkBrand` for the
- * whole argument. #1A759F on near-black is a dead navy rectangle; the brand
- * at full strength here is a bright #4BB3D4, and "louder than full strength"
- * can only mean brighter.
- *
- * The consequence is that `onPrimary` FLIPS between themes on this palette:
- * white on #1A759F in light, a deep ocean ink on #4BB3D4 in dark. That is the
- * one asymmetry in the whole file and it is forced — a colour light enough to
- * read on black cannot also carry white.
- */
-const oceanDarkBrand: ColorScale = {
-  50: "#07202c",
-  100: "#0b2d3d",
-  200: "#11435a",
-  300: "#175a79",
-  400: "#2a85ab",
-  500: "#4bb3d4",
-  600: "#6cc6e0",
-  700: "#94d8ec",
-  800: "#bde8f4",
-  900: "#e0f4fa",
-};
 
-/**
- * THE NEUTRALS TRAVEL WITH THE BRAND — the rule this file learned the hard
- * way and `riderTheme.test.tsx` now measures.
- *
- * `tokens.ts` explains why the shared greys are WARM: they were built to
- * carry #E94E00, 3.9 deg away on the hue wheel. The emerald palette left them
- * alone for a while and shipped a beige page under a green wordmark, 136 deg
- * apart.
- *
- * So these are cool, at ≈200 deg — the primary's own hue, 3.6 deg from
- * `gray[100]`. The LIGHTNESS LADDER is copied step for step from the warm
- * scale, so nothing re-lays out and every contrast relationship the screens
- * were built on survives; only the hue moves. Saturation is low for the same
- * reason the emerald ramp's was: a cool grey shows its hue far sooner than a
- * warm one, and at the warm scale's saturation this would read as pale blue
- * rather than as grey.
- */
-const meadowGray: ColorScale = {
-  50: "#f6f9fb",
-  100: "#eef3f6",
-  200: "#e0e9ee",
-  300: "#ccd9e1",
-  400: "#98a9b4",
-  500: "#6c7d88",
-  600: "#4e5f6a",
-  700: "#39474f",
-  800: "#222c33",
-  900: "#121a1f",
-};
 
-/** Same ladder as `darkGray`, same hue correction. */
-const meadowDarkGray: ColorScale = {
-  50: "#0c1217",
-  100: "#121a20",
-  200: "#1c262d",
-  300: "#2a3740",
-  400: "#56666f",
-  500: "#78878f",
-  600: "#9aa8b0",
-  700: "#bcc8ce",
-  800: "#d9e2e7",
-  900: "#eff4f7",
-};
 
 /**
  * One theme, re-keyed to a different brand scale.
@@ -454,96 +391,85 @@ const wearing = (
   ...over,
 });
 
-export const meadowLightColors: ThemeColors = wearing(lightColors, oceanBrand, {
-  gray: meadowGray,
+/**
+ * THE CUSTOMER'S APP WEARS TRUE SERVE TEAL (2026-11-13).
+ *
+ * Kept under the name `meadow` so every reader of it keeps working; what it
+ * wears is the brand measured against the app icon (palette B, see
+ * `tealBrand`). One brand colour on a few high-value things — the primary
+ * button, the header, the selected chip, the active tab — greys for
+ * everything else, and orange for deals only (`warm`). Prices are never
+ * brand-coloured.
+ *
+ * Contrast, measured: white on primary 10.9:1 · text on page 15.4:1 ·
+ * secondary text 5.5:1 · white on the deal orange 5.1:1 · the deal orange on
+ * its tint 4.7:1 · success 5.1:1 · error on its tint 6.1:1.
+ */
+export const meadowLightColors: ThemeColors = wearing(lightColors, tealBrand, {
+  gray: tealGray,
 
-  /**
-   * DEEPER THAN A CARD, ON PURPOSE — the note the emerald palette left and
-   * the measurement that settled it.
-   *
-   * This system is flat by choice, so separation comes from ground and border
-   * rather than from a shadow. The first cool grounds tried here were 1.08
-   * and 1.09:1 against a white card: correct hue, no weight, and the whole
-   * screen read as one pale wash with nothing standing off anything.
-   *
-   * 1.17:1. Still a quiet page; now a page a card can sit ON.
-   */
-  bg: "#e6eef4",
+  bg: tealGray[50],
   surface: "#ffffff",
-  // The inset surface — chips, search bars. Deep enough to be a shape of its
-  // own against BOTH the page and a card, or an unselected filter chip
-  // disappears into the ground behind it.
-  surfaceAlt: "#d9e6ee",
-  // 1.35:1 against the surface it outlines. A hairline in intent and actually
-  // present, which the 1.24:1 line this replaced was not.
-  border: "#d2e0e9",
+  surfaceAlt: tealGray[100],
+  border: tealGray[200],
 
-  text: meadowGray[900],
-  textSecondary: meadowGray[600],
-  // 3.35:1 on the page — not `gray[400]`'s 2.35:1, which was under every floor
-  // there is. Three tiers that stay apart: 15.0 / 5.65 / 3.35.
-  textMuted: "#71838f",
+  text: tealGray[900],
+  textSecondary: tealGray[600],
+  textMuted: tealGray[500],
+  textInverse: "#ffffff",
 
-  /**
-   * THE DARK BLOCK, drawn from the strip's own deep end.
-   *
-   * `ink` is a hero header and the bar a page sits under — the largest area
-   * of flat colour in the app, which makes it the one place a wrong hue is
-   * unmistakable. A brown-black under an ocean brand is the beige-page defect
-   * at full size.
-   *
-   * Deeper than #184E77 rather than equal to it, so the hero and the primary
-   * are told apart when they touch — a header with a button on it.
-   */
-  ink: "#10314a",
-  inkSoft: "#184e77",
-  inkMuted: "#8ba4b5",
+  ink: tealGray[900],
+  inkSoft: tealGray[700],
+  inkMuted: tealGray[600],
 
-  /**
-   * THE FRESH HALF — see `accent` in the interface for what it is FOR.
-   *
-   * #76C893 is 2.01:1 against white, so nothing light goes on it; `onAccent`
-   * is a deep green-black at 7.34:1. The soft tint is pale enough that body
-   * `text` reads on it at 15.6:1, which is what lets an offer pill carry an
-   * ordinary sentence rather than needing a colour of its own.
-   */
-  accent: meadow.fern,
-  accentSoft: "#e9f6d7",
-  onAccent: "#0d2e1c",
-  // 8.77 / 5.14 / 3.13 against white. The first stop is the one that has to
-  // carry a status bar and a line of type; the last sits behind the search
-  // field, which brings its own white ground.
-  gradient: gradients.ocean,
+  // Deals and only deals: the offer badge, the banner's call, the coupon.
+  warm: dealOrange.base,
+  warmSoft: dealOrange.soft,
+  onWarm: "#ffffff",
 
-  /** A true red is available again — the brand is 165 deg away from it. */
-  error: "#d92d20",
-  errorBg: "#fdf3f2",
+  // The signal teal: progress, the route, a spinner — never text.
+  accent: tealSignal,
+  accentSoft: tealBrand[50],
+  onAccent: tealGray[900],
+
+  // The header: deep teal, a breath lighter at the far edge.
+  gradient: [tealBrand[700], tealBrand[500], "#0b5e66"] as const,
+
+  error: "#b42318",
+  errorBg: "#fef3f2",
+  info: tealBrand[500],
+  infoBg: tealBrand[50],
 });
 
-export const meadowDarkColors: ThemeColors = wearing(darkColors, oceanDarkBrand, {
-  gray: meadowDarkGray,
-  bg: "#080f14",
-  surface: "#111d25",
-  surfaceAlt: "#16222b",
-  border: "#22313b",
-  text: meadowDarkGray[900],
-  textSecondary: meadowDarkGray[600],
-  textMuted: "#7d8d96",
-  ink: "#060c10",
-  inkSoft: "#0e1a22",
-  inkMuted: "#8ba4b5",
-  // The flip described on `oceanDarkBrand`: #4BB3D4 cannot carry white (2.6:1)
-  // and carries this at 6.98:1.
-  onPrimary: "#04202b",
-  accent: meadow.leaf,
-  accentSoft: "#192b18",
-  onAccent: "#0b2010",
-  // The same journey at a lightness a dark page can hold — 16.1 / 11.6 / 8.1
-  // against white. A light gradient on a near-black screen is a lamp, not a
-  // ground.
-  gradient: ["#0a2430", "#103d50", "#17566b"] as const,
+/**
+ * The same brand after dark: the primary fill turns to mist and carries the
+ * deep teal as its label (6.6:1); the deal orange lightens to read on a dark
+ * surface (7.5:1). Light ships first; this keeps the dark mode honest.
+ */
+export const meadowDarkColors: ThemeColors = wearing(darkColors, tealDarkBrand, {
+  gray: tealDarkGray,
+  bg: tealDarkGray[50],
+  surface: tealDarkGray[100],
+  surfaceAlt: tealDarkGray[200],
+  border: tealDarkGray[300],
+  text: tealDarkGray[900],
+  textSecondary: tealDarkGray[600],
+  textMuted: tealDarkGray[500],
+  ink: "#0b0d0e",
+  inkSoft: tealDarkGray[100],
+  inkMuted: tealDarkGray[600],
+  onPrimary: tealBrand[500],
+  warm: dealOrange.light,
+  warmSoft: "#2e1a10",
+  onWarm: tealGray[900],
+  accent: tealSignal,
+  accentSoft: tealDarkBrand[50],
+  onAccent: tealGray[900],
+  gradient: ["#01191c", "#022f33", "#03444a"] as const,
   error: "#f97066",
   errorBg: "#2e1512",
+  info: tealDarkBrand[500],
+  infoBg: tealDarkBrand[50],
 });
 
 export type ThemeName = "light" | "dark";

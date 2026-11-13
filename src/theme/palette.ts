@@ -247,3 +247,94 @@ export const oceanBrandWeb = {
   ...oceanBrand,
   950: "#0a2033",
 } as const;
+
+/**
+ * TRUE SERVE TEAL — the customer app's brand, measured against the app icon.
+ *
+ * Palette B (decided 2026-10-02, held "for after the panel ships" — 2026-11-13
+ * is that day). The deep shade sits 1.4° from the icon's background; the
+ * ocean blue it replaces read as a different company beside the teal "T".
+ *
+ *   500 #03444A  the primary: buttons, header, selected chips — 10.9:1 with
+ *                white text
+ *   400 #0F8F93  a lighter teal for borders and focus rings
+ *   200 #9AD3DA  mist — tonal buttons and tints, never text
+ *    50 #EAF6F7  the selected-option / info tint (teal text on it 9.9:1)
+ *
+ * Bright teal (`tealSignal`) is decoration only — the tracking route,
+ * progress, spinners. 2.9:1 on white: never text, never a white label on it.
+ */
+export const tealBrand: ColorScale = {
+  50: "#eaf6f7",
+  100: "#d2ecee",
+  200: "#9ad3da",
+  300: "#5fb9c2",
+  400: "#0f8f93",
+  500: "#03444a",
+  600: "#023a3f",
+  700: "#022f33",
+  800: "#012427",
+  900: "#01191c",
+};
+
+/** In the dark the fill turns to mist and carries the deep teal as its label. */
+export const tealDarkBrand: ColorScale = {
+  50: "#0b2a2d",
+  100: "#0f3a3e",
+  200: "#145056",
+  300: "#1c6e75",
+  400: "#4fa9b1",
+  500: "#9ad3da",
+  600: "#b7e1e6",
+  700: "#d2ecee",
+  800: "#e6f5f6",
+  900: "#f2fafb",
+};
+
+/** The route, the progress fill, the spinner — decoration only. */
+export const tealSignal = "#00a8a8";
+
+/**
+ * DEALS ARE ORANGE, AND ONLY DEALS.
+ *
+ * One strong brand colour plus one promo accent is how the market leaders
+ * keep a screen readable (foodpanda: pink fills, everything else white and
+ * grey). Burnt orange carries white text (5.1:1) on an offer badge; the light
+ * orange is a tint and the stars, never text (2.2:1).
+ */
+export const dealOrange = {
+  soft: "#fff3ec",
+  light: "#ff924d",
+  base: "#c4421a",
+  dark: "#a3360f",
+} as const;
+
+/**
+ * Cool neutrals with a teal lean, page to ink. 600 is secondary text (5.5:1
+ * on white), 500 the quietest text allowed (4.6:1), 400 disabled only.
+ */
+export const tealGray: ColorScale = {
+  50: "#f5f6f7",
+  100: "#eceff1",
+  200: "#dde3e6",
+  300: "#c4cdd3",
+  400: "#8a949b",
+  500: "#6b767e",
+  600: "#5f6b73",
+  700: "#3d4850",
+  800: "#262e34",
+  900: "#1a1f23",
+};
+
+export const tealDarkGray: ColorScale = {
+  50: "#121212",
+  100: "#1e1e1e",
+  200: "#262626",
+  300: "#33393d",
+  400: "#5f6b73",
+  500: "#8a949b",
+  600: "#aeb7bd",
+  700: "#c4cdd3",
+  800: "#dde3e6",
+  900: "#eceff1",
+};
