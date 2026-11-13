@@ -16,6 +16,8 @@ import {
   UserIcon,
 } from "../icons";
 import type { NavItem } from "./navItem";
+import { ServiceZonesIcon } from "./ServiceZonesIcon";
+
 
 /**
  * The platform console's rail, by name. Its own file so the notice a refused
@@ -51,6 +53,8 @@ export const adminMainItems: NavItem[] = [
 export const adminPlatformItems: NavItem[] = [
   { icon: <BoltIcon />, name: "Configuration", path: "/admin/config" },
   { icon: <BoxCubeIcon />, name: "Banners / Ads", path: "/admin/banners" },
+  // Where the platform serves: shops listed and deliveries taken only inside.
+  { icon: <ServiceZonesIcon />, name: "Service zones", path: "/admin/service-zones" },
   { icon: <ChatIcon />, name: "Announcements", path: "/admin/announcements" },
   // A PERSON WHO SHOPS, as against Platform Staff below — different glyph on
   // purpose, since two rows wearing one icon is the collision this rail has

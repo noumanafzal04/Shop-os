@@ -25,6 +25,7 @@ const MAIN: NavItem[] = [
 const PLATFORM: NavItem[] = [
   { name: "Configuration", path: "/admin/config", icon: null },
   { name: "Banners / Ads", path: "/admin/banners", icon: null },
+  { name: "Service zones", path: "/admin/service-zones", icon: null },
   { name: "Announcements", path: "/admin/announcements", icon: null },
   { name: "Platform Staff", path: "/admin/staff", icon: null },
   { name: "Audit Log", path: "/admin/audit-logs", icon: null },
@@ -42,6 +43,7 @@ const ALL_PLATFORM_PERMISSIONS = [
   "billing.view",
   "platform_staff.manage",
   "banners.manage",
+  "service_zones.manage",
   "announcements.manage",
 ];
 
@@ -63,6 +65,7 @@ describe("the admin rail", () => {
       "/admin/payments",
       "/admin/config",
       "/admin/banners",
+      "/admin/service-zones",
       "/admin/announcements",
       "/admin/staff",
       "/admin/audit-logs",
@@ -73,6 +76,12 @@ describe("the admin rail", () => {
     // The case that motivated this. Before the filter, this person was offered
     // every tenant on the platform and the revenue ledger.
     expect(pathsFor(["banners.manage"])).toEqual(["/admin", "/admin/banners"]);
+  });
+
+  it("offers whoever draws the service zones the dashboard and the map, nothing else", () => {
+    // Drawing where the platform serves hides shops the moment a zone is
+    // saved — its own permission, not a corner of Configuration.
+    expect(pathsFor(["service_zones.manage"])).toEqual(["/admin", "/admin/service-zones"]);
   });
 
   it("keeps the revenue ledger away from staff without billing.view", () => {

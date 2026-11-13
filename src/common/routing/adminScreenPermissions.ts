@@ -34,6 +34,7 @@ const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   "/admin/payments": "billing.view",
   "/admin/config": "tenants.update",
   "/admin/banners": "banners.manage",
+  "/admin/service-zones": "service_zones.manage",
   "/admin/announcements": "announcements.manage",
   "/admin/staff": "platform_staff.manage",
   // Its own permission, not folded into tenants.create: whoever opens this

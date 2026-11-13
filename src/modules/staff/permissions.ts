@@ -25,6 +25,10 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
   },
   "platform_staff.manage": { label: "Manage platform staff" },
   "banners.manage": { label: "Promo banners & ads" },
+  "service_zones.manage": {
+    label: "Service zones",
+    hint: "Draws where shops may trade online and where orders may be delivered. A zone drawn too tight hides shops the moment it is saved.",
+  },
   "announcements.manage": {
     label: "Announcements",
     hint: "Broadcasts a push notification to every shop or every customer. There is no unsend.",

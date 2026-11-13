@@ -29,6 +29,7 @@ const PLATFORM = [
   "billing.view",
   "platform_staff.manage",
   "banners.manage",
+  "service_zones.manage",
   "announcements.manage",
 ];
 

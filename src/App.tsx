@@ -50,6 +50,7 @@ const AdminStaffPage = lazy(() => import("./modules/staff/pages/AdminStaffPage")
 const TenantStaffPage = lazy(() => import("./modules/staff/pages/TenantStaffPage"));
 const AdminAuditPage = lazy(() => import("./modules/admin/pages/AdminAuditPage"));
 const AdminBannersPage = lazy(() => import("./modules/admin/pages/AdminBannersPage"));
+const AdminServiceZonesPage = lazy(() => import("./modules/admin/pages/AdminServiceZonesPage"));
 const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnnouncementsPage"));
 const AdminRidersPage = lazy(() => import("./modules/admin/pages/AdminRidersPage"));
 const AdminCustomersPage = lazy(() => import("./modules/admin/pages/AdminCustomersPage"));
@@ -234,6 +235,9 @@ export default function App() {
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/banners" />}>
                   <Route path="banners" element={<AdminBannersPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/service-zones" />}>
+                  <Route path="service-zones" element={<AdminServiceZonesPage />} />
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/announcements" />}>
                   <Route path="announcements" element={<AdminAnnouncementsPage />} />
