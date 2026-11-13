@@ -111,24 +111,28 @@ final class ServiceZones
         return $inside;
     }
 
-    /** A zone was drawn, moved or switched: every shop's answer is asked again. */
+    /**
+     * A zone was drawn, moved or switched: every shop's answer is asked again.
+     * The answer is "served" — with no active zone every shop is, so a map
+     * wiped clean leaves no shop marked outside a fence that is not there.
+     */
     public static function changed(): void
     {
         Cache::forget(self::CACHE_KEY);
 
         Tenant::query()->select(['id', 'latitude', 'longitude', 'in_service_zone'])->lazyById(500)
             ->each(function (Tenant $t): void {
-                $in = self::zoneAt(self::f($t->latitude), self::f($t->longitude)) !== null;
+                $in = self::serves(self::f($t->latitude), self::f($t->longitude));
                 if ($t->in_service_zone !== $in) {
                     DB::table('tenants')->where('id', $t->id)->update(['in_service_zone' => $in]);
                 }
             });
     }
 
-    /** One shop's answer, for its own pin. Not served while zones exist and it has no pin. */
+    /** One shop's answer, for its own pin: served when nothing is drawn, else inside a zone. */
     public static function shopInZone(Tenant $tenant): bool
     {
-        return self::zoneAt(self::f($tenant->latitude), self::f($tenant->longitude)) !== null;
+        return self::serves(self::f($tenant->latitude), self::f($tenant->longitude));
     }
 
     private static function f(mixed $v): ?float

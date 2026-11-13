@@ -192,6 +192,9 @@ class ThePlatformServesWhereItDrewTest extends TestCase
         $this->as($this->admin)->deleteJson("/api/v1/admin/service-zones/{$zone['zone']['id']}")
             ->assertOk()->assertJsonPath('data.summary.online_shops_outside', 0);
         $this->assertSame(['Far Away Foods', 'Gulberg Grill'], $this->listed());
+        // …and no shop is left MARKED outside a fence that is no longer
+        // there: the console warned "outside every zone" with none drawn.
+        $this->assertTrue($this->far->fresh()->in_service_zone);
     }
 
     public function test_only_staff_given_the_permission_draw_and_a_shape_must_be_a_shape(): void
