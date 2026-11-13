@@ -3,6 +3,7 @@ import { sellsOfflineOnlyByGrant } from "../offlineGrant";
 import { windowSays } from "../planWindowWords";
 import { tradePhrase } from "../tradePhrase";
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import PageMeta from "../../../components/common/PageMeta";
 import Button from "../../../components/ui/button/Button";
@@ -20,6 +21,10 @@ import { failed } from "../../../common/api/failed";
 import { useToast } from "../../../components/ui/toast";
 import { useConfirm } from "../../../components/ui/confirm";
 import { ApiError } from "../../../common/types/api";
+import { apiPut } from "../../../common/api/client";
+import DateField from "../../../components/form/DateField";
+import { shopDateOf } from "../../../common/shopDay";
+import { useAuthStore } from "../../../stores/authStore";
 import { useAdminTenant, useEndGrant, useEntitlements, useExtendLimits, useGrantCapacity, useModuleCatalog, useModulePrices, usePayments, usePlans, usePlanChangePreview, usePlanWindow, useResetOwnerPassword, useTenantMutations, useUpdateModules } from "../hooks/useAdmin";
 import { CityPicker } from "../../../common/geo/CityPicker";
 import type { Entitlement, Plan, PlanChangePreview, TenantPackage } from "../services/adminService";
@@ -81,6 +86,88 @@ const EXTENDABLE: Array<{ key: "products" | "storage_mb" | "branches" | "staff" 
  * clearing to null falls back to the registry default, which is 0 = off. So
  * null IS the off switch here.
  */
+/**
+ * FEATURED ON THE APP — the paid row at the top of the customer's home.
+ *
+ * Sold like a banner (the banners permission), with the day it ends; it ends
+ * on its own. Featuring buys position, never visibility: a shop outside the
+ * service zones or closed to online orders is not shown, paid or not, and
+ * the card says so rather than taking money for a row nobody sees.
+ */
+/**
+ * The last moment of a chosen day, on THIS clock, as an instant. Sent as
+ * "2026-12-13 23:59:59" it was read in the server's UTC — five hours into
+ * the next day in Lahore — and the badge said a day later than was chosen.
+ */
+const endOfDay = (day: string): string => new Date(`${day}T23:59:59`).toISOString();
+
+function FeaturedCard({ tenant }: { tenant: Tenant }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const featuredUntil = tenant.featured_until ? new Date(tenant.featured_until) : null;
+  const live = featuredUntil !== null && featuredUntil.getTime() > Date.now();
+  const [day, setDay] = useState(featuredUntil ? shopDateOf(featuredUntil, null) : "");
+  const [rank, setRank] = useState(String(tenant.featured_rank ?? 100));
+  const tomorrow = shopDateOf(new Date(Date.now() + 86_400_000), null);
+
+  const save = useMutation({
+    mutationFn: (until: string | null) =>
+      apiPut<{ is_featured: boolean }>(`/admin/tenants/${tenant.id}/feature`, { until, rank: Number(rank) || 100 }),
+    onSuccess: (res, until) => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "tenant", tenant.id] });
+      toast.success(until ? `Featured until ${shopDate(until)}.` : "No longer featured.");
+      if (!until) setDay("");
+      void res;
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.firstFieldError() ?? e.message : "That could not be saved."),
+  });
+
+  const hidden = !tenant.online_shop_enabled || tenant.in_service_zone === false;
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]" data-testid="featured-card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-semibold text-gray-800 dark:text-white/90">Featured on the app</h3>
+          <p className="mt-1 max-w-xl text-theme-sm text-gray-500 dark:text-gray-400">
+            A paid place in the first row of the customer app's home, with a "Featured" mark on the shop's card.
+            It ends on its own on the last day paid for.
+          </p>
+        </div>
+        <Badge color={live ? "success" : "light"}>{live && featuredUntil ? `Until ${shopDate(featuredUntil)}` : "Not featured"}</Badge>
+      </div>
+
+      {hidden && (
+        <p className="mt-3 text-theme-sm text-warning-700 dark:text-warning-400">
+          {!tenant.online_shop_enabled
+            ? "This shop is not selling online, so customers would not see it featured."
+            : "This shop is outside every active service zone, so customers would not see it featured."}
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <div>
+          <Label htmlFor="featured-until">Featured until (last day)</Label>
+          <DateField id="featured-until" value={day} onChange={setDay} min={tomorrow} />
+        </div>
+        <div className="w-28">
+          <Label htmlFor="featured-rank">Position</Label>
+          <Input id="featured-rank" type="number" min="1" max="999" value={rank} onChange={(e) => setRank(e.target.value)} />
+        </div>
+        <Button size="sm" disabled={save.isPending || day === ""} onClick={() => save.mutate(endOfDay(day))}>
+          {live ? "Update" : "Feature this shop"}
+        </Button>
+        {live && (
+          <Button size="sm" variant="outline" disabled={save.isPending} onClick={() => save.mutate(null)}>
+            Stop featuring
+          </Button>
+        )}
+      </div>
+      <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">Position 1 shows first; shops on the same position show nearest first.</p>
+    </div>
+  );
+}
+
 function OfflineSellingCard({ tenant }: { tenant: Tenant }) {
   const extend = useExtendLimits();
   const toast = useToast();
@@ -1183,6 +1270,8 @@ function BillCard({ pkg }: { pkg: TenantPackage }) {
 
 export default function AdminTenantDetailPage() {
   const { id } = useParams();
+  // The paid row is sold like a banner: offered to whoever may sell ads.
+  const canFeature = useAuthStore((s) => s.user?.role === "super_admin" || (s.user?.permissions?.includes("banners.manage") ?? false));
   const tenant = useAdminTenant(id);
   const plans = usePlans();
   const payments = usePayments({ tenant_id: id });
@@ -1436,6 +1525,13 @@ export default function AdminTenantDetailPage() {
           <div id="offline" className="scroll-mt-36">
             <OfflineSellingCard tenant={t} />
           </div>
+
+          {/* The paid row on the customer app's home — sold like a banner. */}
+          {canFeature && (
+            <div id="featured" className="scroll-mt-36">
+              <FeaturedCard tenant={t} />
+            </div>
+          )}
 
           {/* Owner accounts */}
           {t.users && t.users.length > 0 && (

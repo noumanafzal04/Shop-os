@@ -94,6 +94,11 @@ export interface Tenant {
   city?: { id: string; name: string };
   plan?: { id: string; name: string; code: string; price?: string | number };
   online_shop_enabled: boolean;
+  /** Inside a zone the platform serves — listed online only if so. */
+  in_service_zone?: boolean;
+  /** The paid row on the customer app's home, and the moment it ends. */
+  featured_until?: string | null;
+  featured_rank?: number;
   features?: Record<string, boolean>;
   /** What this shop was assigned: branches, staff, lanes, plus any extension. */
   limits?: Record<string, number>;
