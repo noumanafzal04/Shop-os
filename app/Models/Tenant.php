@@ -9,6 +9,7 @@ use App\Support\Currencies;
 use App\Support\DateFormats;
 use App\Support\Geo;
 use App\Support\Modules;
+use App\Support\ServiceZones;
 use App\Support\ShopSettings;
 use App\Support\ShopZone;
 use Database\Factories\TenantFactory;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Tenant extends BaseModel
 {
@@ -29,6 +31,23 @@ class Tenant extends BaseModel
 
     protected static function booted(): void
     {
+        // Is the shop's own pin inside a zone the platform serves? Asked when
+        // the shop is made and whenever it moves; a zone that changes asks
+        // every shop again (ServiceZones::changed).
+        static::creating(function (Tenant $tenant): void {
+            $tenant->in_service_zone = ServiceZones::shopInZone($tenant);
+        });
+        // Written straight to the row, not left to dirty-checking: a zone
+        // change updates the column behind any model already in memory, and
+        // an answer equal to that stale copy would never be saved.
+        static::updated(function (Tenant $tenant): void {
+            if ($tenant->wasChanged(['latitude', 'longitude'])) {
+                $in = ServiceZones::shopInZone($tenant);
+                DB::table('tenants')->where('id', $tenant->id)->update(['in_service_zone' => $in]);
+                $tenant->forceFill(['in_service_zone' => $in])->syncOriginalAttribute('in_service_zone');
+            }
+        });
+
         // Every tenant always has exactly one default "Main" branch — created
         // silently the moment the tenant exists, via any path (admin action,
         // seeder, factory). This upholds the "a tenant has ≥1 branch" invariant
@@ -161,6 +180,7 @@ class Tenant extends BaseModel
         return [
             'status' => TenantStatus::class,
             'online_shop_enabled' => 'boolean',
+            'in_service_zone' => 'boolean',
             'delivery_fee' => 'decimal:2',
             'features' => 'array',
             'limits' => 'array',
@@ -962,6 +982,12 @@ class Tenant extends BaseModel
             ->where('online_shop_enabled', true)
             ->where('setup_completed', true)
             ->where('features->marketplace', true)
+            // Inside a zone the platform serves — once it has drawn any. Said
+            // in SQL (NOT EXISTS on a table of a handful of rows), so building
+            // this scope asks the database nothing until the query runs.
+            ->where(fn ($q) => $q->where('tenants.in_service_zone', true)
+                ->orWhereNotExists(fn ($z) => $z->selectRaw('1')->from('service_zones')
+                    ->where('service_zones.is_active', true)->whereNull('service_zones.deleted_at')))
             ->where(function ($q): void {
                 $q->whereNull('subscription_ends_at')
                     ->orWhere('subscription_ends_at', '>=', now()->subDays(7));

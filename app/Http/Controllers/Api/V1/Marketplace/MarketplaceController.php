@@ -14,6 +14,7 @@ use App\Support\ApiResponse;
 use App\Support\BusinessTypes;
 use App\Support\Currencies;
 use App\Support\Geo;
+use App\Support\ServiceZones;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -949,6 +950,29 @@ class MarketplaceController extends Controller
             'products' => $productResults,
             'shops' => $shopResults,
             'categories' => $categories,
+        ]);
+    }
+
+    /**
+     * DOES THE PLATFORM SERVE THIS PIN?
+     *
+     * The app asks when a location is chosen, so a customer outside every
+     * zone the admin drew is told so on the home screen — "we're not in your
+     * area yet" — instead of meeting it at checkout. With no zone drawn the
+     * answer is yes everywhere.
+     */
+    public function serviceArea(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'lat' => ['required', 'numeric', 'between:-90,90'],
+            'lng' => ['required', 'numeric', 'between:-180,180'],
+        ]);
+        $zone = ServiceZones::zoneAt((float) $data['lat'], (float) $data['lng']);
+
+        return ApiResponse::ok([
+            'zones_drawn' => ServiceZones::anyActive(),
+            'served' => ServiceZones::serves((float) $data['lat'], (float) $data['lng']),
+            'zone' => $zone !== null ? ['name' => $zone['name']] : null,
         ]);
     }
 

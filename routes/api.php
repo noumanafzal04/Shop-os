@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryControlle
 use App\Http\Controllers\Api\V1\Admin\InboxController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\RiderApplicationController;
+use App\Http\Controllers\Api\V1\Admin\ServiceZoneController as AdminServiceZoneController;
 use App\Http\Controllers\Api\V1\Admin\ShopRequestController;
 use App\Http\Controllers\Api\V1\Admin\StaffController as AdminStaffController;
 use App\Http\Controllers\Api\V1\Admin\TenantController;
@@ -166,6 +167,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::prefix('marketplace')->group(function (): void {
         // GPS → nearest city (no manual city picker on mobile)
         Route::get('/locate', [MarketplaceController::class, 'locate']);
+        // Does the platform serve this pin? (Service zones drawn by the admin.)
+        Route::get('/service-area', [MarketplaceController::class, 'serviceArea']);
         // The cities a shopper can be delivered in — our own rows, so the
         // location picker works with or without a geocoding key.
         Route::get('/cities', [MarketplaceController::class, 'cities']);
@@ -1401,6 +1404,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 // password oracle if you can call it in a loop.
                 Route::post('/{tenant}/owner-password', [TenantController::class, 'resetOwnerPassword'])
                     ->middleware(['permission:tenants.reset_password', 'throttle:auth']);
+            });
+
+            // Where the platform serves — circles and shapes on the map.
+            Route::middleware('permission:service_zones.manage')->group(function (): void {
+                Route::get('/service-zones', [AdminServiceZoneController::class, 'index']);
+                Route::post('/service-zones', [AdminServiceZoneController::class, 'store']);
+                Route::put('/service-zones/{id}', [AdminServiceZoneController::class, 'update']);
+                Route::delete('/service-zones/{id}', [AdminServiceZoneController::class, 'destroy']);
             });
 
             // Promo banners (paid ads) — admin-created

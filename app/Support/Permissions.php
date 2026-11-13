@@ -54,6 +54,9 @@ class Permissions
 
     public const BANNERS_MANAGE = 'banners.manage';
 
+    /** Drawing where the platform serves: which shops trade online, where orders go. */
+    public const SERVICE_ZONES_MANAGE = 'service_zones.manage';
+
     public const ANNOUNCEMENTS_MANAGE = 'announcements.manage';
 
     /**
@@ -376,6 +379,10 @@ class Permissions
         ],
         self::PLATFORM_STAFF_MANAGE => ['label' => 'Manage platform staff'],
         self::BANNERS_MANAGE => ['label' => 'Promo banners & ads'],
+        self::SERVICE_ZONES_MANAGE => [
+            'label' => 'Service zones',
+            'hint' => 'Draws where shops may trade online and where orders may be delivered. A zone drawn too tight hides shops the moment it is saved.',
+        ],
         self::ANNOUNCEMENTS_MANAGE => [
             'label' => 'Announcements',
             'hint' => 'Broadcasts a push notification to every shop or every customer. There is no unsend.',
@@ -584,6 +591,7 @@ class Permissions
             self::BILLING_VIEW,
             self::PLATFORM_STAFF_MANAGE,
             self::BANNERS_MANAGE,
+            self::SERVICE_ZONES_MANAGE,
             self::ANNOUNCEMENTS_MANAGE,
             self::RIDERS_MANAGE,
             self::COMMISSION_MANAGE,

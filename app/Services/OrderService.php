@@ -29,6 +29,7 @@ use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
 use App\Support\Permissions;
+use App\Support\ServiceZones;
 use App\Support\ShopDay;
 use App\Support\SoldOut;
 use App\Support\TenantContext;
@@ -252,6 +253,18 @@ class OrderService
                         'OUT_OF_DELIVERY_AREA',
                     );
                 }
+            }
+
+            // …and the platform's own map: a delivery goes only inside a
+            // zone the admin drew (none drawn → nowhere is fenced). Asked of
+            // the pin; a typed address with no pin is the shop's call, as
+            // with the radius above.
+            if (isset($data['latitude'], $data['longitude'])
+                && ! ServiceZones::serves((float) $data['latitude'], (float) $data['longitude'])) {
+                throw DomainException::unprocessable(
+                    "We don't deliver to this area yet — choose an address inside our delivery zone, or collect it from the shop.",
+                    'OUTSIDE_SERVICE_AREA',
+                );
             }
         }
 
