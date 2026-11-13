@@ -1184,7 +1184,21 @@ class MarketplaceController extends Controller
 
         $nearbyShops = $nearby->limit(12)->get();
 
+        /*
+         * FEATURED — the paid row, first on the home screen. Only shops this
+         * customer could order from anyway (same visibility and pin rules as
+         * every other row), in the order the admin ranked them, then nearest.
+         */
+        $featured = $base()->featuredNow()->orderBy('tenants.featured_rank');
+        if ($near) {
+            $expr = Geo::sqlDistanceKm((float) $data['lat'], (float) $data['lng']);
+            $featured->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
+                ->orderByRaw('distance_km IS NULL, distance_km');
+        }
+        $featuredShops = $featured->limit(10)->get();
+
         return ApiResponse::ok([
+            'featured' => $this->withPreviews($serialize($featuredShops), $featuredShops),
             'banners' => $banners,
             'nearby' => $this->withPreviews($serialize($nearbyShops), $nearbyShops),
             'top_rated' => $serialize($topRated),
@@ -1403,6 +1417,8 @@ class MarketplaceController extends Controller
             'slug' => $tenant->slug,
             'business_name' => $tenant->business_name,
             'business_type' => $tenant->business_type,
+            // A paid place on the home screen — the card says so ("Featured").
+            'is_featured' => $tenant->isFeatured(),
             // The money this shop's prices are IN — its mark and how its
             // amounts are written. Every price a customer is shown belongs to
             // some shop, and was being written in rupees whichever it was.

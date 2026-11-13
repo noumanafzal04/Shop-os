@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerControl
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\DemoShopController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
+use App\Http\Controllers\Api\V1\Admin\FeaturedShopController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\RiderApplicationController;
@@ -1370,6 +1371,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/{tenant}', [TenantController::class, 'show'])->middleware('permission:tenants.view');
                 Route::put('/{tenant}', [TenantController::class, 'update'])->middleware('permission:tenants.update');
                 Route::put('/{tenant}/modules', [TenantController::class, 'updateModules'])->middleware('permission:tenants.update');
+                // The paid row on the app's home — sold like a banner.
+                Route::put('/{tenant}/feature', [FeaturedShopController::class, 'update'])->middleware('permission:banners.manage');
                 Route::put('/{tenant}/limits', [TenantController::class, 'extendLimits'])->middleware('permission:tenants.update');
 
                 /**

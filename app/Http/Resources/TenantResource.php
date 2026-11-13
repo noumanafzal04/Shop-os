@@ -76,6 +76,11 @@ class TenantResource extends JsonResource
             'branches_count' => $this->whenCounted('branches'),
             'users_count' => $this->whenCounted('users'),
             'online_shop_enabled' => $this->online_shop_enabled,
+            // Inside a zone the platform serves (it lists online only if so),
+            // and the paid row on the app's home, with the day it ends.
+            'in_service_zone' => (bool) $this->in_service_zone,
+            'featured_until' => $this->featured_until?->toIso8601String(),
+            'featured_rank' => $this->featured_rank,
             'features' => $this->features ?? [],
             // What this shop was assigned: branches, staff and lanes, plus any
             // extension past its plan. Empty = every resource on its default.

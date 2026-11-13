@@ -181,6 +181,8 @@ class Tenant extends BaseModel
             'status' => TenantStatus::class,
             'online_shop_enabled' => 'boolean',
             'in_service_zone' => 'boolean',
+            'featured_until' => 'datetime',
+            'featured_rank' => 'integer',
             'delivery_fee' => 'decimal:2',
             'features' => 'array',
             'limits' => 'array',
@@ -968,6 +970,17 @@ class Tenant extends BaseModel
      *  - setup not completed            → hidden (no city yet)
      *  - subscription ended > 7 days ago → hidden until renewal
      */
+    /** Featured today: paid for, and the paid days not yet over. */
+    public function scopeFeaturedNow(Builder $query): Builder
+    {
+        return $query->whereNotNull('tenants.featured_until')->where('tenants.featured_until', '>', now());
+    }
+
+    public function isFeatured(): bool
+    {
+        return $this->featured_until !== null && $this->featured_until->isFuture();
+    }
+
     public function scopeMarketplaceVisible($query)
     {
         return $query
