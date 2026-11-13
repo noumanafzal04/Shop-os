@@ -89,6 +89,25 @@ class AShopCanBeFeaturedTest extends TestCase
         $this->assertSame(['Burger Lab' => true, 'Plain Bakery' => false, 'Karahi House' => true], $nearby, 'the card says Featured wherever it appears');
     }
 
+    public function test_the_rows_see_all_lists_only_todays_featured_shops_in_the_admins_order(): void
+    {
+        $karahi = $this->shop('Karahi House', 0.010);
+        $burger = $this->shop('Burger Lab', 0.001);
+        $lapsed = $this->shop('Lapsed Grill', 0.002);
+        $this->shop('Plain Bakery', 0.003);
+        $this->feature($karahi, now()->addDays(7)->toDateTimeString(), 1)->assertOk();
+        $this->feature($burger, now()->addDays(7)->toDateTimeString(), 2)->assertOk();
+        $this->feature($lapsed, now()->addDay()->toDateTimeString(), 3)->assertOk();
+        $this->travel(2)->days();
+
+        $listed = collect($this->getJson('/api/v1/marketplace/shops?'.http_build_query(self::HERE + ['featured' => 1]))
+            ->assertOk()->json('data'))->pluck('business_name')->all();
+
+        // Ranked, not nearest — and the shop whose paid days ran out is gone.
+        $this->assertSame(['Karahi House', 'Burger Lab'], $listed);
+        $this->assertCount(4, $this->getJson('/api/v1/marketplace/shops?'.http_build_query(self::HERE))->json('data'), 'without the flag, every shop');
+    }
+
     public function test_the_paid_days_end_on_their_own_and_a_cleared_date_ends_them_now(): void
     {
         $shop = $this->shop('Karahi House');

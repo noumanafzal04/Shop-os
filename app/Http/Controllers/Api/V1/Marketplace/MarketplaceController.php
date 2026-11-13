@@ -218,6 +218,15 @@ class MarketplaceController extends Controller
                     [true, (float) $min],
                 ));
 
+        /*
+         * `featured=1` — the "See all" of the paid row: only shops featured
+         * today, in the order the admin sold the places, nearest breaking a
+         * tie. Same visibility as every other list; featuring buys position.
+         */
+        if ($request->boolean('featured')) {
+            $query->featuredNow()->orderBy('tenants.featured_rank');
+        }
+
         if ($near) {
             $expr = Geo::sqlDistanceKm($lat, $lng);
             $query->selectRaw("tenants.*, CASE WHEN latitude IS NULL OR longitude IS NULL THEN NULL ELSE {$expr} END as distance_km")
@@ -276,17 +285,28 @@ class MarketplaceController extends Controller
             $query->orderBy('business_name');
         }
 
-        $shops = $query
-            ->stably()->paginate(min((int) $request->query('per_page', 20), 100))
-            ->through(fn (Tenant $t) => $this->publicShop($t) + [
-                'distance_km' => isset($t->distance_km) && $t->distance_km !== null ? round((float) $t->distance_km, 2) : null,
-                // The same name the shop DETAIL payload has used since the
-                // radius existed. One field for one fact, so a card cannot
-                // promise a delivery the checkout will refuse.
-                'delivers_to_me' => $t->deliversTo($lat, $lng),
-            ]);
+        $shops = $query->stably()->paginate(min((int) $request->query('per_page', 20), 100));
+        $models = collect($shops->items());
+        $rows = $models->map(fn (Tenant $t) => $this->publicShop($t) + [
+            'distance_km' => isset($t->distance_km) && $t->distance_km !== null ? round((float) $t->distance_km, 2) : null,
+            // The same name the shop DETAIL payload has used since the
+            // radius existed. One field for one fact, so a card cannot
+            // promise a delivery the checkout will refuse.
+            'delivers_to_me' => $t->deliversTo($lat, $lng),
+        ]);
 
-        return ApiResponse::paginated($shops);
+        /*
+         * `previews=1` — the home screen's "All shops" list, which scrolls on
+         * page after page of the same cards the first twelve were drawn as. A
+         * card without its strip there would change shape mid-scroll. Asked
+         * for, not always sent: search and the trade lists draw plain rows
+         * and should not pay a product query per page for a strip they hide.
+         */
+        if ($request->boolean('previews')) {
+            $rows = $this->withPreviews($rows, $models);
+        }
+
+        return ApiResponse::paginated($shops->setCollection($rows->values()));
     }
 
     public function shop(Request $request, string $slug): JsonResponse
@@ -1376,17 +1396,28 @@ class MarketplaceController extends Controller
 
         $bySlug = $shops->keyBy('id');
 
-        $products = Product::withoutTenancy()
+        /*
+         * FIVE EACH, counted per shop — not one ceiling shared by the page.
+         *
+         * This took `shops × 15` rows across ALL the shops, newest first, and
+         * trusted that to be "enough that every shop is represented". It was
+         * not: one shop that had just loaded sixty items took every row, and
+         * the other cards on the page came back with an empty strip — the
+         * busiest catalogue blanking its neighbours. Numbered inside each
+         * shop, every card gets its own five whatever its neighbour did.
+         */
+        $ranked = Product::withoutTenancy()
+            ->select('products.*')
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY products.tenant_id ORDER BY products.discount_price IS NULL, products.created_at DESC, products.id DESC) AS preview_rank')
             ->whereIn('tenant_id', $ids)
             ->where('is_active', true)
-            ->where('visible_in_marketplace', true)
+            ->where('visible_in_marketplace', true);
+
+        $products = Product::withoutTenancy()
+            ->fromSub($ranked, 'products')
+            ->where('preview_rank', '<=', $perShop)
             ->with('images')
-            ->orderByRaw('discount_price IS NULL')
-            ->orderByDesc('created_at')
-            // A hard ceiling rather than per-shop paging: the grouping below
-            // takes `$perShop` each, and this only has to be enough that every
-            // shop is represented.
-            ->limit($ids->count() * ($perShop * 3))
+            ->orderBy('preview_rank')
             ->get()
             ->groupBy('tenant_id');
 
