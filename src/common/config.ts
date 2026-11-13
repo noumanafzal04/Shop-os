@@ -14,13 +14,27 @@ import { GEOAPIFY_KEY, GOOGLE_MAPS_KEY } from "./secrets";
  *           placed here is an order a shop has to deliver.
  * `"tunnel"` a debug build talks to `TUNNEL_URL` — a phone on mobile data
  *           reaching a laptop, via ngrok or trycloudflare.
+ * `"lan"`   A PHONE TEST BUILD on the same Wi-Fi as the computer running
+ *           `backend/scripts/serve-lan.sh`. No address is written here: the
+ *           app finds the server on whatever network it is on (see
+ *           `common/testServer.ts`), asks for the address only when it
+ *           cannot, and "Test server" in the side menu finds it again after
+ *           the Wi-Fi changes. Do not set it by hand — `scripts/build-lan-apk.sh`
+ *           sets it for one build (with `-PlanTest`, so Android lets a release
+ *           speak plain http) and puts "auto" back.
  */
-type ApiTarget = "auto" | "live" | "tunnel";
+export type ApiTarget = "auto" | "live" | "tunnel" | "lan";
 
 // Cast, not an annotation: TypeScript narrows `const x: "a" | "b" = "a"` to the
 // literal it was given and then calls every other branch dead code. The point
 // of this line is that it gets edited.
-const API_TARGET = "auto" as ApiTarget;
+export const API_TARGET = "auto" as ApiTarget;
+
+/**
+ * The port `backend/scripts/serve-lan.sh` serves on. Not 8000 (the computer's own dev
+ * server, which listens only to itself) and not 8001.
+ */
+export const LAN_PORT = 8002;
 
 /**
  * PRODUCTION.
@@ -44,8 +58,8 @@ const TUNNEL_URL = "";
  * Dev API host differs per platform:
  *  - iOS simulator reaches the Mac's localhost directly
  *  - Android emulator reaches it via 10.0.2.2
- * A real device on the same Wi-Fi needs the machine's LAN IP — use the tunnel
- * above rather than editing this, so the platform mapping stays correct.
+ * A real phone on the same Wi-Fi uses `"lan"` above rather than an edit here,
+ * so the platform mapping stays correct.
  */
 const DEV_HOST = Platform.select({
   ios: "http://localhost:8000",
@@ -54,7 +68,10 @@ const DEV_HOST = Platform.select({
 });
 
 export const API_BASE_URL =
-  API_TARGET === "live"
+  // Set at launch once the test server is found — see `common/testServer.ts`.
+  API_TARGET === "lan"
+    ? ""
+    : API_TARGET === "live"
     ? PROD_URL
     : API_TARGET === "tunnel" && TUNNEL_URL
       ? `${TUNNEL_URL}/api/v1`

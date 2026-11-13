@@ -147,3 +147,22 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+/*
+ * A PHONE TEST BUILD — `./gradlew assembleRelease -PlanTest`, which
+ * `scripts/build-lan-apk.sh` runs for you.
+ *
+ * It talks plain http to the computer on the same Wi-Fi (see `"lan"` in
+ * src/common/config.ts). React Native forbids cleartext on every release
+ * build, and it decides that in `finalizeDsl` — after anything written in
+ * `buildTypes` above — so the variant API, which runs later still, is the one
+ * place a release can be told otherwise. Without the flag nothing changes: a
+ * store build stays https-only.
+ */
+if (project.hasProperty("lanTest")) {
+    androidComponents {
+        onVariants(selector().withBuildType("release")) { variant ->
+            variant.manifestPlaceholders.put("usesCleartextTraffic", "true")
+        }
+    }
+}

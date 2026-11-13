@@ -40,6 +40,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useLogout } from "../modules/auth/hooks/useAuth";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
 import { useModeStore } from "../stores/modeStore";
+import { changeTestServer, LAN_MODE, useTestServer } from "../common/testServer";
 import type { RiderProfile } from "../modules/rider/services/riderService";
 
 /**
@@ -218,6 +219,7 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
   // different amounts of signing out.
   const logout = useLogout();
   const signedIn = status === "authenticated";
+  const testHost = useTestServer((s) => s.host);
   const rider = useRiderProfile();
   const mode = useModeStore((s) => s.mode);
   const switchTo = useModeStore((s) => s.switchTo);
@@ -521,8 +523,22 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
             <Text style={styles.caption}>Support</Text>
             <View style={styles.card}>
               {APP.map((l, i) => (
-                <Row key={l.label} link={l} onPress={() => go(l)} last={i === APP.length - 1} />
+                <Row key={l.label} link={l} onPress={() => go(l)} last={i === APP.length - 1 && !LAN_MODE} />
               ))}
+              {/*
+                A phone TEST build only: the Wi-Fi changed, so the computer
+                has a new address — find it again without a rebuild.
+              */}
+              {LAN_MODE && (
+                <Row
+                  link={{ icon: RefreshIcon, label: "Test server", route: "", value: testHost ?? "Not found" }}
+                  onPress={() => {
+                    onClose();
+                    changeTestServer();
+                  }}
+                  last
+                />
+              )}
             </View>
 
           </ScrollView>

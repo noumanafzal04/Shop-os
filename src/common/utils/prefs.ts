@@ -41,6 +41,8 @@ interface Prefs {
    * so it stays where it can be cleared by clearing the app.
    */
   searches?: string[];
+  /** A phone test build's server, as last found ("192.168.1.5:8002"). */
+  testServer?: string;
   /**
    * WHERE THE SHOPPER SAID THEY ARE.
    *
@@ -113,6 +115,13 @@ export const prefs = {
   },
 
   /** Remember where they said they are. See `Prefs.place`. */
+  async setTestServer(host: string | null): Promise<void> {
+    const current = await read();
+    if (host === null) delete current.testServer;
+    else current.testServer = host;
+    await write(current);
+  },
+
   async setPlace(place: NonNullable<Prefs["place"]>): Promise<void> {
     await write({ ...(await read()), place });
   },

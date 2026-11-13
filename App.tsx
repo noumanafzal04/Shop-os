@@ -31,6 +31,8 @@ import { useModePalettes } from "./src/modules/mode/palettes";
 import { wireAuthToApi } from "./src/stores/authStore";
 import { configureApi } from "./src/common/api/client";
 import { API_BASE_URL } from "./src/common/config";
+import { connectTestServer, LAN_MODE, useTestServer } from "./src/common/testServer";
+import { TestServerScreen } from "./src/common/ui/TestServerScreen";
 import { ToastHost } from "./src/common/ui/toast";
 import { ConfirmHost } from "./src/common/ui/confirm";
 import { ModeSwitchCover } from "./src/modules/mode/ModeSwitchCover";
@@ -95,7 +97,13 @@ function App() {
      * returns immediately when it is already there — so the bootstrap below
      * finds it done rather than doing it again.
      */
-    Promise.all([prefs.all(), useAuthStore.getState().hydrateTokens().catch(() => false)]).then(
+    // A phone test build looks for its server first; the screen below covers
+    // the case it is not found, so the app starts either way.
+    Promise.all([
+      prefs.all(),
+      useAuthStore.getState().hydrateTokens().catch(() => false),
+      connectTestServer().catch(() => false),
+    ]).then(
       ([p]) => {
         if (alive) setSaved({ theme: p.theme ?? "system", onboarded: !!p.onboarded });
       },
@@ -121,6 +129,8 @@ function App() {
  */
 function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean } }) {
   const [onboarding, setOnboarding] = useState(!saved.onboarded);
+  // Only a `"lan"` test build ever leaves "connected".
+  const lanServer = useTestServer((s) => s.state);
 
   // Read HERE and not in `App`, which returns null until the saved settings
   // land — a hook above that early return runs for a frame that paints
@@ -183,7 +193,9 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
             straight onto an order still has that order underneath when the
             person presses Skip.
           */}
-          {onboarding ? (
+          {LAN_MODE && lanServer !== "connected" ? (
+            <TestServerScreen />
+          ) : onboarding ? (
             <OnboardingScreen
               onDone={() => {
                 setOnboarding(false);
