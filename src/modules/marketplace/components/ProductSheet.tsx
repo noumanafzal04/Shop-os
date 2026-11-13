@@ -332,7 +332,7 @@ const makeStyles = (c: ThemeColors) =>
 
   head: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.md },
   headInfo: { flex: 1, gap: 2 },
-  name: { ...typography.title, color: c.text, fontSize: 20 },
+  name: { ...typography.title, color: c.text, fontSize: 18, lineHeight: 24 },
   priceCol: { alignItems: "flex-end", gap: 5 },
   perUnit: { ...typography.small, color: c.gray[400] },
   desc: { ...typography.small, color: c.gray[500], marginTop: spacing.xs, marginBottom: spacing.sm },
@@ -344,7 +344,7 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "space-between",
     marginBottom: spacing.xs,
   },
-  groupTitle: { ...typography.h3, color: c.text, fontSize: 16 },
+  groupTitle: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
   rule: { ...typography.tiny, color: c.gray[500], marginTop: 1 },
   pill: {
     backgroundColor: c.surfaceAlt,
@@ -364,7 +364,7 @@ const makeStyles = (c: ThemeColors) =>
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
-  optionText: { ...typography.body, color: c.text, flex: 1, fontSize: 14, fontWeight: "500" },
+  optionText: { ...typography.body, color: c.text, flex: 1, fontSize: 14, lineHeight: 18, fontWeight: "500" },
   optionTextOff: { color: c.gray[400] },
   optionPrice: { ...typography.small, color: c.gray[500] },
   radio: {
@@ -418,5 +418,5 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   addBtnOff: { opacity: 0.4 },
-  addText: { ...typography.label, color: c.white, fontSize: 15 },
+  addText: { ...typography.label, color: c.white, fontSize: 15, lineHeight: 22 },
 });

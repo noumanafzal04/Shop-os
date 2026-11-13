@@ -1,6 +1,6 @@
 import React from "react";
 import ReactTestRenderer from "react-test-renderer";
-import { ThemeProvider } from "../src/theme";
+import { ThemeProvider, meadowThemes } from "../src/theme";
 import { OfferBadge, Price } from "../../core/src/ui/Price";
 
 /**
@@ -103,15 +103,18 @@ describe("what a badge puts on the screen", () => {
     expect(words(tree)).toEqual(["20% OFF"]);
   });
 
-  it("is amber, not the colour of the buttons around it", async () => {
-    // The palette is explicit: warm is "offers, ratings, the selected tab —
-    // never a button". Three of these badges were `brand[500]`, which is the
-    // fill on every real button in the app.
+  it("is the deal colour, not the colour of the buttons around it", async () => {
+    // The palette is explicit: warm is the DEAL colour — "offers, never a
+    // button". Three of these badges were `brand[500]`, which is the fill on
+    // every real button in the app. Since 2026-11-13 the deal colour is the
+    // burnt orange beside the teal (white on it 5.1:1), read from the palette
+    // rather than spelled here, and asserted apart from the primary.
     const tree = await render(<OfferBadge value={250} was={300} />);
     const view = tree.root.findAllByType("View" as never)[0];
     const flat = [view.props.style].flat(3).filter(Boolean);
     const bg = flat.map((s: any) => s?.backgroundColor).find(Boolean);
 
-    expect(bg).toBe("#ebc249");
+    expect(bg).toBe(meadowThemes.light.warm);
+    expect(bg).not.toBe(meadowThemes.light.primary);
   });
 });

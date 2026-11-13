@@ -411,7 +411,7 @@ export function OrderTrackingScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  headline: { ...typography.title, fontSize: 20, color: c.text, marginTop: spacing.sm },
+  headline: { ...typography.title, fontSize: 18, lineHeight: 24, color: c.text, marginTop: spacing.sm },
   itemsMore: { ...typography.tiny, color: c.textMuted, paddingVertical: 4 },
   call: {
     flexDirection: "row",
@@ -424,7 +424,7 @@ const makeStyles = (c: ThemeColors) =>
     borderColor: c.primary,
     backgroundColor: c.primarySoft,
   },
-  callText: { ...typography.label, color: c.primary, fontSize: 14 },
+  callText: { ...typography.label, color: c.primary, fontSize: 14, lineHeight: 18 },
   acceptedNote: { ...typography.small, color: c.textSecondary, textAlign: "center" },
   content: { padding: spacing.md, gap: spacing.sm },
 
@@ -438,7 +438,7 @@ const makeStyles = (c: ThemeColors) =>
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   orderNo: { ...typography.h3, color: c.text },
   shopName: { ...typography.small, color: c.gray[500], marginTop: 2 },
-  total: { ...typography.title, fontSize: 18, color: c.brand[600] },
+  total: { ...typography.title, fontSize: 18, lineHeight: 24, color: c.brand[600] },
 
   cancelledBox: { backgroundColor: c.errorBg, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.md },
   cancelledText: { ...typography.small, color: c.error, fontWeight: "600" },
@@ -461,7 +461,7 @@ const makeStyles = (c: ThemeColors) =>
   rail: { width: 2, flex: 1, minHeight: 22, backgroundColor: c.gray[200] },
   railDone: { backgroundColor: c.brand[500] },
   stepBody: { flex: 1, paddingBottom: spacing.md },
-  stepLabel: { ...typography.body, color: c.gray[400], fontSize: 14 },
+  stepLabel: { ...typography.body, color: c.gray[400], fontSize: 14, lineHeight: 18 },
   stepLabelDone: { color: c.text, fontWeight: "500" },
   stepLabelActive: { fontWeight: "700", color: c.brand[700] },
   stepHint: { ...typography.tiny, color: c.gray[400], marginTop: 1 },
@@ -477,7 +477,7 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   riderCopy: { flex: 1, gap: 2 },
-  riderName: { ...typography.label, color: c.text, fontSize: 15 },
+  riderName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
   riderStage: { ...typography.tiny, color: c.textSecondary },
   /**
    * The distance is the ANSWER, so it is the coloured line.
@@ -503,7 +503,7 @@ const makeStyles = (c: ThemeColors) =>
     borderTopWidth: 1,
     borderTopColor: c.border,
   },
-  mapRowText: { ...typography.label, color: c.primary, fontSize: 13 },
+  mapRowText: { ...typography.label, color: c.primary, fontSize: 13, lineHeight: 18 },
   livePill: {
     flexDirection: "row",
     alignItems: "center",
@@ -514,7 +514,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: 4,
   },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.success },
-  liveText: { ...typography.tiny, color: c.success, fontWeight: "800", fontSize: 10 },
+  liveText: { ...typography.tiny, color: c.success, fontWeight: "800", fontSize: 11, lineHeight: 14 },
 
   otpBox: {
     alignItems: "center",
@@ -525,14 +525,14 @@ const makeStyles = (c: ThemeColors) =>
     gap: 2,
   },
   otpCaption: { ...typography.tiny, color: c.onWarm, fontWeight: "700" },
-  otpCode: { ...typography.display, color: c.onWarm, fontSize: 30, letterSpacing: 8 },
+  otpCode: { ...typography.display, color: c.onWarm, fontSize: 28, lineHeight: 34, letterSpacing: 8 },
 
   addrRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   addrText: { ...typography.small, color: c.gray[600], flex: 1 },
 
   itemRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 5 },
   itemQty: { ...typography.label, color: c.primary, minWidth: 34 },
-  itemName: { ...typography.body, color: c.text, flex: 1, fontSize: 14 },
+  itemName: { ...typography.body, color: c.text, flex: 1, fontSize: 14, lineHeight: 18 },
   itemTotal: { ...typography.small, color: c.gray[600] },
   sumRow: {
     flexDirection: "row",
@@ -544,5 +544,5 @@ const makeStyles = (c: ThemeColors) =>
   },
   sumLabel: { ...typography.small, color: c.gray[600] },
   sumOff: { ...typography.small, color: c.success, fontWeight: "600" },
-  grand: { ...typography.label, color: c.text, fontSize: 15 },
+  grand: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
 });

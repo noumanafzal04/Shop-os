@@ -107,7 +107,7 @@ export function FavoritesScreen() {
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   header: { padding: spacing.md },
-  title: { ...typography.title, fontSize: 22, color: c.gray[900] },
+  title: { ...typography.title, fontSize: 22, lineHeight: 28, color: c.gray[900] },
   sub: { ...typography.small, color: c.gray[500], marginTop: 2 },
   list: { padding: spacing.md, paddingTop: 0 },
   /** So `ListEmptyComponent` has a screen to centre in. */
@@ -131,9 +131,9 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
     marginRight: spacing.md,
   },
-  logoLetter: { fontSize: 20, fontWeight: "700", color: c.brand[500] },
+  logoLetter: { fontSize: 18, lineHeight: 24, fontWeight: "700", color: c.brand[500] },
   info: { flex: 1 },
-  name: { ...typography.label, fontSize: 15, color: c.gray[900] },
+  name: { ...typography.label, fontSize: 15, lineHeight: 22, color: c.gray[900] },
   meta: { ...typography.small, color: c.gray[500], marginTop: 2, textTransform: "capitalize" },
-  heart: { fontSize: 18, color: c.brand[500] },
+  heart: { fontSize: 18, lineHeight: 24, color: c.brand[500] },
 });

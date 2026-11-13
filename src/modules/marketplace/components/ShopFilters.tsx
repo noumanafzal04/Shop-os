@@ -191,7 +191,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
       paddingHorizontal: 4,
     },
-    countText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 10 },
-    pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 12.5 },
+    countText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 11, lineHeight: 14 },
+    pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 13, lineHeight: 18 },
     pillTextOn: { color: c.onPrimary },
   });

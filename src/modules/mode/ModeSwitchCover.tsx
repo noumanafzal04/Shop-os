@@ -121,7 +121,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
       marginBottom: spacing.sm,
     },
-    title: { ...typography.h3, color: c.text, fontSize: 19 },
+    title: { ...typography.h3, color: c.text, fontSize: 18, lineHeight: 24 },
     body: { ...typography.small, color: c.textSecondary, textAlign: "center" },
     spinner: { marginTop: spacing.md },
   });

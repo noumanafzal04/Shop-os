@@ -8,7 +8,8 @@
       read `src/theme/tokens.ts` — see `src/common/brand.ts` for the rest of
       what a rename has to touch.
 
-      THE SHOPPING SIDE'S OCEAN, and getting this wrong was a real bug rather
+      THE SHOPPING SIDE'S TEAL (#03444A since 2026-11-13, when the customer
+      app took True Serve's own palette), and getting this wrong was a real bug rather
       than a preference. This app has two palettes and `palettes.ts` decides
       which side wears which: shopping is MEADOW, working is CARMINE. Android
       cannot ask — this frame is painted before the process exists, let alone
@@ -20,7 +21,7 @@
       asserts this hex against `meadowThemes.light.primary` so the two cannot
       drift again.
     -->
-    <color name="brand">#1A759F</color>
+    <color name="brand">#03444A</color>
     <!--
       THE LAUNCHER ICON'S GROUND — the LOGO's teal, not the app's primary.
 
@@ -31,11 +32,11 @@
       launcher icon is the one place the ARTWORK decides rather than the
       palette.
 
-      The two are still one FAMILY — #0B4A50 against the splash's #1A759F —
-      so the original complaint is still answered. That complaint was never
+      The two are one FAMILY — #0B4A50 against the splash's #03444A, near the
+      same teal — so the original complaint is still answered. That complaint was never
       "these hexes differ"; it was a green icon opening an orange app, 150
       degrees away on the hue wheel. These are 8 degrees apart.
     -->
     <color name="ic_launcher_background">#0B4A50</color>
-    <color name="brand_dark">#1E6091</color>
+    <color name="brand_dark">#022F33</color>
 </resources>

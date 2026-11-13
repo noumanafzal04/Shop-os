@@ -646,7 +646,7 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   basketCopy: { flex: 1 },
-  basketCount: { ...typography.label, color: c.text, fontSize: 14.5 },
+  basketCount: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
   basketShop: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
   basketEdit: { ...typography.small, color: c.primary, fontWeight: "700" },
 
@@ -710,7 +710,7 @@ const makeStyles = (c: ThemeColors) =>
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  payText: { ...typography.label, color: c.text, flex: 1, fontSize: 14 },
+  payText: { ...typography.label, color: c.text, flex: 1, fontSize: 14, lineHeight: 18 },
 
   warnBox: { backgroundColor: c.warningBg, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   warnText: { ...typography.small, color: c.warning },
@@ -739,7 +739,7 @@ const makeStyles = (c: ThemeColors) =>
     backgroundColor: c.surface,
   },
   chipActive: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
-  chipTxt: { color: c.gray[600], fontSize: 13, fontWeight: "500" },
+  chipTxt: { color: c.gray[600], fontSize: 13, lineHeight: 18, fontWeight: "500" },
   chipTxtActive: { color: c.white },
 
   addrBlock: { gap: spacing.xs, marginBottom: spacing.sm },
@@ -755,7 +755,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   addrOn: { borderColor: c.brand[500], backgroundColor: c.brand[50] },
   addrInfo: { flex: 1, gap: 1 },
-  addrLabel: { ...typography.label, color: c.text, fontSize: 13 },
+  addrLabel: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
   addrText: { ...typography.tiny, color: c.gray[500] },
 
   /**
@@ -778,11 +778,11 @@ const makeStyles = (c: ThemeColors) =>
   },
   chosenInfo: { flex: 1, gap: 2 },
   chosenCap: { ...typography.tiny, color: c.brand[700], textTransform: "uppercase", letterSpacing: 0.6 },
-  chosenLabel: { ...typography.label, color: c.text, fontSize: 13 },
-  chosenText: { ...typography.body, color: c.text, fontSize: 14, lineHeight: 19 },
-  chosenEmpty: { ...typography.body, color: c.textMuted, fontSize: 14 },
+  chosenLabel: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
+  chosenText: { ...typography.body, color: c.text, fontSize: 14, lineHeight: 18 },
+  chosenEmpty: { ...typography.body, color: c.textMuted, fontSize: 14, lineHeight: 18 },
   /** A word, not a button — the whole row is the target. */
-  chosenChange: { ...typography.label, color: c.brand[600], fontSize: 13 },
+  chosenChange: { ...typography.label, color: c.brand[600], fontSize: 13, lineHeight: 18 },
 
   /**
    * Tucked under the address card, not floating beside it.
@@ -815,6 +815,6 @@ const makeStyles = (c: ThemeColors) =>
   totalOff: { ...typography.small, color: c.success, fontWeight: "700" },
   refusedText: { ...typography.small, color: c.error, flex: 1 },
   totalRule: { height: 1, backgroundColor: c.border, marginVertical: 8 },
-  grand: { ...typography.h3, fontSize: 16, color: c.text },
-  grandVal: { ...typography.title, fontSize: 21, color: c.primary },
+  grand: { ...typography.h3, fontSize: 16, lineHeight: 22, color: c.text },
+  grandVal: { ...typography.title, fontSize: 22, lineHeight: 28, color: c.primary },
 });

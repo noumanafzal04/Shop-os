@@ -158,7 +158,7 @@ const makeStyles = (c: ThemeColors) =>
       padding: spacing.md,
       marginBottom: spacing.md,
     },
-    errorText: { color: c.error, fontSize: 13, flex: 1 },
+    errorText: { color: c.error, fontSize: 13, lineHeight: 18, flex: 1 },
 
     footer: { alignItems: "center", marginTop: spacing.xl },
     footerText: { ...typography.body, color: c.textSecondary },

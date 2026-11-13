@@ -289,7 +289,7 @@ const makeStyles = (c: ThemeColors) =>
   list: { padding: spacing.md, paddingBottom: spacing.xxl },
   /** So `ListEmptyComponent` has a screen to centre in. */
   grow: { flexGrow: 1 },
-  sectionTitle: { ...typography.h3, color: c.text, fontSize: 17, marginBottom: spacing.sm, marginTop: spacing.xs },
+  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18, lineHeight: 24, marginBottom: spacing.sm, marginTop: spacing.xs },
 
   dealRow: { gap: spacing.sm, paddingBottom: spacing.md },
   dealCard: {
@@ -302,12 +302,12 @@ const makeStyles = (c: ThemeColors) =>
   },
   dealImgWrap: { height: 96, backgroundColor: c.surfaceAlt, alignItems: "center", justifyContent: "center" },
   dealImg: { width: "100%", height: "100%" },
-  dealInitial: { fontSize: 30, fontWeight: "700", color: c.gray[200] },
+  dealInitial: { fontSize: 28, lineHeight: 34, fontWeight: "700", color: c.gray[200] },
   // Position only — `OfferBadge` owns its own fill, and that fill is amber.
   offBadge: { position: "absolute", left: 8, top: 8 },
   dealBody: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10, gap: 3 },
-  dealName: { ...typography.label, color: c.text, fontSize: 13.5 },
-  dealShop: { ...typography.tiny, color: c.gray[500], fontSize: 10 },
+  dealName: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
+  dealShop: { ...typography.tiny, color: c.gray[500], fontSize: 11, lineHeight: 14 },
 
   more: { paddingVertical: spacing.lg, alignItems: "center" },
   skeletons: { gap: spacing.sm },
@@ -332,9 +332,9 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     justifyContent: "center",
   },
-  logoText: { ...typography.display, fontSize: 24 },
+  logoText: { ...typography.display, fontSize: 22, lineHeight: 28 },
   rowInfo: { flex: 1, gap: 2 },
   rowNameLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rowName: { flexShrink: 1, ...typography.label, color: c.text, fontSize: 15.5 },
+  rowName: { flexShrink: 1, ...typography.label, color: c.text, fontSize: 16, lineHeight: 22 },
   rowMeta: { ...typography.tiny, color: c.gray[500] },
 });

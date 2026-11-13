@@ -940,7 +940,6 @@ const makeStyles = (c: ThemeColors) =>
   place: { flex: 1, gap: 1, paddingHorizontal: spacing.xs },
   placeLabel: {
     ...typography.tiny,
-    fontSize: 9,
     // `inkMuted`, which is the muted tier FOR AN INK GROUND — `textMuted` is
     // muted against the page and disappears here. Both exist for this.
     color: c.inkMuted,
@@ -948,7 +947,7 @@ const makeStyles = (c: ThemeColors) =>
     letterSpacing: 0.8,
   },
   placeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  placeName: { ...typography.label, color: c.textInverse, fontSize: 14, flexShrink: 1 },
+  placeName: { ...typography.label, color: c.textInverse, fontSize: 14, lineHeight: 18, flexShrink: 1 },
   searchFilter: {
     width: 34,
     height: 34,
@@ -1047,7 +1046,7 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
     overflow: "hidden",
   },
-  chipLabel: { ...typography.label, color: c.text, fontSize: 12.5 },
+  chipLabel: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
 
   tiles: {
     flexDirection: "row",
@@ -1074,7 +1073,7 @@ const makeStyles = (c: ThemeColors) =>
    * which is exactly what happened. Two syllables under the name and the eye
    * stops treating it as a destination.
    */
-  tileNone: { ...typography.tiny, color: c.textMuted, fontSize: 9.5, marginTop: -3 },
+  tileNone: { ...typography.tiny, color: c.textMuted, fontSize: 11, lineHeight: 14, marginTop: -3 },
   // A tinted tile, not an outlined white box. The outline made identical
   // frames and left the glyph to do all the work; the tint makes them read as
   // one set of buttons before anyone reads a label.
@@ -1114,7 +1113,7 @@ const makeStyles = (c: ThemeColors) =>
     marginTop: spacing.lg,
     marginBottom: 12,
   },
-  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18.5 },
+  sectionTitle: { ...typography.h3, color: c.text, fontSize: 18, lineHeight: 24 },
   // Breathing room around the mid-page advert, so it reads as its own thing
   // rather than as a shop card that lost its name.
   midBanners: { marginTop: spacing.xs, marginBottom: spacing.md },
@@ -1151,7 +1150,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: 4,
   },
   railBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 1 },
-  railName: { ...typography.h3, color: c.text, fontSize: 16 },
+  railName: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
 
   // ── Wide row ─────────────────────────────────────────────────────
   wideCard: {
@@ -1168,7 +1167,7 @@ const makeStyles = (c: ThemeColors) =>
   wideLogo: { width: 64, height: 64, borderRadius: 16, overflow: "hidden" },
   wideLogoImg: { width: 64, height: 64 },
   wideNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  wideName: { ...typography.h3, color: c.text, fontSize: 15.5, flexShrink: 1 },
+  wideName: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22, flexShrink: 1 },
 
   shopClosed: { opacity: 0.72 },
   // Over the cover rather than beside the name: on a closed shop the cover is
@@ -1187,7 +1186,6 @@ const makeStyles = (c: ThemeColors) =>
     color: "#ffffff",
     textAlign: "center",
     fontWeight: "800",
-    fontSize: 9.5,
   },
   shopInfo: { flex: 1, gap: 2 },
   shopMeta: { ...typography.tiny, color: c.textMuted },
@@ -1214,6 +1212,6 @@ const makeStyles = (c: ThemeColors) =>
   // label nobody can press, sitting on a photograph.
   offBadge: { position: "absolute", left: 8, top: 8 },
   dealBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 3 },
-  dealName: { ...typography.label, color: c.text, fontSize: 14.5 },
+  dealName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
   dealShop: { ...typography.tiny, color: c.gray[500] },
 });

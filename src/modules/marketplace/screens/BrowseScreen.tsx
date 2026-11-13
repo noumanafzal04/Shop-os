@@ -492,7 +492,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
       paddingHorizontal: 3,
     },
-    filterCountText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 9.5 },
+    filterCountText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11, lineHeight: 14 },
     headCopy: { flex: 1 },
     sub: {
       ...typography.tiny,
@@ -542,7 +542,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     rxText: { ...typography.tiny, color: c.onWarm, fontWeight: "800" },
 
-    name: { ...typography.label, color: c.text, fontSize: 13.5, marginTop: 7 },
+    name: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18, marginTop: 7 },
     shop: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
     off: { position: "absolute", left: 6, top: 6 },
 

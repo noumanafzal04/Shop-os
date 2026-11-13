@@ -525,7 +525,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "space-between",
       marginBottom: spacing.md,
     },
-    heroTitle: { ...typography.title, color: c.onPrimary, fontSize: 21 },
+    heroTitle: { ...typography.title, color: c.onPrimary, fontSize: 22, lineHeight: 28 },
     gear: {
       width: 36,
       height: 36,
@@ -555,9 +555,9 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.title, color: c.primary, fontSize: 23 },
+    avatarText: { ...typography.title, color: c.primary, fontSize: 22, lineHeight: 28 },
     whoCopy: { flex: 1, gap: 2 },
-    whoName: { ...typography.h3, color: c.onPrimary, fontSize: 18 },
+    whoName: { ...typography.h3, color: c.onPrimary, fontSize: 18, lineHeight: 24 },
     whoSub: { ...typography.tiny, color: c.brand[100] },
     editPill: {
       backgroundColor: "rgba(255,255,255,0.22)",
@@ -620,7 +620,7 @@ const makeStyles = (c: ThemeColors) =>
     rowDivided: { borderTopWidth: 1, borderTopColor: c.border },
     rowPressed: { backgroundColor: c.surfaceAlt },
     rowCopy: { flex: 1 },
-    rowLabel: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "500" },
+    rowLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500" },
     rowHint: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
     rowValue: { ...typography.small, color: c.textSecondary, fontWeight: "600" },
 
@@ -637,5 +637,5 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.surface,
     },
     signOutPressed: { backgroundColor: c.surfaceAlt },
-    signOutText: { ...typography.label, color: c.error, fontSize: 14 },
+    signOutText: { ...typography.label, color: c.error, fontSize: 14, lineHeight: 18 },
   });

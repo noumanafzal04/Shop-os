@@ -403,7 +403,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     headCopy: { flex: 1, gap: 1 },
-    headTitle: { ...typography.label, color: c.text, fontSize: 15 },
+    headTitle: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     headMeta: { ...typography.tiny, color: c.textMuted },
     dim: { color: c.textMuted },
 
@@ -430,7 +430,7 @@ const makeStyles = (c: ThemeColors) =>
       textAlign: "center",
       paddingHorizontal: 2,
     },
-    cellCount: { ...typography.tiny, color: c.textMuted, fontSize: 10 },
+    cellCount: { ...typography.tiny, color: c.textMuted, fontSize: 11, lineHeight: 14 },
 
     skeletonRow: {
       flexDirection: "row",

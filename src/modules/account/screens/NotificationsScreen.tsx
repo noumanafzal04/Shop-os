@@ -269,12 +269,12 @@ const makeStyles = (c: ThemeColors) =>
 
   rowCopy: { flex: 1, gap: 2 },
   rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  rowTitle: { ...typography.label, color: c.text, flex: 1, fontSize: 14 },
+  rowTitle: { ...typography.label, color: c.text, flex: 1, fontSize: 14, lineHeight: 18 },
   rowTitleUnread: { fontWeight: "800" },
   // Pinned right and never shrinking: "2h" is the fact that tells two
   // otherwise identical order updates apart.
   rowWhen: { ...typography.tiny, color: c.textMuted, flexShrink: 0 },
-  rowBody: { ...typography.small, color: c.textSecondary, fontSize: 12.5, lineHeight: 17 },
+  rowBody: { ...typography.small, color: c.textSecondary, fontSize: 13, lineHeight: 18 },
 
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary },
 });

@@ -287,7 +287,7 @@ function OrderCard({
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     header: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 12 },
-    title: { ...typography.title, fontSize: 22, color: c.text },
+    title: { ...typography.title, fontSize: 22, lineHeight: 28, color: c.text },
     sub: { ...typography.small, color: c.textSecondary, marginTop: 2 },
     more: { paddingVertical: spacing.lg, alignItems: "center" },
     list: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg },
@@ -320,7 +320,7 @@ const makeStyles = (c: ThemeColors) =>
 
     top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
     topCopy: { flex: 1, gap: 2 },
-    shop: { ...typography.h3, color: c.text, fontSize: 15.5 },
+    shop: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
     when: { ...typography.tiny, color: c.textMuted },
     badge: {
       // An explicit radius, not `radius.full`: a very large radius renders as a
@@ -329,7 +329,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
-    badgeTxt: { ...typography.tiny, fontWeight: "800", fontSize: 10.5 },
+    badgeTxt: { ...typography.tiny, fontWeight: "800", fontSize: 11, lineHeight: 14 },
 
     track: { flexDirection: "row", gap: 4 },
     seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: c.surfaceAlt },
@@ -350,7 +350,7 @@ const makeStyles = (c: ThemeColors) =>
     metaRow: { flexDirection: "row", alignItems: "center", gap: 5 },
     meta: { ...typography.small, color: c.textSecondary },
     totalRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    total: { ...typography.label, color: c.text, fontSize: 15 },
+    total: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     trackCta: {
       flexDirection: "row",
       alignItems: "center",

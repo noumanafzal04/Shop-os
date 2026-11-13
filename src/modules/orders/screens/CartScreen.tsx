@@ -448,7 +448,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     lineThumb: { width: 48, height: 48, borderRadius: radius.sm },
     lineInfo: { flex: 1, gap: 2 },
-    lineName: { ...typography.label, color: c.text, fontSize: 14 },
+    lineName: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
     lineMeta: { ...typography.tiny, color: c.textMuted },
     linePrice: { color: c.text, fontWeight: "700" },
 
@@ -489,9 +489,9 @@ const makeStyles = (c: ThemeColors) =>
       borderStyle: "dashed",
       borderColor: c.border,
     },
-    addMoreText: { ...typography.label, color: c.primary, fontSize: 13.5 },
+    addMoreText: { ...typography.label, color: c.primary, fontSize: 14, lineHeight: 18 },
 
-    sectionTitle: { ...typography.h3, color: c.text, fontSize: 15, marginTop: spacing.md, marginBottom: spacing.sm },
+    sectionTitle: { ...typography.h3, color: c.text, fontSize: 15, lineHeight: 22, marginTop: spacing.md, marginBottom: spacing.sm },
     xRow: { gap: 12, paddingBottom: spacing.xs },
     xCard: { width: 116, gap: 6 },
     xThumb: { height: 86, borderRadius: radius.md, overflow: "hidden" },
@@ -499,7 +499,7 @@ const makeStyles = (c: ThemeColors) =>
     // Position only — the disc itself is `AddButton`, which owns its own
     // colour and its own press.
     xAdd: { position: "absolute", right: 5, bottom: 5 },
-    xName: { ...typography.small, color: c.text, fontSize: 12.5, fontWeight: "600" },
+    xName: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, fontWeight: "600" },
 
     // Sized to ride inside the bill without pushing a row off the list: 38px
     // and a hairline, not a 52px panel.
@@ -549,8 +549,8 @@ const makeStyles = (c: ThemeColors) =>
     billValue: { ...typography.small, color: c.text, fontWeight: "600" },
     billFree: { ...typography.small, color: c.success, fontWeight: "800" },
     billRule: { height: 1, backgroundColor: c.border, marginVertical: 7 },
-    totalLabel: { ...typography.h3, color: c.text, fontSize: 16 },
-    totalValue: { ...typography.title, fontSize: 21, color: c.primary },
+    totalLabel: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
+    totalValue: { ...typography.title, fontSize: 22, lineHeight: 28, color: c.primary },
     cta: {
       flexDirection: "row",
       alignItems: "center",
@@ -562,5 +562,5 @@ const makeStyles = (c: ThemeColors) =>
       marginTop: 10,
     },
     ctaPressed: { backgroundColor: c.primaryPressed },
-    ctaText: { ...typography.label, color: c.onPrimary, fontSize: 15 },
+    ctaText: { ...typography.label, color: c.onPrimary, fontSize: 15, lineHeight: 22 },
   });

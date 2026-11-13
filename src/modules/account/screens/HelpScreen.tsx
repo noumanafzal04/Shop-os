@@ -224,7 +224,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     itemOpen: { borderColor: c.primary },
     qRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-    q: { ...typography.label, color: c.text, fontSize: 14.5, flex: 1 },
+    q: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22, flex: 1 },
     a: { ...typography.small, color: c.textSecondary, marginTop: spacing.sm, lineHeight: 20 },
 
     contact: {

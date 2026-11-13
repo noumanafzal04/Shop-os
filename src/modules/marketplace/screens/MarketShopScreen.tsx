@@ -1290,7 +1290,7 @@ const makeStyles = (c: ThemeColors) =>
    * their in-flow copy sits — which is the one thing that gives a two-element
    * sticky away.
    */
-  pinnedName: { ...typography.label, color: c.text, fontSize: 15, flex: 1 },
+  pinnedName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22, flex: 1 },
 
   /**
    * A section heading inside the menu.
@@ -1339,13 +1339,13 @@ const makeStyles = (c: ThemeColors) =>
 
   // Identity
   identity: { alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: 5 },
-  shopName: { ...typography.title, color: c.text, fontSize: 22, textAlign: "center" },
+  shopName: { ...typography.title, color: c.text, fontSize: 22, lineHeight: 28, textAlign: "center" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  metaStrong: { ...typography.label, color: c.text, fontSize: 13 },
-  metaDim: { ...typography.small, color: c.gray[500], fontSize: 13 },
+  metaStrong: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
+  metaDim: { ...typography.small, color: c.gray[500], fontSize: 13, lineHeight: 18 },
   metaDot: { color: c.gray[300], paddingHorizontal: 2 },
-  openText: { ...typography.label, color: c.brand[600], fontSize: 13 },
-  closedText: { ...typography.label, color: c.error, fontSize: 13 },
+  openText: { ...typography.label, color: c.brand[600], fontSize: 13, lineHeight: 18 },
+  closedText: { ...typography.label, color: c.error, fontSize: 13, lineHeight: 18 },
 
   // Toggle
   toggleWrap: { alignItems: "center", marginTop: spacing.sm },
@@ -1363,7 +1363,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   toggleBtn: { paddingHorizontal: spacing.lg, paddingVertical: 7, borderRadius: 17 },
   toggleOn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.brand[500] },
-  toggleText: { ...typography.label, color: c.gray[500], fontSize: 13 },
+  toggleText: { ...typography.label, color: c.gray[500], fontSize: 13, lineHeight: 18 },
   toggleTextOn: { color: c.brand[700] },
   modePill: {
     // A row now, because it carries a glyph beside its label — see the pill
@@ -1376,7 +1376,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingHorizontal: spacing.lg,
     paddingVertical: 8,
   },
-  modePillText: { ...typography.label, color: c.brand[700], fontSize: 13 },
+  modePillText: { ...typography.label, color: c.brand[700], fontSize: 13, lineHeight: 18 },
 
   // Info card
   infoCard: {
@@ -1390,8 +1390,8 @@ const makeStyles = (c: ThemeColors) =>
     gap: spacing.xs,
   },
   infoRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  infoText: { ...typography.label, color: c.text, fontSize: 13.5 },
-  infoDim: { ...typography.small, color: c.gray[500], fontSize: 13 },
+  infoText: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
+  infoDim: { ...typography.small, color: c.gray[500], fontSize: 13, lineHeight: 18 },
 
   warnStrip: {
     marginHorizontal: spacing.md,
@@ -1428,7 +1428,7 @@ const makeStyles = (c: ThemeColors) =>
     borderColor: c.border,
   },
   catOn: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
-  catText: { ...typography.small, color: c.gray[600], fontSize: 13 },
+  catText: { ...typography.small, color: c.gray[600], fontSize: 13, lineHeight: 18 },
   catTextOn: { color: c.white, fontWeight: "700" },
 
   // Products
@@ -1465,8 +1465,8 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: 1,
     backgroundColor: c.infoBg,
   },
-  rxText: { ...typography.tiny, color: c.info, fontWeight: "800", fontSize: 10 },
-  productName: { ...typography.label, color: c.text, fontSize: 15 },
+  rxText: { ...typography.tiny, color: c.info, fontWeight: "800", fontSize: 11, lineHeight: 14 },
+  productName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
   productMeta: { ...typography.tiny, color: c.gray[500] },
   priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   perUnit: { ...typography.tiny, color: c.gray[400] },
@@ -1512,7 +1512,7 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   cartCountText: { ...typography.tiny, color: c.white, fontWeight: "800" },
-  cartBarText: { ...typography.label, color: c.white, flex: 1, textAlign: "center", fontSize: 15 },
+  cartBarText: { ...typography.label, color: c.white, flex: 1, textAlign: "center", fontSize: 15, lineHeight: 22 },
   cartBarCta: {
     width: 30,
     height: 30,

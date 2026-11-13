@@ -440,7 +440,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingHorizontal: spacing.md,
   },
   tabBtn: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, alignItems: "center" },
-  tabText: { ...typography.label, color: c.gray[400], fontSize: 14 },
+  tabText: { ...typography.label, color: c.gray[400], fontSize: 14, lineHeight: 18 },
   tabTextOn: { color: c.brand[700] },
   tabLine: {
     position: "absolute",
@@ -509,7 +509,7 @@ const makeStyles = (c: ThemeColors) =>
   filterText: { ...typography.tiny, color: c.gray[600], fontWeight: "600" },
   filterTextOn: { color: c.white },
 
-  resultCount: { ...typography.h3, color: c.text, fontSize: 16, paddingHorizontal: spacing.md, paddingTop: spacing.md },
+  resultCount: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22, paddingHorizontal: spacing.md, paddingTop: spacing.md },
 
   landing: { padding: spacing.md, paddingTop: spacing.sm },
   landingHead: {
@@ -517,7 +517,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     justifyContent: "space-between",
   },
-  landingTitle: { ...typography.label, color: c.text, fontSize: 13.5 },
+  landingTitle: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
   landingSpaced: { marginTop: spacing.lg },
   landingClear: { ...typography.tiny, color: c.primary, fontWeight: "700" },
 
@@ -534,7 +534,7 @@ const makeStyles = (c: ThemeColors) =>
     paddingHorizontal: 12,
     height: 34,
   },
-  recentText: { ...typography.small, color: c.text, fontSize: 13, flexShrink: 1 },
+  recentText: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, flexShrink: 1 },
 
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
   // Four across, with the gaps taken out of the share. One row, so the whole
@@ -549,13 +549,13 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   tileIconOffer: { backgroundColor: c.primary },
-  tileText: { ...typography.tiny, color: c.text, fontSize: 11, textAlign: "center" },
+  tileText: { ...typography.tiny, color: c.text, fontSize: 11, lineHeight: 14, textAlign: "center" },
 
   hintWrap: { padding: spacing.xl, alignItems: "center" },
   hint: { ...typography.small, color: c.gray[400], textAlign: "center" },
 
   section: { paddingHorizontal: spacing.md, marginTop: spacing.md, gap: spacing.xs },
-  sectionTitle: { ...typography.label, color: c.gray[500], fontSize: 13, textTransform: "uppercase", letterSpacing: 0.4 },
+  sectionTitle: { ...typography.label, color: c.gray[500], fontSize: 13, lineHeight: 18, textTransform: "uppercase", letterSpacing: 0.4 },
 
   row: {
     flexDirection: "row",
@@ -580,7 +580,7 @@ const makeStyles = (c: ThemeColors) =>
   thumbInitial: { ...typography.h3, color: c.gray[400] },
   shopThumb: { backgroundColor: c.brand[50] },
   rowInfo: { flex: 1, gap: 2 },
-  rowTitle: { ...typography.label, color: c.text, fontSize: 15 },
+  rowTitle: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
   rowMeta: { ...typography.tiny, color: c.gray[500] },
   rating: { flexDirection: "row", alignItems: "center", gap: 3 },
   ratingText: { ...typography.tiny, color: c.gray[600] },

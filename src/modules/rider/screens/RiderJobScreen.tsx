@@ -347,7 +347,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     cardDone: { borderColor: c.success, backgroundColor: c.successBg },
     cashCard: { borderColor: c.warm, backgroundColor: c.warmSoft },
-    cardTitle: { ...typography.label, color: c.text, fontSize: 13.5 },
+    cardTitle: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
 
     legTop: { flexDirection: "row", gap: spacing.sm },
     legIcon: {
@@ -365,10 +365,9 @@ const makeStyles = (c: ThemeColors) =>
       color: c.textMuted,
       textTransform: "uppercase",
       letterSpacing: 0.8,
-      fontSize: 10,
       fontWeight: "700",
     },
-    legTitle: { ...typography.label, color: c.text, fontSize: 15 },
+    legTitle: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     legBody: { ...typography.small, color: c.textSecondary, lineHeight: 18 },
 
     legActions: { flexDirection: "row", gap: spacing.xs },
@@ -393,7 +392,7 @@ const makeStyles = (c: ThemeColors) =>
 
     moneyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     moneyLabel: { ...typography.small, color: c.text, flex: 1, fontWeight: "600" },
-    moneyValue: { ...typography.h3, color: c.text, fontSize: 17 },
+    moneyValue: { ...typography.h3, color: c.text, fontSize: 18, lineHeight: 24 },
     moneyHint: { ...typography.tiny, color: c.textSecondary, lineHeight: 16 },
 
     otpCard: {
@@ -404,9 +403,9 @@ const makeStyles = (c: ThemeColors) =>
       padding: spacing.md,
       gap: 8,
     },
-    otpTitle: { ...typography.h3, color: c.text, fontSize: 16 },
+    otpTitle: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
     otpBody: { ...typography.small, color: c.textSecondary, lineHeight: 18 },
-    otpInput: { textAlign: "center", fontSize: 26, letterSpacing: 12, fontWeight: "800" },
+    otpInput: { textAlign: "center", fontSize: 28, lineHeight: 34, letterSpacing: 12, fontWeight: "800" },
 
     footHint: { ...typography.tiny, color: c.textMuted, textAlign: "center" },
 

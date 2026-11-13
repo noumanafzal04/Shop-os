@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   slot: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 50 },
-  label: { fontSize: 10.5 },
+  label: { fontSize: 11, lineHeight: 14 },
   labelOn: { fontWeight: "700" },
   labelOff: { fontWeight: "500" },
   discWrap: { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
@@ -293,5 +293,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  badgeText: { fontSize: 10, fontWeight: "800" },
+  badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "800" },
 });

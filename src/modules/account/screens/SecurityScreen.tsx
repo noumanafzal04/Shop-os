@@ -362,7 +362,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     deviceIconOn: { backgroundColor: c.primary },
     deviceCopy: { flex: 1, gap: 1 },
-    deviceName: { ...typography.label, color: c.text, fontSize: 14 },
+    deviceName: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
     deviceMeta: { ...typography.tiny, color: c.textMuted },
     revoke: { paddingHorizontal: 10, paddingVertical: 6 },
     revokeText: { ...typography.tiny, color: c.error, fontWeight: "800" },
@@ -381,5 +381,5 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       backgroundColor: c.surface,
     },
-    everywhereText: { ...typography.label, color: c.error, fontSize: 14 },
+    everywhereText: { ...typography.label, color: c.error, fontSize: 14, lineHeight: 18 },
   });

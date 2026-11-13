@@ -144,7 +144,7 @@ const makeStyles = (c: ThemeColors) =>
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  errorText: { color: c.error, fontSize: 13, flex: 1 },
+  errorText: { color: c.error, fontSize: 13, lineHeight: 18, flex: 1 },
   footerLink: { marginTop: spacing.lg, alignItems: "center" },
   footerText: { ...typography.body, color: c.gray[500] },
   footerAccent: { color: c.brand[500], fontWeight: "600" },

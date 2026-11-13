@@ -222,10 +222,10 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     headCopy: { flex: 1, gap: 3 },
-    shop: { ...typography.label, color: c.text, fontSize: 15 },
+    shop: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     stars: { flexDirection: "row", gap: 2 },
 
-    comment: { ...typography.body, color: c.textSecondary, fontSize: 14, lineHeight: 20 },
+    comment: { ...typography.body, color: c.textSecondary, fontSize: 14, lineHeight: 18 },
 
     reply: {
       backgroundColor: c.surfaceAlt,

@@ -177,9 +177,9 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.surface,
     },
     rowCopy: { flex: 1, gap: 1 },
-    rowLabel: { ...typography.body, color: c.text, fontSize: 14.5 },
+    rowLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22 },
     rowLabelOn: { color: c.primary, fontWeight: "700" },
     rowHint: { ...typography.tiny, color: c.textMuted },
-    reset: { ...typography.label, color: c.primary, fontSize: 13.5 },
+    reset: { ...typography.label, color: c.primary, fontSize: 14, lineHeight: 18 },
     note: { ...typography.tiny, color: c.textMuted, marginTop: spacing.sm, lineHeight: 16 },
   });

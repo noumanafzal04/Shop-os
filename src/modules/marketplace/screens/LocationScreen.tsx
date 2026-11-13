@@ -267,7 +267,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     justifyContent: "center",
   },
-  currentText: { ...typography.label, color: c.brand[700], fontSize: 15 },
+  currentText: { ...typography.label, color: c.brand[700], fontSize: 15, lineHeight: 22 },
   deniedHint: { ...typography.tiny, color: c.warning, marginBottom: spacing.sm },
   searchingHint: { ...typography.tiny, color: c.gray[400], paddingVertical: spacing.xs },
 
@@ -283,10 +283,10 @@ const makeStyles = (c: ThemeColors) =>
     marginBottom: spacing.xs,
   },
   rowInfo: { flex: 1, gap: 1 },
-  rowTitle: { ...typography.label, color: c.text, fontSize: 14 },
+  rowTitle: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
   rowMeta: { ...typography.tiny, color: c.gray[500] },
   defaultTag: { ...typography.tiny, color: c.brand[600] },
 
   savedBlock: { marginTop: spacing.md },
-  savedTitle: { ...typography.h3, color: c.text, fontSize: 15, marginBottom: spacing.xs },
+  savedTitle: { ...typography.h3, color: c.text, fontSize: 15, lineHeight: 22, marginBottom: spacing.xs },
 });

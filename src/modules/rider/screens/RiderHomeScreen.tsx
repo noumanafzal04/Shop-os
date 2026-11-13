@@ -654,7 +654,7 @@ const makeStyles = (c: ThemeColors) =>
 
     lockup: { flexDirection: "row", alignItems: "center", gap: 7 },
     /** THE branding, and the one place the brand colour is used as type. */
-    wordmark: { ...typography.display, fontSize: 20, color: c.primary, letterSpacing: -0.4 },
+    wordmark: { ...typography.display, fontSize: 18, lineHeight: 24, color: c.primary, letterSpacing: -0.4 },
     /**
      * "RIDER" as a chip, not as a second word.
      *
@@ -671,7 +671,6 @@ const makeStyles = (c: ThemeColors) =>
     modeChipText: {
       ...typography.tiny,
       color: c.primary,
-      fontSize: 9.5,
       fontWeight: "800",
       letterSpacing: 0.8,
     },
@@ -722,7 +721,7 @@ const makeStyles = (c: ThemeColors) =>
      * `PromoCarousel`'s scrim text is "#ffffff".
      */
     dutyDotOn: { backgroundColor: "#ffffff", borderColor: "#ffffff" },
-    dutyTitle: { ...typography.h3, color: c.text, fontSize: 17 },
+    dutyTitle: { ...typography.h3, color: c.text, fontSize: 18, lineHeight: 24 },
     dutyHint: { ...typography.tiny, color: c.textSecondary },
     /** The two type colours for the on state, where the ground is the brand. */
     onBrand: { color: c.onPrimary },
@@ -781,9 +780,9 @@ const makeStyles = (c: ThemeColors) =>
     /** A hairline between the columns, so three numbers read as three. */
     statDivide: { width: 1, backgroundColor: c.border, marginVertical: 4 },
     stat: { flex: 1, alignItems: "center", gap: 4, paddingHorizontal: 6 },
-    statValue: { ...typography.label, color: c.text, fontSize: 15 },
+    statValue: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     statValueWarn: { color: c.warning },
-    statLabel: { ...typography.tiny, color: c.textMuted, fontSize: 10.5 },
+    statLabel: { ...typography.tiny, color: c.textMuted, fontSize: 11, lineHeight: 14 },
 
     caption: {
       ...typography.tiny,
@@ -804,7 +803,7 @@ const makeStyles = (c: ThemeColors) =>
     jobMine: { borderColor: c.primary, borderWidth: 1.5 },
     jobTop: { flexDirection: "row", alignItems: "center", gap: 8 },
     grow: { flex: 1 },
-    jobFee: { ...typography.h3, color: c.primary, fontSize: 17 },
+    jobFee: { ...typography.h3, color: c.primary, fontSize: 18, lineHeight: 24 },
     jobKm: { ...typography.tiny, color: c.textMuted },
     stagePill: {
       backgroundColor: c.primarySoft,
@@ -812,7 +811,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 8,
       paddingVertical: 3,
     },
-    stageText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 10 },
+    stageText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 11, lineHeight: 14 },
 
     leg: { flexDirection: "row", alignItems: "center", gap: 8 },
     legText: { ...typography.small, color: c.text, flex: 1 },
@@ -834,7 +833,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 8,
       paddingVertical: 4,
     },
-    cashText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 10.5 },
+    cashText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11, lineHeight: 14 },
 
     gate: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: 8 },
     gateIcon: {
@@ -858,5 +857,5 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 11,
       marginTop: spacing.sm,
     },
-    gateCtaText: { ...typography.label, color: c.onPrimary, fontSize: 14 },
+    gateCtaText: { ...typography.label, color: c.onPrimary, fontSize: 14, lineHeight: 18 },
   });

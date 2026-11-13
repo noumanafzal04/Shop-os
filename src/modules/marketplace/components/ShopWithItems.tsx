@@ -302,12 +302,11 @@ const makeStyles = (c: ThemeColors) =>
       ...typography.tiny,
       color: "#ffffff",
       fontWeight: "800",
-      fontSize: 9.5,
       letterSpacing: 0.2,
     },
 
     headText: { flex: 1, gap: 1 },
-    name: { ...typography.h3, color: c.text, fontSize: 16.5 },
+    name: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
 
     strip: { gap: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
     /** Only when it is not a scroller — a `contentContainerStyle` is already a
@@ -324,7 +323,7 @@ const makeStyles = (c: ThemeColors) =>
     itemImage: { width: 132, height: 104 },
     itemImageShare: { width: "100%" },
     itemBadge: { position: "absolute", top: 6, left: 6 },
-    itemName: { ...typography.small, color: c.text, fontSize: 13, fontWeight: "600" },
+    itemName: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, fontWeight: "600" },
 
     // A tile, so it scrolls to a stop rather than trailing off — same width as
     // the pictures beside it, and quiet enough not to compete with them.

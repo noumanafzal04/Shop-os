@@ -69,7 +69,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 7,
       paddingVertical: 4,
     },
-    text: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11 },
+    text: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11, lineHeight: 14 },
     plate: { backgroundColor: c.surface },
     plateText: { color: c.text },
   });

@@ -445,7 +445,7 @@ const makeStyles = (c: ThemeColors) =>
     bannerOk: { backgroundColor: c.successBg, borderColor: c.success },
     bannerBad: { backgroundColor: c.errorBg, borderColor: c.error },
     bannerWait: { backgroundColor: c.warningBg, borderColor: c.warning },
-    bannerTitle: { ...typography.label, color: c.text, fontSize: 15 },
+    bannerTitle: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
     bannerBody: { ...typography.small, color: c.textSecondary, lineHeight: 18 },
     bannerCode: { ...typography.tiny, color: c.textMuted, marginTop: 4, fontWeight: "700" },
 
@@ -485,7 +485,7 @@ const makeStyles = (c: ThemeColors) =>
 
     switchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     switchCopy: { flex: 1, gap: 2 },
-    switchLabel: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "600" },
+    switchLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "600" },
     switchHint: { ...typography.tiny, color: c.textMuted, lineHeight: 15 },
     box: {
       width: 24,
@@ -510,7 +510,7 @@ const makeStyles = (c: ThemeColors) =>
     docIconOk: { backgroundColor: c.successBg },
     docIconBad: { backgroundColor: c.errorBg },
     docCopy: { flex: 1, gap: 1 },
-    docLabel: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "500" },
+    docLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500" },
     docHint: { ...typography.tiny, color: c.textMuted },
     docHintBad: { color: c.error },
 

@@ -235,7 +235,7 @@ const makeStyles = (c: ThemeColors) =>
       height: 34,
     },
     pillOn: { backgroundColor: c.primary, borderColor: c.primary },
-    pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 12.5 },
+    pillText: { ...typography.small, color: c.text, fontWeight: "600", fontSize: 13, lineHeight: 18 },
     pillTextOn: { color: c.onPrimary },
 
     sortList: { paddingBottom: spacing.md },
@@ -248,6 +248,6 @@ const makeStyles = (c: ThemeColors) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.border,
     },
-    sortText: { ...typography.body, color: c.text, fontSize: 15 },
+    sortText: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22 },
     sortTextOn: { color: c.primary, fontWeight: "700" },
   });

@@ -189,7 +189,7 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       gap: 4,
     },
-    heroValue: { ...typography.display, color: c.onPrimary, fontSize: 32 },
+    heroValue: { ...typography.display, color: c.onPrimary, fontSize: 28, lineHeight: 34 },
     heroLabel: { ...typography.small, color: c.brand[100] },
 
     cash: {
@@ -201,8 +201,8 @@ const makeStyles = (c: ThemeColors) =>
       gap: 6,
     },
     cashHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-    cashTitle: { ...typography.label, color: c.onWarm, flex: 1, fontSize: 14 },
-    cashValue: { ...typography.h3, color: c.onWarm, fontSize: 18 },
+    cashTitle: { ...typography.label, color: c.onWarm, flex: 1, fontSize: 14, lineHeight: 18 },
+    cashValue: { ...typography.h3, color: c.onWarm, fontSize: 18, lineHeight: 24 },
     cashHint: { ...typography.tiny, color: c.onWarm, lineHeight: 16, opacity: 0.85 },
 
     caption: {
@@ -227,9 +227,9 @@ const makeStyles = (c: ThemeColors) =>
     },
     shopDivided: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border },
     shopCopy: { flex: 1, gap: 1 },
-    shopName: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "500" },
+    shopName: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500" },
     shopMeta: { ...typography.tiny, color: c.textMuted },
-    shopCash: { ...typography.label, color: c.text, fontSize: 14.5 },
+    shopCash: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
 
     skeletons: { gap: spacing.sm, marginTop: spacing.sm },
 

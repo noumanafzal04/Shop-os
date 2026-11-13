@@ -130,7 +130,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     rowIconOn: { backgroundColor: c.primary },
     rowCopy: { flex: 1 },
-    rowLabel: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "500" },
+    rowLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500" },
     rowHint: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
     radio: {
       width: 20,

@@ -503,7 +503,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingVertical: 11,
     },
     toggleCopy: { flex: 1 },
-    toggleLabel: { ...typography.body, color: c.text, fontSize: 14.5 },
+    toggleLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22 },
     toggleHint: { ...typography.tiny, color: c.textMuted, marginTop: 1 },
     box: {
       width: 24,
@@ -517,7 +517,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     boxOn: { backgroundColor: c.primary, borderColor: c.primary },
 
-    reset: { ...typography.label, color: c.primary, fontSize: 13.5 },
+    reset: { ...typography.label, color: c.primary, fontSize: 14, lineHeight: 18 },
 
     apply: {
       height: 50,
@@ -528,7 +528,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     applyPressed: { backgroundColor: c.primaryPressed },
     applyEmpty: { backgroundColor: c.surfaceAlt },
-    applyText: { ...typography.label, color: c.onPrimary, fontSize: 15 },
+    applyText: { ...typography.label, color: c.onPrimary, fontSize: 15, lineHeight: 22 },
     applyTextEmpty: { color: c.textMuted },
 
   });

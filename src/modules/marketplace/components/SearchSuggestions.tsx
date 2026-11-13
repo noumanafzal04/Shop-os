@@ -221,7 +221,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     copy: { flex: 1, gap: 1 },
-    label: { ...typography.body, color: c.text, fontSize: 14.5 },
+    label: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22 },
     detail: { ...typography.tiny, color: c.textMuted },
     fill: { padding: 4 },
   });

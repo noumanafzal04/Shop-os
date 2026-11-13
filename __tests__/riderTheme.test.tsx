@@ -179,6 +179,20 @@ describe("the two palettes are actually different", () => {
      *
      * Still spelled out: a NINTH kind of divergence has to be argued for here
      * rather than added quietly, which is how one app becomes two.
+     *
+     * ── Argued for 2026-11-13, when the customer side took the teal ──────
+     *
+     *   warm +      the DEAL colour, and the brand forces it: beside a teal
+     *   warmSoft +  brand the offer badge is burnt orange (white on it 5.1:1,
+     *   onWarm      the complementary pair); beside the carmine brand an
+     *               orange badge would be a second red. Each side keeps the
+     *               deal colour its own brand can stand next to.
+     *   info +      the brand's own voice for a neutral notice. A blue info
+     *   infoBg      box on a teal app is a third hue nobody chose; on the
+     *               teal side it is the teal, on its tint.
+     *
+     * success and warning did NOT join this list: they were improved in the
+     * shared base instead (5.1:1, 5.2:1), so both sides read them the same.
      */
     expect(moved.sort()).toEqual([
       "accent",
@@ -190,10 +204,13 @@ describe("the two palettes are actually different", () => {
       "errorBg",
       "gradient",
       "gray",
+      "info",
+      "infoBg",
       "ink",
       "inkMuted",
       "inkSoft",
       "onAccent",
+      "onWarm",
       "primary",
       "primaryPressed",
       "primarySoft",
@@ -201,6 +218,8 @@ describe("the two palettes are actually different", () => {
       "text",
       "textMuted",
       "textSecondary",
+      "warm",
+      "warmSoft",
     ]);
   });
 

@@ -762,10 +762,10 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.title, color: c.onPrimary, fontSize: 20 },
+    avatarText: { ...typography.title, color: c.onPrimary, fontSize: 18, lineHeight: 24 },
     whoCopy: { flex: 1, gap: 1 },
-    whoName: { ...typography.label, color: c.text, fontSize: 15 },
-    whoSub: { ...typography.tiny, color: c.textMuted, fontSize: 11.5 },
+    whoName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
+    whoSub: { ...typography.tiny, color: c.textMuted, fontSize: 12, lineHeight: 16 },
     editPill: {
       flexDirection: "row",
       alignItems: "center",
@@ -775,7 +775,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 10,
       paddingVertical: 8,
     },
-    editText: { ...typography.tiny, color: c.text, fontWeight: "700", fontSize: 11.5 },
+    editText: { ...typography.tiny, color: c.text, fontWeight: "700", fontSize: 12, lineHeight: 16 },
 
     /**
      * FILLED, because it is the loudest thing this menu does.
@@ -805,8 +805,8 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     switcherCopy: { flex: 1, gap: 1 },
-    switcherTitle: { ...typography.label, color: c.onPrimary, fontSize: 14 },
-    switcherHint: { ...typography.tiny, color: "rgba(255,255,255,0.85)", fontSize: 11.5 },
+    switcherTitle: { ...typography.label, color: c.onPrimary, fontSize: 14, lineHeight: 18 },
+    switcherHint: { ...typography.tiny, color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 16 },
 
     logout: {
       flexDirection: "row",
@@ -819,13 +819,12 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: c.errorBg,
       paddingVertical: 11,
     },
-    logoutText: { ...typography.label, color: c.error, fontSize: 14 },
+    logoutText: { ...typography.label, color: c.error, fontSize: 14, lineHeight: 18 },
 
     caption: {
       ...typography.tiny,
       color: c.textMuted,
       fontWeight: "800",
-      fontSize: 10.5,
       // Uppercase and spaced: a caption should read as a label on a drawer,
       // not as another row that happens to be smaller.
       textTransform: "uppercase",
@@ -851,12 +850,12 @@ const makeStyles = (c: ThemeColors) =>
       borderBottomColor: c.border,
     },
     pressed: { opacity: 0.6 },
-    rowLabel: { ...typography.body, color: c.text, fontSize: 14.5, fontWeight: "500", flex: 1 },
+    rowLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500", flex: 1 },
     rowLabelDanger: { color: c.error, fontWeight: "600" },
 
     valueWrap: { flexDirection: "row", alignItems: "center", gap: 5 },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.success },
-    value: { ...typography.tiny, color: c.textMuted, fontSize: 11.5, fontWeight: "600" },
+    value: { ...typography.tiny, color: c.textMuted, fontSize: 12, lineHeight: 16, fontWeight: "600" },
     valueOn: { color: c.success },
 
   });

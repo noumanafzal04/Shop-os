@@ -375,5 +375,5 @@ const makeStyles = (c: ThemeColors) =>
     },
     nextWide: { width: "auto", paddingHorizontal: spacing.lg },
     nextPressed: { backgroundColor: c.primaryPressed },
-    nextText: { ...typography.label, color: c.onPrimary, fontSize: 15 },
+    nextText: { ...typography.label, color: c.onPrimary, fontSize: 15, lineHeight: 22 },
   });

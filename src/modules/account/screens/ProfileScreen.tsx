@@ -217,7 +217,7 @@ const makeStyles = (c: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.display, color: c.onPrimary, fontSize: 30 },
+    avatarText: { ...typography.display, color: c.onPrimary, fontSize: 28, lineHeight: 34 },
     avatarHint: { ...typography.tiny, color: c.textMuted, textAlign: "center" },
 
     field: { gap: 4 },
