@@ -21,6 +21,7 @@ import { useMarketShop } from "../../marketplace/hooks/useMarketplace";
 import { Skeleton } from "../../../common/ui/Skeleton";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useCancelMyOrder, useMyOrder, type OrderStatus } from "../hooks/useOrders";
+import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import { money, qtyText } from "../../../common/format";
 import { distanceLabel, mapsUrl } from "../../../common/maps";
 
@@ -339,12 +340,17 @@ export function OrderTrackingScreen() {
               <Text style={styles.sumLabel}>Subtotal</Text>
               <Text style={styles.sumLabel}>{money(o.subtotal)}</Text>
             </View>
-            {Number(o.delivery_fee) > 0 && (
-              <View style={styles.sumRow}>
-                <Text style={styles.sumLabel}>Delivery</Text>
-                <Text style={styles.sumLabel}>{money(o.delivery_fee)}</Text>
-              </View>
-            )}
+            {/* Coupon, offer, member discount, tax and delivery — the lines
+                the order was priced with, as the server sent them. */}
+            {orderMoneyLines(o, o.fulfillment_type)
+              .filter((line) => line.kind !== "goods" && line.kind !== "total")
+              .filter((line) => line.kind !== "delivery" || line.amount > 0)
+              .map((line) => (
+                <View key={line.key} style={styles.sumRow}>
+                  <Text style={styles.sumLabel}>{line.label}</Text>
+                  <Text style={line.kind === "off" ? styles.sumOff : styles.sumLabel}>{moneyLineValue(line, money)}</Text>
+                </View>
+              ))}
             <View style={styles.sumRow}>
               <Text style={styles.grand}>Total (COD)</Text>
               <Text style={styles.grand}>{money(o.total)}</Text>
@@ -537,5 +543,6 @@ const makeStyles = (c: ThemeColors) =>
     borderTopColor: c.border,
   },
   sumLabel: { ...typography.small, color: c.gray[600] },
+  sumOff: { ...typography.small, color: c.success, fontWeight: "600" },
   grand: { ...typography.label, color: c.text, fontSize: 15 },
 });

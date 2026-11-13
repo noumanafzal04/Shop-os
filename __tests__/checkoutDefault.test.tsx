@@ -72,7 +72,17 @@ jest.mock("../src/common/api/client", () => ({
 
     return Promise.resolve({ data: null });
   }),
-  apiPost: jest.fn(() => Promise.resolve({ data: { id: "o1" } })),
+  // The checkout asks the server what the order comes to before it may be
+  // placed (`/customer/orders/worth`), and shows that figure on the button.
+  apiPost: jest.fn((url: string) =>
+    /orders\/worth/.test(url)
+      ? Promise.resolve({
+        data: {
+          subtotal: 900, discount: 0, coupon_code: null, coupon_discount: 0, promotion_name: null,
+          promotion_discount: 0, member_discount: 0, tax: 0, tax_inclusive: false, delivery_fee: 0, total: 900,
+        },
+      })
+      : Promise.resolve({ data: { id: "o1" } })),
   apiPut: jest.fn(() => Promise.resolve({ data: null })),
   apiPatch: jest.fn(() => Promise.resolve({ data: null })),
   apiDelete: jest.fn(() => Promise.resolve({ data: null })),
@@ -117,10 +127,23 @@ async function placedOrder(tree: ReactTestRenderer.ReactTestRenderer) {
   });
 
   const post = jest.requireMock("../src/common/api/client").apiPost as jest.Mock;
-  const call = post.mock.calls.find(([url]) => /customer\/orders/.test(String(url)));
+  // The ORDER, not the question asked before it (`/customer/orders/worth`).
+  const call = post.mock.calls.find(([url]) => /customer\/orders$/.test(String(url)));
 
   return call?.[1] as { fulfillment_type?: string } | undefined;
 }
+
+/**
+ * Unmounted after every case: the checkout keeps a debounce timer and a query
+ * alive, and a screen left mounted fires them after jest has torn the module
+ * graph down — noise that hides a real warning.
+ */
+const mounted: ReactTestRenderer.ReactTestRenderer[] = [];
+afterEach(async () => {
+  for (const tree of mounted.splice(0)) {
+    await ReactTestRenderer.act(async () => tree.unmount());
+  }
+});
 
 async function render() {
   const client = new QueryClient({
@@ -144,6 +167,7 @@ async function render() {
       </SafeAreaProvider>,
     );
   });
+  mounted.push(tree);
 
   /**
    * TWELVE FLUSHES, NO EARLY EXIT.
@@ -162,6 +186,19 @@ async function render() {
   for (let i = 0; i < 12; i++) {
     await ReactTestRenderer.act(async () => {
       await new Promise<void>((r) => setImmediate(() => r()));
+    });
+  }
+  // …and the pause the checkout waits before asking what the order comes to
+  // (debounced 400 ms), then the answer: Place order is shut until it lands.
+  // Waited FOR, up to three seconds, not for a fixed 450 ms — a loaded machine
+  // made the fixed wait a coin toss.
+  for (let waited = 0; waited < 3000; waited += 100) {
+    const ready = tree.root.findAll(
+      (n) => typeof n.type !== "string" && /^Place order/.test(String(n.props?.title ?? "")),
+    ).length > 0;
+    if (ready) break;
+    await ReactTestRenderer.act(async () => {
+      await new Promise<void>((r) => setTimeout(r, 100));
     });
   }
 
@@ -275,5 +312,71 @@ describe("which way an order goes when nobody has said", () => {
     // A choice cannot outlive the shop's ability to honour it — a shop that
     // switches delivery off mid-basket must not leave a delivery order.
     expect(rule({ current: "delivery", chosen: true, canDeliver: false })).toBe("pickup");
+  });
+});
+
+/**
+ * THE CHECKOUT SAYS THE SHOP'S FIGURE, AND ONE ORDER IS ONE ORDER.
+ *
+ * The cart below adds up to 450. The server says 900 — it adds the shop's
+ * tax, its offer, the delivery (an order is priced like the till since
+ * 2026-11-11). The button must carry the server's figure: the old screen
+ * added the basket and the fee itself, and a customer shown one total was
+ * asked for another at the door.
+ *
+ * And the key: a key minted at the press turns a retried press after a lost
+ * answer into a second order for the same basket.
+ */
+describe("the checkout is priced by the shop and placed once", () => {
+  beforeEach(() => {
+    (jest.requireMock("../src/common/api/client").apiPost as jest.Mock).mockClear();
+    mockShopPayload = mockShop;
+    useAuthStore.setState({
+      status: "authenticated",
+      user: { id: "u1", name: "Farhan", role: "customer" } as never,
+      accessToken: "t",
+    });
+    useCartStore.setState({
+      shopSlug: "burger-hut",
+      lines: [{ product_id: "p1", name: "Zinger Burger", price: 450, quantity: 1, sold_by: "unit" } as never],
+    });
+  });
+
+  it("puts the server's total on the button, not the cart's sum", async () => {
+    const tree = await render();
+    const button = tree.root.findAll(
+      (n) => typeof n.type !== "string" && /^Place order/.test(String(n.props?.title ?? "")),
+    )[0];
+
+    expect(String(button.props.title)).toMatch(/900/);
+    expect(String(button.props.title)).not.toMatch(/450/);
+    const asked = (jest.requireMock("../src/common/api/client").apiPost as jest.Mock).mock.calls
+      .find(([url]) => /orders\/worth$/.test(String(url)));
+    expect(asked?.[1]).toMatchObject({ shop_slug: "burger-hut", fulfillment_type: "delivery" });
+  });
+
+  it("sends the same key when a lost answer is pressed again", async () => {
+    const post = jest.requireMock("../src/common/api/client").apiPost as jest.Mock;
+    const tree = await render();
+    post.mockImplementationOnce(() => Promise.reject(new Error("network dropped")));
+    const press = async () => {
+      const button = tree.root.findAll(
+        (n) => typeof n.type !== "string" && /^Place order/.test(String(n.props?.title ?? "")),
+      )[0];
+      await ReactTestRenderer.act(async () => {
+        (button.props.onPress as () => void)();
+        await new Promise<void>((r) => setImmediate(() => r()));
+      });
+    };
+
+    await press();
+    await press();
+
+    const keys = post.mock.calls
+      .filter(([url]) => /customer\/orders$/.test(String(url)))
+      .map(([, body]) => (body as { idempotency_key?: string }).idempotency_key);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
   });
 });

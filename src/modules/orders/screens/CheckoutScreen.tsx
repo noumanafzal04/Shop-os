@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
@@ -26,7 +26,9 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
 import { useCartStore } from "../../../stores/cartStore";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useMarketShop } from "../../marketplace/hooks/useMarketplace";
-import { usePlaceOrder } from "../hooks/useOrders";
+import { makeKey, useOrderWorth, usePlaceOrder } from "../hooks/useOrders";
+import { moneyLineValue, orderMoneyLines } from "../orderMoney";
+import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { SignInWall } from "../../auth/components/SignInWall";
 import { useAuthStore } from "../../../stores/authStore";
 import { money } from "../../../common/format";
@@ -144,7 +146,10 @@ export function CheckoutScreen() {
   const [notes, setNotes] = useState("");
 
 
-  const lines = cart.shopSlug === slug ? cart.lines : [];
+  // One array for as long as the cart is unchanged — the order put to the
+  // server for its price is keyed on it, and a fresh `[]` every render would
+  // be a fresh question every render.
+  const lines = useMemo(() => (cart.shopSlug === slug ? cart.lines : []), [cart.shopSlug, cart.lines, slug]);
   const canDeliver = shop.data?.fulfillment?.delivery ?? shop.data?.features?.delivery ?? false;
   const canPickup = shop.data?.fulfillment?.pickup ?? true;
   const closed = shop.data?.is_open_now === false;
@@ -164,8 +169,6 @@ export function CheckoutScreen() {
   const subtotal = cart.subtotal();
   const freeAbove = shop.data?.free_delivery_threshold ?? null;
   const earnedFreeDelivery = freeAbove != null && subtotal >= freeAbove;
-  const deliveryFee = fulfillment === "delivery" && !earnedFreeDelivery ? (shop.data?.delivery_fee ?? 0) : 0;
-  const total = subtotal + deliveryFee;
   const minOrder = shop.data?.min_order_amount ?? null;
   const belowMinimum = fulfillment === "delivery" && minOrder != null && subtotal < minOrder;
 
@@ -203,13 +206,55 @@ export function CheckoutScreen() {
     .join(" — ");
   const deliveryReady = fulfillment !== "delivery" || deliveryText.length > 0;
 
+  /**
+   * WHAT IT COMES TO — the shop's own figure, never a sum done here.
+   *
+   * Tax, the shop's offer, a member's discount, the coupon and the delivery
+   * are all decided by the server (an order is priced like the till), so the
+   * order is put to it and the answer is what the screen and the button say.
+   * Asked once the person stops typing; an unchanged order is not asked again.
+   */
+  const askedNow = useMemo(() => {
+    const lat = selected?.latitude ?? pin.lat ?? undefined;
+    const lng = selected?.longitude ?? pin.lng ?? undefined;
+
+    return JSON.stringify({
+      shop_slug: slug,
+      fulfillment_type: fulfillment,
+      latitude: fulfillment === "delivery" ? lat : undefined,
+      longitude: fulfillment === "delivery" ? lng : undefined,
+      coupon_code: coupon.trim() || undefined,
+      items: lines.map((l) => ({
+        product_id: l.product_id,
+        variant_id: l.variant_id ?? undefined,
+        quantity: l.quantity,
+        modifier_option_ids: l.modifier_option_ids?.length ? l.modifier_option_ids : undefined,
+      })),
+    });
+  }, [slug, fulfillment, coupon, lines, selected?.latitude, selected?.longitude, pin.lat, pin.lng]);
+  const asked = useDebouncedValue(askedNow, 400);
+  const worth = useOrderWorth(asked, status === "authenticated" && lines.length > 0);
+  // The figures on screen are for THIS order — not the one before the last tap.
+  const priced = worth.data && asked === askedNow && !worth.isFetching ? worth.data : null;
+  const shown = worth.data ?? null; // kept up while the next answer is on its way
+  const refused = worth.error instanceof ApiError ? worth.error.firstFieldError() || worth.error.message : null;
+
+  /**
+   * ONE ORDER, ONE KEY — for the whole attempt.
+   *
+   * Minted at the press, a dropped answer and a second press would be two
+   * orders for one basket. Held here from the first press until the order is
+   * placed, a retry is the same order and the server hands back the first.
+   */
+  const orderKey = useRef(makeKey());
+
   const apiError = place.error instanceof ApiError ? place.error : null;
   const error = apiError
     ? ERROR_COPY[apiError.errorCode ?? ""] || apiError.firstFieldError() || apiError.message
     : null;
 
   const submit = () => {
-    if (lines.length === 0 || place.isPending || !deliveryReady) return;
+    if (lines.length === 0 || place.isPending || !deliveryReady || !priced) return;
     // The pin: the saved address's own coordinates, else the one the shopper
     // set for themselves. Not "the live GPS pin" any more — the store stopped
     // re-detecting on every launch, so `pin` is now the place they chose and
@@ -218,6 +263,7 @@ export function CheckoutScreen() {
     const lng = selected?.longitude ?? pin.lng ?? undefined;
     place.mutate(
       {
+        idempotency_key: orderKey.current,
         shop_slug: slug,
         fulfillment_type: fulfillment,
         delivery_address: fulfillment === "delivery" ? deliveryText : undefined,
@@ -234,6 +280,7 @@ export function CheckoutScreen() {
       },
       {
         onSuccess: (res) => {
+          orderKey.current = makeKey();
           cart.clear();
           // Straight to live tracking for the order we just placed.
           const id = res?.data?.id;
@@ -282,10 +329,10 @@ export function CheckoutScreen() {
         footer={
           <View style={styles.bar}>
             <AppButton
-              title={place.isPending ? "Placing order…" : `Place order · ${money(total)}`}
+              title={place.isPending ? "Placing order…" : priced ? `Place order · ${money(priced.total)}` : refused ? "Place order" : "Working out the total…"}
               onPress={submit}
               loading={place.isPending}
-              disabled={lines.length === 0 || !deliveryReady || belowMinimum}
+              disabled={lines.length === 0 || !deliveryReady || belowMinimum || !priced}
               size="lg"
             />
           </View>
@@ -503,28 +550,31 @@ export function CheckoutScreen() {
         <View style={styles.totals}>
           <View style={styles.totalRow}>
             <Text style={styles.totalLbl}>Subtotal</Text>
-            <Text style={styles.totalVal}>{money(subtotal)}</Text>
+            <Text style={styles.totalVal}>{money(shown ? shown.subtotal : subtotal)}</Text>
           </View>
-          {fulfillment === "delivery" && (
+          {/* Every line below is the server's — coupon, offer, member
+              discount, tax, delivery, total. Nothing is added up here. */}
+          {shown ? (
+            orderMoneyLines(shown, fulfillment)
+              .filter((line) => line.kind !== "goods" && line.kind !== "total")
+              .map((line) => (
+                <View key={line.key} style={styles.totalRow}>
+                  <Text style={styles.totalLbl}>{line.label}</Text>
+                  <Text style={line.kind === "off" ? styles.totalOff : line.kind === "delivery" && line.amount === 0 ? styles.totalFree : styles.totalVal}>
+                    {moneyLineValue(line, money)}
+                  </Text>
+                </View>
+              ))
+          ) : null}
+          {refused && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLbl}>Delivery fee</Text>
-              {earnedFreeDelivery ? (
-                <Text style={styles.totalFree}>FREE</Text>
-              ) : (
-                <Text style={styles.totalVal}>{money(deliveryFee)}</Text>
-              )}
-            </View>
-          )}
-          {!!coupon.trim() && (
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLbl}>Coupon {coupon.trim()}</Text>
-              <Text style={styles.totalHint}>checked when you order</Text>
+              <Text style={styles.refusedText}>{refused}</Text>
             </View>
           )}
           <View style={styles.totalRule} />
           <View style={styles.totalRow}>
             <Text style={styles.grand}>Total</Text>
-            <Text style={styles.grandVal}>{money(total)}</Text>
+            <Text style={styles.grandVal}>{shown ? money(shown.total) : "…"}</Text>
           </View>
         </View>
 
@@ -762,7 +812,8 @@ const makeStyles = (c: ThemeColors) =>
   totalLbl: { ...typography.small, color: c.textSecondary },
   totalVal: { ...typography.small, color: c.text, fontWeight: "600" },
   totalFree: { ...typography.small, color: c.success, fontWeight: "800" },
-  totalHint: { ...typography.tiny, color: c.textMuted },
+  totalOff: { ...typography.small, color: c.success, fontWeight: "700" },
+  refusedText: { ...typography.small, color: c.error, flex: 1 },
   totalRule: { height: 1, backgroundColor: c.border, marginVertical: 8 },
   grand: { ...typography.h3, fontSize: 16, color: c.text },
   grandVal: { ...typography.title, fontSize: 21, color: c.primary },

@@ -20,6 +20,20 @@ export interface CustomerOrder {
   fulfillment_type: "delivery" | "pickup";
   delivery_address: string | null;
   subtotal: string;
+  /**
+   * All the money off the goods — coupon, the shop's promotion and a member's
+   * discount (an order is priced by the till's rules since 2026-11-11) — and
+   * how it was made up. Absent shares: an order from before, whose whole
+   * discount was the coupon's.
+   */
+  discount?: string;
+  coupon_code?: string | null;
+  promotion_name?: string | null;
+  promotion_discount?: string;
+  member_discount?: string;
+  /** The tax it was quoted — inside the prices or on top of them. */
+  tax?: string;
+  tax_inclusive?: boolean;
   delivery_fee: string;
   total: string;
   items: Array<{ product_name: string; variant_name: string | null; quantity: number; line_total: string }>;
@@ -83,7 +97,7 @@ export interface PlaceOrderPayload {
   idempotency_key?: string;
 }
 
-function makeKey(): string {
+export function makeKey(): string {
   return `mob-ord-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -139,6 +153,48 @@ export function useMyOrder(id: string | undefined) {
   });
 }
 
+/** The server's own figures for an order not yet placed (`/customer/orders/worth`). */
+export interface OrderWorth {
+  subtotal: number;
+  discount: number;
+  coupon_code: string | null;
+  coupon_discount: number;
+  promotion_name: string | null;
+  promotion_discount: number;
+  member_discount: number;
+  tax: number;
+  tax_inclusive: boolean;
+  delivery_fee: number;
+  total: number;
+}
+
+/**
+ * WHAT THIS ORDER COMES TO — ASKED, NOT ADDED UP.
+ *
+ * Checkout added the basket and the delivery fee itself and said "coupon
+ * checked when you order". Since an order is taxed and takes the shop's
+ * offers, that sum is a different figure from the one charged — a customer
+ * shown Rs 1,000 and asked for Rs 1,050 at the door. The placing path is run
+ * and stopped before it places (no order, no stock held, no coupon spent).
+ *
+ * `asked` is the payload as TEXT, debounced by the screen: one question per
+ * pause, not one per keystroke, and an identical question is answered from the
+ * cache. The last answer stays up while the next is asked, so the figures do
+ * not blink. A refusal (a coupon that is spent, a minimum not met) is the
+ * answer, not a blip — never retried.
+ */
+export function useOrderWorth(asked: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["orders", "worth", asked],
+    queryFn: async () => (await apiPost<OrderWorth>("/customer/orders/worth", JSON.parse(asked))).data,
+    enabled,
+    staleTime: 30_000,
+    gcTime: 60_000,
+    retry: false,
+    placeholderData: keepPreviousData,
+  });
+}
+
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -148,6 +204,9 @@ export function usePlaceOrder() {
     // See `queryClient.ts`.
     meta: { silent: true },
     mutationFn: (payload: PlaceOrderPayload) =>
+      // The screen holds the key for the whole attempt (see Checkout): a key
+      // minted at the press is no key — a retry after a dropped answer would
+      // be a second order. This default only covers a caller that sent none.
       apiPost<CustomerOrder>("/customer/orders", { idempotency_key: makeKey(), ...payload }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
   });
