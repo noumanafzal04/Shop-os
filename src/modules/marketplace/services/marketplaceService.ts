@@ -359,7 +359,16 @@ function browseParams(f: BrowseFilters): Record<string, string | number | undefi
   return out;
 }
 
+/** Does the platform serve this pin? (Service zones the admin drew.) */
+export interface ServiceArea {
+  zones_drawn: boolean;
+  served: boolean;
+  zone: { name: string } | null;
+}
+
 export const marketplaceService = {
+  serviceArea: (lat: number, lng: number) =>
+    apiGet<ServiceArea>("/marketplace/service-area", { params: { lat, lng } }),
   /** GPS → nearest city (no manual picker). */
   locate: (lat: number, lng: number) =>
     apiGet<LocateResult>("/marketplace/locate", { params: { lat, lng } }),

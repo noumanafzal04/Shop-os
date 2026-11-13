@@ -14,6 +14,26 @@ import {
   type RegisterPayload,
 } from "../services/marketplaceService";
 
+/**
+ * DOES THE PLATFORM SERVE WHERE THIS PERSON IS?
+ *
+ * Asked once per place — the pin rounded to about a hundred metres, so
+ * walking across a room asks nothing again — and kept for ten minutes: the
+ * admin redraws zones rarely, and the answer only changes the home screen's
+ * opening line. No pin, no question.
+ */
+export function useServiceArea(lat: number | undefined, lng: number | undefined) {
+  const at = lat !== undefined && lng !== undefined ? [Math.round(lat * 1000) / 1000, Math.round(lng * 1000) / 1000] as const : null;
+
+  return useQuery({
+    queryKey: ["market", "service-area", at],
+    queryFn: async () => (await marketplaceService.serviceArea(at![0], at![1])).data,
+    enabled: at !== null,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+}
+
 export function useHomeFeed(params: { lat?: number; lng?: number; city_id?: string }) {
   return useQuery({
     queryKey: ["market", "home", params],

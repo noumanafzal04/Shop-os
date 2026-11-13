@@ -28,7 +28,9 @@ import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
 import { useServingPin } from "../servingPin";
-import { useHomeFeed } from "../hooks/useMarketplace";
+import { useHomeFeed, useServiceArea } from "../hooks/useMarketplace";
+import { AppButton } from "../../../common/ui/AppButton";
+import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
 import { ShopWithItems } from "../components/ShopWithItems";
@@ -156,6 +158,8 @@ export function CustomerHomeScreen() {
   );
 
   const feed = useHomeFeed(pin);
+  // Outside every zone the platform drew → say so first, not at checkout.
+  const area = useServiceArea(pin.lat, pin.lng);
   const ground = useTileGround();
   const tint = useTileTint();
 
@@ -358,6 +362,20 @@ export function CustomerHomeScreen() {
             and the page then says "No shops around here yet" about a city full
             of them.
           */}
+          {area.data?.served === false && (
+            <View style={styles.outsideCard} accessibilityRole="summary">
+              <View style={styles.outsideIcon}>
+                <MapPinIcon size={20} color={c.warm} />
+              </View>
+              <View style={styles.outsideText}>
+                <Text style={styles.outsideTitle}>We're not delivering here yet</Text>
+                <Text style={styles.outsideBody}>
+                  {BRAND.name} serves selected areas{label ? ` — ${label} is outside them` : ""}. Choose an address inside our area to see the shops that deliver.
+                </Text>
+                <AppButton title="Change location" variant="outline" onPress={() => navigation.navigate("Location")} />
+              </View>
+            </View>
+          )}
           {feed.isError && (
             <LoadFailed
               what="shops near you"
@@ -895,6 +913,28 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   scroll: { flex: 1, backgroundColor: c.bg },
+  // Outside every service zone: said first, in the deal colour's soft tint
+  // with a warning's words — not a red error, nobody did anything wrong.
+  outsideCard: {
+    flexDirection: "row",
+    gap: spacing.ms,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: c.warmSoft,
+  },
+  outsideIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: c.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  outsideText: { flex: 1, gap: spacing.sm },
+  outsideTitle: { ...typography.name, color: c.text },
+  outsideBody: { ...typography.small, color: c.textSecondary },
 
   /**
    * ── THE HEADER IS PART OF THE PAGE NOW ──────────────────────────
