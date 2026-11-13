@@ -349,7 +349,7 @@ export function BrowseScreen() {
             // `hasNextPage` alone is not enough — `onEndReached` fires more
             // than once while a list settles, and without the in-flight check
             // that is two identical requests for page two.
-            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage({ cancelRefetch: false });
           }}
           ListFooterComponent={
             list.isFetchingNextPage ? (

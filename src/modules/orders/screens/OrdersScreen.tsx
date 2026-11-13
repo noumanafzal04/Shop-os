@@ -137,7 +137,7 @@ export function OrdersScreen() {
           refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (orders.hasNextPage && !orders.isFetchingNextPage) orders.fetchNextPage();
+            if (orders.hasNextPage && !orders.isFetchingNextPage) orders.fetchNextPage({ cancelRefetch: false });
           }}
           ListFooterComponent={
             orders.isFetchingNextPage ? (

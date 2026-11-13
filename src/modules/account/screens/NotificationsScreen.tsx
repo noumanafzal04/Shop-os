@@ -125,7 +125,7 @@ export function NotificationsScreen() {
           contentContainerStyle={[styles.list, styles.grow]}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage({ cancelRefetch: false });
           }}
           ListFooterComponent={
             list.isFetchingNextPage ? (

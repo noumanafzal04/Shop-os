@@ -54,6 +54,8 @@ export function MarketScreen() {
    * a garments list showing pharmacy offers.
    */
   const businessCategory: string | undefined = route.params?.business_category;
+  /** Opened from the paid row's "See all": today's featured shops only. */
+  const featured = route.params?.featured === true;
   const title: string = route.params?.title ?? "Shops";
   const isTab = route.name === "GroceryTab" || route.name === "Market";
   const pin = useServingPin();
@@ -75,6 +77,7 @@ export function MarketScreen() {
     search: debounced,
     business_type: businessType,
     business_category: businessCategory,
+    featured: featured || undefined,
     // The pin AND the city — see `useServingPin`. This sent the pin only, so
     // the list was fenced by each shop's radius and by nothing else, and a
     // shopper in Karachi was shown shops from every other city.
@@ -195,7 +198,7 @@ export function MarketScreen() {
         // than once while the list settles.
         onEndReachedThreshold={0.5}
         onEndReached={() => {
-          if (shops.hasNextPage && !shops.isFetchingNextPage) shops.fetchNextPage();
+          if (shops.hasNextPage && !shops.isFetchingNextPage) shops.fetchNextPage({ cancelRefetch: false });
         }}
         ListFooterComponent={
           shops.isFetchingNextPage ? (

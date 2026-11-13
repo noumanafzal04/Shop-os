@@ -38,6 +38,8 @@ export interface PublicShop {
   delivery_radius_km?: number | null;
   delivers_to_me?: boolean;
   prep_time_minutes?: number | null;
+  /** A paid place at the top of the home screen — the card says so. */
+  is_featured?: boolean;
   /**
    * A FEW OF THIS SHOP'S OWN ITEMS, for the card to show.
    *
@@ -89,6 +91,12 @@ export interface DealProduct {
 }
 
 export interface HomeFeed {
+  /**
+   * The paid row, first on the home screen, in the admin's order. Only shops
+   * this customer could order from anyway — featuring buys position, never
+   * visibility. Optional because a server older than the row sends none.
+   */
+  featured?: PublicShop[];
   banners: HomeBanner[];
   nearby: PublicShop[];
   top_rated: PublicShop[];
@@ -231,6 +239,16 @@ export interface ShopQuery {
   radius?: number;
   sort?: "rating";
   page?: number;
+  per_page?: number;
+  /**
+   * Each card carries five of its shop's own items — the home screen's "All
+   * shops" list, which draws the same cards page after page. Off for search
+   * and the trade lists, which draw plain rows and would pay for a strip
+   * they hide.
+   */
+  previews?: boolean;
+  /** Only shops featured today, in the admin's order — the paid row's "See all". */
+  featured?: boolean;
 }
 
 export interface BrowseFilters {
@@ -415,6 +433,9 @@ export const marketplaceService = {
         rating_min: params.rating_min ?? undefined,
         radius: params.radius ?? undefined,
         sort: params.sort || undefined,
+        previews: params.previews ? 1 : undefined,
+        featured: params.featured ? 1 : undefined,
+        per_page: params.per_page ?? undefined,
         page: params.page ?? 1,
       },
     }),

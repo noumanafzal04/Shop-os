@@ -34,10 +34,14 @@ export function useServiceArea(lat: number | undefined, lng: number | undefined)
   });
 }
 
-export function useHomeFeed(params: { lat?: number; lng?: number; city_id?: string }) {
+export function useHomeFeed(
+  params: { lat?: number; lng?: number; city_id?: string },
+  { enabled = true }: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["market", "home", params],
     queryFn: async () => (await marketplaceService.home(params)).data,
+    enabled,
     staleTime: 2 * 60 * 1000,
     placeholderData: keepPreviousData,
   });
@@ -81,10 +85,11 @@ export function useUniversalSearch(q: string, params: { lat?: number; lng?: numb
  * ninety shops showed twenty and stopped, with nothing on screen to say the
  * other seventy existed.
  */
-export function useMarketShops(params: ShopQuery) {
+export function useMarketShops(params: ShopQuery, { enabled = true }: { enabled?: boolean } = {}) {
   return useInfiniteQuery({
     queryKey: ["market", "shops", params],
     queryFn: ({ pageParam }) => marketplaceService.shops({ ...params, page: pageParam }),
+    enabled,
     initialPageParam: 1,
     getNextPageParam: (last) => {
       const p = last.meta?.pagination;

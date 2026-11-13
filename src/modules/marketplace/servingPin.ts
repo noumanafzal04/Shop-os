@@ -51,3 +51,21 @@ export function useServingPin(): ServingPin {
     city_id: city?.id ?? undefined,
   };
 }
+
+/**
+ * HAS THE PIN SETTLED — may a list that depends on it be asked for yet?
+ *
+ * Every launch begins `idle`, and a few milliseconds later the remembered
+ * place is read back from storage. A home feed asked for in that gap went out
+ * with NO pin — the whole city — and then again with the pin: two calls on
+ * every cold start, and a screen that drew one set of shops and swapped it for
+ * another.
+ *
+ * `locating` is NOT held back. It is only reached on a first launch (or a
+ * deliberate "use my location"), and a GPS fix may take twenty seconds to
+ * fail — twenty seconds of skeletons is worse than a city-wide list that
+ * narrows once the phone answers. `denied` and `unserved` are answers too.
+ */
+export function usePinSettled(): boolean {
+  return useLocationStore((s) => s.status !== "idle");
+}

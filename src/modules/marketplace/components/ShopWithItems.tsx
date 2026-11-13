@@ -11,6 +11,8 @@ import { ShopFactsRow } from "./ShopFactsRow";
 import { RatingChip } from "./RatingChip";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import type { PublicShop } from "../services/marketplaceService";
+import { Skeleton } from "../../../common/ui/Skeleton";
+import { FeaturedTag } from "./FeaturedTag";
 
 /**
  * A SHOP, AND A FEW OF THE THINGS IT SELLS.
@@ -144,9 +146,12 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
         </View>
 
         <View style={styles.headText}>
-          <Text style={styles.name} numberOfLines={1}>
-            {shop.business_name}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>
+              {shop.business_name}
+            </Text>
+            {shop.is_featured === true && <FeaturedTag />}
+          </View>
           <ShopFactsRow shop={shop} limit={3} />
         </View>
 
@@ -306,7 +311,8 @@ const makeStyles = (c: ThemeColors) =>
     },
 
     headText: { flex: 1, gap: 1 },
-    name: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
+    nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    name: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22, flexShrink: 1 },
 
     strip: { gap: 12, paddingHorizontal: spacing.md, paddingBottom: spacing.md },
     /** Only when it is not a scroller — a `contentContainerStyle` is already a
@@ -343,3 +349,37 @@ const makeStyles = (c: ThemeColors) =>
       textAlign: "center",
     },
   });
+
+/**
+ * THE CARD BEFORE ITS SHOP ARRIVES — the same shape, so nothing moves.
+ *
+ * The long list used to wait behind a spinner, and the next page behind
+ * nothing at all. A skeleton drawn to the card's own measurements (58 logo,
+ * two lines, a strip of 132×104 tiles) means the page does not jump when the
+ * real card lands in its place.
+ */
+export function ShopWithItemsSkeleton() {
+  const c = useColors();
+  const styles = React.useMemo(() => makeStyles(c), [c]);
+
+  return (
+    <View style={styles.card} accessibilityLabel="Loading shops">
+      <View style={styles.head}>
+        <Skeleton width={58} height={58} borderRadius={16} />
+        <View style={[styles.headText, { gap: spacing.xs }]}>
+          <Skeleton width="62%" height={16} borderRadius={radius.xs} />
+          <Skeleton width="44%" height={12} borderRadius={radius.xs} />
+        </View>
+      </View>
+      <View style={[styles.strip, styles.row]}>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={[styles.item, { gap: spacing.xs }]}>
+            <Skeleton width={132} height={104} borderRadius={radius.md} />
+            <Skeleton width="80%" height={12} borderRadius={radius.xs} />
+            <Skeleton width="45%" height={12} borderRadius={radius.xs} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}

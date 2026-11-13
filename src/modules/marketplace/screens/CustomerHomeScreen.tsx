@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import {
   BellIcon,
   ChevronDownIcon,
@@ -27,13 +27,14 @@ import { Skeleton, SkeletonShopCard } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
-import { useServingPin } from "../servingPin";
-import { useHomeFeed, useServiceArea } from "../hooks/useMarketplace";
+import { usePinSettled, useServingPin } from "../servingPin";
+import { useHomeFeed, useMarketShops, useServiceArea } from "../hooks/useMarketplace";
 import { AppButton } from "../../../common/ui/AppButton";
 import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
-import { ShopWithItems } from "../components/ShopWithItems";
+import { ShopWithItems, ShopWithItemsSkeleton } from "../components/ShopWithItems";
+import { FeaturedTag } from "../components/FeaturedTag";
 import { Appear } from "../../../common/ui/Appear";
 import { ShopFactsRow } from "../components/ShopFactsRow";
 import { RatingChip } from "../components/RatingChip";
@@ -83,6 +84,16 @@ const HOME_TRADES = 7;
  * gradient that reads as a rendering fault rather than as spacing.
  */
 const BODY_LIFT = 20;
+
+/**
+ * HOW MANY SHOPS EACH PAGE OF "ALL SHOPS" BRINGS.
+ *
+ * Ten, not the endpoint's twenty: each card carries five items with their
+ * pictures, so a page is fifty thumbnails. Ten cards is three and a half
+ * screens — the next page is asked for a screen and a bit before the end
+ * (`onEndReachedThreshold`), so a steady thumb never reaches a gap.
+ */
+const SHOPS_PAGE = 10;
 
 /**
  * A trade code, roughly title-cased.
@@ -157,7 +168,59 @@ export function CustomerHomeScreen() {
     [navigation],
   );
 
-  const feed = useHomeFeed(pin);
+  /*
+   * ONE CALL PER LIST, AND NOT BEFORE THE PIN.
+   *
+   * Both lists wait out the moment between launch and the remembered place
+   * being read back (`usePinSettled`) — asked for in that gap they went out
+   * with no pin, then again with it, and drew the city before swapping to
+   * the street.
+   */
+  const settled = usePinSettled();
+  const feed = useHomeFeed(pin, { enabled: settled });
+
+  /*
+   * ── "ALL SHOPS" SCROLLS ON, PAGE BY PAGE ──────────────────────────
+   *
+   * It drew the twelve shops the home call carries and stopped — a city of
+   * ninety shops showed twelve, with nothing to say the rest existed, and the
+   * same twelve again in the "Near you" rail above it. Now it is the shop
+   * list itself, nearest first, ten at a time as the thumb gets near the end,
+   * each card with its items (`previews`), and the duplicate rail is gone.
+   */
+  const shopQuery = React.useMemo(
+    () => ({ lat: pin.lat, lng: pin.lng, city_id: pin.city_id, previews: true, per_page: SHOPS_PAGE }),
+    [pin.lat, pin.lng, pin.city_id],
+  );
+  const shops = useMarketShops(shopQuery, { enabled: settled });
+  // Once each, by slug: a shop that opened between two page reads moves every
+  // later shop down one, and the last of page one comes back first on page two.
+  const allShops = React.useMemo(() => {
+    const seen = new Set<string>();
+    const out: PublicShop[] = [];
+    for (const page of shops.data?.pages ?? []) {
+      for (const shop of page.data ?? []) {
+        if (seen.has(shop.slug)) continue;
+        seen.add(shop.slug);
+        out.push(shop);
+      }
+    }
+    return out;
+  }, [shops.data]);
+  const featured = feed.data?.featured ?? [];
+  const focused = useIsFocused();
+  const { fetchNextPage, hasNextPage, isFetchingNextPage } = shops;
+  /*
+   * `cancelRefetch: false` — the guard alone did not hold. FlatList can call
+   * `onEndReached` twice before React re-renders, so the second call still
+   * read `isFetchingNextPage` as false; and TanStack's default answer to a
+   * second `fetchNextPage` is to CANCEL the first and send it again. Two
+   * requests for page two, one thrown away. Told not to cancel, the second
+   * call joins the first.
+   */
+  const loadMore = React.useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false });
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   // Outside every zone the platform drew → say so first, not at checkout.
   const area = useServiceArea(pin.lat, pin.lng);
   const ground = useTileGround();
@@ -178,7 +241,15 @@ export function CustomerHomeScreen() {
     () => (feed.data?.business_types ?? []).slice(0, HOME_TRADES),
     [feed.data],
   );
-  const pull = usePullToRefresh(feed.refetch);
+  // Pull asks both again — the sections above AND the list — or a pull
+  // refreshes the banners and leaves yesterday's shops under them.
+  const { refetch: refetchFeed } = feed;
+  const { refetch: refetchShops } = shops;
+  const refreshAll = React.useCallback(
+    () => Promise.all([refetchFeed(), refetchShops()]),
+    [refetchFeed, refetchShops],
+  );
+  const pull = usePullToRefresh(refreshAll);
 
   const onBanner = async (b: HomeBanner) => {
     marketplaceService.bannerClick(b.id).catch(() => {});
@@ -229,10 +300,28 @@ export function CustomerHomeScreen() {
         wrongly. See `FocusedStatusBar`.
       */}
       <FocusedStatusBar background={c.gradient[0]} />
-      <ScrollView
+      {/*
+        ── ONE LIST, THE WHOLE PAGE ──────────────────────────────────
+
+        A ScrollView holding every section, which cannot page: everything in
+        it is drawn at once, so "All shops" could only ever be the twelve the
+        home call carried. The sections are this list's HEADER now and the
+        shops are its rows — drawn as they come near the screen, recycled as
+        they leave it, and the next page asked for before the thumb arrives.
+      */}
+      <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollGround}
         showsVerticalScrollIndicator={false}
+        data={allShops}
+        keyExtractor={(s) => s.slug}
+        initialNumToRender={3}
+        maxToRenderPerBatch={4}
+        windowSize={9}
+        // A screen and a bit ahead — a page is three and a half screens, so a
+        // steady scroll never lands on the skeleton.
+        onEndReachedThreshold={1.2}
+        onEndReached={loadMore}
         refreshControl={
           <RefreshControl
             refreshing={pull.refreshing}
@@ -244,7 +333,87 @@ export function CustomerHomeScreen() {
             progressViewOffset={0}
           />
         }
-      >
+        renderItem={({ item: s, index: i }) => (
+          <>
+            {/*
+              INSET, like everything else on the page.
+
+              These were the one block on the home screen with no horizontal
+              padding — the rails, the grid and the tiles are all 16 in from
+              the edge and the long tail ran to the glass. Asked about
+              directly: "cards edge ks sath q lga diye?"
+            */}
+            <Appear index={i} style={styles.tailCard}>
+              <ShopWithItems
+                shop={s}
+                onOpen={() => openShop(s)}
+                onItem={(productId) => navigation.navigate("MarketShop", { slug: s.slug, productId })}
+              />
+            </Appear>
+
+            {/*
+              A SECOND banner slot a few shops down. One at the top is an
+              advert somebody scrolls past on the way in; one placed after
+              they have started browsing is one they are in the mood to read.
+            */}
+            {i === 2 && (feed.data?.banners.length ?? 0) > 0 && (
+              <View style={styles.midBanners}>
+                <PromoCarousel banners={feed.data!.banners} onPress={onBanner} />
+              </View>
+            )}
+          </>
+        )}
+        ListEmptyComponent={
+          !settled || shops.isPending ? (
+            <View style={styles.tailCard}>
+              {[0, 1, 2].map((k) => (
+                <ShopWithItemsSkeleton key={k} />
+              ))}
+            </View>
+          ) : shops.isError ? (
+            // The sections above already said it when the home call failed
+            // too; one notice per failure, not two stacked.
+            feed.isError ? null : (
+              <LoadFailed
+                what="shops near you"
+                error={shops.error}
+                onRetry={() => shops.refetch()}
+                retrying={shops.isFetching}
+              />
+            )
+          ) : area.data?.served === false ? null : (
+            /*
+              NOT `EmptyState`. This sits under a page of sections — a
+              full-screen centred panel with an icon plate would be a 300pt
+              hole at the bottom of the home screen.
+            */
+            <Text style={[styles.empty, styles.tailCard]}>
+              No shops around here yet — try widening your location.
+            </Text>
+          )
+        }
+        ListFooterComponent={
+          <View style={styles.listFoot}>
+            {isFetchingNextPage && (
+              <View style={styles.tailCard}>
+                <ShopWithItemsSkeleton />
+              </View>
+            )}
+            {shops.isFetchNextPageError && (
+              <LoadFailed
+                what="more shops"
+                error={shops.error}
+                onRetry={loadMore}
+                retrying={isFetchingNextPage}
+              />
+            )}
+            {!hasNextPage && allShops.length > SHOPS_PAGE && (
+              <Text style={styles.endNote}>You've seen every shop near you</Text>
+            )}
+          </View>
+        }
+        ListHeaderComponent={
+          <>
         {/*
           ── THE HEADER IS THE PALETTE'S ARGUMENT ──────────────────
 
@@ -581,7 +750,7 @@ export function CustomerHomeScreen() {
               </Text>
             </Touchable>
 
-            {feed.isLoading &&
+            {feed.isPending &&
               [0, 1, 2, 3].map((i) => (
                 <View key={i} style={styles.tile}>
                   <Skeleton width={56} height={56} borderRadius={18} />
@@ -604,38 +773,43 @@ export function CustomerHomeScreen() {
             app's own placeholders instead, so the home screen does not change
             shape depending on whether anyone bought an advert.
           */}
-          <PromoCarousel banners={feed.data?.banners ?? []} onPress={onBanner} />
+          {/* Slides on its own only while this screen is the one on top. */}
+          <PromoCarousel banners={feed.data?.banners ?? []} onPress={onBanner} autoPlay={focused} />
 
-          {/* Near you */}
-          <SectionHeader
-            title="Near you"
-            onSeeAll={() => navigation.navigate("ShopList", { title: "Near you" })}
-          />
-          {feed.isLoading ? (
-            <View style={styles.hRow}>
+          {/*
+            ── FEATURED: THE PAID ROW, FIRST SHOPS ON THE PAGE ──────────
+
+            Sold by the platform and ranked by whoever sold it. Only shops
+            this customer could order from anyway — featuring buys position,
+            never visibility — and each card says "Featured", here and again
+            wherever the same shop turns up further down.
+
+            No row at all when nobody has paid: an empty heading is a promise
+            with nothing under it. The skeleton holds its place only while the
+            answer is not in yet.
+          */}
+          {feed.isPending ? (
+            <View style={[styles.hRow, styles.featuredWait]}>
               {[0, 1].map((i) => (
                 <SkeletonShopCard key={i} />
               ))}
             </View>
-          ) : (
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={feed.data?.nearby ?? []}
-              keyExtractor={(s) => s.slug}
-              contentContainerStyle={styles.hRow}
-              /*
-                NOT `EmptyState`. This is a HORIZONTAL rail inside a scrolling
-                page — a full-screen centred panel with an icon plate would be
-                a 300pt hole in the middle of the home screen. The shared
-                component is for a screen whose whole job is that one list.
-              */
-              ListEmptyComponent={
-                <Text style={styles.empty}>No shops around here yet — try widening your location.</Text>
-              }
-              renderItem={({ item }) => <ShopCard shop={item} onPress={() => openShop(item)} />}
-            />
-          )}
+          ) : featured.length > 0 ? (
+            <>
+              <SectionHeader
+                title="Featured"
+                onSeeAll={() => navigation.navigate("ShopList", { title: "Featured", featured: true })}
+              />
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={featured}
+                keyExtractor={(s) => s.slug}
+                contentContainerStyle={styles.hRow}
+                renderItem={({ item }) => <ShopCard shop={item} onPress={() => openShop(item)} />}
+              />
+            </>
+          ) : null}
 
           {/* Deals — % off product carousel (like "Dishes up to 35% off") */}
           {(feed.data?.deals.length ?? 0) > 0 && (
@@ -716,55 +890,20 @@ export function CustomerHomeScreen() {
             ── The long tail, and it is the reason to keep scrolling ────
 
             This used to be a grid of shop NAMES. A directory asks somebody to
-            open four shops to find out which has what they want; three
-            thumbnails of the actual items answers it on the card.
-
-            A SECOND banner slot sits a few shops down. One at the top is an
-            advert somebody scrolls past on the way in; one placed after they
-            have started browsing is one they are in the mood to read — which
-            is where every marketplace of this shape puts it.
+            open four shops to find out which has what they want; five
+            thumbnails of the actual items answers it on the card. The cards
+            are the list's own rows, below this heading.
           */}
-          {(feed.data?.nearby.length ?? 0) > 0 && (
-            <>
-              <SectionHeader
-                title="All shops"
-                onSeeAll={() => navigation.navigate("ShopList", { title: "All shops" })}
-              />
-              {feed.data!.nearby.map((s, i) => (
-                <React.Fragment key={`x-${s.slug}`}>
-                  {/*
-                    INSET, like everything else on the page.
-
-                    These were the one block on the home screen with no
-                    horizontal padding — the rails, the grid and the tiles are
-                    all 16 in from the edge and the long tail ran to the glass.
-                    Asked about directly: "cards edge ks sath q lga diye?" The
-                    answer was that the card carried no margin and the list
-                    that renders it had none either, so nothing was deciding.
-                  */}
-                  <Appear index={i} style={styles.tailCard}>
-                    <ShopWithItems
-                      shop={s}
-                      onOpen={() => openShop(s)}
-                      onItem={(productId) =>
-                        navigation.navigate("MarketShop", { slug: s.slug, productId })
-                      }
-                    />
-                  </Appear>
-
-                  {i === 2 && (feed.data?.banners.length ?? 0) > 0 && (
-                    <View style={styles.midBanners}>
-                      <PromoCarousel banners={feed.data!.banners} onPress={onBanner} />
-                    </View>
-                  )}
-                </React.Fragment>
-              ))}
-            </>
+          {(allShops.length > 0 || !settled || shops.isPending) && (
+            <SectionHeader
+              title="All shops"
+              onSeeAll={() => navigation.navigate("ShopList", { title: "All shops" })}
+            />
           )}
-
-          <View style={{ height: spacing.xxl }} />
         </View>
-      </ScrollView>
+          </>
+        }
+      />
 
       {/*
         `onOpen` is what turns the left edge of this screen into a way in —
@@ -842,6 +981,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
           */}
           <View style={styles.wideNameRow}>
             <Text style={styles.wideName} numberOfLines={1}>{shop.business_name}</Text>
+            {shop.is_featured === true && <FeaturedTag />}
             <RatingChip rating={shop.rating} />
           </View>
           <Text style={styles.shopMeta} numberOfLines={1}>
@@ -890,6 +1030,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
           style={styles.railCoverImg}
         />
         <RatingChip rating={shop.rating} variant="plate" style={styles.railRating} />
+        {shop.is_featured === true && <FeaturedTag onImage style={styles.railFeatured} />}
         {closed && (
           <View style={styles.railShut}>
             <Text style={styles.shutText}>Closed</Text>
@@ -1046,7 +1187,6 @@ const makeStyles = (c: ThemeColors) =>
    */
   body: {
     backgroundColor: c.bg,
-    minHeight: 600,
     marginTop: -BODY_LIFT,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
@@ -1157,6 +1297,13 @@ const makeStyles = (c: ThemeColors) =>
   // Breathing room around the mid-page advert, so it reads as its own thing
   // rather than as a shop card that lost its name.
   midBanners: { marginTop: spacing.xs, marginBottom: spacing.md },
+  // Where the Featured heading would sit, so the row does not jump when the
+  // answer lands.
+  featuredWait: { marginTop: spacing.lg },
+  // Room under the last card for the floating tab bar, and the end-of-list
+  // line when there is one.
+  listFoot: { paddingBottom: spacing.xxl },
+  endNote: { ...typography.caption, color: c.textMuted, textAlign: "center", paddingVertical: spacing.md },
   seeAll: { ...typography.label, color: c.brand[600] },
 
   // 12 between siblings, 16 to the page edge. They were both 8, which is the
@@ -1181,6 +1328,7 @@ const makeStyles = (c: ThemeColors) =>
   railCover: { height: 118, alignItems: "center", justifyContent: "center" },
   railCoverImg: { width: "100%", height: "100%" },
   railRating: { position: "absolute", top: 8, right: 8 },
+  railFeatured: { position: "absolute", top: 8, left: 8 },
   railShut: {
     position: "absolute",
     left: 0,

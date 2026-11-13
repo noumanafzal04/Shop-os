@@ -1,5 +1,7 @@
 import React from "react";
 import {
+  AccessibilityInfo,
+  AppState,
   FlatList,
   Pressable,
   StyleSheet,
@@ -43,6 +45,15 @@ import type { HomeBanner } from "../services/marketplaceService";
 
 const RATIO = 2; // width : height
 
+/**
+ * HOW LONG A BANNER STAYS BEFORE THE NEXT SLIDES IN.
+ *
+ * Long enough to read a seven-word headline twice; short enough that the
+ * third banner is seen by somebody who opens the app and looks for five
+ * seconds. Every marketplace that slides lands within a second of this.
+ */
+const AUTO_MS = 4000;
+
 interface Placeholder {
   id: string;
   title: string;
@@ -78,9 +89,16 @@ const PLACEHOLDERS: Placeholder[] = [
 export function PromoCarousel({
   banners,
   onPress,
+  autoPlay = false,
 }: {
   banners: HomeBanner[];
   onPress: (banner: HomeBanner) => void;
+  /**
+   * Slide on its own. The SCREEN decides — it knows whether it is the one on
+   * top; a carousel on a screen under another would otherwise keep scrolling
+   * (and re-rendering) where nobody can see it.
+   */
+  autoPlay?: boolean;
 }) {
   const { colors: c, radius, spacing, typography } = useTheme();
   const { width } = useWindowDimensions();
@@ -91,9 +109,59 @@ export function PromoCarousel({
 
   const [page, setPage] = React.useState(0);
   const showing: Array<HomeBanner | Placeholder> = banners.length > 0 ? banners : PLACEHOLDERS;
+  const listRef = React.useRef<FlatList<HomeBanner | Placeholder>>(null);
+
+  /*
+   * THE SLIDE, and the three things that stop it.
+   *
+   * A thumb on the strip: the timer must never pull a banner out from under
+   * somebody reading it, and a swipe restarts the wait (`settled` changes even
+   * when the swipe lands back on the same banner). The app in the background:
+   * nothing to show. Reduce Motion: the phone has been told this person does
+   * not want things moving on their own.
+   */
+  const touching = React.useRef(false);
+  const [settled, setSettled] = React.useState(0);
+  const [awake, setAwake] = React.useState(AppState.currentState === "active");
+  const [stillWanted, setStillWanted] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((on) => alive && setStillWanted(on))
+      .catch(() => {});
+    const sub = AppState.addEventListener("change", (s) => setAwake(s === "active"));
+
+    return () => {
+      alive = false;
+      sub.remove();
+    };
+  }, []);
+
+  const playing = autoPlay && awake && !stillWanted && showing.length > 1;
+
+  React.useEffect(() => {
+    if (!playing) return;
+    const t = setTimeout(() => {
+      if (touching.current) return;
+      const next = (page + 1) % showing.length;
+      listRef.current?.scrollToOffset({ offset: next * stride, animated: true });
+      setPage(next);
+    }, AUTO_MS);
+
+    return () => clearTimeout(t);
+  }, [playing, page, settled, showing.length, stride]);
+
+  // Fewer banners than the page it was on (an advert expired mid-session):
+  // back to the first rather than dots pointing past the end.
+  React.useEffect(() => {
+    if (page >= showing.length) setPage(0);
+  }, [page, showing.length]);
 
   const onSettled = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    touching.current = false;
     setPage(Math.round(e.nativeEvent.contentOffset.x / stride));
+    setSettled((n) => n + 1);
   };
 
   const toneOf = (tone: Placeholder["tone"]) =>
@@ -106,6 +174,7 @@ export function PromoCarousel({
   return (
     <View style={{ marginTop: spacing.lg }}>
       <FlatList
+        ref={listRef}
         horizontal
         data={showing}
         keyExtractor={(item) => item.id}
@@ -114,6 +183,15 @@ export function PromoCarousel({
         snapToInterval={stride}
         decelerationRate="fast"
         disableIntervalMomentum
+        onScrollBeginDrag={() => {
+          touching.current = true;
+        }}
+        // A slow drag that stops dead has no momentum phase to report its
+        // end — without this the slide would wait for a touch that is over.
+        onScrollEndDrag={() => {
+          touching.current = false;
+          setSettled((n) => n + 1);
+        }}
         onMomentumScrollEnd={onSettled}
         contentContainerStyle={{ paddingHorizontal: spacing.md, gap: spacing.sm }}
         renderItem={({ item }) => {

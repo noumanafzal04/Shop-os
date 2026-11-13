@@ -103,11 +103,22 @@ describe("the lists that page", () => {
 
   it("fetches before the bottom, not at it", () => {
     // Fetching at the very end means the spinner is what somebody sees.
+    //
+    // A RANGE, not one number. It was `{0.5}` exactly — right for rows of
+    // one line, and too late for the home screen's shop cards, each a third
+    // of a screen tall with a strip of pictures: half a screen of warning is
+    // one card, and a fling lands on the skeleton. Below half a screen is
+    // "at the bottom"; above two screens is "load everything", which is not
+    // paging any more.
     const screens = files.filter((f) => /onEndReached=/.test(codeOnly(fs.readFileSync(f, "utf8"))));
 
     expect(screens.length).toBeGreaterThanOrEqual(2);
     for (const file of screens) {
-      expect(codeOnly(fs.readFileSync(file, "utf8"))).toMatch(/onEndReachedThreshold=\{0\.5\}/);
+      const at = codeOnly(fs.readFileSync(file, "utf8")).match(/onEndReachedThreshold=\{(\d+(?:\.\d+)?)\}/);
+      expect([path.relative(ROOT, file), at !== null]).toEqual([path.relative(ROOT, file), true]);
+      const n = Number(at![1]);
+      expect(n).toBeGreaterThanOrEqual(0.5);
+      expect(n).toBeLessThanOrEqual(2);
     }
   });
 

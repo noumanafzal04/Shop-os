@@ -21,7 +21,9 @@ const read = (p: string) => codeOnly(fs.readFileSync(path.join(PROJECT_ROOT, p),
 
 /** Screen → the query it must fence. */
 const LISTS: Array<[string, RegExp]> = [
-  ["src/modules/marketplace/screens/CustomerHomeScreen.tsx", /useHomeFeed\(pin\)/],
+  // `(pin` then a comma or the close — the second argument only says WHEN
+  // (`usePinSettled`), never where.
+  ["src/modules/marketplace/screens/CustomerHomeScreen.tsx", /useHomeFeed\(pin[,)]/],
   /**
    * The SHOPS query, not the home feed.
    *
