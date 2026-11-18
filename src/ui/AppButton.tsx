@@ -48,6 +48,14 @@ export function AppButton({
   };
 
   const isDisabled = disabled || loading;
+  /*
+   * BUSY IS NOT DISABLED. A pressed "Sign in" turned the neutral grey of a
+   * button that cannot be pressed yet, with a grey spinner on it — so the one
+   * moment the app was doing what it was asked looked like the moment it had
+   * refused. Busy keeps its colour and spins in the label's colour; it is
+   * only unpressable.
+   */
+  const greyed = disabled && !loading;
 
   /**
    * WHAT SITS ON THE BUTTON — asked of the PALETTE, not assumed.
@@ -65,7 +73,7 @@ export function AppButton({
    * `danger` keeps white deliberately. Its ground is an error red dark enough
    * to carry it on both themes, and it is not a hue a palette re-points.
    */
-  const fg = isDisabled
+  const fg = greyed
     ? // `textSecondary`, not `textMuted`. A disabled control is exempt from AA,
       // but somebody still has to READ it to know what filling the form will
       // do — muted measures 2.95:1 on this ground and secondary 5.56:1.
@@ -93,7 +101,7 @@ export function AppButton({
         variant === "ghost" && styles.ghost,
         // AFTER the variant, so a disabled button takes a neutral ground
         // rather than a faded brand one.
-        isDisabled && styles.disabled,
+        greyed && styles.disabled,
         pressed && !isDisabled && styles.pressed,
         style,
       ]}
