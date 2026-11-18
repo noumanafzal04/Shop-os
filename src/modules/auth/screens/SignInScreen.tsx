@@ -1,19 +1,18 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   EnvelopeIcon,
   LockIcon,
   WarningIcon,
 } from "../../../common/ui/icons";
-import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
-import { BRAND } from "../../../common/brand";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLogin } from "../hooks/useAuth";
+import { AuthScreen } from "../components/AuthScreen";
+import { leaveAuth, switchAuth } from "../leaveAuth";
 
 /**
  * Signing in.
@@ -60,9 +59,7 @@ export function SignInScreen() {
    * `canGoBack` because this screen is also reachable as the only thing on the
    * stack, where there is nothing to go back to.
    */
-  const dismiss = () => {
-    if (navigation.canGoBack()) navigation.goBack();
-  };
+  const dismiss = () => leaveAuth(navigation);
 
   const submit = () => {
     if (!identifier.trim() || !password) return;
@@ -70,62 +67,54 @@ export function SignInScreen() {
   };
 
   return (
-    <SafeScreen backgroundColor={c.bg}>
-      <KeyboardScreen contentStyle={styles.content}>
-        <View style={styles.head}>
-          <Text style={styles.wordmark}>{BRAND.name}</Text>
-          <Text style={styles.title}>Welcome back</Text>
-          <Text style={styles.sub}>Sign in to order and follow your deliveries.</Text>
+    <AuthScreen title="Welcome back" subtitle="Log in to order and follow your deliveries.">
+      {errorMessage && (
+        <View style={styles.errorBox}>
+          <WarningIcon size={16} color={c.error} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
         </View>
+      )}
 
-        {errorMessage && (
-          <View style={styles.errorBox}>
-            <WarningIcon size={16} color={c.error} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        )}
+      <View style={styles.form}>
+        <AppTextInput
+          label="Email or phone"
+          icon={EnvelopeIcon}
+          placeholder="you@example.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          value={identifier}
+          onChangeText={setIdentifier}
+        />
+        <AppTextInput
+          label="Password"
+          icon={LockIcon}
+          placeholder="Enter your password"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          onSubmitEditing={submit}
+          returnKeyType="go"
+        />
 
-        <View style={styles.form}>
-          <AppTextInput
-            label="Email or phone"
-            icon={EnvelopeIcon}
-            placeholder="you@example.com"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            value={identifier}
-            onChangeText={setIdentifier}
-          />
-          <AppTextInput
-            label="Password"
-            icon={LockIcon}
-            placeholder="Enter your password"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            onSubmitEditing={submit}
-            returnKeyType="go"
-          />
+        <AppButton
+          title="Sign in"
+          onPress={submit}
+          loading={login.isPending}
+          disabled={!identifier.trim() || !password}
+          size="lg"
+          style={styles.submit}
+        />
+      </View>
 
-          <AppButton
-            title="Sign in"
-            onPress={submit}
-            loading={login.isPending}
-            disabled={!identifier.trim() || !password}
-            size="lg"
-            style={styles.submit}
-          />
-        </View>
-
-        <View style={styles.footer}>
-          <Pressable onPress={() => navigation.navigate("SignUp")} hitSlop={8}>
-            <Text style={styles.footerText}>
-              New here? <Text style={styles.footerAccent}>Create an account</Text>
-            </Text>
-          </Pressable>
-        </View>
-      </KeyboardScreen>
-    </SafeScreen>
+      {/* A second way in, said as plainly as the first — not a grey link. */}
+      <View style={styles.or}>
+        <View style={styles.orRule} />
+        <Text style={styles.orText}>New here?</Text>
+        <View style={styles.orRule} />
+      </View>
+      <AppButton title="Create an account" variant="outline" size="lg" onPress={() => switchAuth(navigation, "SignUp")} />
+    </AuthScreen>
   );
 }
 
@@ -160,7 +149,7 @@ const makeStyles = (c: ThemeColors) =>
     },
     errorText: { color: c.error, fontSize: 13, lineHeight: 18, flex: 1 },
 
-    footer: { alignItems: "center", marginTop: spacing.xl },
-    footerText: { ...typography.body, color: c.textSecondary },
-    footerAccent: { color: c.primary, fontWeight: "700" },
+    or: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.lg },
+    orRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border },
+    orText: { ...typography.caption, color: c.textMuted },
   });

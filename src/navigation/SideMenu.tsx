@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -14,6 +15,7 @@ import {
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { glyphsFor } from "../common/ui/FocusedStatusBar";
 import { useNavigation } from "@react-navigation/native";
 import {
   BagIcon,
@@ -429,6 +431,14 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      {/*
+        The clock and battery over the PANEL, not over the screen beneath it.
+        The status bar is see-through here and the screen underneath (Home)
+        had asked for light glyphs for its dark header — so with the menu open
+        they were white on the menu's light sheet, and gone. Pushed for as long
+        as the menu is up; unmounting pops it back to the screen's own.
+      */}
+      <StatusBar barStyle={glyphsFor(c.bg)} />
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: dim }]}>
           <Pressable

@@ -23,6 +23,8 @@ const mockCanGoBack = jest.fn(() => true);
 jest.mock("@react-navigation/native", () => ({
   ...jest.requireActual("@react-navigation/native"),
   useNavigation: () => ({ goBack: mockGoBack, canGoBack: mockCanGoBack, navigate: jest.fn() }),
+  // The sign-in frame sets the status bar only while it is the screen on top.
+  useIsFocused: () => true,
 }));
 
 /** Captures the options a screen passes to `mutate`, so onSuccess can be run. */

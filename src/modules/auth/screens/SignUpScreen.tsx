@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useRegisterCustomer } from "../../marketplace/hooks/useMarketplace";
+import { AuthScreen } from "../components/AuthScreen";
+import { leaveAuth, switchAuth } from "../leaveAuth";
+import { EnvelopeIcon, LockIcon, PersonIcon, PhoneIcon } from "../../../common/ui/icons";
 
 /**
  * CUSTOMER registration — business accounts are created by the platform
@@ -36,9 +37,7 @@ export function SignUpScreen() {
    * navigator. Registering signs the person straight in, so there is nothing
    * left for this screen to do.
    */
-  const dismiss = () => {
-    if (navigation.canGoBack()) navigation.goBack();
-  };
+  const dismiss = () => leaveAuth(navigation);
 
   const submit = () => {
     if (register.isPending) return;
@@ -55,10 +54,7 @@ export function SignUpScreen() {
   };
 
   return (
-    <SafeScreen>
-      <KeyboardScreen contentStyle={styles.content}>
-        <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Shop from local businesses in your city.</Text>
+    <AuthScreen title="Create your account" subtitle="One account for every shop near you — order, track and reorder.">
 
         {generalError && (
           <View style={styles.errorBox}>
@@ -67,7 +63,8 @@ export function SignUpScreen() {
         )}
 
         <AppTextInput
-          label="Full name *"
+          label="Full name"
+          icon={PersonIcon}
           placeholder="Your name"
           value={name}
           onChangeText={setName}
@@ -75,6 +72,7 @@ export function SignUpScreen() {
         />
         <AppTextInput
           label="Email"
+          icon={EnvelopeIcon}
           placeholder="you@example.com"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -83,7 +81,8 @@ export function SignUpScreen() {
           error={errorFor("email")}
         />
         <AppTextInput
-          label="Phone (email or phone required)"
+          label="Phone"
+          icon={PhoneIcon}
           placeholder="+92…"
           keyboardType="phone-pad"
           value={phone}
@@ -91,7 +90,8 @@ export function SignUpScreen() {
           error={errorFor("phone")}
         />
         <AppTextInput
-          label="Password *"
+          label="Password"
+          icon={LockIcon}
           placeholder="Min. 8 characters"
           secureTextEntry
           value={password}
@@ -104,37 +104,21 @@ export function SignUpScreen() {
           onPress={submit}
           loading={register.isPending}
           disabled={!name.trim() || !password || (!email.trim() && !phone.trim())}
+          size="lg"
           style={{ marginTop: spacing.sm }}
         />
 
-        <Pressable onPress={() => navigation.navigate("SignIn")} style={styles.footerLink}>
+        <Pressable onPress={() => switchAuth(navigation, "SignIn")} style={styles.footerLink}>
           <Text style={styles.footerText}>
             Already have an account? <Text style={styles.footerAccent}>Sign in</Text>
           </Text>
         </Pressable>
-      </KeyboardScreen>
-    </SafeScreen>
+    </AuthScreen>
   );
 }
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  content: { padding: spacing.lg, justifyContent: "center" },
-  title: { ...typography.title, color: c.gray[900] },
-  subtitle: {
-    ...typography.subtitle,
-    color: c.gray[500],
-    marginTop: spacing.xs,
-    marginBottom: spacing.lg,
-  },
-  /**
-   * THE SAME ERROR BOX SIGN-IN HAS.
-   *
-   * This one was `#fef3f2` — the light theme's `errorBg`, written out — with a
-   * 1px border and `borderRadius: 12`, while the screen one tap away uses
-   * `c.errorBg`, no border and `radius.md`. Two boxes saying the same thing,
-   * two different shapes, and the hard-coded one glows on a dark page.
-   */
   errorBox: {
     flexDirection: "row",
     alignItems: "center",

@@ -2,6 +2,7 @@ import React from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import {
+  ClockIcon,
   CheckIcon,
   MapPinIcon,
   MotorcycleIcon,
@@ -22,6 +23,7 @@ import { Skeleton } from "../../../common/ui/Skeleton";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useCancelMyOrder, useMyOrder, type OrderStatus } from "../hooks/useOrders";
 import { moneyLineValue, orderMoneyLines } from "../orderMoney";
+import { etaLine } from "../orderStatus";
 import { money, qtyText } from "../../../common/format";
 import { distanceLabel, mapsUrl } from "../../../common/maps";
 
@@ -74,6 +76,7 @@ export function OrderTrackingScreen() {
   // The shop's own record, for its phone number. The order payload does not
   // carry one, and the Help Centre tells people the number is on this screen.
   const shop = useMarketShop(o?.shop?.slug ?? undefined);
+  const eta = o ? etaLine(o, shop.data?.prep_time_minutes) : null;
   const phone = shop.data?.phone ?? null;
 
   const askCancel = () => {
@@ -180,6 +183,17 @@ export function OrderTrackingScreen() {
             <Text style={styles.headline}>
               {HEADLINE[o.status] ?? "In progress"}
             </Text>
+            {/*
+              WHEN, before anything else — the question a tracking screen is
+              opened to answer. From the shop's own prep time; nothing when it
+              never set one.
+            */}
+            {!!eta && (
+              <View style={styles.etaRow}>
+                <ClockIcon size={15} color={c.primary} />
+                <Text style={styles.etaText}>{eta}</Text>
+              </View>
+            )}
 
             {cancelled ? (
               <View style={styles.cancelledBox}>
@@ -466,6 +480,8 @@ const makeStyles = (c: ThemeColors) =>
   stepLabelActive: { fontWeight: "700", color: c.brand[700] },
   stepHint: { ...typography.tiny, color: c.gray[400], marginTop: 1 },
 
+  etaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, marginBottom: spacing.xs },
+  etaText: { ...typography.label, color: c.primary },
   riderCardLive: { borderColor: c.primary, borderWidth: 1.5 },
   riderTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   riderAvatar: {

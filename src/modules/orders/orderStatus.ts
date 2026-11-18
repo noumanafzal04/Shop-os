@@ -159,3 +159,34 @@ export function placedAt(iso: string | null | undefined, now: Date = new Date())
     year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
   });
 }
+
+/**
+ * WHEN IT SHOULD ARRIVE — the line every tracking screen leads with.
+ *
+ * From the shop's OWN preparation time and nothing else: a shop that never
+ * said gets no estimate, because "30–50 min" invented on its behalf is a
+ * promise the app made for somebody who did not. A delivery gets a twenty
+ * minute ride on top. Past the window it stops promising a time and says it
+ * is running late; once the order is finished or cancelled there is nothing
+ * to estimate.
+ */
+export function etaLine(
+  o: { placed_at: string | null | undefined; status: string; fulfillment_type: "delivery" | "pickup" },
+  prepMinutes: number | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (prepMinutes == null || prepMinutes <= 0 || !o.placed_at) return null;
+  if (o.status === "completed" || o.status === "cancelled") return null;
+  const placed = new Date(o.placed_at);
+  if (Number.isNaN(placed.getTime())) return null;
+
+  const delivery = o.fulfillment_type === "delivery";
+  const from = new Date(placed.getTime() + prepMinutes * 60_000);
+  const to = new Date(from.getTime() + (delivery ? 20 : 10) * 60_000);
+  if (now.getTime() > to.getTime()) {
+    return delivery ? "Taking a little longer than expected" : "Should be ready any minute";
+  }
+  const t = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  return delivery ? `Arriving by ${t(from)} – ${t(to)}` : `Ready for pickup around ${t(from)}`;
+}

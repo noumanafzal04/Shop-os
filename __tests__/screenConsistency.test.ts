@@ -67,7 +67,21 @@ describe("every screen is built out of the same parts", () => {
   });
 
   it("puts every one of them inside SafeScreen", () => {
-    const bare = screens.filter((rel) => !codeOnly(read(rel)).includes("SafeScreen"));
+    /*
+     * Or inside a FRAME that is itself a SafeScreen — sign-in and sign-up are
+     * drawn on one shared frame (brand block + sheet), and the frame is what
+     * owns the notch. The frame is checked too, or this is a loophole.
+     */
+    const FRAMES: Record<string, string> = {
+      AuthScreen: "src/modules/auth/components/AuthScreen.tsx",
+    };
+    for (const file of Object.values(FRAMES)) {
+      expect(codeOnly(read(file))).toMatch(/<SafeScreen/);
+    }
+    const bare = screens.filter((rel) => {
+      const code = codeOnly(read(rel));
+      return !code.includes("SafeScreen") && !Object.keys(FRAMES).some((f) => code.includes(`<${f}`));
+    });
     expect(bare.map(name)).toEqual([]);
   });
 

@@ -1,11 +1,21 @@
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import {
+  BellIcon,
+  ChevronRightIcon,
+  LifeBuoyIcon,
+  MapPinIcon,
   MonitorIcon,
   MoonIcon,
+  NavigationIcon,
+  PersonIcon,
+  ShieldCheckIcon,
   SunIcon,
   type Icon,
 } from "../../../common/ui/icons";
+import { useAuthStore } from "../../../stores/authStore";
+import { useModeStore } from "../../../stores/modeStore";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { Touchable } from "../../../common/ui/Touchable";
@@ -44,6 +54,51 @@ export function SettingsScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const { preference, setPreference } = useTheme();
+  const navigation = useNavigation<any>();
+  const signedIn = useAuthStore((s) => s.status === "authenticated");
+  const shopping = useModeStore((s) => s.mode) === "customer";
+
+  /*
+   * EVERYTHING A PERSON COMES TO "SETTINGS" FOR, in one place.
+   *
+   * It held the theme and three lines of "about" — so somebody looking for
+   * their password, their notifications or their saved addresses opened
+   * Settings, found none of them, and had to know they lived on the Account
+   * tab or in the side menu. Those screens stay where they are; this lists
+   * them where people look. Addresses and the delivery pin are the shopper's,
+   * so a rider's Settings does not offer them.
+   */
+  const groups: Array<{ title: string; rows: Array<{ icon: Icon; label: string; hint: string; route: string }> }> = [
+    ...(signedIn
+      ? [
+          {
+            title: "Account",
+            rows: [
+              { icon: PersonIcon, label: "Profile", hint: "Name, email and phone", route: "Profile" },
+              { icon: ShieldCheckIcon, label: "Password and security", hint: "Password and signed-in devices", route: "Security" },
+              { icon: BellIcon, label: "Notifications", hint: "Order updates and offers", route: "Notifications" },
+            ],
+          },
+        ]
+      : []),
+    ...(shopping
+      ? [
+          {
+            title: "Delivery",
+            rows: [
+              ...(signedIn
+                ? [{ icon: MapPinIcon, label: "Saved addresses", hint: "Home, work and the rest", route: "Addresses" }]
+                : []),
+              { icon: NavigationIcon, label: "Delivery location", hint: "Where shops are shown for", route: "Location" },
+            ],
+          },
+        ]
+      : []),
+    {
+      title: "Help",
+      rows: [{ icon: LifeBuoyIcon, label: "Help centre", hint: "Orders, payments and your account", route: "Help" }],
+    },
+  ];
 
   return (
     <SafeScreen backgroundColor={c.bg}>
@@ -78,6 +133,35 @@ export function SettingsScreen() {
           })}
         </View>
         <Text style={styles.note}>Your choice is remembered on this phone.</Text>
+
+        {groups.map((g) => (
+          <React.Fragment key={g.title}>
+            <Text style={styles.section}>{g.title}</Text>
+            <View style={styles.card}>
+              {g.rows.map((r, i) => {
+                const RowIcon = r.icon;
+                return (
+                  <Touchable
+                    key={r.route}
+                    style={[styles.row, i > 0 && styles.rowDivided]}
+                    accessibilityRole="button"
+                    accessibilityLabel={r.label}
+                    onPress={() => navigation.navigate(r.route)}
+                  >
+                    <View style={styles.rowIcon}>
+                      <RowIcon size={17} color={c.textSecondary} />
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={styles.rowLabel}>{r.label}</Text>
+                      <Text style={styles.rowHint}>{r.hint}</Text>
+                    </View>
+                    <ChevronRightIcon size={16} color={c.textMuted} />
+                  </Touchable>
+                );
+              })}
+            </View>
+          </React.Fragment>
+        ))}
 
         <Text style={styles.section}>About</Text>
         <View style={styles.card}>
