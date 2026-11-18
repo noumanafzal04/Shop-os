@@ -1,12 +1,10 @@
 import React from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   ArrowRightIcon,
   BagIcon,
-  MinusIcon,
   PlusIcon,
-  TicketIcon,
   TrashIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -23,6 +21,7 @@ import { useMarketProducts, useMarketShop } from "../../marketplace/hooks/useMar
 import { shopInitial, useShopCover } from "../../marketplace/shopCover";
 import type { PublicProduct } from "../../marketplace/services/marketplaceService";
 import { money, qtyText } from "../../../common/format";
+import { QtyStepper } from "../../marketplace/components/QtyStepper";
 
 /**
  * The basket.
@@ -142,6 +141,9 @@ export function CartScreen() {
   }
 
   const count = cart.count();
+  const minOrder = delivers ? (shop.data?.min_order_amount ?? null) : null;
+  const toMinimum = minOrder != null && subtotal < minOrder ? minOrder - subtotal : null;
+  const prep = shop.data?.prep_time_minutes ?? null;
 
   return (
     <SafeScreen backgroundColor={c.bg} edges={["top"]}>
@@ -156,6 +158,7 @@ export function CartScreen() {
           {!!shop.data && (
             <Text style={styles.shopName} numberOfLines={1}>
               {shop.data.business_name}
+              {delivers && prep !== null ? `  ·  Delivery ${prep}–${prep + 20} min` : ""}
             </Text>
           )}
         </View>
@@ -179,234 +182,167 @@ export function CartScreen() {
         </Pressable>
       </View>
 
-      <FlatList
-        data={cart.lines}
-        keyExtractor={(l) => cartKeyOf(l)}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item, index }) => {
-          const k = cartKeyOf(item);
-          const step = item.sold_by === "weight" ? 0.25 : 1;
-          // The derived cover, for a line whose product has no photograph. It
-          // is the fallback now rather than the only option — the picture the
-          // person was looking at one screen ago rides on the line.
-          const cover = coverFor(item.product_id);
-          const unit = item.sold_by === "weight" && item.unit_label ? ` ${item.unit_label}` : "";
-          return (
-            <Appear index={index}>
-              <View style={styles.line}>
-                <SmartImage
-                  uri={item.image}
-                  fallback={shopInitial(item.name)}
-                  fallbackBackground={cover.bg}
-                  fallbackColor={cover.fg}
-                  style={styles.lineThumb}
-                />
-
-              <View style={styles.lineInfo}>
-                <Text style={styles.lineName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                {/*
-                  Price and options on ONE line. They were two, and the options
-                  line is empty for most items — so the row was paying for a
-                  third line of height that usually had nothing in it.
-                */}
-                <Text style={styles.lineMeta} numberOfLines={1}>
-                  <Text style={styles.linePrice}>{money(item.unit_price * item.quantity)}</Text>
-                  {item.modifiers_label ? `  ·  ${item.modifiers_label}` : ""}
-                </Text>
-              </View>
-
-              <View style={styles.stepper}>
-                {/*
-                  MinusIcon stays minus. It used to turn into a bin at a quantity
-                  of one, so the control changed meaning under the thumb — and
-                  removing a line meant noticing that it had. The bin is its
-                  own button now, on the right, where a row's actions go.
-                */}
-                <Pressable
-                  style={[styles.stepBtn, styles.stepBtnGhost]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Less ${item.name}`}
-                  onPress={() => cart.setQty(k, item.quantity - step)}
-                >
-                  <MinusIcon size={13} color={c.textSecondary} />
-                </Pressable>
-                <Text style={styles.qty}>
-                  {qtyText(item.quantity)}
-                  {unit}
-                </Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel={`More ${item.name}`}
-                  onPress={() => cart.setQty(k, item.quantity + step)}
-                >
-                  <PlusIcon size={13} color={c.onPrimary} />
-                </Pressable>
-              </View>
-
-              <Pressable
-                style={styles.lineRemove}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${item.name}`}
-                onPress={() => cart.setQty(k, 0)}
-              >
-                <TrashIcon size={15} color={c.textMuted} />
-              </Pressable>
-              </View>
-            </Appear>
-          );
-        }}
-        ListFooterComponent={
-          <>
-            {!!slug && (
-              <Touchable
-                style={styles.addMore}
-                accessibilityRole="button"
-                onPress={() => navigation.navigate("MarketShop", { slug })}
-              >
-                <PlusIcon size={15} color={c.primary} />
-                <Text style={styles.addMoreText}>Add more items</Text>
-              </Touchable>
-            )}
-
-            {suggestions.length > 0 && (
-              <>
-                {/*
-                  One heading, not two. "Popular with your order" over "Other
-                  customers also bought these" said the same thing twice and
-                  cost 46px in the middle of the scroll it was interrupting.
-                */}
-                <Text style={styles.sectionTitle}>Popular with your order</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.xRow}
-                >
-                  {suggestions.map((p) => {
-                    const cover = coverFor(p.id);
-                    return (
-                      <Touchable
-                        key={p.id}
-                        style={styles.xCard}
-                        scaleTo={0.95}
-                        accessibilityRole="button"
-                        accessibilityLabel={p.name}
-                        onPress={() => addSuggestion(p)}
-                      >
-                        <View style={styles.xThumb}>
-                          <SmartImage
-                            uri={p.images[0] ?? null}
-                            fallback={shopInitial(p.name)}
-                            fallbackBackground={cover.bg}
-                            fallbackColor={cover.fg}
-                            style={styles.xImg}
-                          />
-                          <AddButton
-                            size={28}
-                            label={p.name}
-                            style={styles.xAdd}
-                            onPress={() => addSuggestion(p)}
-                          />
-                        </View>
-                        <Text style={styles.xName} numberOfLines={1}>
-                          {p.name}
-                        </Text>
-                        <Price value={p.price} was={p.original_price} size="sm" />
-                      </Touchable>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            )}
-          </>
-        }
-      />
-
       {/*
-        The bill, pinned.
+        ── EVERYTHING SCROLLS; ONLY THE TOTAL AND THE BUTTON STAY ──────
 
-        Three lines and a button rather than one number: a basket that shows
-        only a subtotal is a basket whose real cost arrives one screen later,
-        and the delivery fee is exactly the surprise people back out over.
-
-        Pinned, so it costs the LIST height once and never grows the scroll —
-        which is the difference between this and the footer it replaced.
+        The bill used to be pinned — a coupon box, three bill rows, a rule, the
+        total and the button — and on a phone it took four tenths of the
+        screen, so the basket itself showed two lines at a time. The bill is a
+        card in the scroll now, like every marketplace cart; what is pinned is
+        the one number and the one press that move the order on.
       */}
-      <View style={styles.footer}>
-        {/*
-          The coupon rides WITH the bill, not above it in the scroll.
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          {cart.lines.map((item, index) => {
+            const k = cartKeyOf(item);
+            const step = item.sold_by === "weight" ? 0.25 : 1;
+            const cover = coverFor(item.product_id);
+            const unit = item.sold_by === "weight" && item.unit_label ? ` ${item.unit_label}` : "";
+            return (
+              <Appear key={k} index={index}>
+                <View style={[styles.line, index > 0 && styles.lineRule]}>
+                  <SmartImage
+                    uri={item.image}
+                    fallback={shopInitial(item.name)}
+                    fallbackBackground={cover.bg}
+                    fallbackColor={cover.fg}
+                    style={styles.lineThumb}
+                  />
+                  <View style={styles.lineInfo}>
+                    <Text style={styles.lineName} numberOfLines={2}>
+                      {item.name}
+                    </Text>
+                    {!!item.modifiers_label && (
+                      <Text style={styles.lineMeta} numberOfLines={2}>
+                        {item.modifiers_label}
+                      </Text>
+                    )}
+                    <Text style={styles.linePrice}>{money(item.unit_price * item.quantity)}</Text>
+                  </View>
+                  {/*
+                    The same − n + the menu row has, so a quantity is changed
+                    the same way wherever it is seen. At the last step the
+                    minus is a bin: the next press removes the line.
+                  */}
+                  <QtyStepper
+                    value={item.quantity}
+                    display={`${qtyText(item.quantity)}${unit}`}
+                    last={item.quantity - step <= 0}
+                    label={item.name}
+                    onMinus={() => cart.setQty(k, item.quantity - step)}
+                    onPlus={() => cart.setQty(k, item.quantity + step)}
+                  />
+                </View>
+              </Appear>
+            );
+          })}
 
-          It sat after the last item, which is fine for a basket of three and
-          invisible for a basket of eleven — the row it was on is a screen and
-          a half below the fold, on the one screen where the whole point is
-          that nothing important is below the fold.
-
-          What it does is honest about its limits: a code can only be CHECKED
-          by the server when the order is placed, so an "Apply" that reported
-          success here would be reporting a guess. It opens the box instead.
-        */}
-        {!!slug && (
-          <Pressable
-            style={({ pressed }) => [styles.coupon, pressed && styles.couponPressed]}
-            accessibilityRole="button"
-            onPress={() => navigation.navigate("Checkout", { slug })}
-          >
-            <View style={styles.couponIcon}>
-              <TicketIcon size={15} color={c.onPrimary} />
-            </View>
-            <Text style={styles.couponText}>Have a coupon code?</Text>
-            <Text style={styles.couponCta}>Apply</Text>
-          </Pressable>
-        )}
-
-        <View style={styles.billRow}>
-          <Text style={styles.billLabel}>
-            Subtotal · {count} {count === 1 ? "item" : "items"}
-          </Text>
-          <Text style={styles.billValue}>{money(subtotal)}</Text>
+          {!!slug && (
+            <Touchable
+              style={styles.addMore}
+              accessibilityRole="button"
+              onPress={() => navigation.navigate("MarketShop", { slug })}
+            >
+              <PlusIcon size={15} color={c.primary} />
+              <Text style={styles.addMoreText}>Add more items</Text>
+            </Touchable>
+          )}
         </View>
 
-        {delivers && (
-          <View style={styles.billRow}>
-            <View style={styles.billLabelCol}>
-              <Text style={styles.billLabel}>Delivery</Text>
-              {/*
-                The one number that changes what somebody buys, said where the
-                fee it would remove is written. Drawn only when there IS a
-                threshold and it has not been met — "Rs 0 to go" is a sentence
-                about nothing.
-              */}
-              {toFreeDelivery !== null && toFreeDelivery > 0 && (
-                <Text style={styles.freeHint}>
-                  Add {money(toFreeDelivery)} more for free delivery
-                </Text>
-              )}
+        {suggestions.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Popular with your order</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.xRow}>
+              {suggestions.map((p) => {
+                const cover = coverFor(p.id);
+                return (
+                  <Touchable
+                    key={p.id}
+                    style={styles.xCard}
+                    scaleTo={0.95}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.name}
+                    onPress={() => addSuggestion(p)}
+                  >
+                    <View style={styles.xThumb}>
+                      <SmartImage
+                        uri={p.images[0] ?? null}
+                        fallback={shopInitial(p.name)}
+                        fallbackBackground={cover.bg}
+                        fallbackColor={cover.fg}
+                        style={styles.xImg}
+                      />
+                      <AddButton size={28} label={p.name} style={styles.xAdd} onPress={() => addSuggestion(p)} />
+                    </View>
+                    <Text style={styles.xName} numberOfLines={1}>
+                      {p.name}
+                    </Text>
+                    <Price value={p.price} was={p.original_price} size="sm" />
+                  </Touchable>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
+
+        {/*
+          What stands between this basket and a delivery, said with the
+          number: the shop's minimum first (it decides whether the order can
+          go at all), then the free-delivery line (it only changes the fee).
+        */}
+        {toMinimum !== null && (
+          <View style={styles.nudge}>
+            <Text style={styles.nudgeText}>
+              Add {money(toMinimum)} more to reach the minimum order of {money(minOrder ?? 0)} for delivery
+            </Text>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${Math.min(100, (subtotal / (minOrder ?? 1)) * 100)}%` }]} />
             </View>
-            {earnedFreeDelivery ? (
-              <Text style={styles.billFree}>FREE</Text>
-            ) : (
-              <Text style={styles.billValue}>{money(deliveryFee)}</Text>
-            )}
+          </View>
+        )}
+        {toMinimum === null && toFreeDelivery !== null && toFreeDelivery > 0 && (
+          <View style={[styles.nudge, styles.nudgeDeal]}>
+            <Text style={styles.nudgeDealText}>Add {money(toFreeDelivery)} more for free delivery</Text>
+            <View style={styles.track}>
+              <View style={[styles.fill, styles.fillDeal, { width: `${Math.min(100, (subtotal / (freeAbove ?? 1)) * 100)}%` }]} />
+            </View>
           </View>
         )}
 
-        <View style={styles.billRule} />
+        <Text style={styles.sectionTitle}>Bill details</Text>
+        <View style={[styles.card, styles.bill]}>
+          <View style={styles.billRow}>
+            <Text style={styles.billLabel}>
+              Subtotal · {count} {count === 1 ? "item" : "items"}
+            </Text>
+            <Text style={styles.billValue}>{money(subtotal)}</Text>
+          </View>
+          {delivers && (
+            <View style={styles.billRow}>
+              <Text style={styles.billLabel}>Delivery fee</Text>
+              {earnedFreeDelivery ? (
+                <Text style={styles.billFree}>Free</Text>
+              ) : (
+                <Text style={styles.billValue}>{money(deliveryFee)}</Text>
+              )}
+            </View>
+          )}
+          <Text style={styles.billNote}>Coupons and the final total are worked out at checkout.</Text>
+        </View>
+      </ScrollView>
 
-        <View style={styles.billRow}>
+      {/* The one number and the one press. */}
+      <View style={styles.footer}>
+        <View style={styles.footerTotal}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{money(total)}</Text>
         </View>
-
         <Pressable
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           onPress={() => slug && navigation.navigate("Checkout", { slug })}
         >
-          <Text style={styles.ctaText}>Checkout now</Text>
+          <Text style={styles.ctaText}>Review payment and address</Text>
           <ArrowRightIcon size={17} color={c.onPrimary} />
         </Pressable>
       </View>
@@ -422,145 +358,85 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "space-between",
       paddingHorizontal: spacing.md,
       paddingTop: spacing.sm,
-      paddingBottom: spacing.xs,
+      paddingBottom: spacing.sm,
       gap: spacing.sm,
     },
     headerCopy: { flex: 1 },
     title: { ...typography.title, color: c.text },
-    shopName: { ...typography.tiny, color: c.textSecondary, marginTop: 1 },
+    shopName: { ...typography.small, color: c.textSecondary, marginTop: 2 },
     clearBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
-    clearText: { ...typography.tiny, color: c.error, fontWeight: "700" },
+    clearText: { ...typography.caption, color: c.error, fontWeight: "700" },
 
-    // 10 between lines, not 6. A basket is checked at a glance, and six points
-    // between bordered cards is close enough that eight lines read as one
-    // striped block — the same complaint the home cards had.
-    list: { paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, gap: 10 },
-    line: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
+    scroll: { paddingHorizontal: spacing.md, paddingBottom: spacing.lg, gap: spacing.ms },
+    card: {
       backgroundColor: c.surface,
-      borderWidth: 1,
-      borderColor: c.border,
       borderRadius: radius.md,
-      paddingVertical: 10,
-      paddingHorizontal: 10,
-    },
-    lineThumb: { width: 48, height: 48, borderRadius: radius.sm },
-    lineInfo: { flex: 1, gap: 2 },
-    lineName: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
-    lineMeta: { ...typography.tiny, color: c.textMuted },
-    linePrice: { color: c.text, fontWeight: "700" },
-
-    stepper: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: c.surfaceAlt,
       borderWidth: 1,
       borderColor: c.border,
-      borderRadius: 17,
-      padding: 3,
-      gap: 4,
+      overflow: "hidden",
     },
-    stepBtn: {
-      width: 26,
-      height: 26,
-      // An explicit 13, not `radius.full`: a very large radius renders as a
-      // SQUARE on small views under the new architecture, which is what these
-      // two buttons were — square corners inside a rounded stepper.
-      borderRadius: 13,
-      backgroundColor: c.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    stepBtnGhost: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
-    qty: { ...typography.tiny, color: c.text, fontWeight: "700", minWidth: 22, textAlign: "center" },
-    lineRemove: { padding: 2 },
+    line: { flexDirection: "row", alignItems: "center", gap: spacing.ms, padding: spacing.ms },
+    lineRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    lineThumb: { width: 56, height: 56, borderRadius: radius.xs },
+    lineInfo: { flex: 1, gap: 2 },
+    lineName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 20 },
+    lineMeta: { ...typography.caption, color: c.textSecondary },
+    linePrice: { ...typography.price, color: c.text, marginTop: 2 },
 
     addMore: {
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      marginTop: spacing.sm,
-      paddingVertical: 11,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderStyle: "dashed",
-      borderColor: c.border,
+      gap: spacing.xs,
+      padding: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
     },
-    addMoreText: { ...typography.label, color: c.primary, fontSize: 14, lineHeight: 18 },
+    addMoreText: { ...typography.label, color: c.primary },
 
-    sectionTitle: { ...typography.h3, color: c.text, fontSize: 15, lineHeight: 22, marginTop: spacing.md, marginBottom: spacing.sm },
-    xRow: { gap: 12, paddingBottom: spacing.xs },
-    xCard: { width: 116, gap: 6 },
-    xThumb: { height: 86, borderRadius: radius.md, overflow: "hidden" },
+    sectionTitle: { ...typography.h3, color: c.text, marginTop: spacing.sm },
+    xRow: { gap: spacing.ms, paddingRight: spacing.md },
+    xCard: { width: 128, gap: 4 },
+    xThumb: { width: 128, height: 104, borderRadius: radius.sm, overflow: "hidden" },
     xImg: { width: "100%", height: "100%" },
-    // Position only — the disc itself is `AddButton`, which owns its own
-    // colour and its own press.
-    xAdd: { position: "absolute", right: 5, bottom: 5 },
-    xName: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+    xAdd: { position: "absolute", right: 6, bottom: 6 },
+    xName: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
 
-    // Sized to ride inside the bill without pushing a row off the list: 38px
-    // and a hairline, not a 52px panel.
-    coupon: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: spacing.sm,
-      height: 38,
-      paddingHorizontal: 8,
-      marginBottom: 8,
-      borderRadius: radius.md,
-      backgroundColor: c.primarySoft,
-    },
-    couponPressed: { opacity: 0.75 },
-    couponIcon: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      backgroundColor: c.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    couponText: { ...typography.tiny, color: c.text, fontWeight: "700", flex: 1 },
-    couponCta: {
-      ...typography.tiny,
-      color: c.onPrimary,
-      fontWeight: "800",
-      backgroundColor: c.primary,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 5,
-      overflow: "hidden",
-    },
-    billLabelCol: { flex: 1 },
-    freeHint: { ...typography.tiny, color: c.warm, fontWeight: "700", marginTop: 1 },
+    nudge: { backgroundColor: c.warningBg, borderRadius: radius.sm, padding: spacing.ms, gap: spacing.sm },
+    nudgeText: { ...typography.small, color: c.warning, fontWeight: "600" },
+    nudgeDeal: { backgroundColor: c.warmSoft },
+    nudgeDealText: { ...typography.small, color: c.onWarm, fontWeight: "600" },
+    track: { height: 4, borderRadius: 2, backgroundColor: c.surface, overflow: "hidden" },
+    fill: { height: 4, borderRadius: 2, backgroundColor: c.warning },
+    fillDeal: { backgroundColor: c.warm },
+
+    bill: { padding: spacing.md, gap: spacing.sm },
+    billRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    billLabel: { ...typography.body, color: c.textSecondary },
+    billValue: { ...typography.price, color: c.text },
+    billFree: { ...typography.price, color: c.success },
+    billNote: { ...typography.caption, color: c.textMuted },
 
     footer: {
       backgroundColor: c.surface,
       borderTopWidth: 1,
       borderTopColor: c.border,
       paddingHorizontal: spacing.md,
-      paddingTop: 10,
-      paddingBottom: 12,
+      paddingTop: spacing.ms,
+      paddingBottom: spacing.ms,
+      gap: spacing.sm,
     },
-    billRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 2 },
-    billLabel: { ...typography.small, color: c.textSecondary },
-    billValue: { ...typography.small, color: c.text, fontWeight: "600" },
-    billFree: { ...typography.small, color: c.success, fontWeight: "800" },
-    billRule: { height: 1, backgroundColor: c.border, marginVertical: 7 },
-    totalLabel: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
-    totalValue: { ...typography.title, fontSize: 22, lineHeight: 28, color: c.primary },
+    footerTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+    totalLabel: { ...typography.name, color: c.text },
+    totalValue: { ...typography.total, color: c.text },
     cta: {
+      height: 52,
+      borderRadius: radius.sm,
+      backgroundColor: c.primary,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      gap: 7,
-      backgroundColor: c.primary,
-      borderRadius: radius.md,
-      height: 50,
-      marginTop: 10,
+      gap: spacing.sm,
     },
-    ctaPressed: { backgroundColor: c.primaryPressed },
-    ctaText: { ...typography.label, color: c.onPrimary, fontSize: 15, lineHeight: 22 },
+    ctaPressed: { opacity: 0.88 },
+    ctaText: { ...typography.button, color: c.onPrimary },
   });

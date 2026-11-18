@@ -255,6 +255,7 @@ export function useMarketProduct(id: string | undefined) {
 
 export function useRegisterCustomer() {
   const setAuth = useAuthStore((s) => s.setAuth);
+  const queryClient = useQueryClient();
 
   return useMutation({
     // Reported by the screen itself — the sign-up form marks the field that is wrong — so the global
@@ -266,6 +267,12 @@ export function useRegisterCustomer() {
     // Navigation reacts to the store flipping to authenticated-customer.
     onSuccess: async ({ data }) => {
       await setAuth(data.user, data.access_token, data.refresh_token);
+      // EVERYTHING ASKED AS A GUEST IS NOW SOMEBODY ELSE'S ANSWER. The saved
+      // addresses checkout had fetched a moment earlier — none, for a guest —
+      // were still fresh in the cache, so a customer who signed in to pay
+      // was told to "Add an address" while their Home address sat on the
+      // server. Marked stale here, every screen asks again as the person.
+      await queryClient.invalidateQueries();
     },
   });
 }

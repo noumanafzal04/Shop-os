@@ -34,19 +34,23 @@ const src = codeOnly(
   ),
 );
 
-describe("the category grid is always eight", () => {
-  it("shows seven trades", () => {
-    expect(src).toMatch(/const HOME_TRADES = 7;/);
+describe("the trades: two big tiles and one full row", () => {
+  /**
+   * FOODPANDA'S SHAPE (asked for: "uska standard design follow kr lety hain").
+   *
+   * Two big tiles for the busiest trades, then a row of small ones with
+   * "View all" last in it. The small row must come out as exactly four —
+   * an orphan in the corner is the complaint this file was first written for.
+   */
+  it("shows five trades, two of them big", () => {
+    expect(src).toMatch(/const HOME_TRADES = 5;/);
+    expect(src).toMatch(/const BIG_TRADES = 2;/);
   });
 
-  /**
-   * Seven plus "View all" is eight, which is two whole rows at a quarter-width
-   * per tile. Any other number leaves an orphan in the corner, which is the
-   * complaint this whole file exists for.
-   */
-  it("leaves room for exactly one more tile", () => {
+  it("fills the small row exactly, with View all", () => {
     const n = Number(src.match(/const HOME_TRADES = (\d+);/)?.[1]);
-    expect((n + 1) % 4).toBe(0);
+    const big = Number(src.match(/const BIG_TRADES = (\d+);/)?.[1]);
+    expect((n - big + 1) % 4).toBe(0);
   });
 
   /** The tile that opens the rest, drawn whatever the server said. */
@@ -75,37 +79,17 @@ describe("the category grid is always eight", () => {
   });
 
   /**
-   * A trade with no shops here is drawn quieter and stays reachable — the list
-   * it opens has a real empty state, and a page that says "none near you yet"
-   * answers the question the tap was asking. A dead tile answers nothing.
-   */
-  /**
-   * An empty trade is INFORMATION, not a control.
+   * A TRADE WITH NO SHOPS HERE IS NOT DRAWN AT ALL.
    *
-   * It was a dimmed `Touchable` that opened a list with a perfectly honest
-   * empty state — and the report on that was four words: "koi shop ni arhi".
-   * Nobody reads an empty page as an answer; they read it as an app that did
-   * not work, and three of the seven tiles were doing it.
-   *
-   * A muted button and a muted label look almost the same and behave entirely
-   * differently, so this checks the BEHAVIOUR: the empty branch returns a
-   * plain `View`, with no press handler and no button role.
+   * It used to be a faded tile reading "None nearby" — first tappable (the
+   * report: "koi shop ni arhi"), then a dead label. On a fresh city that was
+   * five dead tiles out of seven: an app that looks broken on the screen
+   * everybody opens first. The whole breadth is one tap away on the
+   * categories page, where an empty trade is an answer rather than a tile.
    */
-  it("does not offer a trade that has nothing behind it", () => {
-    expect(src).toMatch(/const empty = t\.shops_count === 0;/);
-
-    const branch = src.slice(src.indexOf("if (empty) {"), src.indexOf("return (\n              <Touchable"));
-    expect(branch.length).toBeGreaterThan(0);
-    expect(branch).not.toMatch(/onPress=/);
-    expect(branch).not.toMatch(/accessibilityRole="button"/);
-    expect(branch).not.toMatch(/<Touchable/);
-    // …and it says why, or a faded tile is one somebody presses anyway.
-    expect(branch).toMatch(/None nearby/);
-  });
-
-  it("still draws it, rather than letting the data resize the grid", () => {
-    expect(src).toMatch(/tileEmpty: \{ opacity: [\d.]+ \}/);
-    expect(src).toMatch(/const HOME_TRADES = 7;/);
+  it("draws only trades that have a shop here", () => {
+    expect(src).toMatch(/\.filter\(\(t\) => t\.shops_count > 0\)\.slice\(0, HOME_TRADES\)/);
+    expect(src).not.toMatch(/None nearby"?\s*<\/Text>/);
   });
 });
 

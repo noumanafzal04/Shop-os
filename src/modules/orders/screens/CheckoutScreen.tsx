@@ -347,39 +347,6 @@ export function CheckoutScreen() {
         {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
 
         {/*
-          What is in the order, as ONE line.
-
-          The whole basket was listed here with a stepper on every row — a
-          second cart, on the screen whose job is to confirm and pay. Eleven
-          items pushed the address, the total and the button off the bottom,
-          and the two copies could not disagree only because they shared a
-          store: they still made the same screen twice.
-
-          Changing your mind belongs in the basket, which is one tap away and
-          says so.
-        */}
-        <Pressable
-          style={({ pressed }) => [styles.basket, pressed && styles.basketPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Edit your basket"
-          onPress={() => navigation.goBack()}
-        >
-          <View style={styles.basketIcon}>
-            <BagIcon size={18} color={c.onPrimary} />
-          </View>
-          <View style={styles.basketCopy}>
-            <Text style={styles.basketCount}>
-              {itemCount} {itemCount === 1 ? "item" : "items"}
-            </Text>
-            <Text style={styles.basketShop} numberOfLines={1}>
-              from {shop.data?.business_name ?? "this shop"}
-            </Text>
-          </View>
-          <Text style={styles.basketEdit}>Edit</Text>
-          <ChevronRightIcon size={16} color={c.textMuted} />
-        </Pressable>
-
-        {/*
           Delivery or pickup, as ONE control with two halves.
 
           Two separate chips both look pressable and neither looks pressED, so
@@ -429,8 +396,9 @@ export function CheckoutScreen() {
         </View>
 
         {/* Where it is going — stated first, changed on request */}
+        {fulfillment === "delivery" && <Text style={styles.section}>Delivery address</Text>}
         {fulfillment === "delivery" && (
-          <View style={styles.addrBlock}>
+          <View style={[styles.card, styles.addrBlock]}>
             {/*
               THE ONE SENTENCE THIS SCREEN HAS TO GET RIGHT, and the one field
               that finishes it.
@@ -518,7 +486,37 @@ export function CheckoutScreen() {
           </View>
         )}
 
-        {/* Coupon + notes */}
+        {/*
+          The shop's own preparation time, and ONLY when it has set one.
+          A default invents "30–50 min" for a shop that never said, which is a
+          promise the app made on its behalf.
+        */}
+        {prep !== null && (
+          <View style={styles.eta}>
+            <ClockIcon size={15} color={c.textSecondary} />
+            <Text style={styles.etaText}>
+              {fulfillment === "delivery"
+                ? `Estimated delivery: ${prep}–${prep + 20} min`
+                : `Ready for pickup in about ${prep} min`}
+            </Text>
+          </View>
+        )}
+
+        <Text style={styles.section}>Payment method</Text>
+        <View style={[styles.card, styles.payRow]}>
+          <BanknoteIcon size={19} color={c.success} />
+          <View style={styles.payCopy}>
+            <Text style={styles.payText}>Cash on delivery</Text>
+            <Text style={styles.payHint}>Pay when you receive your order</Text>
+          </View>
+          {/* Selected, and the only option — drawn rather than implied. */}
+          <View style={styles.radio}>
+            <View style={styles.radioDot} />
+          </View>
+        </View>
+
+        <Text style={styles.section}>Voucher and note</Text>
+        <View style={[styles.card, styles.cardPad]}>
         <View style={styles.couponRow}>
           <View style={styles.couponInput}>
             <AppTextInput
@@ -532,7 +530,10 @@ export function CheckoutScreen() {
         </View>
         <AppTextInput placeholder="Notes for the shop (optional)" value={notes} onChangeText={setNotes} />
 
-        {belowMinimum && (
+        </View>
+
+        {/* Said once: the server's refusal under the bill says the same thing. */}
+        {belowMinimum && !refused && (
           <View style={styles.warnBox}>
             <Text style={styles.warnText}>
               Minimum order for delivery is {money(minOrder!)} — add {money(minOrder! - subtotal)} more, or switch to pickup.
@@ -548,6 +549,41 @@ export function CheckoutScreen() {
 
         <Text style={styles.section}>Order summary</Text>
         <View style={styles.totals}>
+        {/*
+          What is in the order, as ONE line.
+
+          The whole basket was listed here with a stepper on every row — a
+          second cart, on the screen whose job is to confirm and pay. Eleven
+          items pushed the address, the total and the button off the bottom,
+          and the two copies could not disagree only because they shared a
+          store: they still made the same screen twice.
+
+          Changing your mind belongs in the basket, which is one tap away and
+          says so.
+        */}
+        <Pressable
+          style={({ pressed }) => [styles.basket, pressed && styles.basketPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Edit your basket"
+          onPress={() => navigation.goBack()}
+        >
+          <View style={styles.basketIcon}>
+            <BagIcon size={18} color={c.onPrimary} />
+          </View>
+          <View style={styles.basketCopy}>
+            <Text style={styles.basketCount}>
+              {itemCount} {itemCount === 1 ? "item" : "items"}
+            </Text>
+            <Text style={styles.basketShop} numberOfLines={1}>
+              from {shop.data?.business_name ?? "this shop"}
+            </Text>
+          </View>
+          <Text style={styles.basketEdit}>Edit</Text>
+          <ChevronRightIcon size={16} color={c.textMuted} />
+        </Pressable>
+
+
+
           <View style={styles.totalRow}>
             <Text style={styles.totalLbl}>Subtotal</Text>
             <Text style={styles.totalVal}>{money(shown ? shown.subtotal : subtotal)}</Text>
@@ -578,35 +614,6 @@ export function CheckoutScreen() {
           </View>
         </View>
 
-        {/*
-          The shop's own preparation time, and ONLY when it has set one.
-          A default invents "30–50 min" for a shop that never said, which is a
-          promise the app made on its behalf.
-        */}
-        {prep !== null && (
-          <View style={styles.eta}>
-            <ClockIcon size={15} color={c.textSecondary} />
-            <Text style={styles.etaText}>
-              {fulfillment === "delivery"
-                ? `Estimated delivery: ${prep}–${prep + 20} min`
-                : `Ready for pickup in about ${prep} min`}
-            </Text>
-          </View>
-        )}
-
-        <Text style={styles.section}>Payment method</Text>
-        <View style={styles.payRow}>
-          <BanknoteIcon size={19} color={c.success} />
-          <View style={styles.payCopy}>
-            <Text style={styles.payText}>Cash on delivery</Text>
-            <Text style={styles.payHint}>Pay when you receive your order</Text>
-          </View>
-          {/* Selected, and the only option — drawn rather than implied. */}
-          <View style={styles.radio}>
-            <View style={styles.radioDot} />
-          </View>
-        </View>
-
       </KeyboardScreen>
     </SafeScreen>
   );
@@ -614,7 +621,7 @@ export function CheckoutScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.lg },
+  content: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.lg },
 
   /** The pinned action bar — see `KeyboardScreen`'s `footer`. */
   bar: {
@@ -625,16 +632,15 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: spacing.sm,
   },
 
+  // The first row of the summary card: what is in it, and the way back to change it.
   basket: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
+    paddingBottom: spacing.ms,
+    marginBottom: spacing.xs,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
   },
   basketPressed: { backgroundColor: c.surfaceAlt },
   basketIcon: {
@@ -655,12 +661,7 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "center",
     gap: spacing.sm,
     marginTop: spacing.sm,
-    paddingVertical: 11,
-    paddingHorizontal: spacing.md,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: c.border,
-    backgroundColor: c.surface,
+    paddingHorizontal: spacing.xs,
   },
   etaText: { ...typography.small, color: c.textSecondary },
 
@@ -704,10 +705,6 @@ const makeStyles = (c: ThemeColors) =>
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: radius.lg,
     padding: spacing.md,
   },
   payText: { ...typography.label, color: c.text, flex: 1, fontSize: 14, lineHeight: 18 },
@@ -728,7 +725,17 @@ const makeStyles = (c: ThemeColors) =>
   errorText: { ...typography.small, color: c.error },
 
 
-  section: { ...typography.label, color: c.text, marginTop: spacing.lg, marginBottom: spacing.sm },
+  section: { ...typography.h3, color: c.text, marginTop: spacing.lg, marginBottom: spacing.sm },
+  // Every step of checkout is its own white card on the page ground — the
+  // address, the payment, the voucher, the bill — so the eye reads it as a
+  // short list of things to confirm rather than one long form.
+  card: {
+    backgroundColor: c.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  cardPad: { padding: spacing.md, gap: spacing.sm },
   chips: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   chip: {
     paddingHorizontal: spacing.md,
@@ -742,7 +749,7 @@ const makeStyles = (c: ThemeColors) =>
   chipTxt: { color: c.gray[600], fontSize: 13, lineHeight: 18, fontWeight: "500" },
   chipTxtActive: { color: c.white },
 
-  addrBlock: { gap: spacing.xs, marginBottom: spacing.sm },
+  addrBlock: { gap: spacing.sm, padding: spacing.ms },
   addr: {
     flexDirection: "row",
     alignItems: "center",
@@ -771,10 +778,8 @@ const makeStyles = (c: ThemeColors) =>
     alignItems: "flex-start",
     gap: spacing.sm,
     backgroundColor: c.brand[50],
-    borderWidth: 1,
-    borderColor: c.brand[200],
-    borderRadius: radius.md,
-    padding: spacing.md,
+    borderRadius: radius.sm,
+    padding: spacing.ms,
   },
   chosenInfo: { flex: 1, gap: 2 },
   chosenCap: { ...typography.tiny, color: c.brand[700], textTransform: "uppercase", letterSpacing: 0.6 },
@@ -800,11 +805,10 @@ const makeStyles = (c: ThemeColors) =>
   couponInput: { marginBottom: spacing.xs },
 
   totals: {
-    marginTop: spacing.md,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     padding: spacing.md,
     gap: 4,
   },

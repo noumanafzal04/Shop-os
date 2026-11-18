@@ -8,6 +8,7 @@ import type { LoginPayload } from "../types";
 
 export function useLogin() {
   const setAuth = useAuthStore((s) => s.setAuth);
+  const queryClient = useQueryClient();
 
   return useMutation({
     // Reported by the screen itself — the sign-in form puts the reason under the password field — so the global
@@ -19,6 +20,12 @@ export function useLogin() {
     onSuccess: async ({ data }) => {
       // Navigation reacts to the store flipping to "authenticated".
       await setAuth(data.user, data.access_token, data.refresh_token);
+      // EVERYTHING ASKED AS A GUEST IS NOW SOMEBODY ELSE'S ANSWER. The saved
+      // addresses checkout had fetched a moment earlier — none, for a guest —
+      // were still fresh in the cache, so a customer who signed in to pay
+      // was told to "Add an address" while their Home address sat on the
+      // server. Marked stale here, every screen asks again as the person.
+      await queryClient.invalidateQueries();
     },
   });
 }

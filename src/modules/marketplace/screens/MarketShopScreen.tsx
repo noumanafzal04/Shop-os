@@ -35,14 +35,16 @@ import { Skeleton, SkeletonMenuRow } from "../../../common/ui/Skeleton";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useAuthStore } from "../../../stores/authStore";
-import { useCartStore } from "../../../stores/cartStore";
+import { cartKeyOf, useCartStore } from "../../../stores/cartStore";
+import { QtyStepper } from "../components/QtyStepper";
+import { Touchable } from "../../../common/ui/Touchable";
 import { useLocationStore } from "../../../stores/locationStore";
 import { ApiError } from "../../../common/types/api";
 import { ProductSheet, type ConfiguredLine } from "../components/ProductSheet";
 import type { PublicProduct } from "../services/marketplaceService";
 import { productBelongsToShop } from "../linkedProduct";
 import { formatDistance } from "../shopFacts";
-import { shopInitial, shopLogo, useShopCover } from "../shopCover";
+import { shopAvatar, shopInitial, shopLogo, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { toast } from "../../../common/ui/toast";
 import { confirm } from "../../../common/ui/confirm";
@@ -97,7 +99,7 @@ type MenuRow =
  * the viewport is where the sticky bar is — so without this offset every jump
  * hid the heading it had just been asked to go to.
  */
-const CHIP_BAR = 54; // 10 + (7 + 18 + 7 + 2 border) + 10
+const CHIP_BAR = 48; // tab: 14 top + 20 label + 12 bottom + 2 underline
 /**
  * The back-and-name row above the chips once the bar is pinned.
  *
@@ -501,6 +503,37 @@ export function MarketShopScreen() {
     });
   };
 
+  /**
+   * HOW MANY OF EACH ARE ALREADY IN THE CART — what the row's "+" turns into.
+   *
+   * Summed per product across its lines, because a karahi in two sizes is two
+   * lines and one row. Only this shop's basket counts.
+   */
+  const inCart = React.useMemo(() => {
+    const m = new Map<string, number>();
+    if (cart.shopSlug !== slug) return m;
+    for (const l of cart.lines) {
+      m.set(l.product_id, (m.get(l.product_id) ?? 0) + (l.sold_by === "weight" ? 1 : l.quantity));
+    }
+    return m;
+  }, [cart.lines, cart.shopSlug, slug]);
+
+  /** One fewer of a plain item (the only kind with a single line to step). */
+  const onMinus = (p: PublicProduct) => {
+    const key = cartKeyOf({ product_id: p.id, variant_id: null });
+    const line = cart.lines.find((l) => cartKeyOf(l) === key);
+    if (line) cart.setQty(key, line.quantity - 1);
+  };
+
+  /** A tap on the row itself: the item, opened — its picture, what it is, its options. */
+  const onOpen = (p: PublicProduct) => {
+    if (p.requires_prescription) {
+      onAdd(p);
+      return;
+    }
+    setSheetProduct(p);
+  };
+
   const onConfigured = (line: ConfiguredLine) => {
     const p = sheetProduct!;
     addLine(
@@ -581,7 +614,9 @@ export function MarketShopScreen() {
         */}
         <SmartImage
           uri={hero ?? null}
-          fallback={shopInitial(shop.data?.business_name)}
+          // No letter on a cover with no picture: the logo below already
+          // carries it, and the same initial twice, a hand apart, is an echo.
+          fallback=""
           fallbackBackground={cover.bg}
           fallbackColor={cover.fg}
           style={styles.heroImg}
@@ -620,7 +655,26 @@ export function MarketShopScreen() {
       ) : shop.data ? (
         <>
           <View style={styles.identity}>
-            <Text style={styles.shopName}>{shop.data.business_name}</Text>
+            {/*
+              THE SHOP'S MARK BESIDE ITS NAME, left-aligned.
+
+              The name was centred under the hero with nothing beside it — a
+              title page. A menu page reads like the rest of the app: the logo,
+              the name, and the facts under it, all starting at the same edge
+              as the menu rows they introduce.
+            */}
+            <View style={[styles.logo, { backgroundColor: cover.bg }]}>
+              <SmartImage
+                uri={shopAvatar(shop.data)}
+                resizeMode="contain"
+                fallback={shopInitial(shop.data.business_name)}
+                fallbackBackground={cover.bg}
+                fallbackColor={cover.fg}
+                style={styles.logoImg}
+              />
+            </View>
+            <View style={styles.identityText}>
+            <Text style={styles.shopName} numberOfLines={2}>{shop.data.business_name}</Text>
             <View style={styles.metaRow}>
               {shop.data.rating !== null && (
                 <>
@@ -631,13 +685,14 @@ export function MarketShopScreen() {
               )}
               {shop.data.distance_km != null && (
                 <>
-                  <Text style={styles.metaDot}>·</Text>
+                  {shop.data.rating !== null && <Text style={styles.metaDot}>·</Text>}
                   <MapPinIcon size={12} color={c.gray[500]} />
                   <Text style={styles.metaDim}>{formatDistance(shop.data.distance_km)}</Text>
                 </>
               )}
               <Text style={styles.metaDot}>·</Text>
               <Text style={closed ? styles.closedText : styles.openText}>{closed ? "Closed" : "Open now"}</Text>
+            </View>
             </View>
           </View>
 
@@ -824,10 +879,13 @@ export function MarketShopScreen() {
           item={row.product}
           styles={styles}
           cover={coverFor(row.product.id)}
+          qty={inCart.get(row.product.id) ?? 0}
           acceptsOrders={acceptsOrders}
           canReserve={canReserve}
           reserving={reserve.isPending}
           onAdd={onAdd}
+          onMinus={onMinus}
+          onOpen={onOpen}
           onReserve={askReserve}
           onContact={contactShop}
         />
@@ -837,7 +895,7 @@ export function MarketShopScreen() {
     // The rows do not: `ProductRow` is memoised, so a new `renderRow` costs a
     // shallow prop compare per row rather than a re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [styles, jumps, section, acceptsOrders, canReserve, reserve.isPending, coverFor, onAdd, askReserve, contactShop],
+    [styles, jumps, section, acceptsOrders, canReserve, reserve.isPending, coverFor, onAdd, askReserve, contactShop, inCart],
   );
 
   return (
@@ -1068,40 +1126,93 @@ const ProductRow = React.memo(function ProductRow({
   item,
   styles,
   cover,
+  qty,
   acceptsOrders,
   canReserve,
   reserving,
   onAdd,
+  onMinus,
+  onOpen,
   onReserve,
   onContact,
 }: {
   item: PublicProduct;
   styles: ReturnType<typeof makeStyles>;
   cover: { bg: string; fg: string };
+  qty: number;
   acceptsOrders: boolean;
   canReserve: boolean;
   reserving: boolean;
   onAdd: (p: PublicProduct) => void;
+  onMinus: (p: PublicProduct) => void;
+  onOpen: (p: PublicProduct) => void;
   onReserve: (id: string, name: string) => void;
   onContact: () => void;
 }) {
   const img = item.images[0];
-  const unavailable = item.type === "product" && (!item.in_stock || !item.available_now);
+  // Every size sold out is the item sold out — the row said "2 options" and
+  // offered a "+" that opened a sheet with nothing in it to choose.
+  const allSizesOut = item.variants.length > 0 && item.variants.every((v) => !v.in_stock);
+  const unavailable = item.type === "product" && (!item.in_stock || !item.available_now || allSizesOut);
+  const plain = item.variants.length === 0 && item.modifier_groups.length === 0 && item.sold_by !== "weight";
+  const orderable = item.type === "product" && acceptsOrders && !unavailable;
+
+  /*
+   * THE CONTROL, in one place whether or not there is a picture to sit on.
+   *
+   * A plain item already in the cart gets − n +; an item with options keeps
+   * its "+" (each tap is a fresh choice of size) with the count beside it.
+   */
+  const control =
+    item.type === "product" ? (
+      orderable ? (
+        qty > 0 && plain ? (
+          <QtyStepper value={qty} label={item.name} onMinus={() => onMinus(item)} onPlus={() => onAdd(item)} />
+        ) : (
+          <View style={styles.addWrap}>
+            <AddButton size={34} label={item.name} onPress={() => onAdd(item)} />
+            {qty > 0 && (
+              <View style={styles.qtyDot}>
+                <Text style={styles.qtyDotText}>{qty}</Text>
+              </View>
+            )}
+          </View>
+        )
+      ) : canReserve && item.in_stock && !allSizesOut ? (
+        <Pressable style={styles.reserveBtn} onPress={() => onReserve(item.id, item.name)} disabled={reserving}>
+          <Text style={styles.reserveText}>Reserve</Text>
+        </Pressable>
+      ) : null
+    ) : (
+      <Pressable style={styles.reserveBtn} onPress={onContact}>
+        <Text style={styles.reserveText}>Contact</Text>
+      </Pressable>
+    );
 
   return (
-    <View style={[styles.productCard, unavailable && styles.productOff]}>
-      <View style={styles.productThumb}>
-        <SmartImage
-          uri={img ?? null}
-          fallback={shopInitial(item.name)}
-          fallbackBackground={cover.bg}
-          fallbackColor={cover.fg}
-          style={styles.productImg}
-        />
-      </View>
+    /*
+      ── A ROW, NOT A CARD ─────────────────────────────────────────────
+
+      Each item was a bordered card with a 64pt letter tile, its category
+      written under its name (inside that category's own section) and no
+      description at all. The marketplace menu everybody already knows reads
+      as a list: what it is and what is in it on the left, the picture on the
+      right with the "+" on its corner, a hairline between. The row itself
+      opens the item.
+    */
+    <Touchable
+      style={styles.productRow}
+      scaleTo={0.99}
+      onPress={() => onOpen(item)}
+      disabled={item.type !== "product"}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}${unavailable ? ", sold out" : ""}`}
+    >
       <View style={styles.productInfo}>
         <View style={styles.nameRow}>
-          <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+          <Text style={[styles.productName, unavailable && styles.dim]} numberOfLines={2}>
+            {item.name}
+          </Text>
           {/*
             Said BEFORE the tap. A refusal after a basket is built is a rule
             discovered at the worst moment; a badge is the same rule, stated
@@ -1113,40 +1224,47 @@ const ProductRow = React.memo(function ProductRow({
             </View>
           )}
         </View>
-        <Text style={styles.productMeta} numberOfLines={1}>
-          {item.category?.name ?? ""}
-          {item.type === "service" && item.duration_minutes ? ` \u00b7 ${item.duration_minutes} min` : ""}
-          {item.variants.length > 0 ? ` \u00b7 ${item.variants.length} options` : ""}
-          {item.modifier_groups.length > 0 ? " \u00b7 customizable" : ""}
-        </Text>
+        {!!item.description && (
+          <Text style={styles.productDesc} numberOfLines={2}>
+            {item.description}
+          </Text>
+        )}
         <View style={styles.priceRow}>
-          <Price value={item.price} was={item.original_price} size="md" />
-          {item.sold_by === "weight" && item.unit ? (
-            <Text style={styles.perUnit}>/{item.unit}</Text>
-          ) : null}
-          <OfferBadge value={item.price} was={item.original_price} />
+          {unavailable ? (
+            <Text style={styles.offText}>
+              {!item.in_stock || allSizesOut ? "Sold out" : "Not available right now"}
+            </Text>
+          ) : (
+            <>
+              {item.variants.length > 0 && <Text style={styles.fromText}>from</Text>}
+              <Price value={item.price} was={item.original_price} size="md" />
+              {item.sold_by === "weight" && item.unit ? <Text style={styles.perUnit}>/{item.unit}</Text> : null}
+              <OfferBadge value={item.price} was={item.original_price} />
+            </>
+          )}
         </View>
-        {!item.available_now && item.in_stock && <Text style={styles.offText}>Not available right now</Text>}
-        {!item.in_stock && item.type === "product" && <Text style={styles.offText}>Out of stock</Text>}
+        {item.type === "service" && item.duration_minutes ? (
+          <Text style={styles.productMeta}>{item.duration_minutes} min</Text>
+        ) : null}
       </View>
-      {item.type === "product" ? (
-        acceptsOrders && !unavailable ? (
-          <AddButton size={34} label={item.name} onPress={() => onAdd(item)} />
-        ) : canReserve && item.in_stock ? (
-          <Pressable
-            style={styles.reserveBtn}
-            onPress={() => onReserve(item.id, item.name)}
-            disabled={reserving}
-          >
-            <Text style={styles.reserveText}>Reserve</Text>
-          </Pressable>
-        ) : null
+
+      {img ? (
+        <View style={styles.productMedia}>
+          <View style={[styles.productThumb, unavailable && styles.productOff]}>
+            <SmartImage
+              uri={img}
+              fallback={shopInitial(item.name)}
+              fallbackBackground={cover.bg}
+              fallbackColor={cover.fg}
+              style={styles.productImg}
+            />
+          </View>
+          {control && <View style={styles.controlOnImage}>{control}</View>}
+        </View>
       ) : (
-        <Pressable style={styles.reserveBtn} onPress={onContact}>
-          <Text style={styles.reserveText}>Contact</Text>
-        </Pressable>
+        control && <View style={styles.controlAlone}>{control}</View>
       )}
-    </View>
+    </Touchable>
   );
 });
 
@@ -1202,7 +1320,7 @@ const makeStyles = (c: ThemeColors) =>
    * product row sliding through the chips.
    */
   catsBar: {
-    backgroundColor: c.bg,
+    backgroundColor: c.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
@@ -1213,7 +1331,7 @@ const makeStyles = (c: ThemeColors) =>
    * gives a two-element sticky away is the two elements not matching.
    */
   catsFlow: {
-    backgroundColor: c.bg,
+    backgroundColor: c.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
@@ -1253,7 +1371,7 @@ const makeStyles = (c: ThemeColors) =>
     right: 0,
     zIndex: 10,
     elevation: 10,
-    backgroundColor: c.bg,
+    backgroundColor: c.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: c.border,
   },
@@ -1303,17 +1421,17 @@ const makeStyles = (c: ThemeColors) =>
   section: {
     ...typography.h3,
     color: c.text,
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.2,
-    backgroundColor: c.bg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+    backgroundColor: c.surface,
+    // The page colour shows as an 8pt band above each section — the break
+    // between one part of the menu and the next.
+    marginTop: spacing.sm,
+    paddingTop: spacing.ml,
+    paddingBottom: spacing.xs,
     paddingHorizontal: spacing.md,
   },
 
   // Hero
-  hero: { height: 168, backgroundColor: c.brand[100] },
+  hero: { height: 200, backgroundColor: c.brand[100] },
   heroImg: { width: "100%", height: "100%" },
   heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
   heroInitial: { fontSize: 72, fontWeight: "800", letterSpacing: -2 },
@@ -1338,9 +1456,27 @@ const makeStyles = (c: ThemeColors) =>
   },
 
   // Identity
-  identity: { alignItems: "center", paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: 5 },
-  shopName: { ...typography.title, color: c.text, fontSize: 22, lineHeight: 28, textAlign: "center" },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  identity: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.ms,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  // Lifted over the hero's bottom edge, the way a profile mark sits on a cover.
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    marginTop: -36,
+    borderWidth: 3,
+    borderColor: c.surface,
+  },
+  logoImg: { width: "100%", height: "100%" },
+  identityText: { flex: 1, gap: 4 },
+  shopName: { ...typography.title, color: c.text },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
   metaStrong: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
   metaDim: { ...typography.small, color: c.gray[500], fontSize: 13, lineHeight: 18 },
   metaDot: { color: c.gray[300], paddingHorizontal: 2 },
@@ -1348,7 +1484,7 @@ const makeStyles = (c: ThemeColors) =>
   closedText: { ...typography.label, color: c.error, fontSize: 13, lineHeight: 18 },
 
   // Toggle
-  toggleWrap: { alignItems: "center", marginTop: spacing.sm },
+  toggleWrap: { paddingHorizontal: spacing.md, marginTop: spacing.md },
   toggle: {
     flexDirection: "row",
     backgroundColor: c.surfaceAlt,
@@ -1361,7 +1497,7 @@ const makeStyles = (c: ThemeColors) =>
     borderRadius: 20,
     padding: 3,
   },
-  toggleBtn: { paddingHorizontal: spacing.lg, paddingVertical: 7, borderRadius: 17 },
+  toggleBtn: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 17 },
   toggleOn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.brand[500] },
   toggleText: { ...typography.label, color: c.gray[500], fontSize: 13, lineHeight: 18 },
   toggleTextOn: { color: c.brand[700] },
@@ -1416,61 +1552,79 @@ const makeStyles = (c: ThemeColors) =>
     height: 44,
   },
   searchInput: { flex: 1, ...typography.body, color: c.text, padding: 0 },
-  cats: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingVertical: 10 },
+  /*
+   * TABS, underlined — not a row of pills.
+   *
+   * Filled pills read as filters ("show only Breads"); these are a contents
+   * page that scrolls the menu. The section you are in is the one underlined,
+   * which is how every menu of this shape marks it. `CHIP_BAR` is their height.
+   */
+  cats: { paddingHorizontal: spacing.md, gap: spacing.ml },
   cat: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    // 17, not `radius.full`: a very large radius renders as a square on small
-    // views under the new architecture, and these are 34 points tall.
-    borderRadius: 17,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
+    paddingTop: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
-  catOn: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
-  catText: { ...typography.small, color: c.gray[600], fontSize: 13, lineHeight: 18 },
-  catTextOn: { color: c.white, fontWeight: "700" },
+  catOn: { borderBottomColor: c.primary },
+  catText: { ...typography.label, color: c.textSecondary, fontSize: 15, lineHeight: 20 },
+  catTextOn: { color: c.primary, fontWeight: "700" },
 
   // Products
   skeletons: { padding: spacing.md, gap: spacing.sm },
-  productCard: {
+  productRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
+    gap: spacing.ms,
     backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: c.border,
   },
-  productOff: { opacity: 0.55 },
+  productOff: { opacity: 0.4 },
+  productMedia: { width: 104, height: 104 },
   productThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: radius.md,
+    width: 104,
+    height: 104,
+    borderRadius: radius.sm,
     backgroundColor: c.surfaceAlt,
-    alignItems: "center",
-    justifyContent: "center",
     overflow: "hidden",
   },
   productImg: { width: "100%", height: "100%" },
-  productInitial: { ...typography.title, color: c.gray[300] },
-  productInfo: { flex: 1, gap: 2 },
+  // On the picture's bottom-right corner, half over its edge.
+  controlOnImage: { position: "absolute", right: -6, bottom: -6 },
+  controlAlone: { justifyContent: "center" },
+  addWrap: { alignItems: "center", justifyContent: "center" },
+  qtyDot: {
+    position: "absolute",
+    top: -6,
+    left: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: c.text,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  qtyDotText: { ...typography.micro, color: c.surface },
+  productInfo: { flex: 1, gap: spacing.xs },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   rxBadge: {
-    borderRadius: radius.sm,
+    borderRadius: radius.xs,
     paddingHorizontal: 6,
     paddingVertical: 1,
     backgroundColor: c.infoBg,
   },
-  rxText: { ...typography.tiny, color: c.info, fontWeight: "800", fontSize: 11, lineHeight: 14 },
-  productName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
-  productMeta: { ...typography.tiny, color: c.gray[500] },
-  priceRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  perUnit: { ...typography.tiny, color: c.gray[400] },
-  offText: { ...typography.tiny, color: c.error },
+  rxText: { ...typography.micro, color: c.info },
+  productName: { ...typography.name, color: c.text, flexShrink: 1 },
+  dim: { color: c.textMuted },
+  productDesc: { ...typography.small, color: c.textSecondary },
+  productMeta: { ...typography.caption, color: c.textMuted },
+  priceRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+  fromText: { ...typography.caption, color: c.textSecondary },
+  perUnit: { ...typography.caption, color: c.textMuted },
+  offText: { ...typography.label, color: c.error },
   reserveBtn: {
     borderWidth: 1,
     borderColor: c.brand[500],

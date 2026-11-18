@@ -1,5 +1,4 @@
 import { PROJECT_ROOT, codeOnly, fs, path, sourceFiles, statementAt } from "./support/node";
-import { SHORTCUTS } from "../src/modules/marketplace/tradeIcon";
 
 /**
  * EVERY SCREEN CAN BE OPENED.
@@ -196,8 +195,10 @@ describe("no screen is written and left unreachable", () => {
     const trades = Number(/const HOME_TRADES = (\d+);/.exec(home)?.[1]);
     expect(Number.isFinite(trades)).toBe(true);
 
-    const tiles = SHORTCUTS.length + trades + 1;
-    expect(tiles % 4).toBe(0);
+    // The shortcuts are chips in their own row now, and two trades are big
+    // tiles of their own — the SMALL row is what must come out at four.
+    const big = Number(/const BIG_TRADES = (\d+);/.exec(home)?.[1]);
+    expect((trades - big + 1) % 4).toBe(0);
     // And the last one is the way out, not a trade — the corner a thumb
     // reaches after reading the row.
     expect(home.indexOf('accessibilityLabel="View all categories"')).toBeGreaterThan(

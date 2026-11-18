@@ -188,16 +188,22 @@ export function ProductSheet({
         glass.
       */}
       <View style={styles.body}>
-          {/* Hero image */}
-          <View style={styles.hero}>
-            <SmartImage
-              uri={image ?? null}
-              fallback={shopInitial(product.name)}
-              fallbackBackground={cover.bg}
-              fallbackColor={cover.fg}
-              style={styles.heroImg}
-            />
-          </View>
+          {/*
+            The picture, when there is one. With none it was a 200pt tile with
+            the item's first letter on it — half the sheet spent saying "no
+            photo", above the options somebody opened it to choose.
+          */}
+          {!!image && (
+            <View style={styles.hero}>
+              <SmartImage
+                uri={image}
+                fallback={shopInitial(product.name)}
+                fallbackBackground={cover.bg}
+                fallbackColor={cover.fg}
+                style={styles.heroImg}
+              />
+            </View>
+          )}
 
           {/* Name + price */}
           <View style={styles.head}>
@@ -395,8 +401,12 @@ const makeStyles = (c: ThemeColors) =>
   // anything.
   // The footer's INSIDE. `BottomSheet` owns the bar itself — its border,
   // its surface and the safe-area padding underneath it.
-  footerInner: { gap: 10 },
-  qtyRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  // ONE ROW: the count on the left, the button that adds it on the right.
+  // It was a column with the button set to `flex: 1` — which in a column
+  // means "share the HEIGHT", so on the sheet it collapsed to nothing and
+  // the footer was a stepper with no way to add anything.
+  footerInner: { flexDirection: "row", alignItems: "center", gap: spacing.ms },
+  qtyRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   qtyBtn: {
     width: 38,
     height: 38,
@@ -408,11 +418,11 @@ const makeStyles = (c: ThemeColors) =>
     justifyContent: "center",
   },
   qtyBtnPlus: { backgroundColor: c.brand[500], borderColor: c.brand[500] },
-  qty: { ...typography.label, color: c.text, minWidth: 44, textAlign: "center" },
+  qty: { ...typography.label, color: c.text, minWidth: 28, textAlign: "center" },
   addBtn: {
     flex: 1,
     height: 48,
-    borderRadius: 22,
+    borderRadius: radius.sm,
     backgroundColor: c.brand[500],
     alignItems: "center",
     justifyContent: "center",

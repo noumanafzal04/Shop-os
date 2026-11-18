@@ -72,7 +72,14 @@ import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover"
  * being drawn as one row of identical squares, which is most of why the grid
  * never looked like anything.
  */
-const HOME_TRADES = 7;
+const HOME_TRADES = 5;
+
+/**
+ * HOW MANY OF THEM ARE BIG. The rest share a row of four with "View all":
+ *
+ *     BIG_TRADES (2 big tiles)  +  (HOME_TRADES − BIG_TRADES) + 1  =  one row of 4
+ */
+const BIG_TRADES = 2;
 
 /**
  * HOW FAR THE PAGE SITS OVER THE HERO.
@@ -237,10 +244,13 @@ export function CustomerHomeScreen() {
    * The server orders by shops_count, so these four are the four with the most
    * shops in them.
    */
-  const tradeTiles = React.useMemo(
-    () => (feed.data?.business_types ?? []).slice(0, HOME_TRADES),
+  const withShops = React.useMemo(
+    () => (feed.data?.business_types ?? []).filter((t) => t.shops_count > 0).slice(0, HOME_TRADES),
     [feed.data],
   );
+  // The server sorts by shops_count, so the first two are the busiest trades.
+  const bigTrades = withShops.slice(0, BIG_TRADES);
+  const tradeTiles = withShops.slice(BIG_TRADES);
   // Pull asks both again — the sections above AND the list — or a pull
   // refreshes the banners and leaves yesterday's shops under them.
   const { refetch: refetchFeed } = feed;
@@ -622,71 +632,45 @@ export function CustomerHomeScreen() {
             })}
           </ScrollView>
 
-          <View style={styles.tiles}>
-            {/*
-              ── SEVEN TRADES, NOT FOURTEEN ────────────────────────────
+          {/*
+            ── THE TRADES, AS FOODPANDA'S HOME DRAWS ITS VERTICALS ────────
 
-              The grid wraps, so a marketplace with fourteen trades in it
-              turned the whole top half of the home screen into tiles before a
-              single shop appeared.
+            Two big tiles for the two trades with the most shops here, a row
+            of small ones under them, and "View all" last in that row.
 
-              Seven here and the rest one tap away — two rows of four with
-              "View all" in the last corner, and the same seven tiles in every
-              city. The cut is by SHOPS_COUNT, which the server orders by, so
-              the seven shown are the seven with the most shops rather than the
-              seven that happen to sort first.
-
-              A trade with NO shops here still gets its tile — the grid's shape
-              is not the data's to decide — but it is drawn quieter, so the eye
-              goes to the ones with something behind them.
-            */}
-            {tradeTiles.map((t) => {
-              /**
-               * NOTHING HERE YET — said, and NOT OFFERED.
-               *
-               * A trade with no shops here still gets its tile, because the
-               * grid's shape is a layout decision and not the data's to make.
-               *
-               * It was tappable, on the argument that the list it opens has an
-               * honest empty state and a page saying "no chemists near you yet"
-               * answers the question the tap asked. That argument was wrong in
-               * practice and the report said so in four words: "koi shop ni
-               * arhi". Nobody reads an empty page as an answer — they read it
-               * as an app that did not work, and three of the seven tiles were
-               * doing it.
-               *
-               * So an empty one is INFORMATION, not a control: no press, no
-               * button role, and a line under the label saying why. The
-               * difference between a muted button and a muted label is the
-               * whole of it.
-               */
-              const empty = t.shops_count === 0;
-
-              if (empty) {
-                return (
-                  <View
-                    key={t.type}
-                    style={[styles.tile, styles.tileEmpty]}
-                    accessible
-                    accessibilityLabel={`${t.label} — none nearby yet`}
-                  >
-                    <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
-                      {React.createElement(tradeArt(t.type).Icon, {
-                        size: 24,
-                        color: tint(tradeArt(t.type)),
-                      })}
-                    </View>
-                    <Text style={styles.tileLabel} numberOfLines={1}>
-                      {t.label}
-                    </Text>
-                    <Text style={styles.tileNone} numberOfLines={1}>
-                      None nearby
-                    </Text>
-                  </View>
-                );
-              }
-
+            Only trades that HAVE shops here. The grid used to draw all seven
+            and fade the empty ones with "None nearby" under them — on a fresh
+            city that was five dead tiles out of seven, which reads as an app
+            that does not work (the report on the tappable version of them was
+            "koi shop ni arhi"). A trade nobody sells here is one tap away on
+            the categories page, where its emptiness is an answer.
+          */}
+          <View style={styles.bento}>
+            {bigTrades.map((t) => {
+              const art = tradeArt(t.type);
               return (
+                <Touchable
+                  key={t.type}
+                  style={[styles.bigTile, { backgroundColor: ground(art) }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t.label}, ${t.shops_count} ${t.shops_count === 1 ? "shop" : "shops"}`}
+                  onPress={() => navigation.navigate("ShopList", { business_type: t.type, title: t.label })}
+                >
+                  <Text style={styles.bigLabel} numberOfLines={2}>
+                    {t.label}
+                  </Text>
+                  <Text style={styles.bigCount}>
+                    {t.shops_count} {t.shops_count === 1 ? "shop" : "shops"}
+                  </Text>
+                  <View style={styles.bigArt}>
+                    {React.createElement(art.Icon, { size: 44, color: tint(art) })}
+                  </View>
+                </Touchable>
+              );
+            })}
+          </View>
+          <View style={styles.tiles}>
+            {tradeTiles.map((t) => (
               <Touchable
                 key={t.type}
                 style={styles.tile}
@@ -706,35 +690,21 @@ export function CustomerHomeScreen() {
                   })}
                 </View>
                 {/*
-                  The label is the SERVER's. This used to capitalise the code,
-                  so a mart read "Mart" while every other surface in the
-                  product called it "Mart & Grocery".
+                  The label is the SERVER's — "Mart & Grocery", the name every
+                  other surface in the product uses.
                 */}
                 <Text style={styles.tileLabel} numberOfLines={1}>
                   {t.label}
                 </Text>
               </Touchable>
-              );
-            })}
+            ))}
 
             {/*
-              ── THE WAY TO THE REST ───────────────────────────────────
+              ── THE WAY TO THE REST — always drawn ───────────────────────
 
-              A tile, in the grid, on the same pitch as the others — not a
-              "See all" link floating beside the heading. It is the fifth
-              thing in a row of four, which is where a hand already is.
-
-              ── Unconditional, and it was not ────────────────────────
-
-              This used to render only when `business_types.length` exceeded
-              the four tiles above it. The server sends the trades that HAVE
-              shops and live had exactly four of them, so `4 > 4` was false
-              and the only way to the categories page did not exist — a whole
-              screen, registered and routed, that nobody could open. The
-              question the condition was asking ("is there more to see") was
-              the wrong one twice: that page now lists every trade the
-              platform sells, not just the ones with shops, and the
-              CATEGORIES inside each of them. There is always more to see.
+              It once rendered only when there were more trades than tiles; the
+              server sent exactly four, `4 > 4` was false, and the categories
+              page existed with no way in. There is always more to see there.
             */}
             <Touchable
               style={styles.tile}
@@ -751,7 +721,7 @@ export function CustomerHomeScreen() {
             </Touchable>
 
             {feed.isPending &&
-              [0, 1, 2, 3].map((i) => (
+              [0, 1, 2].map((i) => (
                 <View key={i} style={styles.tile}>
                   <Skeleton width={56} height={56} borderRadius={18} />
                   <Skeleton width={44} height={10} borderRadius={4} />
@@ -1228,6 +1198,19 @@ const makeStyles = (c: ThemeColors) =>
   },
   chipLabel: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
 
+  bento: { flexDirection: "row", gap: spacing.ms, paddingHorizontal: spacing.md, marginTop: spacing.md },
+  // Half the row each, tinted in the trade's own ground, the name top-left and
+  // its picture bottom-right — the shape of foodpanda's vertical tiles.
+  bigTile: {
+    flex: 1,
+    height: 112,
+    borderRadius: radius.md,
+    padding: spacing.ms,
+    overflow: "hidden",
+  },
+  bigLabel: { ...typography.name, color: c.text, fontWeight: "700", maxWidth: "75%" },
+  bigCount: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  bigArt: { position: "absolute", right: spacing.sm, bottom: spacing.sm },
   tiles: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1237,23 +1220,6 @@ const makeStyles = (c: ThemeColors) =>
   // A quarter of the row, so a fifth tile starts a second row directly under
   // the first — the reason both kinds of shortcut share one container.
   tile: { width: "25%", alignItems: "center", gap: 6, marginBottom: spacing.md },
-  /**
-   * A trade nobody sells here yet.
-   *
-   * Opacity, not a grey palette: the tile keeps its own colour and simply
-   * recedes, so the row still reads as one set of seven rather than as two
-   * kinds of tile. Half is enough to be noticed and not so little that the
-   * label stops being legible — these are still reachable controls.
-   */
-  tileEmpty: { opacity: 0.45 },
-  /**
-   * The line that turns a dimmed button into a label.
-   *
-   * Without words, a faded tile is just a tile somebody will press anyway —
-   * which is exactly what happened. Two syllables under the name and the eye
-   * stops treating it as a destination.
-   */
-  tileNone: { ...typography.tiny, color: c.textMuted, fontSize: 11, lineHeight: 14, marginTop: -3 },
   // A tinted tile, not an outlined white box. The outline made identical
   // frames and left the glyph to do all the work; the tint makes them read as
   // one set of buttons before anyone reads a label.
