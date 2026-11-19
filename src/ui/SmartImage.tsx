@@ -59,6 +59,12 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   resizeMode?: ImageResizeMode;
   accessibilityLabel?: string;
+  /**
+   * The loading sweep. Off for artwork drawn on a ground of its own colour —
+   * the home hero's banners — where a pale band crossing it is a seam, not a
+   * wait.
+   */
+  shimmer?: boolean;
 }
 
 export function SmartImage({
@@ -69,6 +75,7 @@ export function SmartImage({
   style,
   resizeMode = "cover",
   accessibilityLabel,
+  shimmer = true,
 }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -137,7 +144,7 @@ export function SmartImage({
         accommodation: there is nothing to replace it with that would not be
         the same animation more slowly.
       */}
-      {waiting && !still && measured > 0 && (
+      {shimmer && waiting && !still && measured > 0 && (
         <Animated.View
           pointerEvents="none"
           style={[
