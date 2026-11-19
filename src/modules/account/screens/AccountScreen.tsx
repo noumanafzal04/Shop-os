@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, type ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   BanknoteIcon,
@@ -7,14 +7,11 @@ import {
   CalendarIcon,
   ChevronRightIcon,
   GearIcon,
-  HeartIcon,
   InfoIcon,
   LifeBuoyIcon,
-  MapPinIcon,
   MotorcycleIcon,
   PaletteIcon,
   PersonIcon,
-  ReceiptIcon,
   ShieldCheckIcon,
   SignOutIcon,
   StarIcon,
@@ -34,6 +31,7 @@ import { useModeStore } from "../../../stores/modeStore";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { useRiderProfile } from "../../rider/hooks/useRider";
 import { BRAND } from "../../../common/brand";
+import { picture } from "../../marketplace/tradePicture";
 
 /**
  * The Account tab.
@@ -275,9 +273,9 @@ export function AccountScreen() {
           list.
         */}
         <View style={styles.tiles}>
-          <Tile icon={ReceiptIcon} label="Orders" onPress={() => open("OrdersTab")} />
-          <Tile icon={HeartIcon} label="Favourites" onPress={() => open("Favorites")} />
-          <Tile icon={MapPinIcon} label="Addresses" onPress={() => open("Addresses")} />
+          <Tile art={picture("receipt")} label="Orders" onPress={() => open("OrdersTab")} />
+          <Tile art={picture("red_heart")} label="Favourites" onPress={() => open("Favorites")} />
+          <Tile art={picture("round_pushpin")} label="Addresses" onPress={() => open("Addresses")} />
         </View>
 
         {!signedIn && (
@@ -389,12 +387,13 @@ export function AccountScreen() {
   );
 }
 
+/** The three doors at the top of the page, with the same 3D art as Home. */
 function Tile({
-  icon: Icon,
+  art,
   label,
   onPress,
 }: {
-  icon: Icon;
+  art: ImageSourcePropType;
   label: string;
   onPress: () => void;
 }) {
@@ -407,9 +406,7 @@ function Tile({
       accessibilityLabel={label}
       onPress={onPress}
     >
-      <View style={styles.tileIcon}>
-        <Icon size={20} color={c.primary} />
-      </View>
+      <Image source={art} style={styles.tilePic} />
       <Text style={styles.tileLabel}>{label}</Text>
     </Pressable>
   );
@@ -591,6 +588,7 @@ const makeStyles = (c: ThemeColors) =>
       justifyContent: "center",
     },
     tilePressed: { backgroundColor: c.surfaceAlt },
+    tilePic: { width: 44, height: 44 },
     tileLabel: { ...typography.small, color: c.text, fontWeight: "600" },
 
     section: {

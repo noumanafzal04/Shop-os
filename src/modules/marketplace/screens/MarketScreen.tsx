@@ -11,7 +11,6 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   ArrowLeftIcon,
-  ChevronRightIcon,
   SearchIcon,
   StorefrontIcon,
 } from "../../../common/ui/icons";
@@ -24,17 +23,13 @@ import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { ShopFilters } from "../components/ShopFilters";
 import { ShopFilterSheet } from "../components/ShopFilterSheet";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
-import { ShopFactsRow } from "../components/ShopFactsRow";
-import { RatingChip } from "../components/RatingChip";
-import { shopInitial, useShopCover } from "../shopCover";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useServingPin } from "../servingPin";
 import { useMarketShops } from "../hooks/useMarketplace";
-import type { PublicShop, ShopQuery } from "../services/marketplaceService";
+import { ShopWithItems } from "../components/ShopWithItems";
+import type { ShopQuery } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
-
-const typeLabel = (t: string | null) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : "Shop");
 
 /**
  * Shop-list screen — the Grocery tab AND every "See all"/category list.
@@ -78,6 +73,9 @@ export function MarketScreen() {
     business_type: businessType,
     business_category: businessCategory,
     featured: featured || undefined,
+    // Each card carries a strip of the shop's own items — the same card the
+    // home list draws, so a shop looks the same on both screens.
+    previews: true,
     // The pin AND the city — see `useServingPin`. This sent the pin only, so
     // the list was fenced by each shop's radius and by nothing else, and a
     // shopper in Karachi was shown shops from every other city.
@@ -135,7 +133,14 @@ export function MarketScreen() {
         scrolls, which is what a filter bar is for — and a header row inside a
         virtualised list is the shape that crashed the shop page twice today.
       */}
-      <ShopFilters value={filters} onChange={setFilters} onOpenAll={() => setSheetOpen(true)} />
+      {/*
+        On the PAGE's ground, not the header's: a selected pill is filled in
+        the brand colour, and on the brand-coloured header it disappeared into
+        it — "active b backgorund k sth araha".
+      */}
+      <View style={styles.filtersBand}>
+        <ShopFilters value={filters} onChange={setFilters} onOpenAll={() => setSheetOpen(true)} />
+      </View>
 
       {/* ── Body ──────────────────────────────────────────────────── */}
       <FlatList
@@ -209,7 +214,11 @@ export function MarketScreen() {
         }
         renderItem={({ item, index }) => (
           <Appear index={index}>
-            <ShopRow shop={item} onPress={() => navigation.navigate("MarketShop", { slug: item.slug })} />
+            <ShopWithItems
+              shop={item}
+              onOpen={() => navigation.navigate("MarketShop", { slug: item.slug })}
+              onItem={(productId) => navigation.navigate("MarketShop", { slug: item.slug, productId })}
+            />
           </Appear>
         )}
       />
@@ -224,47 +233,15 @@ export function MarketScreen() {
   );
 }
 
-function ShopRow({ shop, onPress }: { shop: PublicShop; onPress: () => void }) {
-  const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
-  const closed = shop.is_open_now === false;
-  const coverFor = useShopCover();
-  const cover = coverFor(shop.slug);
-  return (
-    <Touchable style={[styles.row, closed && styles.rowClosed]} onPress={onPress}>
-      {/* The same derived cover as the home row — a shop looks the same
-          wherever it appears. See `shopCover.ts`. */}
-      <View style={[styles.logo, { backgroundColor: cover.bg }]}>
-        <Text style={[styles.logoText, { color: cover.fg }]}>
-          {shopInitial(shop.business_name)}
-        </Text>
-      </View>
-      <View style={styles.rowInfo}>
-        <View style={styles.rowNameLine}>
-          <Text style={styles.rowName} numberOfLines={1}>{shop.business_name}</Text>
-          <RatingChip rating={shop.rating} />
-        </View>
-        <Text style={styles.rowMeta} numberOfLines={1}>
-          {typeLabel(shop.business_type)}
-          {shop.city ? ` · ${shop.city.name}` : ""}
-        </Text>
-        <ShopFactsRow shop={shop} closed={closed} />
-      </View>
-      <ChevronRightIcon size={18} color={c.gray[300]} />
-    </Touchable>
-  );
-}
-
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   header: {
     backgroundColor: c.brand[500],
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    // Was `spacing.md`. Every pixel here is a pixel the first shop row is
-    // pushed down by, and the search bar below already carries its own height.
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
   },
+  filtersBand: { backgroundColor: c.bg, paddingTop: spacing.sm },
   headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.xs },
   back: {
     width: 38,

@@ -89,7 +89,20 @@ type MenuRow =
    */
   | { kind: "cats"; key: string }
   | { kind: "heading"; key: string; name: string }
-  | { kind: "product"; key: string; product: PublicProduct };
+  | { kind: "product"; key: string; product: PublicProduct }
+  /** A grocery shop's category as one sideways shelf of square cards. */
+  | { kind: "shelf"; key: string; name: string; products: PublicProduct[] };
+
+/**
+ * WHICH SHOPS GET SHELVES — everything that is not a kitchen.
+ *
+ * The reference draws a restaurant's menu as rows (a dish is read: what is in
+ * it) and a grocery's as shelves of square cards (a product is recognised: the
+ * pack, the price). A karahi list as cards would hide the descriptions; a
+ * mart as rows is a spreadsheet of milk cartons.
+ */
+const KITCHENS = new Set(["food", "restaurant", "bakery", "cafe"]);
+export const shelvesFor = (type: string | null | undefined): boolean => !KITCHENS.has((type ?? "").toLowerCase());
 
 /**
  * How tall the pinned bar is, so a jump lands BELOW it rather than under it.
@@ -191,6 +204,7 @@ export function MarketShopScreen() {
    * one ends and the next begins. Doing the GROUPING here as well would be a
    * second opinion about the order, formed with less information.
    */
+  const shelves = shelvesFor(shop.data?.business_type);
   const { menu, jumps } = React.useMemo(() => {
     const out: MenuRow[] = [];
     const at = new Map<string, number>();
@@ -201,9 +215,12 @@ export function MarketShopScreen() {
       if (name !== last) {
         at.set(name, out.length);
         out.push({ kind: "heading", key: `h:${name}`, name });
+        if (shelves) out.push({ kind: "shelf", key: `s:${name}`, name, products: [] });
         last = name;
       }
-      out.push({ kind: "product", key: p.id, product: p });
+      const tail = out[out.length - 1];
+      if (shelves && tail.kind === "shelf") tail.products.push(p);
+      else out.push({ kind: "product", key: p.id, product: p });
     }
 
     /**
@@ -227,7 +244,7 @@ export function MarketShopScreen() {
     }
 
     return { menu: out, jumps: at };
-  }, [rows]);
+  }, [rows, shelves]);
 
   /** Which section the top of the list is in, for the chip that lights up. */
   const [section, setSection] = React.useState<string | null>(null);
@@ -876,6 +893,25 @@ export function MarketShopScreen() {
       if (row.kind === "heading") {
         return <Text style={styles.section}>{row.name}</Text>;
       }
+      if (row.kind === "shelf") {
+        return (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.shelfGround} contentContainerStyle={styles.shelf}>
+            {row.products.map((p) => (
+              <ProductCard
+                key={p.id}
+                item={p}
+                styles={styles}
+                cover={coverFor(p.id)}
+                qty={inCart.get(p.id) ?? 0}
+                acceptsOrders={acceptsOrders}
+                onAdd={onAdd}
+                onMinus={onMinus}
+                onOpen={onOpen}
+              />
+            ))}
+          </ScrollView>
+        );
+      }
       return (
         <ProductRow
           item={row.product}
@@ -1271,6 +1307,78 @@ const ProductRow = React.memo(function ProductRow({
 });
 
 /**
+ * A GROCERY CARD — the reference's shelf: the product large and square with
+ * the "+" inside its corner, the price under it (the cut one struck through,
+ * the saving as a pill), then the name. In the cart it shows − n + instead.
+ */
+function ProductCard({
+  item,
+  styles,
+  cover,
+  qty,
+  acceptsOrders,
+  onAdd,
+  onMinus,
+  onOpen,
+}: {
+  item: PublicProduct;
+  styles: ReturnType<typeof makeStyles>;
+  cover: { bg: string; fg: string };
+  qty: number;
+  acceptsOrders: boolean;
+  onAdd: (p: PublicProduct) => void;
+  onMinus: (p: PublicProduct) => void;
+  onOpen: (p: PublicProduct) => void;
+}) {
+  const allSizesOut = item.variants.length > 0 && item.variants.every((v) => !v.in_stock);
+  const unavailable = item.type === "product" && (!item.in_stock || !item.available_now || allSizesOut);
+  const plain = item.variants.length === 0 && item.modifier_groups.length === 0 && item.sold_by !== "weight";
+  const orderable = item.type === "product" && acceptsOrders && !unavailable;
+
+  return (
+    <Touchable
+      style={styles.card}
+      scaleTo={0.97}
+      onPress={() => onOpen(item)}
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}${unavailable ? ", sold out" : ""}`}
+    >
+      <View style={[styles.cardPic, unavailable && styles.productOff]}>
+        <SmartImage
+          uri={item.images[0] ?? null}
+          resizeMode="contain"
+          fallback={shopInitial(item.name)}
+          fallbackBackground={cover.bg}
+          fallbackColor={cover.fg}
+          style={styles.cardImg}
+        />
+        {orderable && (
+          <View style={styles.cardControl}>
+            {qty > 0 && plain ? (
+              <QtyStepper value={qty} label={item.name} onMinus={() => onMinus(item)} onPlus={() => onAdd(item)} />
+            ) : (
+              <AddButton size={36} label={item.name} onPress={() => onAdd(item)} />
+            )}
+          </View>
+        )}
+      </View>
+      {unavailable ? (
+        <Text style={styles.offText}>Sold out</Text>
+      ) : (
+        <View style={styles.cardPrice}>
+          <Price value={item.price} was={item.original_price} size="md" />
+          <OfferBadge value={item.price} was={item.original_price} />
+        </View>
+      )}
+      <Text style={styles.cardName} numberOfLines={2}>
+        {item.name}
+        {item.sold_by === "weight" && item.unit ? ` · per ${item.unit}` : ""}
+      </Text>
+    </Touchable>
+  );
+}
+
+/**
  * THE CONTENTS BAR. One component, rendered in two places.
  *
  * As a ROW in the list, and again pinned above it — see the comment on
@@ -1587,6 +1695,24 @@ const makeStyles = (c: ThemeColors) =>
     borderBottomColor: c.border,
   },
   productOff: { opacity: 0.4 },
+  // The ground is the scroll's own, full width — not only behind the cards.
+  shelfGround: { backgroundColor: c.surface },
+  shelf: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingTop: spacing.xs, paddingBottom: spacing.md, backgroundColor: c.surface },
+  card: { width: 150, gap: 4 },
+  cardPic: {
+    width: 150,
+    height: 150,
+    borderRadius: radius.md,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    overflow: "hidden",
+    marginBottom: 4,
+  },
+  cardImg: { width: "100%", height: "100%" },
+  cardControl: { position: "absolute", right: 6, bottom: 6 },
+  cardPrice: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 },
+  cardName: { ...typography.small, color: c.text },
   productMedia: { width: 104, height: 104 },
   productThumb: {
     width: 104,

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   ArrowLeftIcon,
@@ -18,7 +18,8 @@ import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { useServingPin } from "../servingPin";
-import { useUniversalSearch } from "../hooks/useMarketplace";
+import { useHomeFeed, useUniversalSearch } from "../hooks/useMarketplace";
+import { shortcutPicture, tradePicture } from "../tradePicture";
 import { formatDistance } from "../shopFacts";
 import { Price } from "../../../common/ui/Price";
 import { SmartImage } from "../../../common/ui/SmartImage";
@@ -44,6 +45,10 @@ export function SearchScreen() {
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
   const pin = useServingPin();
+  // The trades for "Shop by category" — the home screen's own answer, from the
+  // cache it already filled; no second request for the same list.
+  const feed = useHomeFeed(pin);
+  const trades = (feed.data?.business_types ?? []).filter((t) => t.shops_count > 0);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("all");
   const [openOnly, setOpenOnly] = useState(false);
@@ -271,11 +276,12 @@ export function SearchScreen() {
                       navigation.navigate("Browse", { title: s.label, filters: s.filters })
                     }
                   >
-                    <View style={[styles.tileIcon, s.tone === "offer" && styles.tileIconOffer]}>
-                      <Icon
-                        size={20}
-                        color={s.tone === "offer" ? c.onPrimary : c.primary}
-                      />
+                    <View style={styles.tileIcon}>
+                      {shortcutPicture(s.key) ? (
+                        <Image source={shortcutPicture(s.key)!} style={styles.tilePic} />
+                      ) : (
+                        <Icon size={20} color={c.primary} />
+                      )}
                     </View>
                     <Text style={styles.tileText} numberOfLines={2}>
                       {s.label}
@@ -284,6 +290,36 @@ export function SearchScreen() {
                 );
               })}
             </View>
+
+            {/*
+              SHOP BY CATEGORY — the reference's search page leads with its
+              categories as pictures, so a person who has not decided what to
+              type still has somewhere to go.
+            */}
+            {trades.length > 0 && (
+              <>
+                <Text style={[styles.landingTitle, styles.landingSpaced]}>Shop by category</Text>
+                <View style={styles.tileGrid}>
+                  {trades.map((t) => (
+                    <Touchable
+                      key={t.type}
+                      style={styles.tile}
+                      scaleTo={0.95}
+                      accessibilityRole="button"
+                      accessibilityLabel={t.label}
+                      onPress={() => navigation.navigate("ShopList", { business_type: t.type, title: t.label })}
+                    >
+                      <View style={styles.tileIcon}>
+                        <Image source={tradePicture(t.type)} style={styles.tilePic} />
+                      </View>
+                      <Text style={styles.tileText} numberOfLines={2}>
+                        {t.label}
+                      </Text>
+                    </Touchable>
+                  ))}
+                </View>
+              </>
+            )}
           </View>
         ) : results.isLoading ? (
           <View style={styles.section}>
@@ -536,20 +572,22 @@ const makeStyles = (c: ThemeColors) =>
   },
   recentText: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, flexShrink: 1 },
 
-  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", rowGap: spacing.md, marginTop: spacing.sm },
   // Four across, with the gaps taken out of the share. One row, so the whole
   // set is visible without a sideways scroll nobody knows is there.
-  tile: { width: "22%", alignItems: "center", gap: 6 },
+  tile: { width: "25%", alignItems: "center", gap: 6 },
   tileIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    backgroundColor: c.brand[50],
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    backgroundColor: c.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  tileIconOffer: { backgroundColor: c.primary },
-  tileText: { ...typography.tiny, color: c.text, fontSize: 11, lineHeight: 14, textAlign: "center" },
+  tilePic: { width: 44, height: 44 },
+  tileText: { ...typography.caption, color: c.text, textAlign: "center" },
 
   hintWrap: { padding: spacing.xl, alignItems: "center" },
   hint: { ...typography.small, color: c.gray[400], textAlign: "center" },

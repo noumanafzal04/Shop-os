@@ -149,8 +149,13 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                 in the brand colour, the icon in its solid weight. Nothing
                 changes size between the two states — only the fill.
               */}
-              <View style={[styles.pill, focused && { backgroundColor: c.primarySoft }]}>
-                <View style={styles.iconWrap}>
+              <View style={styles.pill}>
+                {/*
+                  The soft pill sits behind the ICON only, a fixed 56×32 —
+                  on a real phone the whole-slot version grew with the font
+                  size, lost its rounding and ran out of the bar.
+                */}
+                <View style={[styles.iconWrap, focused && { backgroundColor: c.primarySoft }]}>
                   <Icon size={23} bold={focused} color={focused ? c.primary : c.textMuted} />
                   {/* The basket counts against its own icon, not the slot. */}
                   {isCart && count > 0 && (
@@ -161,6 +166,7 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                 </View>
                 <Text
                   numberOfLines={1}
+                  maxFontSizeMultiplier={1.2}
                   style={[
                     typography.tiny,
                     styles.label,
@@ -196,25 +202,18 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   slot: { flex: 1, alignItems: "center", justifyContent: "center", height: 66 },
-  // The slot's own width, less a hair each side — so a long label ("Account")
-  // can never push the pill past its neighbours or the bar's rounded end.
-  pill: {
-    alignSelf: "stretch",
-    marginHorizontal: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    height: 54,
-    borderRadius: 22,
-  },
-  iconWrap: { width: 28, height: 26, alignItems: "center", justifyContent: "center" },
+  pill: { alignItems: "center", justifyContent: "center", gap: 3 },
+  // 12, not 16: a radius of exactly half the height renders SQUARE under
+  // Fabric on a real phone — the box the user saw.
+  iconWrap: { width: 56, height: 32, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  // Never scaled past the bar: the label is the one thing font size grows.
   label: { fontSize: 11, lineHeight: 14 },
   labelOn: { fontWeight: "700" },
   labelOff: { fontWeight: "500" },
   badge: {
     position: "absolute",
-    top: -4,
-    right: -9,
+    top: -3,
+    right: 6,
     minWidth: 18,
     height: 18,
     borderRadius: 9,

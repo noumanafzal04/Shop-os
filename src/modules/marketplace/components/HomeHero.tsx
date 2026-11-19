@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRightIcon } from "../../../common/ui/icons";
 import { SmartImage } from "../../../common/ui/SmartImage";
-import { radius, spacing, typography, useColors } from "../../../theme";
+import { spacing, typography, useColors } from "../../../theme";
 import type { HomeBanner } from "../services/marketplaceService";
 
 /**
@@ -125,7 +125,7 @@ export function HomeHero({
 
   // A banner is shown whole at 2:1; the app's own slides are words and a
   // picture, and need less height than artwork does.
-  const slideHeight = banners.length > 0 ? Math.round((width - spacing.md * 2) / 2) : 132;
+  const slideHeight = banners.length > 0 ? Math.round(width / 2) : 132;
 
   return (
     <View>
@@ -152,14 +152,23 @@ export function HomeHero({
           renderItem={({ item }) =>
             "image_url" in item ? (
               <Pressable
-                style={[styles.slide, { width, height: slideHeight + spacing.md }]}
+                style={{ width, height: slideHeight }}
                 accessibilityRole="button"
                 accessibilityLabel={item.title ?? "Promotion"}
                 onPress={() => onBanner(item)}
               >
+                {/*
+                  EDGE TO EDGE, on no ground of its own. As a rounded card it
+                  showed a pale rim at the corners and a white shimmer while
+                  loading — a seam in a block that is meant to be one colour.
+                  The artwork is made in the block's colour, so whole-width it
+                  simply IS the block.
+                */}
                 <SmartImage
                   uri={item.image_url}
-                  style={[styles.art, { height: slideHeight, borderRadius: radius.md }]}
+                  shimmer={false}
+                  fallbackBackground="transparent"
+                  style={{ width, height: slideHeight }}
                 />
               </Pressable>
             ) : (

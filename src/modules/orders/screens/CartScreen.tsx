@@ -210,13 +210,16 @@ export function CartScreen() {
             return (
               <Appear key={k} index={index}>
                 <View style={[styles.line, index > 0 && styles.lineRule]}>
-                  <SmartImage
-                    uri={item.image}
-                    fallback={shopInitial(item.name)}
-                    fallbackBackground={cover.bg}
-                    fallbackColor={cover.fg}
-                    style={styles.lineThumb}
-                  />
+                  {/* The photo when there is one — no letter tile standing in for it. */}
+                  {!!item.image && (
+                    <SmartImage
+                      uri={item.image}
+                      fallback={shopInitial(item.name)}
+                      fallbackBackground={cover.bg}
+                      fallbackColor={cover.fg}
+                      style={styles.lineThumb}
+                    />
+                  )}
                   <View style={styles.lineInfo}>
                     <Text style={styles.lineName} numberOfLines={2}>
                       {item.name}

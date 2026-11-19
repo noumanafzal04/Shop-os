@@ -7,11 +7,8 @@ import {
   BagIcon,
   BanknoteIcon,
   ChevronRightIcon,
-  ClockIcon,
   ConfettiIcon,
   MapPinIcon,
-  MotorcycleIcon,
-  StorefrontIcon,
   TicketIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -31,7 +28,7 @@ import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import { useDebouncedValue } from "../../../common/hooks/useDebouncedValue";
 import { SignInWall } from "../../auth/components/SignInWall";
 import { useAuthStore } from "../../../stores/authStore";
-import { money } from "../../../common/format";
+import { money, qtyText } from "../../../common/format";
 
 type Params = { Checkout: { slug: string } };
 
@@ -369,57 +366,8 @@ export function CheckoutScreen() {
         )}
         {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
 
-        {/*
-          Delivery or pickup, as ONE control with two halves.
-
-          Two separate chips both look pressable and neither looks pressED, so
-          the screen never said which mode you were in — while this choice
-          decides the address block, the fee and the minimum below it. A single
-          track with one filled half can only ever show one answer.
-        */}
-        <Text style={styles.section}>How do you want it?</Text>
-        <View style={styles.segment}>
-          {canPickup && (
-            <Pressable
-              style={[styles.seg, fulfillment === "pickup" && styles.segOn]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: fulfillment === "pickup" }}
-              onPress={() => {
-                setChosen(true);
-                setFulfillment("pickup");
-              }}
-            >
-              <StorefrontIcon
-                size={15}
-                color={fulfillment === "pickup" ? c.onPrimary : c.textSecondary}
-              />
-              <Text style={[styles.segTxt, fulfillment === "pickup" && styles.segTxtOn]}>Pickup</Text>
-            </Pressable>
-          )}
-          {canDeliver && (
-            <Pressable
-              style={[styles.seg, fulfillment === "delivery" && styles.segOn]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: fulfillment === "delivery" }}
-              onPress={() => {
-                setChosen(true);
-                setFulfillment("delivery");
-              }}
-            >
-              <MotorcycleIcon
-                size={15}
-                color={fulfillment === "delivery" ? c.onPrimary : c.textSecondary}
-              />
-              <Text style={[styles.segTxt, fulfillment === "delivery" && styles.segTxtOn]}>
-                Delivery
-                {(shop.data?.delivery_fee ?? 0) > 0 ? ` · ${money(shop.data!.delivery_fee!)}` : ""}
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
         {/* Where it is going — stated first, changed on request */}
-        {fulfillment === "delivery" && <Text style={styles.section}>Delivery address</Text>}
+        {fulfillment === "delivery" && <Text style={styles.section}>Delivering to</Text>}
         {fulfillment === "delivery" && (
           <View style={[styles.card, styles.addrBlock]}>
             {/*
@@ -510,20 +458,41 @@ export function CheckoutScreen() {
         )}
 
         {/*
-          The shop's own preparation time, and ONLY when it has set one.
-          A default invents "30–50 min" for a shop that never said, which is a
-          promise the app made on its behalf.
+          ── DELIVERY OPTIONS, as the reference draws them ───────────────
+
+          Radio cards rather than a two-half switch: each says what it is,
+          how long, and what it costs, and the chosen one wears a ring. It
+          decides the address block above, the fee and the minimum below.
         */}
-        {prep !== null && (
-          <View style={styles.eta}>
-            <ClockIcon size={15} color={c.textSecondary} />
-            <Text style={styles.etaText}>
-              {fulfillment === "delivery"
-                ? `Estimated delivery: ${prep}–${prep + 20} min`
-                : `Ready for pickup in about ${prep} min`}
-            </Text>
-          </View>
-        )}
+        <Text style={styles.section}>{canDeliver && canPickup ? "Delivery options" : canDeliver ? "Delivery" : "Pick-up"}</Text>
+        <View style={styles.options}>
+          {canDeliver && (
+            <Option
+              styles={styles}
+              selected={fulfillment === "delivery"}
+              title="Delivery"
+              detail={prep !== null ? `${prep} – ${prep + 20} min` : "To your address"}
+              extra={(shop.data?.delivery_fee ?? 0) > 0 ? money(shop.data!.delivery_fee!) : "Free"}
+              onPress={() => {
+                setChosen(true);
+                setFulfillment("delivery");
+              }}
+            />
+          )}
+          {canPickup && (
+            <Option
+              styles={styles}
+              selected={fulfillment === "pickup"}
+              title="Pick-up"
+              detail={prep !== null ? `Ready in about ${prep} min` : "Collect it from the shop"}
+              extra="Free"
+              onPress={() => {
+                setChosen(true);
+                setFulfillment("pickup");
+              }}
+            />
+          )}
+        </View>
 
         <Text style={styles.section}>Payment method</Text>
         <View style={[styles.card, styles.payRow]}>
@@ -607,6 +576,18 @@ export function CheckoutScreen() {
 
 
 
+          {/* What is in it, line by line — the reference lists every item. */}
+          {lines.map((l) => (
+            <View key={`${l.product_id}:${l.variant_id ?? "-"}:${l.modifiers_label ?? ""}`} style={styles.itemRow}>
+              <Text style={styles.itemQty}>{qtyText(l.quantity)}×</Text>
+              <Text style={styles.itemName} numberOfLines={2}>
+                {l.name}
+                {l.modifiers_label ? ` · ${l.modifiers_label}` : ""}
+              </Text>
+              <Text style={styles.itemPrice}>{money(l.unit_price * l.quantity)}</Text>
+            </View>
+          ))}
+          <View style={styles.totalRule} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLbl}>Subtotal</Text>
             <Text style={styles.totalVal}>{money(shown ? shown.subtotal : subtotal)}</Text>
@@ -636,9 +617,44 @@ export function CheckoutScreen() {
             <Text style={styles.grandVal}>{shown ? money(shown.total) : "…"}</Text>
           </View>
         </View>
+        <Text style={styles.terms}>By placing this order you agree to the terms of service.</Text>
 
       </KeyboardScreen>
     </SafeScreen>
+  );
+}
+
+function Option({
+  styles,
+  selected,
+  title,
+  detail,
+  extra,
+  onPress,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  selected: boolean;
+  title: string;
+  detail: string;
+  extra: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.option, selected && styles.optionOn]}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+    >
+      <View style={[styles.radioOuter, selected && styles.radioOuterOn]} />
+      <View style={styles.optionCopy}>
+        <Text style={styles.optionTitle}>{title}</Text>
+        <Text style={styles.optionDetail}>{detail}</Text>
+      </View>
+      <View style={styles.optionTag}>
+        <Text style={styles.optionTagText}>{extra}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -772,6 +788,31 @@ const makeStyles = (c: ThemeColors) =>
     borderWidth: 1,
     borderColor: c.border,
   },
+  options: { gap: spacing.sm },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.ms,
+    backgroundColor: c.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    padding: spacing.md,
+  },
+  // The chosen card wears a ring in the text colour, as the reference does.
+  optionOn: { borderColor: c.text, borderWidth: 1.5 },
+  radioOuter: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: c.border },
+  radioOuterOn: { borderWidth: 7, borderColor: c.text },
+  optionCopy: { flex: 1, gap: 2 },
+  optionTitle: { ...typography.name, color: c.text, fontWeight: "700" },
+  optionDetail: { ...typography.small, color: c.textSecondary },
+  optionTag: { borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
+  optionTagText: { ...typography.caption, color: c.text, fontWeight: "700" },
+  itemRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingVertical: 3 },
+  itemQty: { ...typography.label, color: c.text, width: 30 },
+  itemName: { ...typography.body, color: c.text, flex: 1 },
+  itemPrice: { ...typography.body, color: c.text },
+  terms: { ...typography.caption, color: c.textMuted, marginTop: spacing.sm },
   cardPad: { padding: spacing.md, gap: spacing.sm },
   chips: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
   chip: {
