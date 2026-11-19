@@ -107,6 +107,7 @@ use App\Http\Controllers\Api\V1\Tenant\TillIdentityController;
 use App\Http\Controllers\Api\V1\Tenant\TransferController;
 use App\Http\Controllers\Api\V1\Tenant\VehicleController;
 use App\Http\Controllers\Api\V1\Tenant\WarrantyController;
+use App\Http\Middleware\ForgetUnknownCity;
 use App\Support\ApiResponse;
 use App\Support\Currencies;
 use App\Support\Permissions;
@@ -165,7 +166,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     Route::get('/item-types', [BusinessTypeController::class, 'itemTypes']);
 
     // ── Public marketplace (Online-Shop tenants only) ────────────────
-    Route::prefix('marketplace')->group(function (): void {
+    // A remembered city that no longer exists filters nothing — see the middleware.
+    Route::prefix('marketplace')->middleware(ForgetUnknownCity::class)->group(function (): void {
         // GPS → nearest city (no manual city picker on mobile)
         Route::get('/locate', [MarketplaceController::class, 'locate']);
         // Does the platform serve this pin? (Service zones drawn by the admin.)
