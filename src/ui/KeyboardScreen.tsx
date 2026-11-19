@@ -13,6 +13,8 @@ import {
 interface Props {
   children: React.ReactNode;
   contentStyle?: ViewStyle;
+  /** The scroll itself, for a "See summary" that jumps down to the bill. */
+  scrollRef?: React.Ref<ScrollView>;
   /**
    * A bar pinned under the scroll — an action the person should be able to
    * reach without scrolling to find it.
@@ -32,7 +34,7 @@ interface Props {
  *  - taps on buttons work while the keyboard is open (persistTaps)
  *  - an optional pinned `footer` that rides above the keyboard too
  */
-export function KeyboardScreen({ children, contentStyle, footer }: Props) {
+export function KeyboardScreen({ children, contentStyle, footer, scrollRef }: Props) {
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -40,6 +42,7 @@ export function KeyboardScreen({ children, contentStyle, footer }: Props) {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={[styles.content, contentStyle]}
           keyboardShouldPersistTaps="handled"
