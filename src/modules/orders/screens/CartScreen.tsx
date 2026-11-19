@@ -20,6 +20,7 @@ import { useMarketProducts, useMarketShop } from "../../marketplace/hooks/useMar
 import { shopInitial, useShopCover } from "../../marketplace/shopCover";
 import type { PublicProduct } from "../../marketplace/services/marketplaceService";
 import { money, qtyText } from "../../../common/format";
+import { useTabBarSpace } from "../../../navigation/tabBarSpace";
 import { QtyStepper } from "../../marketplace/components/QtyStepper";
 
 /**
@@ -53,6 +54,7 @@ export function CartScreen() {
   const navigation = useNavigation<any>();
   const cart = useCartStore();
   const coverFor = useShopCover();
+  const tabSpace = useTabBarSpace();
   const slug = cart.shopSlug;
 
   const shop = useMarketShop(slug ?? undefined);
@@ -353,7 +355,7 @@ export function CartScreen() {
         page, the way the reference cart ends: the total with what it
         includes, a link down to the bill, and the button.
       */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { marginBottom: tabSpace + spacing.xs }]}>
         <View style={styles.footerTotal}>
           <View>
             <Text style={styles.totalLabel}>

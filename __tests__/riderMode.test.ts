@@ -170,7 +170,7 @@ describe("the switch can be found", () => {
     expect(footer).not.toMatch(/\{canRide && \(\s*<Touchable[\s\S]*?styles\.switcher/);
   });
 
-  it("wears the colour of the half it leads to", () => {
+  it("wears the colour of the half you are in", () => {
     // This button always goes to the OTHER side, so it looks like that side:
     // green while you are working and about to shop, the brand's orange while
     // you are shopping and about to work. A control that leads somewhere
@@ -181,8 +181,9 @@ describe("the switch can be found", () => {
     // there is no separate style left to make grey. It was grey once, on the
     // reasoning that a control you cannot use should not shout; that is the
     // wrong reading of an INVITATION that leads to the application form.
-    expect(code).toMatch(/style=\{\[styles\.switcher, \{ backgroundColor: other\.primary \}\]\}/);
-    expect(code).toMatch(/const other = useOppositeColors\(\)/);
+    // Changed at the user's request: the switch wears the colour of the half
+    // you are IN (teal shopping, the rider colour on shift), not the other.
+    expect(code).toMatch(/style=\{\[styles\.switcher, \{ backgroundColor: c\.primary \}\]\}/);
     expect(code).not.toMatch(/switcherOff/);
   });
 
@@ -312,7 +313,9 @@ describe("the two doors", () => {
   });
 
   it("keeps the hook itself to the two places that are doors", () => {
-    const users = ["src/navigation/SideMenu.tsx", "src/modules/account/screens/AccountScreen.tsx"];
+    // The side menu's switch now wears the CURRENT half's colour (the user
+    // asked for teal on the customer side), so only the account row remains.
+    const users = ["src/modules/account/screens/AccountScreen.tsx"];
     for (const rel of users) {
       expect(`${rel}: ${/useOppositeColors/.test(read(rel))}`).toBe(`${rel}: true`);
     }

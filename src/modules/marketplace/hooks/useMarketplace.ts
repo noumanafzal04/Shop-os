@@ -60,10 +60,11 @@ export function useHomeFeed(
  * quarter of an hour old has never changed anybody's mind about tapping
  * Garments.
  */
-export function useCategories(params: { city_id?: string } = {}) {
+export function useCategories(params: { city_id?: string } = {}, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["market", "categories", params],
     queryFn: async () => (await marketplaceService.categories(params)).data,
+    enabled,
     staleTime: 15 * 60 * 1000,
     placeholderData: keepPreviousData,
   });

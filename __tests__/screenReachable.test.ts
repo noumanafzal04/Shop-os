@@ -167,7 +167,7 @@ describe("no screen is written and left unreachable", () => {
     );
 
     expect(home).toMatch(/const HOME_TRADES = \d+;/);
-    expect(home).toMatch(/\.slice\(0, HOME_TRADES\)/);
+    expect(home).toMatch(/HOME_TRADES,\s*\)/);
   });
 
   it("fills the grid exactly, with the way out in the last corner", () => {

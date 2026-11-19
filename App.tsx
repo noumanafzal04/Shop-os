@@ -22,7 +22,11 @@ import React, { useEffect, useState } from "react";
 import { StatusBar, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { QueryClientProvider } from "@tanstack/react-query";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { CACHE_KEY, KEEP_FOR_MS, shouldKeep } from "./src/common/api/persistPolicy";
+import { BRAND } from "./src/common/brand";
 import { queryClient } from "./src/common/api/queryClient";
 import { OfflineBanner } from "./src/common/ui/OfflineBanner";
 import { RootNavigator } from "./src/navigation/RootNavigator";
@@ -67,6 +71,11 @@ function ThemedChrome() {
  * ninety-six bugs.
  */
 configureApi({ baseUrl: API_BASE_URL });
+
+const persister = createAsyncStoragePersister({ storage: AsyncStorage, key: CACHE_KEY, throttleTime: 2000 });
+// A kept query must outlive its own keeping: anything collected sooner than
+// `maxAge` would be dropped from the file at the next write.
+queryClient.setQueryDefaults(["market"], { gcTime: KEEP_FOR_MS });
 wireAuthToApi();
 
 function App() {
@@ -183,7 +192,21 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
           prefs.setTheme(p).catch(() => {});
         }}
       >
-        <QueryClientProvider client={queryClient}>
+        {/*
+          THE CATALOGUE SURVIVES A RESTART — see `persistPolicy.ts`. The
+          last home, shop list and menus are read back before any screen
+          asks, so a launch draws them at once and refreshes behind them;
+          queries wait for that read rather than racing it.
+        */}
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister,
+            maxAge: KEEP_FOR_MS,
+            buster: BRAND.version,
+            dehydrateOptions: { shouldDehydrateQuery: shouldKeep },
+          }}
+        >
           <ThemedChrome />
           {/*
             The introduction sits IN FRONT of the app, not before it.
@@ -216,7 +239,7 @@ function Rooted({ saved }: { saved: { theme: ThemePreference; onboarded: boolean
             reason: it has to outlive the tree it is hiding.
           */}
           <ModeSwitchCover />
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import {
   BasketIcon,
   CartIcon,
@@ -94,14 +94,34 @@ const ITEMS: Record<string, Item> = {
   //
   // No basket here, and that is the point of the mode: somebody delivering is
   // not shopping.
-  RiderBoardTab: { route: "RiderBoardTab", label: "Deliveries", icon: ParcelIcon },
-  RiderEarningsTab: { route: "RiderEarningsTab", label: "Earnings", icon: WalletIcon },
-  RiderAccountTab: { route: "RiderAccountTab", label: "Account", icon: PersonIcon },
+  RiderBoardTab: {
+    route: "RiderBoardTab",
+    label: "Deliveries",
+    icon: ParcelIcon,
+  },
+  RiderEarningsTab: {
+    route: "RiderEarningsTab",
+    label: "Earnings",
+    icon: WalletIcon,
+  },
+  RiderAccountTab: {
+    route: "RiderAccountTab",
+    label: "Account",
+    icon: PersonIcon,
+  },
 };
+
+/** "#ffffff" at 97% — the pill lets the page show through, barely. */
+function translucent(hex: string, alpha: number): string {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})` : hex;
+}
 
 export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
   const { colors: c, typography } = useTheme();
   const count = useCartStore((s) => cartCountOf(s.lines));
+  // The bar floats, so the navigator cannot see its height — it is told.
+  const reportHeight = React.useContext(BottomTabBarHeightCallbackContext);
 
   const go = (routeName: string, index: number) => {
     const focused = state.index === index;
@@ -122,12 +142,24 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
       as a button. The reference app's bar is a rounded white pill inset from
       the edges, and the tab you are on sits inside a soft pill of its own.
 
-      It stays IN the layout (not `position: absolute`): the ground around the
-      pill is the page's own colour, so it reads as floating while no list can
-      ever end underneath it.
+      It FLOATS — no strip of its own behind it, the page scrolling under a
+      pill that is very slightly see-through. Each tab screen ends its list
+      above it (`useTabBarSpace`), and the bar reports its height for that.
     */
-    <View style={[styles.ground, { backgroundColor: c.bg, paddingBottom: Math.max(insets.bottom, 8) + 6 }]}>
-      <View style={[styles.bar, { backgroundColor: c.surface, borderColor: c.border }]}>
+    <View
+      pointerEvents="box-none"
+      onLayout={(e) => reportHeight?.(e.nativeEvent.layout.height)}
+      style={[styles.ground, { paddingBottom: Math.max(insets.bottom, 8) + 6 }]}
+    >
+      <View
+        style={[
+          styles.bar,
+          {
+            backgroundColor: translucent(c.surface, 0.97),
+            borderColor: c.border,
+          },
+        ]}
+      >
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const item = ITEMS[route.name];
@@ -155,7 +187,21 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
                   on a real phone the whole-slot version grew with the font
                   size, lost its rounding and ran out of the bar.
                 */}
-                <View style={[styles.iconWrap, focused && { backgroundColor: c.primarySoft }]}>
+                <View style={styles.iconWrap}>
+                  {/*
+                    The fill is ALWAYS drawn and only shown or hidden. Giving
+                    the wrap a background when a tab became active drew a
+                    SQUARE box on the phone (Fabric skips the radius on a fill
+                    added after first paint) — "click krny py border araha".
+                  */}
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.iconFill,
+                      focused ? styles.fillOn : styles.fillOff,
+                      { backgroundColor: c.primarySoft },
+                    ]}
+                  />
                   <Icon size={23} bold={focused} color={focused ? c.primary : c.textMuted} />
                   {/* The basket counts against its own icon, not the slot. */}
                   {isCart && count > 0 && (
@@ -186,13 +232,21 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
 }
 
 const styles = StyleSheet.create({
-  ground: { paddingHorizontal: 14, paddingTop: 6 },
+  ground: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+  },
   bar: {
     flexDirection: "row",
     alignItems: "center",
     height: 66,
     paddingHorizontal: 6,
-    borderRadius: 33,
+    // 32, not 33: exactly half the height renders square under Fabric.
+    borderRadius: 32,
     borderWidth: StyleSheet.hairlineWidth,
     // A lift, not a line: the pill sits ON the page.
     shadowColor: "#000",
@@ -205,7 +259,23 @@ const styles = StyleSheet.create({
   pill: { alignItems: "center", justifyContent: "center", gap: 3 },
   // 12, not 16: a radius of exactly half the height renders SQUARE under
   // Fabric on a real phone — the box the user saw.
-  iconWrap: { width: 56, height: 32, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  iconWrap: {
+    width: 56,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconFill: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  fillOn: { opacity: 1 },
+  fillOff: { opacity: 0 },
   // Never scaled past the bar: the label is the one thing font size grows.
   label: { fontSize: 11, lineHeight: 14 },
   labelOn: { fontWeight: "700" },

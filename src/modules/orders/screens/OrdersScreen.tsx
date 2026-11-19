@@ -15,6 +15,7 @@ import {
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { useTabBarSpace } from "../../../navigation/tabBarSpace";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { Appear } from "../../../common/ui/Appear";
@@ -88,6 +89,7 @@ export function OrdersScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
+  const tabSpace = useTabBarSpace();
   const status = useAuthStore((s) => s.status);
   const orders = useMyOrders();
   const pull = usePullToRefresh(orders.refetch);
@@ -132,7 +134,7 @@ export function OrdersScreen() {
         <FlatList
           data={rows}
           keyExtractor={(r) => r.key}
-          contentContainerStyle={[styles.list, styles.grow]}
+          contentContainerStyle={[styles.list, styles.grow, { paddingBottom: tabSpace + spacing.lg }]}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} tintColor={c.primary} />}
           onEndReachedThreshold={0.5}

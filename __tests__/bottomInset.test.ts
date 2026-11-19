@@ -120,7 +120,9 @@ describe("bottom safe area", () => {
     for (const component of both) {
       const src = fs.readFileSync(fileFor(component)!, "utf8");
       expect(src).not.toMatch(/edges=\{\["top"\]\}/);
-      expect(src).toMatch(/edges=\{\w+ \? \["top"\] : \["top", "bottom"\]\}/);
+      // The tab's answer is its own (the Grocery tab draws its hero under the
+      // status bar, as Home does); the PUSHED answer must keep the bottom.
+      expect(src).toMatch(/edges=\{\w+ \? \[[^\]]*\] : \["top", "bottom"\]\}/);
     }
   });
 });

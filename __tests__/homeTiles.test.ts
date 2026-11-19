@@ -41,7 +41,7 @@ describe("the trades: one scrolling row, foodpanda's verticals", () => {
    * the cap: a row of thirty is not a row anybody reads.
    */
   it("caps the row, and lays it out sideways", () => {
-    expect(src).toMatch(/const HOME_TRADES = 8;/);
+    expect(src).toMatch(/const HOME_TRADES = 10;/);
     expect(src).toMatch(/<ScrollView horizontal showsHorizontalScrollIndicator=\{false\} contentContainerStyle=\{styles\.tiles\}>/);
   });
 
@@ -80,7 +80,9 @@ describe("the trades: one scrolling row, foodpanda's verticals", () => {
    * categories page, where an empty trade is an answer rather than a tile.
    */
   it("draws only trades that have a shop here", () => {
-    expect(src).toMatch(/\.filter\(\(t\) => t\.shops_count > 0\)\.slice\(0, HOME_TRADES\)/);
+    // Kinds of shop with a shop behind them — `homeCategoryTiles` drops the
+    // rest (tested in homeCategories.test.ts).
+    expect(src).toMatch(/homeCategoryTiles\(/);
     expect(src).not.toMatch(/None nearby"?\s*<\/Text>/);
   });
 });

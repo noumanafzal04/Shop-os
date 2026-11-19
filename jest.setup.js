@@ -287,3 +287,9 @@ jest.mock('react-native-reanimated', () => {
     has: () => true,
   });
 });
+
+// The query cache is written to the phone (see `persistPolicy.ts`); in tests
+// that storage is the library's own in-memory double.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);

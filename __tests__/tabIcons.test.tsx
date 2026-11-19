@@ -242,7 +242,8 @@ describe("the bar wires the two states up", () => {
   it("shows the tab you are on without changing anything's size", () => {
     // THE RULE THREE VERSIONS OF THIS BAR COST: the selected state is a fill
     // and a weight, never a width or a height.
-    expect(src).toMatch(/styles\.iconWrap, focused && \{ backgroundColor: c\.primarySoft \}/);
+    // The fill is always drawn and only its opacity flips — see tabBarFill.test.
+    expect(src).toMatch(/styles\.iconFill,\s*focused \? styles\.fillOn : styles\.fillOff/);
     expect(src).not.toMatch(/(width|height|size): focused \?/);
   });
 
@@ -252,7 +253,7 @@ describe("the bar wires the two states up", () => {
     const styles = src.slice(src.indexOf("const styles = StyleSheet.create"));
     const badge = styles.slice(styles.indexOf("badge: {"));
     expect(badge).toMatch(/position: "absolute"/);
-    expect(src).toMatch(/<View style=\{\[styles\.iconWrap[\s\S]*?styles\.badge/);
+    expect(src).toMatch(/<View style=\{styles\.iconWrap\}>[\s\S]*?styles\.badge/);
   });
 
   it("gives the basket a tab of its own, named for what it is", () => {

@@ -21,6 +21,7 @@ import {
   type Icon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
+import { useTabBarSpace } from "../../../navigation/tabBarSpace";
 import { FocusedStatusBar } from "../../../common/ui/FocusedStatusBar";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
@@ -157,6 +158,7 @@ export function AccountScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const navigation = useNavigation<any>();
+  const tabSpace = useTabBarSpace();
   /**
    * Which half of the app this page is being read in.
    *
@@ -265,7 +267,7 @@ export function AccountScreen() {
       <ScrollView
         style={styles.sheet}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: tabSpace + spacing.lg }]}
       >
         {/*
           THE THREE REASONS ANYBODY OPENS THIS TAB, on the fold and raised off

@@ -30,14 +30,16 @@ import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useLocationStore } from "../../../stores/locationStore";
 import { usePinSettled, useServingPin } from "../servingPin";
-import { useHomeFeed, useMarketShops, useServiceArea } from "../hooks/useMarketplace";
+import { useTabBarSpace } from "../../../navigation/tabBarSpace";
+import { useCategories, useHomeFeed, useMarketShops, useServiceArea } from "../hooks/useMarketplace";
 import { AppButton } from "../../../common/ui/AppButton";
 import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
 import { HomeHero } from "../components/HomeHero";
 import { ShopTile } from "../components/ShopTile";
-import { picture, shortcutPicture, tradePicture } from "../tradePicture";
+import { categoryPicture, picture, shortcutPicture } from "../tradePicture";
+import { homeCategoryTiles } from "../homeCategories";
 import { ShopWithItems, ShopWithItemsSkeleton } from "../components/ShopWithItems";
 import { FeaturedTag } from "../components/FeaturedTag";
 import { Appear } from "../../../common/ui/Appear";
@@ -77,7 +79,7 @@ import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover"
  * being drawn as one row of identical squares, which is most of why the grid
  * never looked like anything.
  */
-const HOME_TRADES = 8;
+const HOME_TRADES = 10;
 
 
 /**
@@ -205,6 +207,7 @@ export function CustomerHomeScreen() {
   const featured = feed.data?.featured ?? [];
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const tabSpace = useTabBarSpace();
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = shops;
   /*
@@ -234,11 +237,20 @@ export function CustomerHomeScreen() {
    * The server orders by shops_count, so these four are the four with the most
    * shops in them.
    */
-  const withShops = React.useMemo(
-    () => (feed.data?.business_types ?? []).filter((t) => t.shops_count > 0).slice(0, HOME_TRADES),
-    [feed.data],
+  /*
+   * KINDS OF SHOP, not trades — see `homeCategories.ts`. Until the categories
+   * answer (cached on the phone after the first launch), the home feed's
+   * trades stand in, so the row is never empty while it loads.
+   */
+  const cats = useCategories({ city_id: pin.city_id }, { enabled: settled });
+  const tradeTiles = React.useMemo(
+    () =>
+      homeCategoryTiles(
+        cats.data?.business_types ?? (feed.data?.business_types ?? []).map((t) => ({ ...t, categories: [] })),
+        HOME_TRADES,
+      ),
+    [cats.data, feed.data],
   );
-  const tradeTiles = withShops;
   // Pull asks both again — the sections above AND the list — or a pull
   // refreshes the banners and leaves yesterday's shops under them.
   const { refetch: refetchFeed } = feed;
@@ -338,7 +350,7 @@ export function CustomerHomeScreen() {
       */}
       <Animated.FlatList
         style={styles.scroll}
-        contentContainerStyle={styles.scrollGround}
+        contentContainerStyle={[styles.scrollGround, { paddingBottom: tabSpace }]}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -676,17 +688,23 @@ export function CustomerHomeScreen() {
           */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
             {tradeTiles.map((t) => {
-              const art = tradeArt(t.type);
+              const art = tradeArt(t.trade);
               return (
                 <Touchable
-                  key={t.type}
+                  key={t.key}
                   style={styles.tile}
                   accessibilityRole="button"
-                  accessibilityLabel={`${t.label}, ${t.shops_count} ${t.shops_count === 1 ? "shop" : "shops"}`}
-                  onPress={() => navigation.navigate("ShopList", { business_type: t.type, title: t.label })}
+                  accessibilityLabel={`${t.label}, ${t.shops} ${t.shops === 1 ? "shop" : "shops"}`}
+                  onPress={() =>
+                    navigation.navigate("ShopList", {
+                      business_type: t.trade,
+                      business_category: t.value ?? undefined,
+                      title: t.label,
+                    })
+                  }
                 >
                   <View style={[styles.tileIcon, { backgroundColor: ground(art) }]}>
-                    <Image source={tradePicture(t.type)} style={styles.tilePic} />
+                    <Image source={categoryPicture(t.value, t.label, t.trade)} style={styles.tilePic} />
                   </View>
                   {/* The label is the SERVER's — "Mart & Grocery", the name every surface uses. */}
                   <Text style={styles.tileLabel} numberOfLines={2}>
@@ -871,23 +889,39 @@ export function CustomerHomeScreen() {
         is told about is not a control, it is a secret.
       */}
       {/*
-        THE STATUS BAR'S OWN BAND, once the hero has scrolled away.
+        ── THE SEARCH STAYS, once the hero has scrolled away ──────────────
 
-        The hero paints under the clock while it is on screen; scrolled past
-        it, the page's light content was sliding under white status glyphs
-        and they vanished. This band fades in as the hero leaves.
+        The hero carries the search field; scrolled past it, the field was
+        gone with it and the clock's white glyphs sat on the light page. A
+        bar slides down in its place — the status band and a search field —
+        so searching is never more than a tap away (as the app used to be,
+        and as the reference keeps it). Off-screen until the hero leaves.
       */}
       <Animated.View
-        pointerEvents="none"
         style={[
-          styles.statusBand,
+          styles.sticky,
           {
-            height: insets.top,
+            paddingTop: insets.top,
             backgroundColor: c.primary,
-            opacity: scrollY.interpolate({ inputRange: [140, 240], outputRange: [0, 1], extrapolate: "clamp" }),
+            opacity: scrollY.interpolate({ inputRange: [180, 260], outputRange: [0, 1], extrapolate: "clamp" }),
+            transform: [
+              { translateY: scrollY.interpolate({ inputRange: [180, 260], outputRange: [-160, 0], extrapolate: "clamp" }) },
+            ],
           },
         ]}
-      />
+      >
+        <Touchable
+          style={styles.stickySearch}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          onPress={() => navigation.navigate("Search")}
+        >
+          <SearchIcon size={17} color={c.textMuted} />
+          <Text style={styles.searchHint} numberOfLines={1}>
+            Search food, groceries, medicine…
+          </Text>
+        </Touchable>
+      </Animated.View>
 
       <SideMenu
         visible={menuOpen}
@@ -1033,7 +1067,17 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   scroll: { flex: 1, backgroundColor: c.bg },
-  statusBand: { position: "absolute", top: 0, left: 0, right: 0 },
+  sticky: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
+  stickySearch: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: c.surface,
+    borderRadius: 22,
+    paddingHorizontal: spacing.md,
+    height: 44,
+    marginTop: spacing.xs,
+  },
   // Outside every service zone: said first, in the deal colour's soft tint
   // with a warning's words — not a red error, nobody did anything wrong.
   outsideCard: {

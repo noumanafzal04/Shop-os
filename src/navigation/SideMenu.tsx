@@ -37,7 +37,7 @@ import {
 } from "../common/ui/icons";
 import { confirm } from "../common/ui/confirm";
 import { Touchable } from "../common/ui/Touchable";
-import { spacing, type ThemeColors, typography, useColors, useOppositeColors } from "../theme";
+import { spacing, type ThemeColors, typography, useColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
 import { useLogout } from "../modules/auth/hooks/useAuth";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
@@ -207,7 +207,6 @@ function riderLink(profile: RiderProfile | null | undefined): { label: string; v
 
 export function SideMenu({ visible, onClose, onOpen }: Props) {
   const c = useColors();
-  const other = useOppositeColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -586,7 +585,9 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
                   wrong reading of what it is. This is not a disabled switch,
                   it is an invitation, and it leads somewhere useful.
                 */
-                style={[styles.switcher, { backgroundColor: other.primary }]}
+                // THE COLOUR OF THE HALF YOU ARE IN (asked for directly): teal on
+                // the customer side, the rider colour on the rider side.
+                style={[styles.switcher, { backgroundColor: c.primary }]}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: !canRide }}
                 accessibilityLabel={
