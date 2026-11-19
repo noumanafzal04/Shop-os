@@ -4,6 +4,8 @@ import { useNavigation } from "@react-navigation/native";
 import {
   ArrowLeftIcon,
   ClockIcon,
+  SparkleIcon,
+  XIcon,
   SearchIcon,
   SlidersIcon,
   StarIcon,
@@ -25,6 +27,7 @@ import { Price } from "../../../common/ui/Price";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { shopInitial, useShopCover } from "../shopCover";
 import { prefs } from "../../../common/utils/prefs";
+import { popularTerms, withRecent, worthRemembering } from "../../../common/utils/searchHistory";
 import { SHORTCUTS } from "../tradeIcon";
 import {
   SearchSuggestions,
@@ -49,6 +52,17 @@ export function SearchScreen() {
   // cache it already filled; no second request for the same list.
   const feed = useHomeFeed(pin);
   const trades = (feed.data?.business_types ?? []).filter((t) => t.shops_count > 0);
+  const [recent, setRecent] = useState<string[]>([]);
+  const popular = React.useMemo(
+    // Items on offer first, then the shops near you — a shop's name always
+    // finds that shop, so the row is never a dead end on a day with no deals.
+    () =>
+      popularTerms(
+        [...(feed.data?.deals ?? []).map((p) => p.name), ...(feed.data?.nearby ?? []).map((s) => s.business_name)],
+        recent,
+      ),
+    [feed.data, recent],
+  );
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<Tab>("all");
   const [openOnly, setOpenOnly] = useState(false);
@@ -62,7 +76,6 @@ export function SearchScreen() {
    * record of what somebody was thinking about, and the server has no use for
    * it.
    */
-  const [recent, setRecent] = useState<string[]>([]);
   React.useEffect(() => {
     let alive = true;
     prefs.all().then((p) => alive && setRecent(p.searches ?? [])).catch(() => {});
@@ -71,19 +84,25 @@ export function SearchScreen() {
     };
   }, []);
 
-  /**
-   * Remembered when the SEARCH SETTLES, not on every keystroke.
-   *
-   * `debounced` is the term that was actually sent, so the history holds what
-   * was looked for rather than every prefix somebody typed on the way there.
-   */
-  React.useEffect(() => {
-    if (debounced.trim().length < 2) return;
-    prefs.rememberSearch(debounced).catch(() => {});
-  }, [debounced]);
-
   const results = useUniversalSearch(debounced, pin);
   const d = results.data;
+
+  /**
+   * Remembered once the term has STOOD and FOUND something — see
+   * `searchHistory`. A quarter-second pause kept "piz" on the way to "pizza".
+   * The list on screen takes the same rule at once, so a search just made is
+   * there the moment the box is cleared.
+   */
+  const settled = useDebouncedValue(q, 1200);
+  const found = d ? (d.products?.length ?? 0) + (d.shops?.length ?? 0) : 0;
+  const remember = React.useCallback((term: string) => {
+    setRecent((list) => withRecent(list, term));
+    prefs.rememberSearch(term).catch(() => {});
+  }, []);
+  React.useEffect(() => {
+    if (settled !== debounced || results.isFetching) return;
+    if (worthRemembering(settled, found)) remember(settled);
+  }, [settled, debounced, found, results.isFetching, remember]);
   const searching = debounced.trim().length >= 2;
 
   let shops = d?.shops ?? [];
@@ -149,6 +168,16 @@ export function SearchScreen() {
             placeholder="Search food, groceries, medicine…"
             value={q}
             onChangeText={setQ}
+            returnKeyType="search"
+            trailing={
+              q.length > 0 ? (
+                <Touchable hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setQ("")}>
+                  <XIcon size={16} color={c.textMuted} />
+                </Touchable>
+              ) : null
+            }
+            // Pressing Search IS deciding — kept even before it has stood.
+            onSubmitEditing={() => q.trim().length >= 2 && remember(q)}
             autoFocus
             autoCapitalize="none"
           />
@@ -252,6 +281,31 @@ export function SearchScreen() {
                       onPress={() => setQ(term)}
                     >
                       <ClockIcon size={13} color={c.textMuted} />
+                      <Text style={styles.recentText} numberOfLines={1}>
+                        {term}
+                      </Text>
+                    </Touchable>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {popular.length > 0 && (
+              <>
+                <Text style={[styles.landingTitle, recent.length > 0 && styles.landingSpaced]}>
+                  Popular near you
+                </Text>
+                <View style={styles.recentWrap}>
+                  {popular.map((term) => (
+                    <Touchable
+                      key={term}
+                      style={styles.recentChip}
+                      scaleTo={0.94}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Search ${term}`}
+                      onPress={() => setQ(term)}
+                    >
+                      <SparkleIcon size={13} color={c.primary} />
                       <Text style={styles.recentText} numberOfLines={1}>
                         {term}
                       </Text>
@@ -467,7 +521,8 @@ const makeStyles = (c: ThemeColors) =>
     paddingVertical: spacing.sm,
   },
 
-  searchInput: { flex: 1 },
+  // The field's own form margin pushed it above the back button's centre.
+  searchInput: { flex: 1, marginBottom: -spacing.md },
 
   tabs: {
     flexDirection: "row",

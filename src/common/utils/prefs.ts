@@ -1,5 +1,6 @@
 import * as Keychain from "react-native-keychain";
 import type { ThemePreference } from "../../theme";
+import { RECENT_MAX, withRecent } from "./searchHistory";
 
 /**
  * Small, non-secret settings that have to survive a relaunch.
@@ -68,7 +69,7 @@ interface Prefs {
 }
 
 /** How many are remembered. Enough to be useful, short enough to scan. */
-const RECENT_SEARCHES = 8;
+const RECENT_SEARCHES = RECENT_MAX;
 
 async function read(): Promise<Prefs> {
   try {
@@ -151,11 +152,7 @@ export const prefs = {
     if (clean.length < 2) return;
 
     const current = await read();
-    const kept = (current.searches ?? []).filter(
-      (s) => s.toLowerCase() !== clean.toLowerCase(),
-    );
-
-    await write({ ...current, searches: [clean, ...kept].slice(0, RECENT_SEARCHES) });
+    await write({ ...current, searches: withRecent(current.searches ?? [], clean, RECENT_SEARCHES) });
   },
 
   async forgetSearches(): Promise<void> {

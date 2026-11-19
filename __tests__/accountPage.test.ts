@@ -154,6 +154,6 @@ describe("the profile row points at a page, not at a field", () => {
   it("still offers a guest the thing they need instead", () => {
     // The denominator: a chevron to a stranger points at a page that will ask
     // them to sign in anyway, so that half stays a button that says so.
-    expect(menu).toMatch(/<Text style=\{styles\.editText\}>Sign in<\/Text>/);
+    expect(menu).toMatch(/<Text style=\{styles\.editText\}>Log in<\/Text>/);
   });
 });

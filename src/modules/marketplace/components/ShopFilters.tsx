@@ -176,7 +176,8 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       // An explicit number, not `radius.full`: a very large radius renders as
       // a square on small views under the new architecture.
-      borderRadius: 17,
+      // 16, not 17: exactly half the height renders SQUARE under Fabric.
+      borderRadius: 16,
       paddingHorizontal: 12,
       height: 34,
     },

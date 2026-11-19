@@ -280,12 +280,24 @@ export function AccountScreen() {
           <Tile art={picture("round_pushpin")} label="Addresses" onPress={() => open("Addresses")} />
         </View>
 
+        {/*
+          A guest gets BOTH doors, side by side — the delivery apps' way. One
+          "Sign in" button left a new shopper hunting for where to sign up.
+        */}
         {!signedIn && (
-          <AppButton
-            title="Sign in"
-            onPress={() => navigation.navigate("SignIn")}
-            style={styles.signIn}
-          />
+          <View style={[styles.signIn, styles.doors]}>
+            <AppButton
+              title="Log in"
+              onPress={() => navigation.navigate("SignIn")}
+              style={styles.door}
+            />
+            <AppButton
+              title="Sign up"
+              variant="outline"
+              onPress={() => navigation.navigate("SignUp")}
+              style={styles.door}
+            />
+          </View>
         )}
 
         <Text style={styles.section}>My account</Text>
@@ -437,7 +449,7 @@ function ValueRow({
   return (
     <View style={[styles.row, divided && styles.rowDivided]}>
       <View style={styles.rowIcon}>
-        <Icon size={17} color={c.textSecondary} />
+        <Icon size={17} color={c.primary} />
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowLabel}>{label}</Text>
@@ -488,7 +500,7 @@ function Row({
         already using two taps away.
       */}
       <View style={[styles.rowIcon, accent != null && { backgroundColor: accent }]}>
-        <Icon size={17} color={accent != null ? c.white : c.textSecondary} />
+        <Icon size={17} color={accent != null ? c.white : c.primary} />
       </View>
       <View style={styles.rowCopy}>
         <Text style={styles.rowLabel}>{link.label}</Text>
@@ -567,6 +579,8 @@ const makeStyles = (c: ThemeColors) =>
     editText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800" },
 
     signIn: { marginTop: spacing.md },
+    doors: { flexDirection: "row", gap: spacing.sm },
+    door: { flex: 1 },
 
     // Raised onto the sheet's top edge, so the three things people came for
     // read as buttons rather than as the first row of a list.
@@ -613,7 +627,9 @@ const makeStyles = (c: ThemeColors) =>
       width: 34,
       height: 34,
       borderRadius: 11,
-      backgroundColor: c.surfaceAlt,
+      // The brand's soft tint, the same plate the side menu uses — one look
+      // for "a place in your account" wherever it is listed.
+      backgroundColor: c.primarySoft,
       alignItems: "center",
       justifyContent: "center",
     },

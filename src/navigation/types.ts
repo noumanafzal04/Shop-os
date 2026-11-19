@@ -51,6 +51,7 @@ export type CustomerStackParamList = {
   // account is genuinely required, without losing the screen they were on.
   SignIn: undefined;
   SignUp: undefined;
+  ForgotPassword: { identifier?: string } | undefined;
 };
 
 /**

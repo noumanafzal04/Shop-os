@@ -38,5 +38,5 @@ test('SignInScreen renders with inputs and button', async () => {
   expect(json).toContain(BRAND.name);
   expect(json).toContain('Email or phone');
   expect(json).toContain('Password');
-  expect(json).toContain('Sign in');
+  expect(json).toContain('Log in');
 });

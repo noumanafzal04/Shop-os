@@ -274,7 +274,13 @@ describe("every overlay behaves like the others", () => {
       .map((f) => path.relative(ROOT, f));
 
     // Named, so adding a second one is a decision somebody writes down here.
-    expect(optedOut).toEqual(["src/modules/marketplace/components/FilterSheet.tsx"]);
+    // ShopFilterSheet joined 2026-11-19: sort, quick filters, distance and a
+    // city list outgrew the phone, and its "Show shops" was pushed under the
+    // system buttons until it scrolled.
+    expect(optedOut.sort()).toEqual([
+      "src/modules/marketplace/components/FilterSheet.tsx",
+      "src/modules/marketplace/components/ShopFilterSheet.tsx",
+    ]);
   });
 });
 

@@ -82,7 +82,7 @@ describe("signing in", () => {
       inputs[1].props.onChangeText("hunter2");
     });
 
-    await press(tree, "Sign in");
+    await press(tree, "Log in");
 
     expect(mockMutate).toHaveBeenCalledTimes(1);
     const [, options] = mockMutate.mock.calls[0];
@@ -107,7 +107,7 @@ describe("signing in", () => {
       inputs[1].props.onChangeText("hunter2");
     });
 
-    await press(tree, "Sign in");
+    await press(tree, "Log in");
     mockMutate.mock.calls[0][1].onSuccess();
 
     expect(mockGoBack).not.toHaveBeenCalled();

@@ -11,6 +11,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useBootstrapSession } from "../modules/auth/hooks/useAuth";
 import { SignInScreen } from "../modules/auth/screens/SignInScreen";
 import { SignUpScreen } from "../modules/auth/screens/SignUpScreen";
+import { ForgotPasswordScreen } from "../modules/auth/screens/ForgotPasswordScreen";
 import { BusinessAccountScreen } from "../modules/auth/screens/BusinessAccountScreen";
 import { MarketScreen } from "../modules/marketplace/screens/MarketScreen";
 import { MarketShopScreen } from "../modules/marketplace/screens/MarketShopScreen";
@@ -153,6 +154,7 @@ function CustomerArea() {
       */}
       <CustomerStack.Screen name="SignIn" component={SignInScreen} options={{ presentation: "modal" }} />
       <CustomerStack.Screen name="SignUp" component={SignUpScreen} options={{ presentation: "modal" }} />
+      <CustomerStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </CustomerStack.Navigator>
   );
 }

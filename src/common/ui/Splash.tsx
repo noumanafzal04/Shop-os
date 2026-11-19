@@ -125,8 +125,33 @@ export function Splash() {
       ? 0.6
       : pulse.interpolate({ inputRange: [0, 0.33, 0.66, 1], outputRange: CURVES[index] });
 
+  /*
+   * WHAT THE APP CARRIES, around the mark — "splash screen ko b improvement".
+   * It was a mark, a word and three dots on a flat fill: true, and it could
+   * have been any app. Four of the app's own 3D pictures (food, groceries,
+   * medicine, shopping) drift gently round the mark, so the first second
+   * says what is inside. Still under Reduce Motion, like everything here.
+   */
+  const drift = (i: number) =>
+    still
+      ? 0
+      : pulse.interpolate({ inputRange: [0, 0.5, 1], outputRange: i % 2 ? [0, -6, 0] : [-6, 0, -6] });
+
   return (
     <View style={[styles.root, { backgroundColor: GROUND }]}>
+      <View style={styles.glow} pointerEvents="none" />
+      {SPLASH_ART.map((a, i) => (
+        <Animated.Image
+          key={a.key}
+          source={a.source}
+          accessible={false}
+          style={[
+            styles.art,
+            a.place,
+            { opacity: enter, transform: [{ translateY: drift(i) }, { rotate: a.turn }] },
+          ]}
+        />
+      ))}
       {/*
         LIGHT GLYPHS, because this screen's ground is always a brand fill.
 
@@ -193,8 +218,25 @@ export function Splash() {
   );
 }
 
+/** The app's own pictures, one per thing it delivers, placed round the mark. */
+const SPLASH_ART = [
+  { key: "food", source: require("../../assets/art/pizza.png"), place: { top: "18%", left: "10%" }, turn: "-12deg" },
+  { key: "grocery", source: require("../../assets/art/leafy_green.png"), place: { top: "21%", right: "11%" }, turn: "10deg" },
+  { key: "medicine", source: require("../../assets/art/pill.png"), place: { bottom: "22%", left: "13%" }, turn: "14deg" },
+  { key: "shopping", source: require("../../assets/art/shopping_bags.png"), place: { bottom: "19%", right: "10%" }, turn: "-8deg" },
+] as const;
+
 const styles = StyleSheet.create({
   root: { flex: 1, alignItems: "center", justifyContent: "center" },
+  // A soft light behind the mark, so the centre of the screen is where the eye lands.
+  glow: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: 149,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  art: { position: "absolute", width: 64, height: 64 },
   /**
    * A ring, not a filled plate.
    *
@@ -207,7 +249,9 @@ const styles = StyleSheet.create({
   markRing: {
     width: 86,
     height: 86,
-    borderRadius: 43,
+    // 42, not 43: exactly half the size renders SQUARE under Fabric on a
+    // real phone — so did the three dots below.
+    borderRadius: 42,
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.42)",
     alignItems: "center",
@@ -221,5 +265,5 @@ const styles = StyleSheet.create({
   word: { fontSize: 38, letterSpacing: -0.8, textAlign: "center" },
   tag: { textAlign: "center", marginTop: 6, letterSpacing: 0.2 },
   dots: { flexDirection: "row", gap: 8 },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 8, height: 8, borderRadius: 3.5 },
 });

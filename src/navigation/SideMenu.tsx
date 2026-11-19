@@ -36,6 +36,7 @@ import {
   type Icon,
 } from "../common/ui/icons";
 import { confirm } from "../common/ui/confirm";
+import { BRAND } from "../common/brand";
 import { Touchable } from "../common/ui/Touchable";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
 import { useAuthStore } from "../stores/authStore";
@@ -437,7 +438,7 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
         they were white on the menu's light sheet, and gone. Pushed for as long
         as the menu is up; unmounting pops it back to the screen's own.
       */}
-      <StatusBar barStyle={glyphsFor(c.bg)} />
+      <StatusBar barStyle={glyphsFor(c.primary)} />
       <View style={styles.root}>
         <Animated.View style={[styles.backdrop, { opacity: dim }]}>
           <Pressable
@@ -454,20 +455,22 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
             styles.panel,
             {
               width: panelWidth,
-              paddingTop: insets.top + spacing.sm,
               paddingBottom: insets.bottom,
               transform: [{ translateX: x }],
             },
           ]}
         >
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-          >
             {/* ── Who you are ──────────────────────────────────────── */}
+            {/*
+              ── THE HEAD OF THE PANEL, in the brand's colour ────────────
+
+              "Sidebar better kro." It opened with a pale tinted card the same
+              shape as every list under it. The delivery apps open theirs with
+              a coloured block that runs under the clock: who you are, big, and
+              — for a guest — the one button that matters.
+            */}
             <Touchable
-              style={styles.who}
+              style={[styles.who, { paddingTop: insets.top + spacing.md }]}
               accessibilityRole="button"
               accessibilityLabel={signedIn ? "Edit your profile" : "Sign in"}
               onPress={() => go({ route: signedIn ? "Profile" : "SignIn" })}
@@ -476,7 +479,7 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
                 {signedIn && user?.name ? (
                   <Text style={styles.avatarText}>{user.name.trim().charAt(0).toUpperCase()}</Text>
                 ) : (
-                  <PersonIcon size={24} color={c.onPrimary} />
+                  <PersonIcon size={26} color={c.primary} />
                 )}
               </View>
               <View style={styles.whoCopy}>
@@ -484,7 +487,7 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
                   {signedIn ? (user?.name ?? "Your account") : "Welcome"}
                 </Text>
                 <Text style={styles.whoSub} numberOfLines={1}>
-                  {signedIn ? (user?.email ?? user?.phone ?? "Signed in") : "Sign in to order"}
+                  {signedIn ? (user?.email ?? user?.phone ?? "View profile") : "Log in or sign up to order"}
                 </Text>
               </View>
               {/*
@@ -500,14 +503,19 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
                 more this way.
               */}
               {signedIn ? (
-                <ChevronRightIcon size={18} color={c.textMuted} />
+                <ChevronRightIcon size={18} color={c.onPrimary} />
               ) : (
                 <View style={styles.editPill}>
-                  <Text style={styles.editText}>Sign in</Text>
+                  <Text style={styles.editText}>Log in</Text>
                 </View>
               )}
             </Touchable>
 
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          >
             {/* ── The lists ────────────────────────────────────────── */}
             {onShift ? (
               <>
@@ -566,6 +574,10 @@ export function SideMenu({ visible, onClose, onOpen }: Props) {
             is a control nobody knows to qualify FOR.
           */}
           <View style={styles.footer}>
+            {/* What is installed, said once — the line a support call starts with. */}
+            <Text style={styles.version}>
+              {BRAND.name} · v{BRAND.version}
+            </Text>
             {signedIn && (
               <Touchable
                 /*
@@ -684,7 +696,9 @@ function Row({
         competing down the same edge. Colour on the mark itself is the middle
         one: the list has life and still reads as a list.
       */}
-      <Icon size={20} color={danger ? c.error : c.primary} />
+      <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
+        <Icon size={19} color={danger ? c.error : c.primary} />
+      </View>
       <Text style={[styles.rowLabel, danger && styles.rowLabelDanger]} numberOfLines={1}>
         {link.label}
       </Text>
@@ -772,37 +786,36 @@ const makeStyles = (c: ThemeColors) =>
     who: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 11,
-      backgroundColor: c.brand[50],
-      borderWidth: 1,
-      borderColor: c.brand[100],
-      borderRadius: 18,
-      padding: 11,
+      gap: 12,
+      backgroundColor: c.primary,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.lg,
     },
     avatar: {
-      width: 46,
-      height: 46,
-      borderRadius: 23,
-      // FILLED, where it used to be a tint holding tinted text. An avatar is
-      // the one place a menu is allowed to be loud.
-      backgroundColor: c.primary,
+      width: 56,
+      height: 56,
+      // 27, not 28: exactly half the size renders SQUARE under Fabric.
+      borderRadius: 27,
+      // White on the brand block: the one round, bright thing at the top.
+      backgroundColor: c.surface,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.title, color: c.onPrimary, fontSize: 18, lineHeight: 24 },
-    whoCopy: { flex: 1, gap: 1 },
-    whoName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 22 },
-    whoSub: { ...typography.tiny, color: c.textMuted, fontSize: 12, lineHeight: 16 },
+    avatarText: { ...typography.title, color: c.primary, fontSize: 22, lineHeight: 28 },
+    whoCopy: { flex: 1, gap: 2 },
+    whoName: { ...typography.title, color: c.onPrimary, fontSize: 18, lineHeight: 24 },
+    whoSub: { ...typography.tiny, color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 16 },
     editPill: {
       flexDirection: "row",
       alignItems: "center",
       gap: 5,
       backgroundColor: c.surface,
-      borderRadius: 16,
-      paddingHorizontal: 10,
+      borderRadius: 14,
+      paddingHorizontal: 14,
       paddingVertical: 8,
     },
-    editText: { ...typography.tiny, color: c.text, fontWeight: "700", fontSize: 12, lineHeight: 16 },
+    editText: { ...typography.tiny, color: c.primary, fontWeight: "800", fontSize: 13, lineHeight: 17 },
+    version: { ...typography.tiny, color: c.textMuted, textAlign: "center", fontSize: 11, lineHeight: 15 },
 
     /**
      * FILLED, because it is the loudest thing this menu does.
@@ -867,8 +880,8 @@ const makeStyles = (c: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      paddingHorizontal: 13,
-      height: 50,
+      paddingHorizontal: 12,
+      height: 56,
     },
     // Inset to start under the LABEL, not under the icon — a full-width rule
     // reads as a separator between sections, which is what the card already is.
@@ -877,6 +890,15 @@ const makeStyles = (c: ThemeColors) =>
       borderBottomColor: c.border,
     },
     pressed: { opacity: 0.6 },
+    rowIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 11,
+      backgroundColor: c.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    rowIconDanger: { backgroundColor: c.errorBg },
     rowLabel: { ...typography.body, color: c.text, fontSize: 15, lineHeight: 22, fontWeight: "500", flex: 1 },
     rowLabelDanger: { color: c.error, fontWeight: "600" },
 

@@ -8,6 +8,7 @@ import {
 } from "../../../common/ui/icons";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
+import { Touchable } from "../../../common/ui/Touchable";
 import { ApiError } from "../../../common/types/api";
 import { radius, spacing, type ThemeColors, useColors } from "../../../theme";
 import { useLogin } from "../hooks/useAuth";
@@ -97,8 +98,20 @@ export function SignInScreen() {
           returnKeyType="go"
         />
 
+        {/* The way back for a forgotten password — the server always had one. */}
+        <Touchable
+          hitSlop={8}
+          style={styles.forgot}
+          accessibilityRole="button"
+          accessibilityLabel="Forgot password"
+          onPress={() => navigation.navigate("ForgotPassword", { identifier: identifier.trim() || undefined })}
+        >
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Touchable>
+
         <AppButton
-          title="Sign in"
+          // The same word as the tab above it: "Log in" there, "Log in" here.
+          title="Log in"
           onPress={submit}
           loading={login.isPending}
           disabled={!identifier.trim() || !password}
@@ -114,7 +127,9 @@ export function SignInScreen() {
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
     form: { gap: spacing.xs },
-    submit: { marginTop: spacing.md },
+    submit: { marginTop: spacing.sm },
+    forgot: { alignSelf: "flex-end", paddingVertical: 4 },
+    forgotText: { color: c.primary, fontSize: 14, lineHeight: 18, fontWeight: "700" },
 
     errorBox: {
       flexDirection: "row",
