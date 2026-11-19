@@ -162,7 +162,9 @@ const makeStyles = (c: ThemeColors) =>
     back: {
       width: 38,
       height: 38,
-      borderRadius: 19,
+      // 18, not 19: exactly half the size renders SQUARE under Fabric on a
+      // real phone (the back button drew as a grey box on first paint).
+      borderRadius: 18,
       backgroundColor: c.surfaceAlt,
       alignItems: "center",
       justifyContent: "center",
