@@ -1,5 +1,5 @@
 import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Image, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { BRAND } from "../../../common/brand";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -13,6 +13,7 @@ import { useCategories } from "../hooks/useMarketplace";
 import type { CategoryTrade } from "../services/marketplaceService";
 import { SHORTCUTS } from "../tradeIcon";
 import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
+import { shortcutPicture, tradePicture } from "../tradePicture";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 
 /**
@@ -149,7 +150,9 @@ export function CategoriesScreen() {
                         },
                       ]}
                     >
-                      {art ? (
+                      {shortcutPicture(key) ? (
+                        <Image source={shortcutPicture(key)!} style={styles.pic30} />
+                      ) : art ? (
                         <art.Icon size={22} color={tint(art)} />
                       ) : (
                         <Icon size={22} color={tone === "offer" ? c.onWarm : c.primary} />
@@ -208,7 +211,6 @@ export function CategoriesScreen() {
             styles={styles}
             c={c}
             ground={ground}
-            tint={tint}
             onOpenTrade={openTrade}
             onOpenCategory={openCategory}
           />
@@ -244,7 +246,6 @@ const TradeSection = React.memo(function TradeSectionBody({
   styles,
   c,
   ground,
-  tint,
   onOpenTrade,
   onOpenCategory,
 }: {
@@ -252,7 +253,6 @@ const TradeSection = React.memo(function TradeSectionBody({
   styles: ReturnType<typeof makeStyles>;
   c: ThemeColors;
   ground: (art: ReturnType<typeof tradeArt>) => string;
-  tint: (art: ReturnType<typeof tradeArt>) => string;
   onOpenTrade: (t: CategoryTrade) => void;
   onOpenCategory: (t: CategoryTrade, value: string, label: string) => void;
 }) {
@@ -275,7 +275,7 @@ const TradeSection = React.memo(function TradeSectionBody({
         disabled={!open}
       >
         <View style={[styles.headIcon, { backgroundColor: ground(art) }]}>
-          <art.Icon size={19} color={tint(art)} />
+          <Image source={tradePicture(trade.type)} style={styles.pic26} />
         </View>
         <View style={styles.headCopy}>
           <Text style={[styles.headTitle, !open && styles.dim]} numberOfLines={1}>
@@ -325,7 +325,7 @@ const TradeSection = React.memo(function TradeSectionBody({
                   illustrations for a page that is read once.
                 */}
                 <View style={[styles.cellArt, { backgroundColor: ground(art) }, !has && styles.faded]}>
-                  <art.Icon size={22} color={tint(art)} />
+                  <Image source={tradePicture(trade.type)} style={styles.pic30} />
                 </View>
                 <Text style={[styles.cellLabel, !has && styles.dim]} numberOfLines={2}>
                   {cat.label}
@@ -345,6 +345,8 @@ const listStyle = (styles: ReturnType<typeof makeStyles>) => [styles.list, style
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    pic26: { width: 26, height: 26 },
+    pic30: { width: 30, height: 30 },
     list: { padding: spacing.md },
     /** So the empty state has a screen to centre in — a content container is
      *  only as tall as its content. */

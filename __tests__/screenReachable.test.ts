@@ -195,10 +195,8 @@ describe("no screen is written and left unreachable", () => {
     const trades = Number(/const HOME_TRADES = (\d+);/.exec(home)?.[1]);
     expect(Number.isFinite(trades)).toBe(true);
 
-    // The shortcuts are chips in their own row now, and two trades are big
-    // tiles of their own — the SMALL row is what must come out at four.
-    const big = Number(/const BIG_TRADES = (\d+);/.exec(home)?.[1]);
-    expect((trades - big + 1) % 4).toBe(0);
+    // A scrolling row now — no corner to orphan, so what is left is the cap.
+    expect(trades).toBeGreaterThan(0);
     // And the last one is the way out, not a trade — the corner a thumb
     // reaches after reading the row.
     expect(home.indexOf('accessibilityLabel="View all categories"')).toBeGreaterThan(

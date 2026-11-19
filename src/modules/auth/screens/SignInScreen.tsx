@@ -9,10 +9,10 @@ import {
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, useColors } from "../../../theme";
 import { useLogin } from "../hooks/useAuth";
 import { AuthScreen } from "../components/AuthScreen";
-import { leaveAuth, switchAuth } from "../leaveAuth";
+import { leaveAuth } from "../leaveAuth";
 
 /**
  * Signing in.
@@ -67,7 +67,7 @@ export function SignInScreen() {
   };
 
   return (
-    <AuthScreen title="Welcome back" subtitle="Log in to order and follow your deliveries.">
+    <AuthScreen mode="SignIn" title="Welcome back" subtitle="Log in to order and follow your deliveries.">
       {errorMessage && (
         <View style={styles.errorBox}>
           <WarningIcon size={16} color={c.error} />
@@ -107,34 +107,12 @@ export function SignInScreen() {
         />
       </View>
 
-      {/* A second way in, said as plainly as the first — not a grey link. */}
-      <View style={styles.or}>
-        <View style={styles.orRule} />
-        <Text style={styles.orText}>New here?</Text>
-        <View style={styles.orRule} />
-      </View>
-      <AppButton title="Create an account" variant="outline" size="lg" onPress={() => switchAuth(navigation, "SignUp")} />
     </AuthScreen>
   );
 }
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
-    content: { padding: spacing.lg, justifyContent: "center", flexGrow: 1 },
-
-    head: { marginBottom: spacing.xl },
-    // The name, small and in the brand's colour — it identifies the app
-    // without competing with the sentence that says what to do here.
-    wordmark: {
-      ...typography.label,
-      color: c.primary,
-      letterSpacing: 1.2,
-      textTransform: "uppercase",
-      marginBottom: spacing.sm,
-    },
-    title: { ...typography.display, color: c.text },
-    sub: { ...typography.body, color: c.textSecondary, marginTop: 6 },
-
     form: { gap: spacing.xs },
     submit: { marginTop: spacing.md },
 
@@ -148,8 +126,4 @@ const makeStyles = (c: ThemeColors) =>
       marginBottom: spacing.md,
     },
     errorText: { color: c.error, fontSize: 13, lineHeight: 18, flex: 1 },
-
-    or: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginVertical: spacing.lg },
-    orRule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: c.border },
-    orText: { ...typography.caption, color: c.textMuted },
   });

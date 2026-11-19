@@ -2,7 +2,6 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
-  ArrowRightIcon,
   BagIcon,
   PlusIcon,
   TrashIcon,
@@ -57,6 +56,10 @@ export function CartScreen() {
   const slug = cart.shopSlug;
 
   const shop = useMarketShop(slug ?? undefined);
+  // "See summary" scrolls to the bill. Above the empty-basket return, so the
+  // hooks run in the same order on every render.
+  const scrollRef = React.useRef<ScrollView>(null);
+  const billY = React.useRef(0);
   // Cross-sell: simple, in-stock items from the same shop not already in the cart.
   const products = useMarketProducts(slug ?? undefined, {});
   const inCart = new Set(cart.lines.map((l) => l.product_id));
@@ -158,7 +161,6 @@ export function CartScreen() {
           {!!shop.data && (
             <Text style={styles.shopName} numberOfLines={1}>
               {shop.data.business_name}
-              {delivers && prep !== null ? `  ·  Delivery ${prep}–${prep + 20} min` : ""}
             </Text>
           )}
         </View>
@@ -191,7 +193,14 @@ export function CartScreen() {
         card in the scroll now, like every marketplace cart; what is pinned is
         the one number and the one press that move the order on.
       */}
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {delivers && prep !== null && (
+          <View style={styles.timePill}>
+            <Text style={styles.timeText}>
+              Delivery: <Text style={styles.timeStrong}>{prep} – {prep + 20} min</Text>
+            </Text>
+          </View>
+        )}
         <View style={styles.card}>
           {cart.lines.map((item, index) => {
             const k = cartKeyOf(item);
@@ -217,8 +226,7 @@ export function CartScreen() {
                         {item.modifiers_label}
                       </Text>
                     )}
-                    <Text style={styles.linePrice}>{money(item.unit_price * item.quantity)}</Text>
-                  </View>
+                    <View style={styles.lineFoot}>
                   {/*
                     The same − n + the menu row has, so a quantity is changed
                     the same way wherever it is seen. At the last step the
@@ -232,22 +240,26 @@ export function CartScreen() {
                     onMinus={() => cart.setQty(k, item.quantity - step)}
                     onPlus={() => cart.setQty(k, item.quantity + step)}
                   />
+                      <Text style={styles.linePrice}>{money(item.unit_price * item.quantity)}</Text>
+                    </View>
+                  </View>
                 </View>
               </Appear>
             );
           })}
 
-          {!!slug && (
-            <Touchable
-              style={styles.addMore}
-              accessibilityRole="button"
-              onPress={() => navigation.navigate("MarketShop", { slug })}
-            >
-              <PlusIcon size={15} color={c.primary} />
-              <Text style={styles.addMoreText}>Add more items</Text>
-            </Touchable>
-          )}
         </View>
+
+        {!!slug && (
+          <Touchable
+            style={styles.addMore}
+            accessibilityRole="button"
+            onPress={() => navigation.navigate("MarketShop", { slug })}
+          >
+            <PlusIcon size={16} color={c.text} />
+            <Text style={styles.addMoreText}>Add more items</Text>
+          </Touchable>
+        )}
 
         {suggestions.length > 0 && (
           <>
@@ -309,7 +321,9 @@ export function CartScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>Bill details</Text>
+        <Text style={styles.sectionTitle} onLayout={(e) => (billY.current = e.nativeEvent.layout.y)}>
+          Bill details
+        </Text>
         <View style={[styles.card, styles.bill]}>
           <View style={styles.billRow}>
             <Text style={styles.billLabel}>
@@ -331,10 +345,25 @@ export function CartScreen() {
         </View>
       </ScrollView>
 
-      {/* The one number and the one press. */}
+      {/*
+        The one number and the one press — on a card that rises off the
+        page, the way the reference cart ends: the total with what it
+        includes, a link down to the bill, and the button.
+      */}
       <View style={styles.footer}>
         <View style={styles.footerTotal}>
-          <Text style={styles.totalLabel}>Total</Text>
+          <View>
+            <Text style={styles.totalLabel}>
+              Total <Text style={styles.totalHint}>(incl. delivery)</Text>
+            </Text>
+            <Text
+              style={styles.summaryLink}
+              accessibilityRole="link"
+              onPress={() => scrollRef.current?.scrollTo({ y: Math.max(0, billY.current - 12), animated: true })}
+            >
+              See summary
+            </Text>
+          </View>
           <Text style={styles.totalValue}>{money(total)}</Text>
         </View>
         <Pressable
@@ -342,8 +371,7 @@ export function CartScreen() {
           accessibilityRole="button"
           onPress={() => slug && navigation.navigate("Checkout", { slug })}
         >
-          <Text style={styles.ctaText}>Review payment and address</Text>
-          <ArrowRightIcon size={17} color={c.onPrimary} />
+          <Text style={styles.ctaText}>Confirm payment and address</Text>
         </Pressable>
       </View>
     </SafeScreen>
@@ -375,23 +403,37 @@ const makeStyles = (c: ThemeColors) =>
       borderColor: c.border,
       overflow: "hidden",
     },
-    line: { flexDirection: "row", alignItems: "center", gap: spacing.ms, padding: spacing.ms },
-    lineRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    timePill: {
+      backgroundColor: c.surface,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.ms,
+    },
+    timeText: { ...typography.body, color: c.text },
+    timeStrong: { fontWeight: "700" },
+    line: { flexDirection: "row", alignItems: "flex-start", gap: spacing.ms, padding: spacing.ms },
+    // Dashed between lines, as the reference does: a list of things, not cards.
+    lineRule: { borderTopWidth: 1, borderTopColor: c.border, borderStyle: "dashed" },
+    lineFoot: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
     lineThumb: { width: 56, height: 56, borderRadius: radius.xs },
     lineInfo: { flex: 1, gap: 2 },
     lineName: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 20 },
     lineMeta: { ...typography.caption, color: c.textSecondary },
-    linePrice: { ...typography.price, color: c.text, marginTop: 2 },
+    linePrice: { ...typography.price, color: c.text },
 
     addMore: {
+      alignSelf: "flex-start",
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.xs,
-      padding: spacing.md,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.border,
+      paddingHorizontal: spacing.md,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: c.surfaceAlt,
     },
-    addMoreText: { ...typography.label, color: c.primary },
+    addMoreText: { ...typography.label, color: c.text },
 
     sectionTitle: { ...typography.h3, color: c.text, marginTop: spacing.sm },
     xRow: { gap: spacing.ms, paddingRight: spacing.md },
@@ -418,19 +460,27 @@ const makeStyles = (c: ThemeColors) =>
 
     footer: {
       backgroundColor: c.surface,
-      borderTopWidth: 1,
-      borderTopColor: c.border,
+      marginHorizontal: spacing.sm,
+      marginBottom: spacing.sm,
+      borderRadius: radius.lg,
       paddingHorizontal: spacing.md,
-      paddingTop: spacing.ms,
-      paddingBottom: spacing.ms,
-      gap: spacing.sm,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.md,
+      gap: spacing.ms,
+      shadowColor: "#000",
+      shadowOpacity: 0.1,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: -2 },
+      elevation: 10,
     },
-    footerTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
-    totalLabel: { ...typography.name, color: c.text },
+    footerTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+    totalLabel: { ...typography.name, color: c.text, fontWeight: "700" },
+    totalHint: { ...typography.caption, color: c.textSecondary, fontWeight: "400" },
+    summaryLink: { ...typography.small, color: c.text, textDecorationLine: "underline", marginTop: 2 },
     totalValue: { ...typography.total, color: c.text },
     cta: {
       height: 52,
-      borderRadius: radius.sm,
+      borderRadius: 26,
       backgroundColor: c.primary,
       flexDirection: "row",
       alignItems: "center",

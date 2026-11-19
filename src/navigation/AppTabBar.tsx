@@ -81,6 +81,7 @@ const ITEMS: Record<string, Item> = {
   // A basket, deliberately not a trolley: the middle button is a trolley and
   // two of them in one bar is two words for different things.
   GroceryTab: { route: "GroceryTab", label: "Grocery", icon: BasketIcon },
+  CartTab: { route: "CartTab", label: "Cart", icon: CartIcon },
   OrdersTab: { route: "OrdersTab", label: "Orders", icon: ReceiptIcon },
   AccountTab: { route: "AccountTab", label: "Account", icon: PersonIcon },
 
@@ -113,185 +114,114 @@ export function AppTabBar({ state, navigation, insets }: BottomTabBarProps) {
   };
 
   return (
-    <View
-      style={[
-        styles.bar,
-        {
-          backgroundColor: c.surface,
-          borderTopColor: c.border,
-          /**
-           * The navigator's OWN measurement, not `useSafeAreaInsets()`.
-           *
-           * React Navigation renders a custom tab bar inside a context whose
-           * bottom inset is ZERO — the navigator treats the inset as its to
-           * spend and hands it to the bar as a prop. So the hook, which is
-           * correct on every other screen in this app, returned 0 here and
-           * `Math.max(0, 8)` gave the bar eight points of padding under a
-           * 48-point navigation bar: the labels touched the buttons and the
-           * basket disc was cut in half.
-           *
-           * Nothing looked wrong on a gesture-navigation emulator, where the
-           * inset is small enough that 8 nearly covers it.
-           */
-          paddingBottom: Math.max(insets.bottom, 8),
-        },
-      ]}
-    >
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
-        const isCart = route.name === "CartTab";
-        const item = ITEMS[route.name];
+    /*
+      ── A PILL RESTING ON THE PAGE, THE WAY FOODPANDA'S BAR DOES ─────────
 
-        if (isCart) {
+      "Footer acha bnana hai." The bar was a full-width white slab with a
+      raised basket disc in the middle — a button that needed a halo to read
+      as a button. The reference app's bar is a rounded white pill inset from
+      the edges, and the tab you are on sits inside a soft pill of its own.
+
+      It stays IN the layout (not `position: absolute`): the ground around the
+      pill is the page's own colour, so it reads as floating while no list can
+      ever end underneath it.
+    */
+    <View style={[styles.ground, { backgroundColor: c.bg, paddingBottom: Math.max(insets.bottom, 8) + 6 }]}>
+      <View style={[styles.bar, { backgroundColor: c.surface, borderColor: c.border }]}>
+        {state.routes.map((route, index) => {
+          const focused = state.index === index;
+          const item = ITEMS[route.name];
+          if (!item) return <View key={route.key} style={styles.slot} />;
+
+          const Icon = item.icon;
+          const isCart = route.name === "CartTab";
           return (
             <Pressable
               key={route.key}
               onPress={() => go(route.name, index)}
               accessibilityRole="button"
               accessibilityState={{ selected: focused }}
-              accessibilityLabel={count > 0 ? `Basket, ${count} items` : "Basket"}
+              accessibilityLabel={isCart && count > 0 ? `Cart, ${count} items` : item.label}
               style={styles.slot}
             >
               {/*
-                ── THE MIDDLE BUTTON, THIRD ATTEMPT ────────────────────
-                
-                In the bar, not out of it. The raised version needed a thick
-                ring in the page's colour to stop it reading as a hole punched
-                through the bar — a button that needs a cut-out around it to be
-                legible is a button fighting its own container.
-                
-                What was wrong with the version after that: a flat brand circle
-                with a hairline outline cart inside it. Correct, and it read as
-                a coloured dot. Three things fix that without raising it again:
-                
-                  · a HALO — the brand at a tenth of its strength, behind the
-                    disc. It gives depth on a theme that forbids shadows, and
-                    it is the only thing in the bar that says the basket is a
-                    different KIND of control from the four beside it.
-                  · a SOLID glyph, with the handle knocked back out in the
-                    disc's own colour, so the shape reads at 24 points instead
-                    of dissolving into the fill behind it.
-                  · a squircle rather than a circle, which is the corner the
-                    rest of this app turns everywhere else.
-                
-                The halo strengthens when the tab is selected — the one state
-                this button never showed at all.
+                The tab you are on: its icon and label inside one soft pill,
+                in the brand colour, the icon in its solid weight. Nothing
+                changes size between the two states — only the fill.
               */}
-              {/*
-                The badge is positioned against the DISC, not the slot.
-
-                Anchored to the slot it measured from the slot's edge — a fifth
-                of a 178px column away from a 48px circle — so it floated in
-                open space beside the button it was counting.
-              */}
-              <View style={styles.discWrap}>
-                <View
-                  style={[
-                    styles.halo,
-                    { backgroundColor: c.primary, opacity: focused ? 0.2 : 0.11 },
-                  ]}
-                />
-                <View style={[styles.disc, { backgroundColor: c.primary }]}>
-                  <CartIcon size={24} color={c.onPrimary} bold />
+              <View style={[styles.pill, focused && { backgroundColor: c.primarySoft }]}>
+                <View style={styles.iconWrap}>
+                  <Icon size={23} bold={focused} color={focused ? c.primary : c.textMuted} />
+                  {/* The basket counts against its own icon, not the slot. */}
+                  {isCart && count > 0 && (
+                    <View style={[styles.badge, { backgroundColor: c.warm, borderColor: c.surface }]}>
+                      <Text style={[styles.badgeText, { color: c.onWarm }]}>{count > 99 ? "99+" : count}</Text>
+                    </View>
+                  )}
                 </View>
-                {count > 0 && (
-                  <View style={[styles.badge, { backgroundColor: c.warm, borderColor: c.surface }]}>
-                    <Text style={[styles.badgeText, { color: c.onWarm }]}>
-                      {count > 99 ? "99+" : count}
-                    </Text>
-                  </View>
-                )}
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    typography.tiny,
+                    styles.label,
+                    focused ? styles.labelOn : styles.labelOff,
+                    { color: focused ? c.primary : c.textMuted },
+                  ]}
+                >
+                  {item.label}
+                </Text>
               </View>
             </Pressable>
           );
-        }
-
-        if (!item) return <View key={route.key} style={styles.slot} />;
-
-        const Icon = item.icon;
-        return (
-          <Pressable
-            key={route.key}
-            onPress={() => go(route.name, index)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: focused }}
-            accessibilityLabel={item.label}
-            style={styles.slot}
-          >
-            {/*
-              SOLID WHEN YOU ARE ON IT, outline when you are not — and the
-              brand colour rather than a darker grey. Two greys and half a
-              point of stroke was the whole of the old answer, and at arm's
-              length it was no answer.
-
-              Two weights of the same drawing, so nothing moves and nothing
-              changes size — the state is entirely in the fill and the colour.
-            */}
-            <Icon size={23} bold={focused} color={focused ? c.primary : c.textMuted} />
-            <Text
-              numberOfLines={1}
-              style={[
-                typography.tiny,
-                styles.label,
-                focused ? styles.labelOn : styles.labelOff,
-                { color: focused ? c.primary : c.textMuted },
-              ]}
-            >
-              {item.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  ground: { paddingHorizontal: 14, paddingTop: 6 },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 9,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    // Explicit numbers, NOT `radius.full` or `radius.xl` read from the theme:
-    // a very large radius renders as square on some views under the new
-    // architecture, and this one has to be exact anyway.
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    height: 66,
+    paddingHorizontal: 6,
+    borderRadius: 33,
+    borderWidth: StyleSheet.hairlineWidth,
+    // A lift, not a line: the pill sits ON the page.
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
-  slot: { flex: 1, alignItems: "center", justifyContent: "center", gap: 3, height: 50 },
+  slot: { flex: 1, alignItems: "center", justifyContent: "center", height: 66 },
+  // The slot's own width, less a hair each side — so a long label ("Account")
+  // can never push the pill past its neighbours or the bar's rounded end.
+  pill: {
+    alignSelf: "stretch",
+    marginHorizontal: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    height: 54,
+    borderRadius: 22,
+  },
+  iconWrap: { width: 28, height: 26, alignItems: "center", justifyContent: "center" },
   label: { fontSize: 11, lineHeight: 14 },
   labelOn: { fontWeight: "700" },
   labelOff: { fontWeight: "500" },
-  discWrap: { width: 50, height: 50, alignItems: "center", justifyContent: "center" },
-  // The brand at a tenth of its strength, one step wider than the disc. Depth
-  // on a theme with no shadows in it.
-  halo: {
-    position: "absolute",
-    width: 50,
-    height: 50,
-    borderRadius: 17,
-  },
-  disc: {
-    width: 44,
-    height: 44,
-    // A squircle, not a circle: every other rounded thing in this app turns
-    // this corner, and a lone perfect circle in the middle of them reads as
-    // borrowed.
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   badge: {
     position: "absolute",
-    top: 0,
-    right: 1,
-    minWidth: 19,
-    height: 19,
-    borderRadius: 10,
+    top: -4,
+    right: -9,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
-  badgeText: { fontSize: 11, lineHeight: 14, fontWeight: "800" },
+  badgeText: { fontSize: 10, lineHeight: 12, fontWeight: "800" },
 });

@@ -34,23 +34,15 @@ const src = codeOnly(
   ),
 );
 
-describe("the trades: two big tiles and one full row", () => {
-  /**
-   * FOODPANDA'S SHAPE (asked for: "uska standard design follow kr lety hain").
-   *
-   * Two big tiles for the busiest trades, then a row of small ones with
-   * "View all" last in it. The small row must come out as exactly four —
-   * an orphan in the corner is the complaint this file was first written for.
+describe("the trades: one scrolling row, foodpanda's verticals", () => {
+  /*
+   * A ROW THAT SCROLLS, so no count can leave an orphan in a corner — the
+   * complaint this file was first written for. What still has a number is
+   * the cap: a row of thirty is not a row anybody reads.
    */
-  it("shows five trades, two of them big", () => {
-    expect(src).toMatch(/const HOME_TRADES = 5;/);
-    expect(src).toMatch(/const BIG_TRADES = 2;/);
-  });
-
-  it("fills the small row exactly, with View all", () => {
-    const n = Number(src.match(/const HOME_TRADES = (\d+);/)?.[1]);
-    const big = Number(src.match(/const BIG_TRADES = (\d+);/)?.[1]);
-    expect((n - big + 1) % 4).toBe(0);
+  it("caps the row, and lays it out sideways", () => {
+    expect(src).toMatch(/const HOME_TRADES = 8;/);
+    expect(src).toMatch(/<ScrollView horizontal showsHorizontalScrollIndicator=\{false\} contentContainerStyle=\{styles\.tiles\}>/);
   });
 
   /** The tile that opens the rest, drawn whatever the server said. */

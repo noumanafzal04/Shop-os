@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { AppButton } from "../../../common/ui/AppButton";
 import { ApiError } from "../../../common/types/api";
-import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
+import { radius, spacing, type ThemeColors, useColors } from "../../../theme";
 import { useRegisterCustomer } from "../../marketplace/hooks/useMarketplace";
 import { AuthScreen } from "../components/AuthScreen";
-import { leaveAuth, switchAuth } from "../leaveAuth";
+import { leaveAuth } from "../leaveAuth";
 import { EnvelopeIcon, LockIcon, PersonIcon, PhoneIcon } from "../../../common/ui/icons";
 
 /**
@@ -54,7 +54,7 @@ export function SignUpScreen() {
   };
 
   return (
-    <AuthScreen title="Create your account" subtitle="One account for every shop near you — order, track and reorder.">
+    <AuthScreen mode="SignUp" title="Create your account" subtitle="One account for every shop near you — order, track and reorder.">
 
         {generalError && (
           <View style={styles.errorBox}>
@@ -108,11 +108,6 @@ export function SignUpScreen() {
           style={{ marginTop: spacing.sm }}
         />
 
-        <Pressable onPress={() => switchAuth(navigation, "SignIn")} style={styles.footerLink}>
-          <Text style={styles.footerText}>
-            Already have an account? <Text style={styles.footerAccent}>Sign in</Text>
-          </Text>
-        </Pressable>
     </AuthScreen>
   );
 }
@@ -129,7 +124,4 @@ const makeStyles = (c: ThemeColors) =>
     marginBottom: spacing.md,
   },
   errorText: { color: c.error, fontSize: 13, lineHeight: 18, flex: 1 },
-  footerLink: { marginTop: spacing.lg, alignItems: "center" },
-  footerText: { ...typography.body, color: c.gray[500] },
-  footerAccent: { color: c.brand[500], fontWeight: "600" },
 });

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import {
+  Animated,
   FlatList,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -8,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   BellIcon,
   ChevronDownIcon,
@@ -18,7 +21,6 @@ import {
   SlidersIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { Gradient } from "../../../common/ui/Gradient";
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { SideMenu } from "../../../navigation/SideMenu";
@@ -33,6 +35,9 @@ import { AppButton } from "../../../common/ui/AppButton";
 import { BRAND } from "../../../common/brand";
 import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
+import { HomeHero } from "../components/HomeHero";
+import { ShopTile } from "../components/ShopTile";
+import { picture, shortcutPicture, tradePicture } from "../tradePicture";
 import { ShopWithItems, ShopWithItemsSkeleton } from "../components/ShopWithItems";
 import { FeaturedTag } from "../components/FeaturedTag";
 import { Appear } from "../../../common/ui/Appear";
@@ -72,25 +77,8 @@ import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover"
  * being drawn as one row of identical squares, which is most of why the grid
  * never looked like anything.
  */
-const HOME_TRADES = 5;
+const HOME_TRADES = 8;
 
-/**
- * HOW MANY OF THEM ARE BIG. The rest share a row of four with "View all":
- *
- *     BIG_TRADES (2 big tiles)  +  (HOME_TRADES − BIG_TRADES) + 1  =  one row of 4
- */
-const BIG_TRADES = 2;
-
-/**
- * HOW FAR THE PAGE SITS OVER THE HERO.
- *
- * Named rather than written twice, because it is one distance stated in two
- * opposite signs — the header pads itself by this much and the body pulls
- * itself up by the same. Two literals here means a four-point gap or a
- * four-point overlap appears the first time either is adjusted, and on a
- * gradient that reads as a rendering fault rather than as spacing.
- */
-const BODY_LIFT = 20;
 
 /**
  * HOW MANY SHOPS EACH PAGE OF "ALL SHOPS" BRINGS.
@@ -216,6 +204,8 @@ export function CustomerHomeScreen() {
   }, [shops.data]);
   const featured = feed.data?.featured ?? [];
   const focused = useIsFocused();
+  const insets = useSafeAreaInsets();
+  const scrollY = React.useRef(new Animated.Value(0)).current;
   const { fetchNextPage, hasNextPage, isFetchingNextPage } = shops;
   /*
    * `cancelRefetch: false` — the guard alone did not hold. FlatList can call
@@ -248,9 +238,7 @@ export function CustomerHomeScreen() {
     () => (feed.data?.business_types ?? []).filter((t) => t.shops_count > 0).slice(0, HOME_TRADES),
     [feed.data],
   );
-  // The server sorts by shops_count, so the first two are the busiest trades.
-  const bigTrades = withShops.slice(0, BIG_TRADES);
-  const tradeTiles = withShops.slice(BIG_TRADES);
+  const tradeTiles = withShops;
   // Pull asks both again — the sections above AND the list — or a pull
   // refreshes the banners and leaves yesterday's shops under them.
   const { refetch: refetchFeed } = feed;
@@ -270,6 +258,35 @@ export function CustomerHomeScreen() {
 
   const openShop = (shop: PublicShop) => navigation.navigate("MarketShop", { slug: shop.slug });
 
+  /*
+   * THE APP'S OWN SLIDES, while nobody has bought a banner. They advertise
+   * the app and nothing else — never a shop or a price nobody set.
+   */
+  const ownSlides = React.useMemo(
+    () => [
+      {
+        id: "own-near",
+        title: "The shops on your street, at your door",
+        body: "Food, groceries and medicine from shops near you",
+        cta: "Browse shops",
+        emoji: "🛵",
+        art: picture("motor_scooter"),
+        onPress: () => navigation.navigate("ShopList", { title: "All shops" }),
+      },
+      { id: "own-cod", title: "Pay when it arrives", body: "Cash on delivery, every order", cta: "", emoji: "💵", art: picture("dollar_banknote") },
+      {
+        id: "own-offers",
+        title: "Today's offers near you",
+        body: "Prices the shops have cut themselves",
+        cta: "See offers",
+        emoji: "🏷️",
+        art: picture("label"),
+        onPress: seeAll("offers", "Today's offers"),
+      },
+    ],
+    [navigation, seeAll],
+  );
+
   return (
     /*
       ── A WHITE PAGE WITH A BRANDED HEADER, NOT A BRANDED PAGE ──────
@@ -285,7 +302,7 @@ export function CustomerHomeScreen() {
       page's colour and the phone's own icon polarity, and the brand appears
       where it says something — the pin, the filter, the tiles, the prices.
     */
-    <SafeScreen backgroundColor={c.gradient[0]} edges={["top"]}>
+    <SafeScreen backgroundColor={c.bg} edges={[]}>
       {/*
         ALWAYS LIGHT ICONS, in both themes — and this reverses an earlier
         decision rather than forgetting it.
@@ -309,7 +326,7 @@ export function CustomerHomeScreen() {
         were answering the same question four other ways, three of them
         wrongly. See `FocusedStatusBar`.
       */}
-      <FocusedStatusBar background={c.gradient[0]} />
+      <FocusedStatusBar background={c.primary} />
       {/*
         ── ONE LIST, THE WHOLE PAGE ──────────────────────────────────
 
@@ -319,9 +336,11 @@ export function CustomerHomeScreen() {
         shops are its rows — drawn as they come near the screen, recycled as
         they leave it, and the next page asked for before the thumb arrives.
       */}
-      <FlatList
+      <Animated.FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollGround}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         data={allShops}
         keyExtractor={(s) => s.slug}
@@ -445,7 +464,13 @@ export function CustomerHomeScreen() {
           fresh accent — which sits inside the white search field rather than
           on the gradient, because #76c893 on the ramp's own teal is 1.6:1.
         */}
-        <Gradient style={styles.header} direction="vertical">
+        <HomeHero
+          autoPlay={focused}
+          banners={feed.data?.banners ?? []}
+          onBanner={onBanner}
+          ownSlides={ownSlides}
+          header={
+        <View style={styles.header}>
           <View style={styles.headerTop}>
             {/*
               A hamburger, not an avatar.
@@ -531,7 +556,9 @@ export function CustomerHomeScreen() {
               <SlidersIcon size={17} color={c.onAccent} />
             </Touchable>
           </Touchable>
-        </Gradient>
+        </View>
+          }
+        />
 
         {/* ── Light content area ────────────────────────────────── */}
         <View style={styles.body}>
@@ -618,7 +645,9 @@ export function CustomerHomeScreen() {
                       },
                     ]}
                   >
-                    {art ? (
+                    {shortcutPicture(key) ? (
+                      <Image source={shortcutPicture(key)!} style={styles.chipPic} />
+                    ) : art ? (
                       <art.Icon size={15} color={tint(art)} />
                     ) : (
                       <Icon size={15} color={tone === "offer" ? c.onWarm : c.primary} />
@@ -645,59 +674,27 @@ export function CustomerHomeScreen() {
             "koi shop ni arhi"). A trade nobody sells here is one tap away on
             the categories page, where its emptiness is an answer.
           */}
-          <View style={styles.bento}>
-            {bigTrades.map((t) => {
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tiles}>
+            {tradeTiles.map((t) => {
               const art = tradeArt(t.type);
               return (
                 <Touchable
                   key={t.type}
-                  style={[styles.bigTile, { backgroundColor: ground(art) }]}
+                  style={styles.tile}
                   accessibilityRole="button"
                   accessibilityLabel={`${t.label}, ${t.shops_count} ${t.shops_count === 1 ? "shop" : "shops"}`}
                   onPress={() => navigation.navigate("ShopList", { business_type: t.type, title: t.label })}
                 >
-                  <Text style={styles.bigLabel} numberOfLines={2}>
+                  <View style={[styles.tileIcon, { backgroundColor: ground(art) }]}>
+                    <Image source={tradePicture(t.type)} style={styles.tilePic} />
+                  </View>
+                  {/* The label is the SERVER's — "Mart & Grocery", the name every surface uses. */}
+                  <Text style={styles.tileLabel} numberOfLines={2}>
                     {t.label}
                   </Text>
-                  <Text style={styles.bigCount}>
-                    {t.shops_count} {t.shops_count === 1 ? "shop" : "shops"}
-                  </Text>
-                  <View style={styles.bigArt}>
-                    {React.createElement(art.Icon, { size: 44, color: tint(art) })}
-                  </View>
                 </Touchable>
               );
             })}
-          </View>
-          <View style={styles.tiles}>
-            {tradeTiles.map((t) => (
-              <Touchable
-                key={t.type}
-                style={styles.tile}
-                accessibilityRole="button"
-                accessibilityLabel={t.label}
-                onPress={() =>
-                  navigation.navigate("ShopList", {
-                    business_type: t.type,
-                    title: t.label,
-                  })
-                }
-              >
-                <View style={[styles.tileIcon, { backgroundColor: ground(tradeArt(t.type)) }]}>
-                  {React.createElement(tradeArt(t.type).Icon, {
-                    size: 24,
-                    color: tint(tradeArt(t.type)),
-                  })}
-                </View>
-                {/*
-                  The label is the SERVER's — "Mart & Grocery", the name every
-                  other surface in the product uses.
-                */}
-                <Text style={styles.tileLabel} numberOfLines={1}>
-                  {t.label}
-                </Text>
-              </Touchable>
-            ))}
 
             {/*
               ── THE WAY TO THE REST — always drawn ───────────────────────
@@ -713,21 +710,21 @@ export function CustomerHomeScreen() {
               onPress={() => navigation.navigate("Categories")}
             >
               <View style={[styles.tileIcon, styles.tileMore]}>
-                <GridIcon size={22} color={c.textSecondary} />
+                <GridIcon size={30} color={c.textSecondary} />
               </View>
-              <Text style={styles.tileLabel} numberOfLines={1}>
+              <Text style={styles.tileLabel} numberOfLines={2}>
                 View all
               </Text>
             </Touchable>
 
             {feed.isPending &&
-              [0, 1, 2].map((i) => (
+              [0, 1, 2, 3].map((i) => (
                 <View key={i} style={styles.tile}>
-                  <Skeleton width={56} height={56} borderRadius={18} />
-                  <Skeleton width={44} height={10} borderRadius={4} />
+                  <Skeleton width={84} height={84} borderRadius={24} />
+                  <Skeleton width={56} height={10} borderRadius={4} />
                 </View>
               ))}
-          </View>
+          </ScrollView>
 
           {/* Out-of-service notice */}
           {status === "unserved" && (
@@ -738,13 +735,6 @@ export function CustomerHomeScreen() {
             </View>
           )}
 
-          {/*
-            Always rendered, even with nothing sold: the strip carries the
-            app's own placeholders instead, so the home screen does not change
-            shape depending on whether anyone bought an advert.
-          */}
-          {/* Slides on its own only while this screen is the one on top. */}
-          <PromoCarousel banners={feed.data?.banners ?? []} onPress={onBanner} autoPlay={focused} />
 
           {/*
             ── FEATURED: THE PAID ROW, FIRST SHOPS ON THE PAGE ──────────
@@ -775,8 +765,8 @@ export function CustomerHomeScreen() {
                 showsHorizontalScrollIndicator={false}
                 data={featured}
                 keyExtractor={(s) => s.slug}
-                contentContainerStyle={styles.hRow}
-                renderItem={({ item }) => <ShopCard shop={item} onPress={() => openShop(item)} />}
+                contentContainerStyle={styles.tileRow}
+                renderItem={({ item }) => <ShopTile shop={item} onPress={() => openShop(item)} />}
               />
             </>
           ) : null}
@@ -880,6 +870,25 @@ export function CustomerHomeScreen() {
         see `EDGE_WIDTH` in `SideMenu`. The hamburger stays: a gesture nobody
         is told about is not a control, it is a secret.
       */}
+      {/*
+        THE STATUS BAR'S OWN BAND, once the hero has scrolled away.
+
+        The hero paints under the clock while it is on screen; scrolled past
+        it, the page's light content was sliding under white status glyphs
+        and they vanished. This band fades in as the hero leaves.
+      */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.statusBand,
+          {
+            height: insets.top,
+            backgroundColor: c.primary,
+            opacity: scrollY.interpolate({ inputRange: [140, 240], outputRange: [0, 1], extrapolate: "clamp" }),
+          },
+        ]}
+      />
+
       <SideMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -1024,6 +1033,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
   scroll: { flex: 1, backgroundColor: c.bg },
+  statusBand: { position: "absolute", top: 0, left: 0, right: 0 },
   // Outside every service zone: said first, in the deal colour's soft tint
   // with a warning's words — not a red error, nobody did anything wrong.
   outsideCard: {
@@ -1058,13 +1068,10 @@ const makeStyles = (c: ThemeColors) =>
   header: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.xs,
-    // Deeper than it was, because the body is pulled UP over it by
-    // `BODY_LIFT`. Without the extra the search bar ends up under the
-    // rounded corner it is supposed to sit above.
-    paddingBottom: spacing.sm + BODY_LIFT,
+    paddingBottom: spacing.xs,
     gap: spacing.sm,
-    // No bottom hairline. The body's rounded top edge is the boundary now,
-    // and a border under a gradient draws a line the shape does not follow.
+    // No background of its own: it sits on the hero, whose colour follows
+    // the slide in view (see `HomeHero`).
   },
   headerTop: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   /** One shape for both round controls — they were `burger` and `bell`, two
@@ -1093,7 +1100,11 @@ const makeStyles = (c: ThemeColors) =>
     ...typography.tiny,
     // `inkMuted`, which is the muted tier FOR AN INK GROUND — `textMuted` is
     // muted against the page and disappears here. Both exist for this.
-    color: c.inkMuted,
+    // On the hero, whose colour changes with the slide — so the inverse ink,
+    // softened, which reads on every one of them (`inkMuted` vanished on the
+    // orange slide).
+    color: c.textInverse,
+    opacity: 0.75,
     fontWeight: "700",
     letterSpacing: 0.8,
   },
@@ -1146,20 +1157,10 @@ const makeStyles = (c: ThemeColors) =>
   // must NOT be painted — a `bg` here draws a page-coloured strip over the
   // top of the hero on an over-scroll bounce.
   scrollGround: {},
-  /**
-   * THE SHEET THE PAGE LIVES ON.
-   *
-   * Pulled up over the hero by `BODY_LIFT` with its top corners rounded, so
-   * the content reads as a card sliding over the header rather than as the
-   * next band down. It is the move the reference screens make and it is also
-   * what makes a gradient header finish: a flat edge between a ramp and a
-   * flat colour is a seam, a rounded overlap is a transition.
-   */
+  /** The page under the hero: its own ground, continuing below the curve. */
   body: {
     backgroundColor: c.bg,
-    marginTop: -BODY_LIFT,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    // The hero ends in its own curve now; the page continues under it.
     // Clipped, or the first chip row's shadow-free card corners poke out
     // past the rounding.
     overflow: "hidden",
@@ -1198,40 +1199,24 @@ const makeStyles = (c: ThemeColors) =>
   },
   chipLabel: { ...typography.label, color: c.text, fontSize: 13, lineHeight: 18 },
 
-  bento: { flexDirection: "row", gap: spacing.ms, paddingHorizontal: spacing.md, marginTop: spacing.md },
-  // Half the row each, tinted in the trade's own ground, the name top-left and
-  // its picture bottom-right — the shape of foodpanda's vertical tiles.
-  bigTile: {
-    flex: 1,
-    height: 112,
-    borderRadius: radius.md,
-    padding: spacing.ms,
-    overflow: "hidden",
-  },
-  bigLabel: { ...typography.name, color: c.text, fontWeight: "700", maxWidth: "75%" },
-  bigCount: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
-  bigArt: { position: "absolute", right: spacing.sm, bottom: spacing.sm },
-  tiles: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: spacing.sm,
-    marginTop: spacing.md,
-  },
-  // A quarter of the row, so a fifth tile starts a second row directly under
-  // the first — the reason both kinds of shortcut share one container.
-  tile: { width: "25%", alignItems: "center", gap: 6, marginBottom: spacing.md },
-  // A tinted tile, not an outlined white box. The outline made identical
-  // frames and left the glyph to do all the work; the tint makes them read as
+  // A scrolling row of trades — foodpanda's verticals: a big tinted tile,
+  // its picture large, the name under it in up to two lines.
+  tiles: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  tile: { width: 84, alignItems: "center", gap: 6 },
+  // A tinted tile, not an outlined white box — the tint makes them read as
   // one set of buttons before anyone reads a label.
   tileIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 84,
+    height: 84,
+    borderRadius: 24,
     backgroundColor: c.brand[100],
     alignItems: "center",
     justifyContent: "center",
   },
-  tileLabel: { ...typography.tiny, color: c.textSecondary, fontWeight: "600" },
+  tilePic: { width: 58, height: 58 },
+  chipPic: { width: 22, height: 22 },
+  tileLabel: { ...typography.caption, color: c.text, fontSize: 13, lineHeight: 17, textAlign: "center" },
+  tileRow: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingVertical: 2 },
   /**
    * The "view all" tile is deliberately NOT brand-tinted.
    *

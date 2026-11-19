@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -104,6 +104,7 @@ export function CheckoutScreen() {
   const pin = useLocationStore();
   const shop = useMarketShop(slug, { lat: pin.lat ?? undefined, lng: pin.lng ?? undefined });
   const place = usePlaceOrder();
+  const scrollRef = useRef<ScrollView>(null);
 
   const addresses = useQuery({
     queryKey: ["addresses"],
@@ -325,15 +326,37 @@ export function CheckoutScreen() {
         unable to reach it costs the order.
       */}
       <KeyboardScreen
+        scrollRef={scrollRef}
         contentStyle={styles.content}
         footer={
           <View style={styles.bar}>
+            {/*
+              The total, said before the button — what is in it, and a way
+              down to the bill — on a card rising off the page, as the
+              reference checkout ends.
+            */}
+            <View style={styles.barTotal}>
+              <View>
+                <Text style={styles.barLabel}>
+                  Total <Text style={styles.barHint}>(incl. fees and tax)</Text>
+                </Text>
+                <Text
+                  style={styles.barLink}
+                  accessibilityRole="link"
+                  onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+                >
+                  See summary
+                </Text>
+              </View>
+              <Text style={styles.barValue}>{priced ? money(priced.total) : "…"}</Text>
+            </View>
             <AppButton
               title={place.isPending ? "Placing order…" : priced ? `Place order · ${money(priced.total)}` : refused ? "Place order" : "Working out the total…"}
               onPress={submit}
               loading={place.isPending}
               disabled={lines.length === 0 || !deliveryReady || belowMinimum || !priced}
               size="lg"
+              style={styles.barButton}
             />
           </View>
         }
@@ -626,11 +649,25 @@ const makeStyles = (c: ThemeColors) =>
   /** The pinned action bar — see `KeyboardScreen`'s `footer`. */
   bar: {
     backgroundColor: c.surface,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.ms,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 10,
   },
+  barTotal: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  barLabel: { ...typography.name, color: c.text, fontWeight: "700" },
+  barHint: { ...typography.caption, color: c.textSecondary, fontWeight: "400" },
+  barLink: { ...typography.small, color: c.text, textDecorationLine: "underline", marginTop: 2 },
+  barValue: { ...typography.total, color: c.text },
+  barButton: { borderRadius: 26 },
 
   // The first row of the summary card: what is in it, and the way back to change it.
   basket: {

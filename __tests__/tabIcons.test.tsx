@@ -234,28 +234,29 @@ describe("the bar wires the two states up", () => {
     );
   });
 
-  it("keeps the basket solid whatever tab you are on", () => {
-    // It is a button, not a tab marker — an outline basket that fills only
-    // when you are already looking at the basket is backwards.
-    const cart = src.slice(src.indexOf("if (isCart)"), src.indexOf("if (!item)"));
-    expect(cart).toMatch(/<CartIcon[^>]*\bbold\b/);
+  /*
+   * THE BAR IS A PILL NOW (foodpanda's shape, asked for by name), and the
+   * basket is a tab like the others — no raised disc that needed a halo to
+   * read as a button. The rules that survive the redesign:
+   */
+  it("shows the tab you are on without changing anything's size", () => {
+    // THE RULE THREE VERSIONS OF THIS BAR COST: the selected state is a fill
+    // and a weight, never a width or a height.
+    expect(src).toMatch(/styles\.pill, focused && \{ backgroundColor: c\.primarySoft \}/);
+    expect(src).not.toMatch(/(width|height|size): focused \?/);
   });
 
-  it("shows the basket as selected without changing its size", () => {
-    // THE RULE THREE VERSIONS OF THIS BAR COST: nothing in it may change
-    // size. The selected state is the halo's opacity and nothing else.
-    const cart = src.slice(src.indexOf("if (isCart)"), src.indexOf("if (!item)"));
-    expect(cart).toMatch(/opacity: focused \? [\d.]+ : [\d.]+/);
-    expect(cart).not.toMatch(/(width|height): focused \?/);
-  });
-
-  it("still counts the basket against the disc, not the slot", () => {
-    // Anchored to the slot, the badge measured from a fifth of the bar's width
-    // away from a 44-point button and floated in open space beside it.
+  it("counts the basket against its own icon, not the slot", () => {
+    // Anchored to the slot, a badge measures from a fifth of the bar's width
+    // away and floats in open space beside the thing it is counting.
     const styles = src.slice(src.indexOf("const styles = StyleSheet.create"));
     const badge = styles.slice(styles.indexOf("badge: {"));
     expect(badge).toMatch(/position: "absolute"/);
-    expect(src).toMatch(/<View style=\{styles\.discWrap\}>[\s\S]*?styles\.badge/);
+    expect(src).toMatch(/<View style=\{styles\.iconWrap\}>[\s\S]*?styles\.badge/);
+  });
+
+  it("gives the basket a tab of its own, named for what it is", () => {
+    expect(src).toMatch(/CartTab: \{ route: "CartTab", label: "Cart", icon: CartIcon \}/);
   });
 
   it("names the first tab after the screen it opens", () => {

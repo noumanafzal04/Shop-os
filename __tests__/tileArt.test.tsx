@@ -223,3 +223,40 @@ describe("no asset pipeline was added for this", () => {
     expect(icons).toMatch(/from "react-native-svg"/);
   });
 });
+
+describe("the 3D pictures the tiles wear", () => {
+  /*
+   * "foodpanda type images ni add kr skty?" — yes, on the two conditions the
+   * test above was written for: the licence allows shipping them inside the
+   * app, and they cost nothing to load. Fluent Emoji (MIT), bundled small.
+   */
+  const dir = path.join(PROJECT_ROOT, "src/assets/art");
+
+  it("ships the licence beside them", () => {
+    const licence = fs.readFileSync(path.join(dir, "LICENSE.md"), "utf8");
+    expect(licence).toMatch(/Fluent Emoji/);
+    expect(licence).toMatch(/MIT License/);
+  });
+
+  it("keeps every picture small and local", () => {
+    // The real module: the shared shim types only what the other tests need.
+    const nodeFs = require("fs") as { readdirSync(p: string): string[]; statSync(p: string): { size: number } };
+    const pngs = nodeFs.readdirSync(dir).filter((f) => f.endsWith(".png"));
+    expect(pngs.length).toBeGreaterThanOrEqual(15);
+    for (const f of pngs) {
+      expect([f, nodeFs.statSync(path.join(dir, f)).size < 40_000]).toEqual([f, true]);
+    }
+    const map = fs.readFileSync(path.join(PROJECT_ROOT, "src/modules/marketplace/tradePicture.ts"), "utf8");
+    expect(map).not.toMatch(/https?:\/\//);
+  });
+
+  it("names a picture for every trade the tiles know", () => {
+    const art = fs.readFileSync(path.join(PROJECT_ROOT, "src/modules/marketplace/tileArt.tsx"), "utf8");
+    const map = fs.readFileSync(path.join(PROJECT_ROOT, "src/modules/marketplace/tradePicture.ts"), "utf8");
+    const trades = [...art.slice(art.indexOf("TRADE_HUE"), art.indexOf("SHORTCUT_HUE")).matchAll(/^\s+(\w+): "/gm)].map((m) => m[1]);
+    expect(trades.length).toBeGreaterThan(10);
+    for (const t of trades) {
+      expect([t, new RegExp(`\\b${t}: "`).test(map)]).toEqual([t, true]);
+    }
+  });
+});

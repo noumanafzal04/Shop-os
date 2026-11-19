@@ -19,7 +19,6 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   BagIcon,
-  ClockIcon,
   HeartIcon,
   MapPinIcon,
   MotorcycleIcon,
@@ -597,7 +596,12 @@ export function MarketShopScreen() {
     () => (
     <>
       {/* ── Hero ──────────────────────────────────────────────────── */}
-      <View style={styles.hero}>
+      {/*
+        A cover only when the shop HAS one. Without it this was 200 points of
+        flat tint above the shop's name — the reference shows a plain header
+        then: the round buttons, the logo and the name, and the menu sooner.
+      */}
+      <View style={[styles.hero, !hero && styles.heroBare]}>
         {/*
           The SAME derived cover as the card this shop was tapped from, so
           opening a shop does not change what it looks like. It used to be a
@@ -612,15 +616,17 @@ export function MarketShopScreen() {
           worth getting right. It also gains the thing a bare Image has never
           had here — an answer for a URL that 404s.
         */}
-        <SmartImage
-          uri={hero ?? null}
-          // No letter on a cover with no picture: the logo below already
-          // carries it, and the same initial twice, a hand apart, is an echo.
-          fallback=""
-          fallbackBackground={cover.bg}
-          fallbackColor={cover.fg}
-          style={styles.heroImg}
-        />
+        {!!hero && (
+          <SmartImage
+            uri={hero ?? null}
+            // No letter on a cover with no picture: the logo below already
+            // carries it, and the same initial twice, a hand apart, is an echo.
+            fallback=""
+            fallbackBackground={cover.bg}
+            fallbackColor={cover.fg}
+            style={styles.heroImg}
+          />
+        )}
         <View style={styles.heroBar}>
           <Pressable style={styles.round} onPress={() => navigation.goBack()} hitSlop={8}>
             <ArrowLeftIcon size={20} color={c.text} />
@@ -663,7 +669,7 @@ export function MarketShopScreen() {
               the name, and the facts under it, all starting at the same edge
               as the menu rows they introduce.
             */}
-            <View style={[styles.logo, { backgroundColor: cover.bg }]}>
+            <View style={[styles.logo, { backgroundColor: cover.bg }, !hero && styles.logoBare]}>
               <SmartImage
                 uri={shopAvatar(shop.data)}
                 resizeMode="contain"
@@ -742,25 +748,24 @@ export function MarketShopScreen() {
           <View style={styles.infoCard}>
             {fulfillment === "delivery" && hasDelivery ? (
               <>
-                <View style={styles.infoRow}>
-                  <MotorcycleIcon size={16} color={c.brand[600]} />
-                  <Text style={styles.infoText}>
-                    {prep !== null ? `Delivery ${prep}–${prep + 20} min  ·  ` : "Delivery  ·  "}
-                    {Number(shop.data.delivery_fee) > 0 ? `${money(shop.data.delivery_fee ?? 0)} fee` : "Free delivery"}
-                  </Text>
-                </View>
+                {/*
+                  The reference's two lines: WHEN in bold, then what it
+                  costs and the least you can order, on one quiet line.
+                */}
+                <Text style={styles.infoLead}>
+                  {prep !== null ? `Delivery in ${prep}–${prep + 20} min` : "Delivery"}
+                </Text>
+                <Text style={styles.infoDim}>
+                  {Number(shop.data.delivery_fee) > 0 ? `${money(shop.data.delivery_fee ?? 0)} delivery` : "Free delivery"}
+                  {shop.data.min_order_amount != null ? `  ·  Min. order ${money(shop.data.min_order_amount)}` : ""}
+                </Text>
                 {shop.data.delivery_radius_km != null && (
                   <View style={styles.infoRow}>
                     <MapPinIcon size={16} color={c.gray[400]} />
                     <Text style={styles.infoDim}>Delivers within {shop.data.delivery_radius_km} km</Text>
                   </View>
                 )}
-                {shop.data.min_order_amount != null && (
-                  <View style={styles.infoRow}>
-                    <BagIcon size={16} color={c.gray[400]} />
-                    <Text style={styles.infoDim}>Min. order {money(shop.data.min_order_amount)}</Text>
-                  </View>
-                )}
+
                 {shop.data.free_delivery_threshold != null && (
                   <View style={styles.infoRow}>
                     <MotorcycleIcon size={16} color={c.brand[400]} />
@@ -776,10 +781,7 @@ export function MarketShopScreen() {
                 </Text>
               </View>
             )}
-            <View style={styles.infoRow}>
-              <ClockIcon size={16} color={c.gray[400]} />
-              <Text style={styles.infoDim}>Cash on delivery</Text>
-            </View>
+
           </View>
 
           {closed && (
@@ -1432,6 +1434,7 @@ const makeStyles = (c: ThemeColors) =>
 
   // Hero
   hero: { height: 200, backgroundColor: c.brand[100] },
+  heroBare: { height: 60, backgroundColor: c.bg },
   heroImg: { width: "100%", height: "100%" },
   heroFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
   heroInitial: { fontSize: 72, fontWeight: "800", letterSpacing: -2 },
@@ -1474,6 +1477,7 @@ const makeStyles = (c: ThemeColors) =>
     borderColor: c.surface,
   },
   logoImg: { width: "100%", height: "100%" },
+  logoBare: { marginTop: 0 },
   identityText: { flex: 1, gap: 4 },
   shopName: { ...typography.title, color: c.text },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
@@ -1527,6 +1531,7 @@ const makeStyles = (c: ThemeColors) =>
   },
   infoRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   infoText: { ...typography.label, color: c.text, fontSize: 14, lineHeight: 18 },
+  infoLead: { ...typography.name, color: c.text, fontWeight: "700" },
   infoDim: { ...typography.small, color: c.gray[500], fontSize: 13, lineHeight: 18 },
 
   warnStrip: {
