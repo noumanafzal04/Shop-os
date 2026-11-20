@@ -6,7 +6,7 @@ import {
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { cardPicture, shopAvatar, shopInitial, useShopCover } from "../shopCover";
+import { cardPicture, pictureDish, shopAvatar, shopInitial, useShopCover } from "../shopCover";
 import { ShopFactsRow } from "./ShopFactsRow";
 import { RatingChip } from "./RatingChip";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -85,7 +85,9 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
 
   const closed = shop.is_open_now === false;
   const cover = coverFor(shop.slug);
-  const items = shop.preview_products ?? [];
+  // The dish on the big picture is not repeated as the strip's first tile.
+  const heroDish = pictureDish(shop);
+  const items = (shop.preview_products ?? []).filter((p) => p.id !== heroDish?.id);
   /**
    * Three is the number the strip needs to make sense: 3 × 132 plus the gaps
    * and the See-all tile is already wider than any phone, so it genuinely
@@ -102,7 +104,12 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
         picture when there is one, so the words below stay readable.
       */}
       {picture && (
-        <Touchable accessibilityRole="button" accessibilityLabel={`Open ${shop.business_name}`} onPress={onOpen} scaleTo={0.99}>
+        <Touchable
+          accessibilityRole="button"
+          accessibilityLabel={heroDish ? `${heroDish.name} at ${shop.business_name}` : `Open ${shop.business_name}`}
+          onPress={heroDish ? () => onItem(heroDish.id) : onOpen}
+          scaleTo={0.99}
+        >
           <View style={styles.hero}>
             <SmartImage uri={picture} fallbackBackground={cover.bg} style={styles.heroImg} />
             {closed && (

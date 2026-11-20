@@ -162,3 +162,26 @@ describe("cardPicture — the photo across the top of a home card", () => {
     expect(card).toMatch(/<SmartImage uri=\{picture\}/);
   });
 });
+
+describe("pictureDish — the big picture's dish is not shown twice", () => {
+  const { pictureDish } = jest.requireActual("../src/modules/marketplace/shopCover");
+  const dishes = [
+    { id: "a", image: null },
+    { id: "b", image: "karahi.jpg" },
+    { id: "c", image: "naan.jpg" },
+  ];
+
+  it("names the dish the picture came from, when there is no cover", () => {
+    expect(pictureDish({ cover_url: null, preview_products: dishes })?.id).toBe("b");
+  });
+
+  it("names none when the cover is the picture", () => {
+    expect(pictureDish({ cover_url: "c.jpg", preview_products: dishes })).toBeNull();
+  });
+
+  it("the card leaves that dish out of its strip and opens it from the picture", () => {
+    const card = codeOnly(read("src/modules/marketplace/components/ShopWithItems.tsx"));
+    expect(card).toMatch(/\.filter\(\(p\) => p\.id !== heroDish\?\.id\)/);
+    expect(card).toMatch(/onPress=\{heroDish \? \(\) => onItem\(heroDish\.id\) : onOpen\}/);
+  });
+});

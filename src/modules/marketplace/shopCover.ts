@@ -257,3 +257,16 @@ export function cardPicture(shop: {
   if (shop.cover_url) return shop.cover_url;
   return shop.preview_products?.find((p) => !!p.image)?.image ?? null;
 }
+
+/**
+ * The dish the big picture shows, when it is a dish (no cover) — so the strip
+ * below does not open on the same photograph twice, and a tap on the big
+ * picture opens that dish.
+ */
+export function pictureDish<T extends { id: string; image?: string | null }>(shop: {
+  cover_url?: string | null;
+  preview_products?: T[] | null;
+}): T | null {
+  if (shop.cover_url) return null;
+  return shop.preview_products?.find((p) => !!p.image) ?? null;
+}
