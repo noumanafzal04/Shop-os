@@ -1299,3 +1299,12 @@ span.flatpickr-weekday,
   background-color: rgb(255 255 255 / 0.14);
   color: #fff;
 }
+
+/* Service zones: drawing mode. On the WRAPPER, never on Leaflet's own div —
+   React rewriting that div's class list wiped `leaflet-container` and the map
+   went blank (AdminServiceZonesPage). */
+.zone-drawing .leaflet-container,
+.zone-drawing .leaflet-grab,
+.zone-drawing .leaflet-interactive {
+  cursor: crosshair;
+}

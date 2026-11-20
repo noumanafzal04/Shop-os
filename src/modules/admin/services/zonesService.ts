@@ -8,6 +8,8 @@ export interface ZoneShop {
   latitude: number;
   longitude: number;
   in_service_zone: boolean;
+  /** The shop's city — the map shows only the chosen city's shops. */
+  city_id?: string | null;
 }
 
 export interface ZonesAnswer {

@@ -15,12 +15,14 @@ import { ROW_ACTION, ROW_ACTION_DANGER } from "../../../components/ui/table/rowA
 import { ListEmpty } from "../../../common/ui/ListEmpty";
 import { ApiError } from "../../../common/types/api";
 import { CityPicker } from "../../../common/geo/CityPicker";
+import { useCities, type PlaceCity } from "../../../common/geo/places";
 import { getGeocoder, tileLayer, type GeoPlace } from "../../../common/maps/geocoding";
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "../../../config/maps";
 import { Card, Empty, PageHeader } from "../components/kit";
 import { zonesService, type ZoneShop } from "../services/zonesService";
 import {
   clampRadius, describeZone, distanceLabel, draftFromZone, newCircleDraft, newShapeDraft, outsideWarning, whyNotSave, zonePayload,
+  zonesOfCity,
   type Corner, type ServiceZone, type ZoneDraft,
 } from "../zoneDraft";
 
@@ -32,6 +34,9 @@ const MapGlyph = () => (
 );
 
 const ZONE = { active: "#03444a", inactive: "#8a949b", draft: "#0f8f93" };
+
+/** Fixed: Leaflet owns this element's class list after mount (see the map below). */
+const MAP_CLASS = "h-[28rem] w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800";
 
 const dot = (label: string | number, colour: string) =>
   L.divIcon({
@@ -46,11 +51,14 @@ const geocoder = getGeocoder();
 /**
  * SERVICE ZONES — WHERE THE PLATFORM SERVES.
  *
- * The admin draws circles (a centre and a radius) or shapes (corners clicked
- * one by one — in a small town, along the main roads rather than round a
- * district of lanes). A shop is listed online only inside an active zone; a
- * delivery goes only to a pin inside one. Nothing is fenced until a zone is
- * active, and every save says how many online shops it leaves outside.
+ * CITY FIRST — "pehle city choose kry, uska map sy geo fence add kry ya
+ * circle". The admin picks a city, the map flies to it, and only then draws
+ * circles (a centre and a radius) or shapes (corners clicked one by one — in a
+ * small town, along the main roads rather than round a district of lanes).
+ * A zone fences ITS city only: that city's shops are listed online only inside
+ * one of its active zones, and its deliveries go only to a pin inside one. A
+ * city with no zone is not fenced. Every save says how many online shops it
+ * leaves outside.
  */
 export default function AdminServiceZonesPage() {
   const queryClient = useQueryClient();
@@ -61,7 +69,25 @@ export default function AdminServiceZonesPage() {
     queryKey: ["admin", "service-zones"],
     queryFn: async () => (await zonesService.list()).data,
   });
-  const rows = useMemo(() => zones.data?.zones ?? [], [zones.data]);
+  // Step one: which city. Everything below — the map, the list, the shop
+  // dots, a new zone — is that city's.
+  const [cityId, setCityId] = useState("");
+  const [city, setCity] = useState<PlaceCity | null>(null);
+  const cities = useCities();
+  /**
+   * TWO TABS — "service zone list separate honi chahiye, create/add separate".
+   * The list (filter by city, switch on/off, edit, remove) and the drawing
+   * board (city first, then the map) are separate tabs. The map stays mounted
+   * while hidden — Leaflet owns its div — and is resized when shown.
+   */
+  const [tab, setTab] = useState<"list" | "draw">("list");
+  const allRows = useMemo(() => zones.data?.zones ?? [], [zones.data]);
+  const rows = useMemo(() => (cityId ? zonesOfCity(allRows, cityId) : allRows), [allRows, cityId]);
+  const cityShops = useMemo(
+    () => ((zones.data?.shops ?? []) as ZoneShop[]).filter((s) => !cityId || s.city_id === cityId),
+    [zones.data, cityId],
+  );
+  const cityFenced = rows.some((z) => z.is_active);
 
   const [draft, setDraft] = useState<ZoneDraft | null>(null);
   const draftRef = useRef<ZoneDraft | null>(null);
@@ -78,6 +104,7 @@ export default function AdminServiceZonesPage() {
     mutationFn: (d: ZoneDraft) => (d.id ? zonesService.update(d.id, zonePayload(d)) : zonesService.create(zonePayload(d))),
     onSuccess: (_res, d) => {
       setDraft(null);
+      setTab("list");
       refreshAfter(`Zone "${d.name.trim()}" saved`);
     },
     onError: failed("Couldn't save the zone."),
@@ -150,6 +177,7 @@ export default function AdminServiceZonesPage() {
       shape.on("click", (e) => {
         L.DomEvent.stopPropagation(e);
         if (!draftRef.current) setDraft(draftFromZone(z));
+        setTab("draw");
       });
       shape.addTo(layer);
       bounds.extend(shape.getBounds());
@@ -166,9 +194,9 @@ export default function AdminServiceZonesPage() {
     const layer = shopsLayer.current;
     if (!layer) return;
     layer.clearLayers();
-    const fenced = (zones.data?.summary.zones_active ?? 0) > 0;
+    const fenced = cityId ? cityFenced : (zones.data?.summary.zones_active ?? 0) > 0;
     const pins = L.latLngBounds([]);
-    for (const s of (zones.data?.shops ?? []) as ZoneShop[]) {
+    for (const s of cityShops) {
       pins.extend([Number(s.latitude), Number(s.longitude)]);
       const colour = !fenced ? "#5f6b73" : s.in_service_zone ? "#157f3c" : "#b42318";
       L.circleMarker([Number(s.latitude), Number(s.longitude)], { radius: 5, color: "#fff", weight: 1.5, fillColor: colour, fillOpacity: 1 })
@@ -180,7 +208,7 @@ export default function AdminServiceZonesPage() {
       mapRef.current?.fitBounds(pins.pad(0.3), { maxZoom: 15 });
       fitted.current = true;
     }
-  }, [zones.data]);
+  }, [zones.data, cityShops, cityFenced, cityId]);
 
   // The zone being drawn, with handles to drag.
   useEffect(() => {
@@ -220,6 +248,41 @@ export default function AdminServiceZonesPage() {
       });
     }
   }, [draft]);
+
+  // The chosen city: fly there, and stop the first-load framing from pulling back.
+  const chooseCity = (id: string, picked: PlaceCity | null) => {
+    setCityId(id);
+    setCity(picked);
+    setDraft(null);
+    fitted.current = true;
+    if (picked?.latitude != null && picked?.longitude != null) {
+      mapRef.current?.setView([Number(picked.latitude), Number(picked.longitude)], 12);
+    }
+  };
+
+  // The drawing tab was hidden (zero size) — Leaflet must measure again.
+  useEffect(() => {
+    if (tab === "draw") setTimeout(() => mapRef.current?.invalidateSize(), 0);
+  }, [tab]);
+
+  const startDrawing = () => {
+    setDraft(null);
+    setTab("draw");
+  };
+
+  /** Edit from the list: its city becomes the city, the map goes to the zone. */
+  const editZone = (z: ServiceZone) => {
+    const zc = (cities.data ?? []).find((c) => c.id === z.city_id) ?? null;
+    setCityId(z.city_id ?? "");
+    setCity(zc);
+    fitted.current = true;
+    setTab("draw");
+    setDraft(draftFromZone(z));
+    const at = z.kind === "circle" && z.center_lat !== null && z.center_lng !== null
+      ? [Number(z.center_lat), Number(z.center_lng)] as L.LatLngTuple
+      : z.points?.[0] ? [Number(z.points[0][0]), Number(z.points[0][1])] as L.LatLngTuple : null;
+    if (at) setTimeout(() => mapRef.current?.setView(at, 14), 0);
+  };
 
   // ── Search a place ─────────────────────────────────────────────────
   const [query, setQuery] = useState("");
@@ -267,8 +330,37 @@ export default function AdminServiceZonesPage() {
       )}
       {warning && <div className="mb-4"><Alert variant="warning" title="Shops outside the map" message={warning} /></div>}
 
+      <div className="mb-4 grid gap-3 sm:grid-cols-3" data-testid="zone-city">
+        <CityPicker value={cityId} onChange={chooseCity} placeholder={tab === "draw" ? "Choose the city first" : "All cities"} />
+      </div>
+
+      <div role="tablist" aria-label="Service zones" className="mb-5 flex gap-1 rounded-xl bg-gray-100 p-1 sm:max-w-md dark:bg-white/[0.06]">
+        {([["list", `Zones (${rows.length})`], ["draw", draft?.id ? "Edit zone" : "Draw a zone"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => (key === "draw" ? setTab("draw") : (setDraft(null), setTab("list")))}
+            className={`flex flex-1 items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition ${
+              tab === key ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white" : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className={tab === "draw" ? undefined : "hidden"} data-testid="zone-draw-tab">
       <Card className="mb-5">
         <div className="space-y-3 p-4 sm:p-5">
+          {cityId && (
+            <p className="text-theme-sm text-gray-600 dark:text-gray-300" data-testid="zone-city-state">
+              {cityFenced
+                ? `${city?.name ?? "This city"} is fenced: its shops show and deliver only inside its active zones.`
+                : `${city?.name ?? "This city"} has no active zone yet — all its shops show and deliver everywhere.`}
+            </p>
+          )}
           <div className="relative">
             <Input placeholder="Search for a place or address" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search for a place or address" />
             {results.length > 0 && (
@@ -287,8 +379,8 @@ export default function AdminServiceZonesPage() {
           <div className="flex flex-wrap items-center gap-2">
             {!draft ? (
               <>
-                <Button size="sm" variant="outline" onClick={() => setDraft(newCircleDraft())}>+ Add circle zone</Button>
-                <Button size="sm" variant="outline" onClick={() => setDraft(newShapeDraft())}>+ Add shape zone</Button>
+                <Button size="sm" disabled={!cityId} onClick={() => setDraft(newCircleDraft(cityId))}>+ Add circle zone</Button>
+                <Button size="sm" disabled={!cityId} onClick={() => setDraft(newShapeDraft(cityId))}>+ Add shape zone</Button>
               </>
             ) : (
               <>
@@ -297,13 +389,15 @@ export default function AdminServiceZonesPage() {
                     Undo point
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>Cancel</Button>
+                <Button size="sm" variant="outline" onClick={() => setDraft(null)}>Cancel</Button>
               </>
             )}
           </div>
           <p className="text-theme-sm text-gray-500 dark:text-gray-400" data-testid="zone-hint">
-            {!draft
-              ? "Click a zone on the map to change it. In a small town, a shape traced along the main roads keeps riders off lanes they cannot reach."
+            {!cityId
+              ? "Choose the city first — the map goes there, and the zones you draw fence that city only."
+              : !draft
+              ? `Drawing for ${city?.name ?? "this city"}. Click a zone on the map to change it. In a small town, a shape traced along the main roads keeps riders off lanes they cannot reach.`
               : draft.kind === "circle"
                 ? draft.center
                   ? "Drag the centre to move it, or the ↔ handle to change the radius — or type it below."
@@ -311,7 +405,16 @@ export default function AdminServiceZonesPage() {
                 : `Click the map to place each corner (${draft.points.length} so far). Add at least 3, then save. Drag a numbered corner to adjust it.`}
           </p>
 
-          <div ref={containerRef} data-testid="zone-map" className={`h-[28rem] w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 ${draft ? "cursor-crosshair" : ""}`} />
+          {/*
+            THE MAP'S OWN DIV NEVER RE-RENDERS ITS CLASS. Leaflet writes its
+            classes (leaflet-container, leaflet-touch…) onto this element; the
+            crosshair used to be toggled in its className, so pressing "Add
+            circle" made React REPLACE them and the map went blank white. The
+            crosshair lives on the wrapper instead.
+          */}
+          <div className={draft ? "zone-drawing" : undefined} data-testid="zone-map-wrap">
+            <div ref={containerRef} data-testid="zone-map" className={MAP_CLASS} />
+          </div>
 
           {draft && (
             <div className="grid gap-4 rounded-xl border border-brand-200 bg-brand-25 p-4 sm:grid-cols-2 dark:border-brand-500/30 dark:bg-brand-500/5" data-testid="zone-form">
@@ -320,7 +423,10 @@ export default function AdminServiceZonesPage() {
                 <Input id="zone-name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Gulberg, or Main Bazaar road" />
               </div>
               <div>
-                <CityPicker value={draft.city_id ?? ""} onChange={(id) => setDraft({ ...draft, city_id: id || null })} placeholder="Which city (optional)" />
+                <Label>City</Label>
+                <p className="py-2.5 text-theme-sm font-medium text-gray-800 dark:text-white/90" data-testid="zone-form-city">
+                  {draft.city_id === cityId ? city?.name ?? "—" : allRows.find((z) => z.id === draft.id)?.city?.name ?? "All cities (older zone)"}
+                </p>
               </div>
               {draft.kind === "circle" && (
                 <div>
@@ -349,7 +455,13 @@ export default function AdminServiceZonesPage() {
           )}
         </div>
       </Card>
+      </div>
 
+      {tab === "list" && (
+      <>
+      <div className="mb-3 flex justify-end">
+        <Button size="sm" onClick={startDrawing}>+ Add a zone</Button>
+      </div>
       {zones.isLoading ? (
         <div className="h-24 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-800" />
       ) : rows.length === 0 ? (
@@ -357,8 +469,8 @@ export default function AdminServiceZonesPage() {
           <Card>
             <Empty
               icon={<MapGlyph />}
-              title="No zones yet — every shop and every address is served"
-              hint="Draw the first circle or shape where the platform should serve. Shops outside it stop showing to customers the moment it is switched on."
+              title={cityId ? `No zones in ${city?.name ?? "this city"} yet — every shop and address in it is served` : "No zones yet — every shop and every address is served"}
+              hint={cityId ? "Draw the first circle or shape for this city. Its shops outside it stop showing to customers the moment it is switched on." : "Choose a city above, then draw the first circle or shape where it should be served."}
             />
           </Card>
         </ListEmpty>
@@ -375,7 +487,7 @@ export default function AdminServiceZonesPage() {
                   </p>
                 </div>
                 <Switch label={z.is_active ? "On" : "Off"} checked={z.is_active} disabled={toggle.isPending} onChange={() => toggle.mutate(z)} />
-                <button type="button" className={ROW_ACTION} disabled={draft !== null} onClick={() => setDraft(draftFromZone(z))}>Edit</button>
+                <button type="button" className={ROW_ACTION} onClick={() => editZone(z)}>Edit</button>
                 <button
                   type="button"
                   className={ROW_ACTION_DANGER}
@@ -389,6 +501,8 @@ export default function AdminServiceZonesPage() {
             ))}
           </ul>
         </Card>
+      )}
+      </>
       )}
     </>
   );

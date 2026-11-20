@@ -2,27 +2,45 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampRadius, describeZone, distanceLabel, draftFromZone, newCircleDraft, newShapeDraft, outsideWarning, whyNotSave, zonePayload,
-  type ServiceZone,
+  zonesOfCity, type ServiceZone,
 } from "./zoneDraft";
+
+const LHR = "c-lahore";
+
+describe("a zone is drawn for ONE city — the city is chosen first", () => {
+  it("a new zone is born in the chosen city, and none can be saved without one", () => {
+    expect(newCircleDraft(LHR).city_id).toBe(LHR);
+    expect(newShapeDraft(LHR).city_id).toBe(LHR);
+    expect(whyNotSave({ ...newShapeDraft(null), name: "Road", points: [[1, 2], [3, 4], [5, 6]] })).toMatch(/city first/);
+  });
+
+  it("the list for a city holds its zones and the older city-less ones, not another city's", () => {
+    const z = (id: string, city_id: string | null) => ({ id, city_id });
+    const all = [z("a", LHR), z("b", "c-abbottabad"), z("c", null)];
+    expect(zonesOfCity(all, LHR).map((x) => x.id)).toEqual(["a", "c"]);
+    expect(zonesOfCity(all, "").map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+});
 
 describe("a service zone being drawn", () => {
   it("refuses what the server refuses, in its words, before the button", () => {
-    expect(whyNotSave(newCircleDraft())).toMatch(/name/);
-    expect(whyNotSave({ ...newCircleDraft(), name: "Gulberg" })).toMatch(/centre/);
-    expect(whyNotSave({ ...newCircleDraft({ lat: 31.52, lng: 74.35 }), name: "Gulberg", radius_m: 20 })).toBe("A circle runs from 50 metres to 100 km.");
-    expect(whyNotSave({ ...newCircleDraft({ lat: 31.52, lng: 74.35 }), name: "Gulberg" })).toBeNull();
+    expect(whyNotSave(newCircleDraft(null))).toMatch(/city first/);
+    expect(whyNotSave(newCircleDraft(LHR))).toMatch(/name/);
+    expect(whyNotSave({ ...newCircleDraft(LHR), name: "Gulberg" })).toMatch(/centre/);
+    expect(whyNotSave({ ...newCircleDraft(LHR, { lat: 31.52, lng: 74.35 }), name: "Gulberg", radius_m: 20 })).toBe("A circle runs from 50 metres to 100 km.");
+    expect(whyNotSave({ ...newCircleDraft(LHR, { lat: 31.52, lng: 74.35 }), name: "Gulberg" })).toBeNull();
 
-    const road = { ...newShapeDraft(), name: "Main Bazaar road", points: [[31.52, 74.35], [31.53, 74.35]] as [number, number][] };
+    const road = { ...newShapeDraft(LHR), name: "Main Bazaar road", points: [[31.52, 74.35], [31.53, 74.35]] as [number, number][] };
     expect(whyNotSave(road)).toBe("A shape needs at least 3 corners.");
     expect(whyNotSave({ ...road, points: [...road.points, [31.53, 74.36]] })).toBeNull();
   });
 
   it("sends only the drawn shape's own fields", () => {
-    const circle = zonePayload({ ...newCircleDraft({ lat: 31.52, lng: 74.35 }), name: " Gulberg " });
-    expect(circle).toEqual({ name: "Gulberg", city_id: null, kind: "circle", is_active: true, center_lat: 31.52, center_lng: 74.35, radius_m: 1000 });
+    const circle = zonePayload({ ...newCircleDraft(LHR, { lat: 31.52, lng: 74.35 }), name: " Gulberg " });
+    expect(circle).toEqual({ name: "Gulberg", city_id: LHR, kind: "circle", is_active: true, center_lat: 31.52, center_lng: 74.35, radius_m: 1000 });
 
-    const shape = zonePayload({ ...newShapeDraft(), name: "Road", points: [[1, 2], [3, 4], [5, 6]] });
-    expect(shape).toEqual({ name: "Road", city_id: null, kind: "polygon", is_active: true, points: [[1, 2], [3, 4], [5, 6]] });
+    const shape = zonePayload({ ...newShapeDraft(LHR), name: "Road", points: [[1, 2], [3, 4], [5, 6]] });
+    expect(shape).toEqual({ name: "Road", city_id: LHR, kind: "polygon", is_active: true, points: [[1, 2], [3, 4], [5, 6]] });
     expect(shape).not.toHaveProperty("radius_m");
   });
 

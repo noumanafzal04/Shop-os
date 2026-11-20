@@ -47,13 +47,24 @@ export const MIN_CORNERS = 3;
 /** A new circle starts at a kilometre — a neighbourhood — and is dragged from there. */
 export const DEFAULT_RADIUS_M = 1000;
 
-export const newCircleDraft = (center: { lat: number; lng: number } | null = null): ZoneDraft => ({
-  name: "", city_id: null, kind: "circle", center, radius_m: DEFAULT_RADIUS_M, points: [], is_active: true,
+/**
+ * A zone belongs to ONE city — "pehle city choose kry, phir us ka geo fence".
+ * The city is picked first and every new zone is born inside it; it fences
+ * only that city's shops and deliveries (a city with no zone is not fenced).
+ */
+export const newCircleDraft = (cityId: string | null, center: { lat: number; lng: number } | null = null): ZoneDraft => ({
+  name: "", city_id: cityId, kind: "circle", center, radius_m: DEFAULT_RADIUS_M, points: [], is_active: true,
 });
 
-export const newShapeDraft = (): ZoneDraft => ({
-  name: "", city_id: null, kind: "polygon", center: null, radius_m: DEFAULT_RADIUS_M, points: [], is_active: true,
+export const newShapeDraft = (cityId: string | null): ZoneDraft => ({
+  name: "", city_id: cityId, kind: "polygon", center: null, radius_m: DEFAULT_RADIUS_M, points: [], is_active: true,
 });
+
+/** The zones drawn for one city (and the old city-less ones, which fence everywhere). */
+export function zonesOfCity<T extends { city_id: string | null }>(zones: T[], cityId: string | null): T[] {
+  if (!cityId) return zones;
+  return zones.filter((z) => z.city_id === cityId || z.city_id === null);
+}
 
 export function draftFromZone(z: ServiceZone): ZoneDraft {
   return {
@@ -77,6 +88,7 @@ export function clampRadius(metres: number): number {
 
 /** Why this draft cannot be saved yet — the server's own reasons — or null. */
 export function whyNotSave(d: ZoneDraft): string | null {
+  if (!d.city_id) return "Choose the city first — a zone fences one city.";
   if (d.name.trim() === "") return "Give the zone a name — the area or the road it covers.";
   if (d.kind === "circle") {
     if (d.center === null) return "Click the map where the circle's centre goes.";
