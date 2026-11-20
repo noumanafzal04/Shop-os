@@ -6,7 +6,7 @@ import {
 import { Touchable } from "../../../common/ui/Touchable";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { OfferBadge, Price } from "../../../common/ui/Price";
-import { shopAvatar, shopInitial, useShopCover } from "../shopCover";
+import { cardPicture, shopAvatar, shopInitial, useShopCover } from "../shopCover";
 import { ShopFactsRow } from "./ShopFactsRow";
 import { RatingChip } from "./RatingChip";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
@@ -92,9 +92,28 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
    * scrolls. Below that it never did — it just left a hole.
    */
   const scrolls = items.length >= 3;
+  const picture = cardPicture(shop);
 
   return (
     <View style={styles.card}>
+      {/*
+        ── The big picture (foodpanda's half of the card) ───────────
+        The shop's cover, or its best pictured dish. "Closed" sits on the
+        picture when there is one, so the words below stay readable.
+      */}
+      {picture && (
+        <Touchable accessibilityRole="button" accessibilityLabel={`Open ${shop.business_name}`} onPress={onOpen} scaleTo={0.99}>
+          <View style={styles.hero}>
+            <SmartImage uri={picture} fallbackBackground={cover.bg} style={styles.heroImg} />
+            {closed && (
+              <View style={styles.shutVeil}>
+                <Text style={styles.heroShut}>Closed for now</Text>
+              </View>
+            )}
+          </View>
+        </Touchable>
+      )}
+
       {/* ── Who ─────────────────────────────────────────────────── */}
       <Touchable
         style={styles.head}
@@ -138,7 +157,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
             the name, the rating and the prices all went grey together. The
             picture dims; the words do not.
           */}
-          {closed && (
+          {closed && !picture && (
             <View style={styles.shutVeil}>
               <Text style={styles.shutText}>Closed</Text>
             </View>
@@ -283,6 +302,10 @@ const makeStyles = (c: ThemeColors) =>
       marginBottom: spacing.md,
     },
 
+    hero: { height: 136, backgroundColor: c.surfaceAlt },
+    heroImg: { width: "100%", height: "100%" },
+    heroShut: { ...typography.label, color: "#ffffff", fontWeight: "800" },
+
     head: {
       flexDirection: "row",
       alignItems: "center",
@@ -318,7 +341,7 @@ const makeStyles = (c: ThemeColors) =>
     /** Only when it is not a scroller — a `contentContainerStyle` is already a
      *  row, and a plain View is not. */
     row: { flexDirection: "row" },
-    item: { width: 132 },
+    item: { width: 116 },
     /**
      * An equal share of the row instead of a fixed width. `width: undefined`
      * is load-bearing: `item`'s 132 would otherwise win the flex-basis and
@@ -326,7 +349,7 @@ const makeStyles = (c: ThemeColors) =>
      */
     share: { width: undefined, flex: 1 },
     itemImageWrap: { borderRadius: radius.md, overflow: "hidden", marginBottom: 8 },
-    itemImage: { width: 132, height: 104 },
+    itemImage: { width: 116, height: 88 },
     itemImageShare: { width: "100%" },
     itemBadge: { position: "absolute", top: 6, left: 6 },
     itemName: { ...typography.small, color: c.text, fontSize: 13, lineHeight: 18, fontWeight: "600" },
@@ -364,6 +387,7 @@ export function ShopWithItemsSkeleton() {
 
   return (
     <View style={styles.card} accessibilityLabel="Loading shops">
+      <Skeleton width="100%" height={136} borderRadius={0} />
       <View style={styles.head}>
         <Skeleton width={58} height={58} borderRadius={16} />
         <View style={[styles.headText, { gap: spacing.xs }]}>
@@ -374,7 +398,7 @@ export function ShopWithItemsSkeleton() {
       <View style={[styles.strip, styles.row]}>
         {[0, 1, 2].map((i) => (
           <View key={i} style={[styles.item, { gap: spacing.xs }]}>
-            <Skeleton width={132} height={104} borderRadius={radius.md} />
+            <Skeleton width={116} height={88} borderRadius={radius.md} />
             <Skeleton width="80%" height={12} borderRadius={radius.xs} />
             <Skeleton width="45%" height={12} borderRadius={radius.xs} />
           </View>

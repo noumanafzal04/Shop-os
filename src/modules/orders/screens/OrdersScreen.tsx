@@ -2,6 +2,7 @@ import React from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
   ChevronRightIcon,
   MotorcycleIcon,
   ReceiptIcon,
+  RotateIcon,
   StorefrontIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -28,6 +30,12 @@ import { SignInWall } from "../../auth/components/SignInWall";
 import { useAuthStore } from "../../../stores/authStore";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { money, qtyText } from "../../../common/format";
+import { SmartImage } from "../../../common/ui/SmartImage";
+import { confirm } from "../../../common/ui/confirm";
+import { toast } from "../../../common/ui/toast";
+import { useCartStore } from "../../../stores/cartStore";
+import { shopInitial } from "../../marketplace/shopCover";
+import { reorderPlan, skippedNote } from "../reorder";
 
 /**
  * EVERY ORDER, WITH THE MOVING ONES FIRST.
@@ -99,6 +107,37 @@ export function OrdersScreen() {
     [orders.data],
   );
 
+  /**
+   * ORDER AGAIN — the past order's items back in the basket, then the basket.
+   * Asked first when the basket holds another shop's items (one shop per
+   * basket); lines that cannot come back (choices, packs, deleted) are named.
+   */
+  const orderAgain = async (o: CustomerOrder) => {
+    const slug = o.shop?.slug;
+    if (!slug) return;
+    const plan = reorderPlan(o.items);
+    if (plan.lines.length === 0) {
+      toast.info(skippedNote(plan.skipped) ?? "Nothing to add.");
+      navigation.navigate("MarketShop", { slug });
+      return;
+    }
+    const cart = useCartStore.getState();
+    if (cart.wouldReplace(slug)) {
+      const yes = await confirm.ask({
+        title: "Start a new basket?",
+        message: `Your basket has items from another shop. ${o.shop?.business_name ?? "This shop"} delivers separately, so those will be removed.`,
+        confirmLabel: "Start new basket",
+        cancelLabel: "Keep my basket",
+      });
+      if (!yes) return;
+    }
+    for (const { line, qty } of plan.lines) useCartStore.getState().add(slug, line, qty);
+    const note = skippedNote(plan.skipped);
+    if (note) toast.info(note);
+    else toast.success("Added to your basket");
+    navigation.navigate("CartTab");
+  };
+
   if (status !== "authenticated") {
     return (
       <SafeScreen backgroundColor={c.bg} edges={["top"]}>
@@ -157,6 +196,7 @@ export function OrdersScreen() {
                   order={item.order}
                   live={item.live}
                   onPress={() => navigation.navigate("Order", { id: item.order.id })}
+                  onAgain={() => orderAgain(item.order)}
                 />
               </Appear>
             )
@@ -179,10 +219,12 @@ function OrderCard({
   order,
   live,
   onPress,
+  onAgain,
 }: {
   order: CustomerOrder;
   live: boolean;
   onPress: () => void;
+  onAgain: () => void;
 }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
@@ -199,6 +241,17 @@ function OrderCard({
     <Touchable style={[styles.card, live && styles.cardLive]} onPress={onPress}>
       {/* ── Who it is from, and when ─────────────────────────────── */}
       <View style={styles.top}>
+        {/* The shop's mark — what a person recognises an order by, before its name. */}
+        <View style={styles.logo}>
+          <SmartImage
+            uri={order.shop?.logo_url ?? null}
+            resizeMode="contain"
+            fallback={shopInitial(order.shop?.business_name)}
+            fallbackBackground={c.primarySoft}
+            fallbackColor={c.primary}
+            style={styles.logoImg}
+          />
+        </View>
         <View style={styles.topCopy}>
           <Text style={styles.shop} numberOfLines={1}>
             {order.shop?.business_name ?? "Shop"}
@@ -277,6 +330,21 @@ function OrderCard({
               <Text style={styles.trackCtaText}>Track</Text>
               <ChevronRightIcon size={13} color={c.primary} />
             </View>
+          ) : order.shop?.slug ? (
+            /*
+              A finished order ends in "Order again" — foodpanda's reorder. Its
+              own press, not the card's: the card still opens the order.
+            */
+            <Pressable
+              onPress={onAgain}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Order again from ${order.shop?.business_name ?? "this shop"}`}
+              style={({ pressed }) => [styles.againCta, pressed && styles.againPressed]}
+            >
+              <RotateIcon size={13} color={c.onPrimary} />
+              <Text style={styles.againText}>Order again</Text>
+            </Pressable>
           ) : (
             <ChevronRightIcon size={16} color={c.textMuted} />
           )}
@@ -320,7 +388,28 @@ const makeStyles = (c: ThemeColors) =>
     // selected, which it is not.
     cardLive: { borderColor: c.brand[200] },
 
-    top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+    top: { flexDirection: "row", alignItems: "center", gap: spacing.ms },
+    logo: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.surface,
+    },
+    logoImg: { width: "100%", height: "100%" },
+    againCta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      height: 32,
+    },
+    againPressed: { opacity: 0.85 },
+    againText: { ...typography.tiny, color: c.onPrimary, fontWeight: "800", fontSize: 12, lineHeight: 16 },
     topCopy: { flex: 1, gap: 2 },
     shop: { ...typography.h3, color: c.text, fontSize: 16, lineHeight: 22 },
     when: { ...typography.tiny, color: c.textMuted },

@@ -108,7 +108,7 @@ describe("a shop card with only one or two things on it", () => {
 
   it("goes back to a scroller once there is more than fits", async () => {
     /**
-     * Three × 132 plus the gaps plus See all is wider than any phone, so the
+     * Three × 116 plus the gaps plus See all is wider than any phone, so the
      * strip genuinely scrolls and the fixed tile width is right again. Without
      * this test the fix could have been "never scroll", which would have
      * squeezed a menu of forty into three 90pt slivers.
@@ -116,7 +116,7 @@ describe("a shop card with only one or two things on it", () => {
     const tree = await render(3);
 
     expect(tree.root.findAllByType(ScrollView)).toHaveLength(1);
-    expect(tileStyle(tree, "Dish 1").width).toBe(132);
+    expect(tileStyle(tree, "Dish 1").width).toBe(116);
 
     await ReactTestRenderer.act(() => tree.unmount());
   });

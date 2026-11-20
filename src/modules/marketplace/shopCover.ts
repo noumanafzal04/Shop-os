@@ -238,3 +238,22 @@ export function shopHero(shop: { cover_url?: string | null; gallery?: (string | 
   const first = shop.gallery?.find((g) => !!g);
   return first ?? null;
 }
+
+/**
+ * THE PICTURE ACROSS THE TOP OF A HOME CARD — foodpanda's big photo, on our
+ * card ("hmare card b achy thy, thora sa mix krdo… food items b show hon").
+ *
+ *   cover            the shop's own photograph for a wide slot;
+ *   first dish photo the strip leads with its best pictured dish (the server
+ *                    ranks pictured mains first), so a kitchen with no cover
+ *                    still opens on its karahi;
+ *   null             no picture at all — the card stays as it was. Never the
+ *                    logo stretched wide (see `shopHero`).
+ */
+export function cardPicture(shop: {
+  cover_url?: string | null;
+  preview_products?: Array<{ image?: string | null }> | null;
+}): string | null {
+  if (shop.cover_url) return shop.cover_url;
+  return shop.preview_products?.find((p) => !!p.image)?.image ?? null;
+}

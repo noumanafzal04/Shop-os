@@ -15,7 +15,7 @@ export type OrderStatus =
 export interface CustomerOrder {
   id: string;
   order_number: string;
-  shop?: { slug: string | null; business_name: string | null };
+  shop?: { slug: string | null; business_name: string | null; logo_url?: string | null };
   status: OrderStatus;
   fulfillment_type: "delivery" | "pickup";
   delivery_address: string | null;
@@ -39,7 +39,17 @@ export interface CustomerOrder {
   tax_inclusive?: boolean;
   delivery_fee: string;
   total: string;
-  items: Array<{ product_name: string; variant_name: string | null; quantity: number; line_total: string }>;
+  items: Array<{
+    /** For "Order again"; null once the shop deleted the product. */
+    product_id?: string | null;
+    variant_id?: string | null;
+    product_unit_id?: string | null;
+    product_name: string;
+    variant_name: string | null;
+    modifiers?: unknown[] | null;
+    quantity: number;
+    line_total: string;
+  }>;
   placed_at: string;
 
   /**

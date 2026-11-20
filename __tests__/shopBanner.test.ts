@@ -133,3 +133,32 @@ describe("shopHero — the shop page hero is a photograph or nothing", () => {
     expect(src).not.toMatch(/\bshopLogo\(/);
   });
 });
+
+/**
+ * THE HOME CARD'S BIG PICTURE — "hmare card b achy thy, thora sa mix krdo,
+ * food items b show hon". Our card (logo, facts, the strip of dishes) gains
+ * foodpanda's photo across the top: the shop's cover, or its first pictured
+ * dish; nothing at all rather than a stretched logo.
+ */
+describe("cardPicture — the photo across the top of a home card", () => {
+  const { cardPicture } = jest.requireActual("../src/modules/marketplace/shopCover");
+
+  it("takes the cover first", () => {
+    expect(cardPicture({ cover_url: "c.jpg", preview_products: [{ image: "d.jpg" }] })).toBe("c.jpg");
+  });
+
+  it("else the first dish that has a photograph", () => {
+    expect(cardPicture({ cover_url: null, preview_products: [{ image: null }, { image: "karahi.jpg" }] })).toBe("karahi.jpg");
+  });
+
+  it("else nothing — never the logo", () => {
+    expect(cardPicture({ cover_url: null, preview_products: [{ image: null }], logo_url: "l.png" } as never)).toBeNull();
+    expect(cardPicture({})).toBeNull();
+  });
+
+  it("the home card draws it", () => {
+    const card = codeOnly(read("src/modules/marketplace/components/ShopWithItems.tsx"));
+    expect(card).toMatch(/const picture = cardPicture\(shop\)/);
+    expect(card).toMatch(/<SmartImage uri=\{picture\}/);
+  });
+});
