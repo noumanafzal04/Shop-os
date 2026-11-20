@@ -308,7 +308,10 @@ class RiderSideTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.delivery_otp', $otp)
             ->assertJsonPath('data.rider.stage', 'on_the_way')
-            ->assertJsonPath('data.rider.name', 'Bilal Khan');
+            ->assertJsonPath('data.rider.name', 'Bilal Khan')
+            // Both ends of the tracking map: the door the customer pinned.
+            ->assertJsonPath('data.delivery_latitude', 31.47)
+            ->assertJsonPath('data.delivery_longitude', 74.27);
 
         $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/deliver", ['code' => $otp])
             ->assertOk()->assertJsonPath('data.stage', 'delivered');

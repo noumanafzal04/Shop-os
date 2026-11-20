@@ -25,7 +25,9 @@ class ServiceZoneRequest extends FormRequest
 
         return [
             'name' => [$updating ? 'sometimes' : 'required', 'string', 'max:120'],
-            'city_id' => ['sometimes', 'nullable', 'uuid', Rule::exists('cities', 'id')],
+            // A NEW zone is drawn for one city (the console asks for the
+            // city first); an older city-less zone may still be edited.
+            'city_id' => [$updating ? 'sometimes' : 'required', 'nullable', 'uuid', Rule::exists('cities', 'id')],
             'kind' => [$updating ? 'sometimes' : 'required', Rule::in([ServiceZone::CIRCLE, ServiceZone::POLYGON])],
             'center_lat' => [Rule::requiredIf($kind === ServiceZone::CIRCLE), 'nullable', 'numeric', 'between:-90,90'],
             'center_lng' => [Rule::requiredIf($kind === ServiceZone::CIRCLE), 'nullable', 'numeric', 'between:-180,180'],

@@ -203,6 +203,11 @@ class CustomerOrderController extends Controller
             'payment_method' => $o->payment_method,
             'payment_status' => $o->payment_status,
             'delivery_address' => $o->delivery_address,
+            // The customer's own door, as they pinned it — the other end of
+            // the line the tracking map draws from the rider. Their own data,
+            // on their own order; null for a typed address with no pin.
+            'delivery_latitude' => $o->latitude !== null ? (float) $o->latitude : null,
+            'delivery_longitude' => $o->longitude !== null ? (float) $o->longitude : null,
             // WHERE IT IS COMING FROM — and for a pickup, where to walk to.
             //
             // The branch that fills an order is chosen by distance now, so a

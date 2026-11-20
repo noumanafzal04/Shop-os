@@ -30,7 +30,7 @@ class ServiceZoneController extends Controller
             'shops' => Tenant::query()->where('online_shop_enabled', true)->where('setup_completed', true)
                 ->whereNotNull('latitude')->whereNotNull('longitude')
                 ->orderBy('business_name')->limit(5000)
-                ->get(['id', 'business_name', 'latitude', 'longitude', 'in_service_zone']),
+                ->get(['id', 'business_name', 'city_id', 'latitude', 'longitude', 'in_service_zone']),
         ]);
     }
 

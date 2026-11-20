@@ -43,13 +43,15 @@ class ThePlatformServesWhereItDrewTest extends TestCase
 
     private User $customer;
 
+    private City $city;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->withoutMiddleware(ThrottleRequests::class);
         Cache::flush();
 
-        $city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
+        $city = $this->city = City::query()->create(['name' => 'Lahore', 'is_active' => true]);
         $this->near = $this->shop('Gulberg Grill', self::INSIDE, $city);
         $this->far = $this->shop('Far Away Foods', self::OUTSIDE, $city);
         $this->admin = User::factory()->superAdmin()->create();
@@ -92,7 +94,7 @@ class ThePlatformServesWhereItDrewTest extends TestCase
     private function circle(int $radius = 800): array
     {
         return $this->as($this->admin)->postJson('/api/v1/admin/service-zones', [
-            'name' => 'Gulberg', 'kind' => 'circle', 'center_lat' => self::CENTRE[0], 'center_lng' => self::CENTRE[1], 'radius_m' => $radius,
+            'name' => 'Gulberg', 'city_id' => $this->city->id, 'kind' => 'circle', 'center_lat' => self::CENTRE[0], 'center_lng' => self::CENTRE[1], 'radius_m' => $radius,
         ])->assertCreated()->json('data');
     }
 
@@ -171,7 +173,7 @@ class ThePlatformServesWhereItDrewTest extends TestCase
     {
         // A thin strip along a main road, 200 m either side.
         $this->as($this->admin)->postJson('/api/v1/admin/service-zones', [
-            'name' => 'Main Bazaar road', 'kind' => 'polygon',
+            'name' => 'Main Bazaar road', 'city_id' => $this->city->id, 'kind' => 'polygon',
             'points' => [[31.5200, 74.3550], [31.5240, 74.3550], [31.5240, 74.3650], [31.5200, 74.3650]],
         ])->assertCreated();
 
@@ -206,10 +208,10 @@ class ThePlatformServesWhereItDrewTest extends TestCase
         $this->as($zones)->getJson('/api/v1/admin/service-zones')->assertOk();
 
         $this->as($zones)->postJson('/api/v1/admin/service-zones', [
-            'name' => 'Two corners', 'kind' => 'polygon', 'points' => [[31.5, 74.3], [31.6, 74.4]],
+            'name' => 'Two corners', 'city_id' => $this->city->id, 'kind' => 'polygon', 'points' => [[31.5, 74.3], [31.6, 74.4]],
         ])->assertUnprocessable()->assertJsonValidationErrors('points');
         $this->as($zones)->postJson('/api/v1/admin/service-zones', [
-            'name' => 'A dot', 'kind' => 'circle', 'center_lat' => 31.5, 'center_lng' => 74.3, 'radius_m' => 20,
+            'name' => 'A dot', 'city_id' => $this->city->id, 'kind' => 'circle', 'center_lat' => 31.5, 'center_lng' => 74.3, 'radius_m' => 20,
         ])->assertUnprocessable()->assertJsonValidationErrors('radius_m');
         $this->assertSame(0, ServiceZone::query()->count());
     }
@@ -226,5 +228,66 @@ class ThePlatformServesWhereItDrewTest extends TestCase
         $this->assertNull($row->radius_m);
         $this->assertNull($row->center_lat);
         $this->assertCount(4, $row->points);
+    }
+
+    /**
+     * "PEHLE CITY CHOOSE KRY, USKA MAP SY GEO FENCE ADD KRY YA CIRCLE." A zone
+     * is drawn for one city and fences that city only: Lahore's circle does not
+     * hide a shop in Abbottabad, whose city has drawn nothing.
+     */
+    public function test_a_zone_fences_its_own_city_and_no_other(): void
+    {
+        $abbottabad = City::query()->create(['name' => 'Abbottabad', 'is_active' => true, 'latitude' => 34.1463, 'longitude' => 73.2117]);
+        $hill = $this->shop('Hill Tea House', [34.1500, 73.2200], $abbottabad);
+
+        $this->circle();
+
+        // Lahore is fenced (Far Away Foods is outside Lahore's circle);
+        // Abbottabad drew nothing, so its shop is listed.
+        $this->assertSame(['Gulberg Grill', 'Hill Tea House'], $this->listed());
+        $this->assertTrue($hill->fresh()->in_service_zone);
+
+        // A delivery from the Abbottabad shop is not asked about Lahore's map…
+        $this->order($hill, [34.1600, 73.2300])->assertCreated();
+        // …and a Lahore shop still delivers only inside Lahore's zone.
+        $this->order($this->near, self::OUTSIDE)->assertUnprocessable()->assertJsonPath('meta.error_code', 'OUTSIDE_SERVICE_AREA');
+
+        // The customer's pin is asked of ITS city's zones.
+        $this->getJson('/api/v1/marketplace/service-area?lat=34.16&lng=73.23&city_id='.$abbottabad->id)
+            ->assertOk()->assertJsonPath('data.served', true)->assertJsonPath('data.zones_drawn', false);
+        $this->getJson('/api/v1/marketplace/service-area?lat='.self::OUTSIDE[0].'&lng='.self::OUTSIDE[1].'&city_id='.$this->city->id)
+            ->assertOk()->assertJsonPath('data.served', false)->assertJsonPath('data.zones_drawn', true);
+
+        // Once Abbottabad draws its own zone away from the shop, the shop goes.
+        $this->as($this->admin)->postJson('/api/v1/admin/service-zones', [
+            'name' => 'Mall Road', 'city_id' => $abbottabad->id, 'kind' => 'circle',
+            'center_lat' => 34.30, 'center_lng' => 73.40, 'radius_m' => 500,
+        ])->assertCreated();
+        $this->assertSame(['Gulberg Grill'], $this->listed());
+    }
+
+    public function test_a_new_zone_must_name_its_city_and_the_map_knows_each_shops_city(): void
+    {
+        $this->as($this->admin)->postJson('/api/v1/admin/service-zones', [
+            'name' => 'Nowhere', 'kind' => 'circle', 'center_lat' => 31.5, 'center_lng' => 74.3, 'radius_m' => 800,
+        ])->assertUnprocessable()->assertJsonValidationErrors('city_id');
+        $this->assertSame(0, ServiceZone::query()->count());
+
+        $shops = collect($this->as($this->admin)->getJson('/api/v1/admin/service-zones')->assertOk()->json('data.shops'));
+        $this->assertSame([$this->city->id], $shops->pluck('city_id')->unique()->values()->all());
+    }
+
+    public function test_an_older_zone_without_a_city_still_fences_every_city(): void
+    {
+        $abbottabad = City::query()->create(['name' => 'Abbottabad', 'is_active' => true]);
+        $this->shop('Hill Tea House', [34.1500, 73.2200], $abbottabad);
+
+        ServiceZone::query()->create([
+            'name' => 'Old Gulberg', 'kind' => 'circle', 'center_lat' => self::CENTRE[0], 'center_lng' => self::CENTRE[1],
+            'radius_m' => 800, 'is_active' => true,
+        ]);
+        \App\Support\ServiceZones::changed();
+
+        $this->assertSame(['Gulberg Grill'], $this->listed());
     }
 }

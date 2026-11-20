@@ -986,12 +986,24 @@ class MarketplaceController extends Controller
         $data = $request->validate([
             'lat' => ['required', 'numeric', 'between:-90,90'],
             'lng' => ['required', 'numeric', 'between:-180,180'],
+            'city_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
-        $zone = ServiceZones::zoneAt((float) $data['lat'], (float) $data['lng']);
+        [$lat, $lng] = [(float) $data['lat'], (float) $data['lng']];
+
+        // Whose zones answer: the city the app already resolved for this pin,
+        // else the nearest city with a centre. Unknown → every zone (strict).
+        $cityId = $data['city_id'] ?? City::query()
+            ->where('is_active', true)->whereNotNull('latitude')->whereNotNull('longitude')
+            ->orderByRaw(Geo::sqlDistanceKm($lat, $lng))
+            ->value('id');
+
+        // Inside ANY city's zone is served — a pin over a city border is
+        // still somewhere the platform delivers.
+        $zone = ServiceZones::zoneAt($lat, $lng, $cityId) ?? ServiceZones::zoneAt($lat, $lng);
 
         return ApiResponse::ok([
-            'zones_drawn' => ServiceZones::anyActive(),
-            'served' => ServiceZones::serves((float) $data['lat'], (float) $data['lng']),
+            'zones_drawn' => ServiceZones::anyActive($cityId),
+            'served' => $zone !== null || ServiceZones::serves($lat, $lng, $cityId),
             'zone' => $zone !== null ? ['name' => $zone['name']] : null,
         ]);
     }

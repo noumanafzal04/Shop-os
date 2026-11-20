@@ -41,7 +41,7 @@ class Tenant extends BaseModel
         // change updates the column behind any model already in memory, and
         // an answer equal to that stale copy would never be saved.
         static::updated(function (Tenant $tenant): void {
-            if ($tenant->wasChanged(['latitude', 'longitude'])) {
+            if ($tenant->wasChanged(['latitude', 'longitude', 'city_id'])) {
                 $in = ServiceZones::shopInZone($tenant);
                 DB::table('tenants')->where('id', $tenant->id)->update(['in_service_zone' => $in]);
                 $tenant->forceFill(['in_service_zone' => $in])->syncOriginalAttribute('in_service_zone');
