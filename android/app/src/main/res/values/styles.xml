@@ -13,12 +13,14 @@
           exactly that — the customer app fixed it long ago and the shop app
           never got the same line.
 
-          `windowLightStatusBar` false because the ground is a deep ocean: the
-          clock and the battery have to be drawn light on it.
+          WHITE since 2026-11-20 ("splash ko white k acha bnao"): the animated
+          splash (BootScreen) assembles the logo on white, and this frame must
+          be the same ground or the app flashes teal first. Light status bar:
+          the clock is drawn dark on it.
         -->
-        <item name="android:windowBackground">@color/brand</item>
-        <item name="android:statusBarColor">@color/brand</item>
-        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/splash</item>
+        <item name="android:statusBarColor">@color/splash</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
 </resources>

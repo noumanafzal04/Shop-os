@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -10,7 +10,7 @@ import { useTheme } from "@cartze/core/theme";
 import { useAuthStore } from "../stores/authStore";
 import { SignInScreen } from "../modules/auth/screens/SignInScreen";
 import { PartnerTabs } from "./PartnerTabs";
-import { BootScreen } from "../modules/auth/screens/BootScreen";
+import { BootScreen, INTRO_MS } from "../modules/auth/screens/BootScreen";
 import { setPushTapHandler, startPush } from "../services/push";
 import type { RootStackParamList } from "./types";
 import { IncomingOrderHost } from "../modules/orders/components/IncomingOrderHost";
@@ -29,6 +29,17 @@ export function RootNavigator() {
   const status = useAuthStore((s) => s.status);
   const { name, colors } = useTheme();
   const navRef = useRef<NavigationContainerRef<RootStackParamList> | null>(null);
+  /*
+   * The splash stays until its logo is whole, once per launch — even when the
+   * Keychain answers in 50 ms. A timer backs the animation's own callback (an
+   * app sent to the background mid-intro may never finish the animation).
+   */
+  const [introDone, setIntroDone] = useState(false);
+  const endIntro = useCallback(() => setIntroDone(true), []);
+  useEffect(() => {
+    const t = setTimeout(endIntro, INTRO_MS + 600);
+    return () => clearTimeout(t);
+  }, [endIntro]);
 
   /**
    * PUSH STARTS AFTER SIGN-IN, NEVER BEFORE.
@@ -90,7 +101,7 @@ export function RootNavigator() {
     },
   };
 
-  if (status === "booting") return <BootScreen />;
+  if (status === "booting" || !introDone) return <BootScreen onDone={endIntro} />;
 
   return (
     <NavigationContainer ref={navRef} theme={navTheme}>

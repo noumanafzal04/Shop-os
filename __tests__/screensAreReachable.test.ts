@@ -48,7 +48,7 @@ describe("every screen that exists can be opened", () => {
         (name) =>
           !new RegExp(`component=\\{${name}\\}`).test(navigators) &&
           !new RegExp(`screen:\\s*${name}\\b`).test(navigators) &&
-          !new RegExp(`<${name}\\s*/?>`).test(navigators),
+          !new RegExp(`<${name}(\\s[^>]*)?/?>`).test(navigators),
       );
 
     expect(orphans).toEqual([]);

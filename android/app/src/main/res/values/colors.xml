@@ -13,6 +13,9 @@
       .primary` and the first frame hands over to a screen of the same colour.
     -->
     <color name="brand">#1A759F</color>
+    <!-- The splash ground: white, so the frame before JavaScript matches the
+         animated splash that follows it (BootScreen). -->
+    <color name="splash">#FFFFFF</color>
     <!--
       THE LAUNCHER ICON'S GROUND — the LOGO's teal, not the app's primary.
 
