@@ -488,13 +488,15 @@ const makeStyles = (c: ThemeColors, ts: TileSize = tileSize(390)) =>
     tabFilters: { marginHorizontal: -spacing.md, marginTop: spacing.sm },
     /** So `ListEmptyComponent` has a screen to centre in. */
     grow: { flexGrow: 1 },
+    // The same section rhythm as Home (24 above, 12 below) — the category
+    // labels sat 8 above "Popular shops", which read as one block.
     sectionTitle: {
       ...typography.h3,
       color: c.text,
       fontSize: 18,
       lineHeight: 24,
-      marginBottom: spacing.sm,
-      marginTop: spacing.xs,
+      marginBottom: spacing.ms,
+      marginTop: spacing.lg,
     },
 
     dealRow: { gap: spacing.sm, paddingBottom: spacing.md },
