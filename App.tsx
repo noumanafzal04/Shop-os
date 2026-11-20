@@ -27,6 +27,8 @@ import { useAuthStore, wireAuthToApi } from "./src/stores/authStore";
 import { authService } from "./src/modules/auth/services/authService";
 import { prefs } from "./src/common/utils/prefs";
 import { API_BASE_URL } from "./src/common/config";
+import { connectTestServer, LAN_MODE, useTestServer } from "./src/common/testServer";
+import { TestServerScreen } from "./src/common/components/TestServerScreen";
 
 /**
  * MODULE SCOPE, BEFORE THE COMPONENT — and both lines matter.
@@ -59,6 +61,7 @@ export default function App() {
   const hydrateTokens = useAuthStore((s) => s.hydrateTokens);
   const setUser = useAuthStore((s) => s.setUser);
   const setGuest = useAuthStore((s) => s.setGuest);
+  const lanServer = useTestServer((s) => s.state);
 
   useEffect(() => {
     let alive = true;
@@ -80,6 +83,13 @@ export default function App() {
        * here too: if the access token has expired but the refresh token has
        * not, this call succeeds and the session is simply restored.
        */
+      // A phone test build finds its server first; the screen below covers
+      // the case it is not found. Until then nobody can be asked "who am I".
+      if (!(await connectTestServer().catch(() => false))) {
+        if (alive) setGuest();
+        return;
+      }
+
       const had = await hydrateTokens();
       if (!had || !alive) return;
 
@@ -130,8 +140,14 @@ export default function App() {
       >
         <QueryClientProvider client={queryClient}>
           <ThemedChrome />
-          <OfflineBanner />
-          <RootNavigator />
+          {LAN_MODE && lanServer !== "connected" ? (
+            <TestServerScreen />
+          ) : (
+            <>
+              <OfflineBanner />
+              <RootNavigator />
+            </>
+          )}
           <ToastHost />
           <ConfirmHost />
         </QueryClientProvider>

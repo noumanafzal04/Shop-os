@@ -2,10 +2,15 @@
 
 /**
  * Native module mocks. Kept deliberately SHORTER than the customer app's:
- * this app has no geolocation (a shop does not move) and no netinfo, so
- * mocking either would be mocking something nothing imports — which reads as
- * a dependency the app has and does not.
+ * this app has no geolocation (a shop does not move), so mocking it would be
+ * mocking something nothing imports. NetInfo IS imported now — the phone test
+ * build reads the phone's own address to find the computer (testServer.ts).
  */
+
+jest.mock('@react-native-community/netinfo', () => ({
+  addEventListener: jest.fn(() => jest.fn()),
+  fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+}));
 
 jest.mock('react-native-keychain', () => {
   let stored = null;

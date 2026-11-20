@@ -15,12 +15,15 @@ import { Platform } from "react-native";
  * `"tunnel"` a debug build talks to `TUNNEL_URL` — a phone on mobile data
  *            reaching a laptop, via ngrok or trycloudflare.
  */
-type ApiTarget = "auto" | "live" | "tunnel";
+type ApiTarget = "auto" | "live" | "tunnel" | "lan";
 
 // Cast, not an annotation: TypeScript narrows `const x: "a" | "b" = "a"` to the
 // literal it was given and then calls every other branch dead code. The point
 // of this line is that it gets edited.
-const API_TARGET = "auto" as ApiTarget;
+export const API_TARGET = "auto" as ApiTarget;
+
+/** The port backend/scripts/serve-lan.sh listens on (a phone TEST build only). */
+export const LAN_PORT = 8002;
 
 /**
  * PRODUCTION.
@@ -48,7 +51,10 @@ const DEV_HOST = Platform.select({
 });
 
 export const API_BASE_URL =
-  API_TARGET === "live"
+  // A phone test build finds the computer on the Wi-Fi at start (testServer.ts).
+  API_TARGET === "lan"
+    ? ""
+    : API_TARGET === "live"
     ? PROD_URL
     : API_TARGET === "tunnel" && TUNNEL_URL
       ? `${TUNNEL_URL}/api/v1`

@@ -33,6 +33,8 @@ interface Prefs {
    * stored rather than inferred from a missing key.
    */
   branchId?: string | null;
+  /** A phone test build's server ("192.168.1.5:8002") — see testServer.ts. */
+  testServer?: string;
 }
 
 async function read(): Promise<Prefs> {
@@ -73,5 +75,12 @@ export const prefs = {
 
   async setBranch(branchId: string | null): Promise<void> {
     await write({ ...(await read()), branchId });
+  },
+
+  async setTestServer(host: string | null): Promise<void> {
+    const current = await read();
+    if (host === null) delete current.testServer;
+    else current.testServer = host;
+    await write(current);
   },
 };
