@@ -184,7 +184,9 @@ describe("the two palettes are actually different", () => {
      *
      *   warm +      the DEAL colour, and the brand forces it: beside a teal
      *   warmSoft +  brand the offer badge is burnt orange (white on it 5.1:1,
-     *   onWarm      the complementary pair); beside the carmine brand an
+     *   onWarm +    the complementary pair); beside the carmine brand an
+     *   onWarmSoft  (2026-11-20: the ink on the PALE deal ground — white
+     *               onWarm on peach was the unreadable cart nudge)
      *               orange badge would be a second red. Each side keeps the
      *               deal colour its own brand can stand next to.
      *   info +      the brand's own voice for a neutral notice. A blue info
@@ -211,6 +213,7 @@ describe("the two palettes are actually different", () => {
       "inkSoft",
       "onAccent",
       "onWarm",
+      "onWarmSoft",
       "primary",
       "primaryPressed",
       "primarySoft",

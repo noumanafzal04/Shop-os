@@ -102,6 +102,23 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+
+/*
+ * THE MAP'S KEY, read from the one place the app keeps it.
+ *
+ * `src/common/secrets.ts` is gitignored and already holds GOOGLE_MAPS_KEY for
+ * address search; the map on the "add an address" screen needs the same key
+ * in the manifest. Reading it from there keeps ONE copy, out of git. No file
+ * or no key = an empty value: the map draws blank and the screen still works
+ * by search and current location.
+ */
+def mapsKey() {
+    def f = file("../../src/common/secrets.ts")
+    if (!f.exists()) return ""
+    def m = (f.text =~ /GOOGLE_MAPS_KEY\s*=\s*"([^"]*)"/)
+    return m.find() ? m.group(1) : ""
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -114,6 +131,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 12
         versionName "1.2.0"
+        manifestPlaceholders = [mapsApiKey: mapsKey()]
     }
     signingConfigs {
         debug {

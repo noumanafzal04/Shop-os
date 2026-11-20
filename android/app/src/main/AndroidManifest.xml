@@ -58,6 +58,15 @@
         android:value="default"
         tools:replace="android:value" />
 
+      <!--
+        The map on "add an address". The value comes from
+        `src/common/secrets.ts` through build.gradle (`mapsKey()`), never typed
+        here: this repository is public.
+      -->
+      <meta-data
+        android:name="com.google.android.geo.API_KEY"
+        android:value="${mapsApiKey}" />
+
       <activity
         android:name=".MainActivity"
         android:label="@string/app_name"

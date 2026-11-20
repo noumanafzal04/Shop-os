@@ -218,3 +218,23 @@ export function shopAvatar(shop: {
 }): string | null {
   return shopLogo(shop) ?? shop.cover_url ?? null;
 }
+
+/**
+ * THE SHOP PAGE'S HERO — a photograph or nothing.
+ *
+ * "logo hi cover ban jata hai": a shop with no cover had its LOGO stretched
+ * across the 200-point band, cropped to its middle, and the same logo again a
+ * hand below beside the name. A mark is drawn to be read small; blown up as a
+ * cover it looks like a mistake. With no photograph the page now opens on its
+ * plain header (round buttons, logo, name) the way the reference does.
+ *
+ *   cover      the picture uploaded FOR this band;
+ *   gallery[0] a portfolio's first photograph;
+ *   null       no hero — never the logo.
+ */
+export function shopHero(shop: { cover_url?: string | null; gallery?: (string | null)[] | null } | null | undefined): string | null {
+  if (!shop) return null;
+  if (shop.cover_url) return shop.cover_url;
+  const first = shop.gallery?.find((g) => !!g);
+  return first ?? null;
+}

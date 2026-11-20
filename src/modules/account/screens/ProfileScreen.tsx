@@ -1,12 +1,13 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation } from "@tanstack/react-query";
 import {
-} from "../../../common/ui/icons";
-import {
   BadgeCheckIcon,
+  ChevronRightIcon,
   EnvelopeIcon,
+  InfoIcon,
+  LockIcon,
   PersonIcon,
   PhoneIcon,
 } from "../../../common/ui/icons";
@@ -21,6 +22,7 @@ import { apiPut } from "../../../common/api/client";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
 import { useAuthStore } from "../../../stores/authStore";
 import type { User } from "../../auth/types";
+import { initials, isChanged, profileErrors } from "../profileForm";
 
 /**
  * Your own name and contact details.
@@ -77,17 +79,20 @@ export function ProfileScreen() {
         ? "Could not save. Please try again."
         : null;
 
-  const changed =
-    name.trim() !== (user?.name ?? "") ||
-    email.trim() !== (user?.email ?? "") ||
-    phone.trim() !== (user?.phone ?? "");
+  const changed = isChanged({ name, email, phone }, user ?? {});
+  const problems = profileErrors({ name, email, phone });
+  const valid = Object.keys(problems).length === 0;
+  // A field speaks once it has been touched — not a wall of red on arrival.
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const touch = (k: string) => setTouched((t) => (t[k] ? t : { ...t, [k]: true }));
+  const shown = (k: keyof typeof problems) => (touched[k] ? problems[k] : undefined);
 
   const emailChanged = email.trim() !== (user?.email ?? "");
   const phoneChanged = phone.trim() !== (user?.phone ?? "");
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <ScreenHeader title="Profile" />
+      <ScreenHeader title="Edit profile" />
 
       <KeyboardScreen
         contentStyle={styles.content}
@@ -97,23 +102,29 @@ export function ProfileScreen() {
               title={save.isPending ? "Saving…" : "Save changes"}
               onPress={() => save.mutate()}
               loading={save.isPending}
-              disabled={!changed || name.trim().length < 2}
+              disabled={!changed || !valid || save.isPending}
               size="lg"
             />
           </View>
         }
       >
-        <View style={styles.avatarWrap}>
+        {/* Who this is, as shops and riders will see it — it follows what you type. */}
+        <View style={styles.card}>
           <View style={styles.avatar}>
-            {name.trim() ? (
-              <Text style={styles.avatarText}>{name.trim().charAt(0).toUpperCase()}</Text>
+            {initials(name) ? (
+              <Text style={styles.avatarText}>{initials(name)}</Text>
             ) : (
               <PersonIcon size={30} color={c.onPrimary} />
             )}
           </View>
-          <Text style={styles.avatarHint}>
-            Your initial is what shops and riders see beside your order.
-          </Text>
+          <View style={styles.who}>
+            <Text style={styles.whoName} numberOfLines={1}>
+              {name.trim() || "Your name"}
+            </Text>
+            <Text style={styles.whoSub} numberOfLines={1}>
+              {email.trim() || phone.trim() || "Add an email or phone"}
+            </Text>
+          </View>
         </View>
 
         {!!error && (
@@ -122,78 +133,88 @@ export function ProfileScreen() {
           </View>
         )}
 
-        <AppTextInput
-          label="Full name"
-          icon={PersonIcon}
-          placeholder="Your name"
-          value={name}
-          onChangeText={setName}
-          autoCapitalize="words"
-        />
-
-        <View style={styles.field}>
+        <Text style={styles.section}>Personal details</Text>
+        <View style={styles.group}>
           <AppTextInput
-            label="Email"
-            icon={EnvelopeIcon}
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
+            label="Full name"
+            icon={PersonIcon}
+            placeholder="Your name"
+            value={name}
+            onChangeText={setName}
+            onBlur={() => touch("name")}
+            autoCapitalize="words"
+            maxLength={255}
+            error={shown("name")}
           />
-          <Mark
-            verified={!!user?.email_verified && !emailChanged}
-            changed={emailChanged}
-            what="email"
-          />
+
+          <View style={styles.field}>
+            <AppTextInput
+              label="Email"
+              icon={EnvelopeIcon}
+              placeholder="you@example.com"
+              value={email}
+              onChangeText={setEmail}
+              onBlur={() => touch("email")}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              error={shown("email")}
+              trailing={<Mark verified={!!user?.email_verified && !emailChanged} />}
+            />
+            {emailChanged && !!user?.email && <Text style={styles.willUnverify}>A new email has to be confirmed again.</Text>}
+          </View>
+
+          <View style={styles.field}>
+            <AppTextInput
+              label="Phone"
+              icon={PhoneIcon}
+              placeholder="0300 1234567"
+              value={phone}
+              onChangeText={setPhone}
+              onBlur={() => touch("phone")}
+              keyboardType="phone-pad"
+              maxLength={20}
+              error={shown("phone")}
+              trailing={<Mark verified={!!user?.phone_verified && !phoneChanged} />}
+            />
+            {phoneChanged && !!user?.phone && (
+              <Text style={styles.willUnverify}>A new number has to be confirmed again.</Text>
+            )}
+          </View>
         </View>
 
-        <View style={styles.field}>
-          <AppTextInput
-            label="Phone"
-            icon={PhoneIcon}
-            placeholder="03xx xxxxxxx"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
-          <Mark
-            verified={!!user?.phone_verified && !phoneChanged}
-            changed={phoneChanged}
-            what="phone number"
-          />
+        <View style={styles.tip}>
+          <InfoIcon size={16} color={c.primary} />
+          <Text style={styles.tipText}>
+            Your phone number is how a rider reaches you. Keep it one somebody can answer while an order is out.
+          </Text>
         </View>
 
-        <Text style={styles.note}>
-          Your phone number is how a rider reaches you. Keep it one somebody can
-          answer while an order is out.
-        </Text>
+        <Text style={styles.section}>Sign-in</Text>
+        <Pressable
+          style={({ pressed }) => [styles.link, pressed && styles.linkPressed]}
+          onPress={() => navigation.navigate("Security")}
+          accessibilityRole="button"
+          accessibilityLabel="Change password"
+        >
+          <View style={styles.linkIcon}>
+            <LockIcon size={18} color={c.primary} />
+          </View>
+          <View style={styles.who}>
+            <Text style={styles.linkTitle}>Change password</Text>
+            <Text style={styles.linkSub}>And see the devices signed in</Text>
+          </View>
+          <ChevronRightIcon size={18} color={c.textMuted} />
+        </Pressable>
       </KeyboardScreen>
     </SafeScreen>
   );
 }
 
-/** The verified tick, and the honest warning that replaces it mid-edit. */
-function Mark({
-  verified,
-  changed,
-  what,
-}: {
-  verified: boolean;
-  changed: boolean;
-  what: string;
-}) {
+/** The verified tick, inside the field. Gone once the value changes (see the note under it). */
+function Mark({ verified }: { verified: boolean }) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
-
-  if (changed) {
-    return (
-      <Text style={styles.willUnverify}>
-        Saving a new {what} means it has to be confirmed again.
-      </Text>
-    );
-  }
   if (!verified) return null;
   return (
     <View style={styles.verified}>
@@ -205,35 +226,90 @@ function Mark({
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    content: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.lg },
 
-    content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg, gap: spacing.xs },
-
-    avatarWrap: { alignItems: "center", gap: spacing.sm, paddingVertical: spacing.md },
+    card: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: c.primarySoft,
+    },
     avatar: {
-      width: 74,
-      height: 74,
-      borderRadius: 37,
+      width: 64,
+      height: 64,
+      borderRadius: 31,
       backgroundColor: c.primary,
       alignItems: "center",
       justifyContent: "center",
     },
-    avatarText: { ...typography.display, color: c.onPrimary, fontSize: 28, lineHeight: 34 },
-    avatarHint: { ...typography.tiny, color: c.textMuted, textAlign: "center" },
+    avatarText: { ...typography.title, color: c.onPrimary, fontSize: 24, lineHeight: 30 },
+    who: { flex: 1, gap: 2 },
+    whoName: { ...typography.title, color: c.text, fontSize: 18, lineHeight: 24 },
+    whoSub: { ...typography.small, color: c.textSecondary },
 
-    field: { gap: 4 },
-    verified: { flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 2 },
+    section: {
+      ...typography.tiny,
+      color: c.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+      fontWeight: "700",
+      marginTop: spacing.lg,
+      marginBottom: spacing.sm,
+    },
+    group: {
+      backgroundColor: c.surface,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: c.border,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+    },
+
+    field: { marginBottom: spacing.xs },
+    verified: { flexDirection: "row", alignItems: "center", gap: 4 },
     verifiedText: { ...typography.tiny, color: c.success, fontWeight: "700" },
-    willUnverify: { ...typography.tiny, color: c.warning, paddingLeft: 2 },
+    willUnverify: { ...typography.tiny, color: c.warning, marginTop: -spacing.sm, marginBottom: spacing.sm },
 
     errorBox: {
       backgroundColor: c.errorBg,
       borderRadius: radius.md,
       padding: spacing.md,
-      marginBottom: spacing.sm,
+      marginTop: spacing.md,
     },
     errorText: { ...typography.small, color: c.error },
 
-    note: { ...typography.tiny, color: c.textMuted, marginTop: spacing.md, lineHeight: 16 },
+    tip: {
+      flexDirection: "row",
+      gap: spacing.sm,
+      alignItems: "flex-start",
+      marginTop: spacing.ms,
+      paddingHorizontal: spacing.xs,
+    },
+    tipText: { ...typography.tiny, color: c.textMuted, lineHeight: 16, flex: 1 },
+
+    link: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.ms,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    linkPressed: { backgroundColor: c.surfaceAlt },
+    linkIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 13,
+      backgroundColor: c.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    linkTitle: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 20 },
+    linkSub: { ...typography.tiny, color: c.textMuted },
 
     bar: {
       backgroundColor: c.surface,

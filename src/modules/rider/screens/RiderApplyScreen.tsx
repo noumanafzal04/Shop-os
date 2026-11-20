@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { launchCamera, launchImageLibrary, type Asset } from "react-native-image-picker";
 import {
   CarIcon,
@@ -18,6 +18,7 @@ import { Touchable } from "../../../common/ui/Touchable";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
+import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
 import { confirm } from "../../../common/ui/confirm";
 import { toast } from "../../../common/ui/toast";
@@ -179,7 +180,7 @@ export function RiderApplyScreen() {
         subtitle={profile?.rider_code ?? "Deliver orders and earn"}
       />
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <KeyboardScreen contentStyle={styles.body}>
         {/* ── Where this application stands ─────────────────────────── */}
         {profile != null && <StatusBanner profile={profile} />}
 
@@ -386,7 +387,7 @@ export function RiderApplyScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </KeyboardScreen>
     </SafeScreen>
   );
 }

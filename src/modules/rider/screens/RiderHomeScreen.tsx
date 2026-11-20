@@ -582,7 +582,7 @@ export function JobCard({ job, onPress, mine }: { job: RiderJob; onPress: () => 
         </Text>
         {job.cash_to_collect > 0 && (
           <View style={styles.cashPill}>
-            <BanknoteIcon size={12} color={c.onWarm} />
+            <BanknoteIcon size={12} color={c.onWarmSoft} />
             <Text style={styles.cashText}>Collect {money(job.cash_to_collect)}</Text>
           </View>
         )}
@@ -833,7 +833,7 @@ const makeStyles = (c: ThemeColors) =>
       paddingHorizontal: 8,
       paddingVertical: 4,
     },
-    cashText: { ...typography.tiny, color: c.onWarm, fontWeight: "800", fontSize: 11, lineHeight: 14 },
+    cashText: { ...typography.tiny, color: c.onWarmSoft, fontWeight: "800", fontSize: 11, lineHeight: 14 },
 
     gate: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.lg, gap: 8 },
     gateIcon: {

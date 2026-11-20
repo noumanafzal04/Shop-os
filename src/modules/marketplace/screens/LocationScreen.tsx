@@ -6,6 +6,7 @@ import {
   BuildingIcon,
   CrosshairIcon,
   MapPinIcon,
+  PlusIcon,
   SearchIcon,
 } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -146,6 +147,26 @@ export function LocationScreen() {
               <View style={styles.rowInfo}>
                 <Text style={styles.currentText}>Use my current location</Text>
                 {label && <Text style={styles.rowMeta} numberOfLines={1}>Now: {label}</Text>}
+              </View>
+            </Touchable>
+            {/*
+              PIN IT ON A MAP AND KEEP IT — foodpanda's "Add new address". A
+              guest is sent to log in first: a saved address is an account's.
+            */}
+            <Touchable
+              style={styles.row}
+              accessibilityRole="button"
+              accessibilityLabel="Add a new address on the map"
+              onPress={() =>
+                authed ? navigation.navigate("AddressPin", { deliverHere: true }) : navigation.navigate("SignIn")
+              }
+            >
+              <View style={styles.cityIcon}>
+                <PlusIcon size={16} color={c.primary} />
+              </View>
+              <View style={styles.rowInfo}>
+                <Text style={styles.rowTitle}>Add new address</Text>
+                <Text style={styles.rowMeta}>Pin it on the map and give it a name</Text>
               </View>
             </Touchable>
             {status === "denied" && (

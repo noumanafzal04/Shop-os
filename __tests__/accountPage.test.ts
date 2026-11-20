@@ -157,3 +157,18 @@ describe("the profile row points at a page, not at a field", () => {
     expect(menu).toMatch(/<Text style=\{styles\.editText\}>Log in<\/Text>/);
   });
 });
+
+describe("the three doors at the top", () => {
+  /*
+   * "profile main icons achy lgao, ye emoji ni achy lg rhy" — Orders,
+   * Favourites and Addresses were 3D emoji pictures; they are line icons on a
+   * soft plate now, the same family as the rows under them.
+   */
+  it("draws line icons, not emoji pictures", () => {
+    expect(account).toMatch(/<Tile icon=\{ReceiptIcon\} label="Orders"/);
+    expect(account).toMatch(/<Tile icon=\{HeartIcon\} label="Favourites"/);
+    expect(account).toMatch(/<Tile icon=\{MapPinIcon\} label="Addresses"/);
+    expect(account).not.toMatch(/\bpicture\(/);
+    expect(account).not.toMatch(/tradePicture/);
+  });
+});

@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
@@ -39,7 +40,7 @@ import { PromoCarousel } from "../components/PromoCarousel";
 import { HomeHero } from "../components/HomeHero";
 import { ShopTile } from "../components/ShopTile";
 import { categoryPicture, picture, shortcutPicture } from "../tradePicture";
-import { homeCategoryTiles } from "../homeCategories";
+import { homeCategoryTiles, TILE_GAP, tileSize, type TileSize } from "../homeCategories";
 import { ShopWithItems, ShopWithItemsSkeleton } from "../components/ShopWithItems";
 import { FeaturedTag } from "../components/FeaturedTag";
 import { Appear } from "../../../common/ui/Appear";
@@ -107,7 +108,9 @@ const typeLabel = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export function CustomerHomeScreen() {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { width } = useWindowDimensions();
+  const across = React.useMemo(() => tileSize(width), [width]);
+  const styles = React.useMemo(() => makeStyles(c, across), [c, across]);
   const navigation = useNavigation<any>();
   const [menuOpen, setMenuOpen] = useState(false);
   const coverFor = useShopCover();
@@ -728,7 +731,7 @@ export function CustomerHomeScreen() {
               onPress={() => navigation.navigate("Categories")}
             >
               <View style={[styles.tileIcon, styles.tileMore]}>
-                <GridIcon size={30} color={c.textSecondary} />
+                <GridIcon size={Math.round(across.pic * 0.55)} color={c.textSecondary} />
               </View>
               <Text style={styles.tileLabel} numberOfLines={2}>
                 View all
@@ -1064,7 +1067,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
   );
 }
 
-const makeStyles = (c: ThemeColors) =>
+const makeStyles = (c: ThemeColors, ts: TileSize = tileSize(390)) =>
   StyleSheet.create({
   scroll: { flex: 1, backgroundColor: c.bg },
   sticky: { position: "absolute", top: 0, left: 0, right: 0, paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
@@ -1109,11 +1112,13 @@ const makeStyles = (c: ThemeColors) =>
    * pass through from the shops you came for — and leaves the colour for the
    * things that mean something.
    */
+  // Even steps: 8 above the row, 12 between the row and the search, 12 from
+  // the search to the banner — the banner used to touch the search field.
   header: {
     paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-    gap: spacing.sm,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.ms,
+    gap: spacing.ms,
     // No background of its own: it sits on the hero, whose colour follows
     // the slide in view (see `HomeHero`).
   },
@@ -1218,7 +1223,8 @@ const makeStyles = (c: ThemeColors) =>
    * identically is most of why that grid never read as anything. A chip is a
    * different shape, so the difference needs no words.
    */
-  chipRow: { paddingHorizontal: spacing.md, gap: 8, paddingTop: spacing.md },
+  // 12 under the chips before the category tiles, which sat 4 below them.
+  chipRow: { paddingHorizontal: spacing.md, gap: 8, paddingTop: spacing.sm, paddingBottom: spacing.xs },
   chip: {
     flexDirection: "row",
     alignItems: "center",
@@ -1245,21 +1251,22 @@ const makeStyles = (c: ThemeColors) =>
 
   // A scrolling row of trades — foodpanda's verticals: a big tinted tile,
   // its picture large, the name under it in up to two lines.
-  tiles: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingTop: spacing.sm, paddingBottom: spacing.xs },
-  tile: { width: 84, alignItems: "center", gap: 6 },
+  // Five across on any phone — see `tileSize`.
+  tiles: { paddingHorizontal: spacing.md, gap: TILE_GAP, paddingTop: spacing.sm, paddingBottom: spacing.xs },
+  tile: { width: ts.tile, alignItems: "center", gap: 6 },
   // A tinted tile, not an outlined white box — the tint makes them read as
   // one set of buttons before anyone reads a label.
   tileIcon: {
-    width: 84,
-    height: 84,
-    borderRadius: 24,
+    width: ts.tile,
+    height: ts.tile,
+    borderRadius: ts.radius,
     backgroundColor: c.brand[100],
     alignItems: "center",
     justifyContent: "center",
   },
-  tilePic: { width: 58, height: 58 },
+  tilePic: { width: ts.pic, height: ts.pic },
   chipPic: { width: 22, height: 22 },
-  tileLabel: { ...typography.caption, color: c.text, fontSize: 13, lineHeight: 17, textAlign: "center" },
+  tileLabel: { ...typography.caption, color: c.text, fontSize: 12, lineHeight: 16, textAlign: "center" },
   tileRow: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingVertical: 2 },
   /**
    * The "view all" tile is deliberately NOT brand-tinted.

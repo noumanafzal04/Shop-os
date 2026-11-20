@@ -43,6 +43,7 @@ import { ReviewsScreen } from "../modules/reviews/screens/ReviewsScreen";
 import { HelpScreen } from "../modules/account/screens/HelpScreen";
 import { ProfileScreen } from "../modules/account/screens/ProfileScreen";
 import { AddressesScreen } from "../modules/account/screens/AddressesScreen";
+import { AddressPinScreen } from "../modules/account/screens/AddressPinScreen";
 import { useColors, useTheme } from "../theme";
 import { useModeStore } from "../stores/modeStore";
 import { useRiderProfile } from "../modules/rider/hooks/useRider";
@@ -127,6 +128,7 @@ function CustomerArea() {
       <CustomerStack.Screen name="Reservations" component={ReservationsScreen} />
       <CustomerStack.Screen name="Notifications" component={NotificationsScreen} />
       <CustomerStack.Screen name="Addresses" component={AddressesScreen} />
+      <CustomerStack.Screen name="AddressPin" component={AddressPinScreen} />
       <CustomerStack.Screen name="Settings" component={SettingsScreen} />
       <CustomerStack.Screen name="Security" component={SecurityScreen} />
       <CustomerStack.Screen name="Reviews" component={ReviewsScreen} />

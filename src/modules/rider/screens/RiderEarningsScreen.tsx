@@ -116,7 +116,7 @@ export function RiderEarningsScreen() {
             {/* ── Theirs ────────────────────────────────────────────── */}
             <View style={styles.cash}>
               <View style={styles.cashHead}>
-                <BanknoteIcon size={18} color={c.onWarm} />
+                <BanknoteIcon size={18} color={c.onWarmSoft} />
                 <Text style={styles.cashTitle}>Cash in hand</Text>
                 <Text style={styles.cashValue}>{money(earnings.data?.cash_in_hand ?? 0)}</Text>
               </View>
@@ -201,9 +201,9 @@ const makeStyles = (c: ThemeColors) =>
       gap: 6,
     },
     cashHead: { flexDirection: "row", alignItems: "center", gap: 8 },
-    cashTitle: { ...typography.label, color: c.onWarm, flex: 1, fontSize: 14, lineHeight: 18 },
-    cashValue: { ...typography.h3, color: c.onWarm, fontSize: 18, lineHeight: 24 },
-    cashHint: { ...typography.tiny, color: c.onWarm, lineHeight: 16, opacity: 0.85 },
+    cashTitle: { ...typography.label, color: c.onWarmSoft, flex: 1, fontSize: 14, lineHeight: 18 },
+    cashValue: { ...typography.h3, color: c.onWarmSoft, fontSize: 18, lineHeight: 24 },
+    cashHint: { ...typography.tiny, color: c.onWarmSoft, lineHeight: 16, opacity: 0.85 },
 
     caption: {
       ...typography.tiny,

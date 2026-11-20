@@ -1,108 +1,76 @@
-import React, { useState } from "react";
+import React from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  MapPinIcon,
-  PlusIcon,
-  TrashIcon,
-} from "../../../common/ui/icons";
+import { BuildingIcon, HomeIcon, MapPinIcon, PencilIcon, PlusIcon, TagIcon, TrashIcon } from "../../../common/ui/icons";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
-import { HeaderButton, ScreenHeader } from "../../../common/ui/ScreenHeader";
+import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { EmptyState } from "../../../common/ui/EmptyState";
 import { Touchable } from "../../../common/ui/Touchable";
 import { AppButton } from "../../../common/ui/AppButton";
-import { AppTextInput } from "../../../common/ui/AppTextInput";
 import { SkeletonListRow } from "../../../common/ui/Skeleton";
 import { LoadFailed } from "../../../common/ui/LoadFailed";
-import { apiDelete, apiGet, apiPost, apiPut } from "../../../common/api/client";
+import { confirm } from "../../../common/ui/confirm";
+import { toast } from "../../../common/ui/toast";
+import { apiDelete, apiGet, apiPut } from "../../../common/api/client";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../../../theme";
-import { useLocationStore } from "../../../stores/locationStore";
+import { labelKind, splitAddress } from "../addressForm";
+import type { SavedAddress } from "./AddressPinScreen";
 
-interface CustomerAddress {
-  id: string;
-  label: string;
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
-  is_default: boolean;
-}
+const KIND_ICON = { Home: HomeIcon, Work: BuildingIcon, Other: TagIcon } as const;
 
 /**
- * Saved delivery locations. "Use my current location" attaches the live GPS
- * pin — a full map picker replaces this later without API changes.
+ * MY ADDRESSES — foodpanda's list.
+ *
+ * One card per place: its name (Home / Work / your own) with a matching icon,
+ * the house line and the street under it, "Default" on the one checkout
+ * starts with. Tap a card to edit it on the map; the small buttons make it the
+ * default or remove it (asked first). "Add new address" is always on screen.
+ *
+ * The old screen saved whatever GPS said at that moment under a typed line,
+ * with no map — a person at work could not save "Home".
  */
 export function AddressesScreen() {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
+  const navigation = useNavigation<any>();
   const qc = useQueryClient();
-  const { lat, lng, label: cityLabel } = useLocationStore();
-
-  const [adding, setAdding] = useState(false);
-  const [label, setLabel] = useState("Home");
-  const [address, setAddress] = useState("");
 
   const list = useQuery({
     queryKey: ["addresses"],
-    queryFn: async () => (await apiGet<CustomerAddress[]>("/customer/addresses")).data,
+    queryFn: async () => (await apiGet<SavedAddress[]>("/customer/addresses")).data,
   });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["addresses"] });
 
-  const add = useMutation({
-    mutationFn: () =>
-      apiPost<CustomerAddress>("/customer/addresses", {
-        label: label.trim() || "Home",
-        address: address.trim(),
-        latitude: lat,
-        longitude: lng,
-      }),
-    onSuccess: () => {
-      invalidate();
-      setAdding(false);
-      setAddress("");
-    },
-  });
   const remove = useMutation({
     mutationFn: (id: string) => apiDelete<null>(`/customer/addresses/${id}`),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Address removed");
+    },
+    onError: () => toast.error("Couldn't remove it. Try again."),
   });
   const makeDefault = useMutation({
-    mutationFn: (id: string) => apiPut<CustomerAddress>(`/customer/addresses/${id}`, { is_default: true }),
+    mutationFn: (id: string) => apiPut<SavedAddress>(`/customer/addresses/${id}`, { is_default: true }),
     onSuccess: invalidate,
+    onError: () => toast.error("Couldn't change the default. Try again."),
   });
+
+  const askRemove = async (a: SavedAddress) => {
+    const yes = await confirm.ask({
+      title: `Remove "${a.label}"?`,
+      message: "You can add it again any time.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (yes) remove.mutate(a.id);
+  };
+
+  const add = () => navigation.navigate("AddressPin");
 
   return (
     <SafeScreen backgroundColor={c.bg}>
-      <ScreenHeader
-        title="My addresses"
-        right={
-          <HeaderButton label={adding ? "Close the form" : "Add an address"} onPress={() => setAdding((v) => !v)}>
-            <PlusIcon size={19} color={c.brand[600]} />
-          </HeaderButton>
-        }
-      />
-
-      {adding && (
-        <View style={styles.form}>
-          <AppTextInput placeholder="Label (Home / Work)" value={label} onChangeText={setLabel} />
-          <AppTextInput placeholder="House, street, area…" value={address} onChangeText={setAddress} />
-          {/*
-            The pin glyph is the app's own, not an emoji — the same
-            `MapPinIcon` the rows below this form are drawn with, so a saved
-            address and the note about saving one carry the same mark.
-          */}
-          <View style={styles.pinRow}>
-            <MapPinIcon size={14} color={c.textSecondary} />
-            <Text style={styles.pinNote}>
-              Pin: {lat != null ? `current location${cityLabel ? ` (${cityLabel})` : ""}` : "no GPS — address only"}
-            </Text>
-          </View>
-          <AppButton
-            title={add.isPending ? "Saving…" : "Save address"}
-            onPress={() => address.trim() && add.mutate()}
-            disabled={add.isPending || !address.trim()}
-          />
-        </View>
-      )}
+      <ScreenHeader title="My addresses" />
 
       {list.isLoading ? (
         <View style={styles.list}>
@@ -123,91 +91,143 @@ export function AddressesScreen() {
           keyExtractor={(a) => a.id}
           contentContainerStyle={[styles.list, styles.grow]}
           ListEmptyComponent={
-            !adding ? (
-              <EmptyState
-                icon={MapPinIcon}
-                title="No saved addresses"
-                message="Add the places you order to and checkout stops asking for them."
-              />
-            ) : null
+            <EmptyState
+              icon={MapPinIcon}
+              title="No saved addresses"
+              message="Save Home, Work and the places you order to — checkout fills them in for you."
+            />
           }
-          renderItem={({ item }) => (
-            <Touchable
-              style={[styles.row, item.is_default && styles.rowDefault]}
-              onPress={() => !item.is_default && makeDefault.mutate(item.id)}
-            >
-              <View style={styles.rowIcon}>
-                <MapPinIcon size={18} color={c.brand[600]} />
-              </View>
-              <View style={styles.rowInfo}>
-                <View style={styles.rowTop}>
-                  <Text style={styles.rowLabel}>{item.label}</Text>
-                  {item.is_default && <Text style={styles.defaultBadge}>Default</Text>}
+          renderItem={({ item }) => {
+            const kind = labelKind(item.label);
+            const KindIcon = KIND_ICON[kind];
+            const { details, place } = splitAddress(item.address);
+            return (
+              <Touchable
+                style={[styles.card, item.is_default && styles.cardDefault]}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${item.label}`}
+                onPress={() => navigation.navigate("AddressPin", { address: item })}
+              >
+                <View style={styles.top}>
+                  <View style={styles.kindIcon}>
+                    <KindIcon size={18} color={c.primary} bold />
+                  </View>
+                  <View style={styles.info}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.name} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      {item.is_default && <Text style={styles.defaultBadge}>Default</Text>}
+                    </View>
+                    {!!details && (
+                      <Text style={styles.details} numberOfLines={1}>
+                        {details}
+                      </Text>
+                    )}
+                    <Text style={styles.place} numberOfLines={2}>
+                      {place}
+                    </Text>
+                  </View>
+                  <PencilIcon size={16} color={c.textMuted} />
                 </View>
-                <Text style={styles.rowAddress} numberOfLines={2}>{item.address}</Text>
-              </View>
-              <Pressable hitSlop={8} onPress={() => remove.mutate(item.id)}>
-                <TrashIcon size={17} color={c.gray[300]} />
-              </Pressable>
-            </Touchable>
-          )}
+
+                <View style={styles.actions}>
+                  {!item.is_default ? (
+                    <Pressable
+                      hitSlop={6}
+                      onPress={() => makeDefault.mutate(item.id)}
+                      disabled={makeDefault.isPending}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Make ${item.label} the default`}
+                    >
+                      <Text style={styles.action}>Set as default</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.actionNote}>Checkout starts here</Text>
+                  )}
+                  <Pressable
+                    hitSlop={8}
+                    style={styles.remove}
+                    onPress={() => askRemove(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.label}`}
+                  >
+                    <TrashIcon size={16} color={c.error} />
+                    <Text style={styles.removeText}>Remove</Text>
+                  </Pressable>
+                </View>
+              </Touchable>
+            );
+          }}
         />
       )}
+
+      <View style={styles.footer}>
+        <AppButton title="Add new address" icon={PlusIcon} onPress={add} size="lg" />
+      </View>
     </SafeScreen>
   );
 }
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    list: { padding: spacing.md, gap: spacing.ms },
+    /** So `ListEmptyComponent` has a screen to centre in. */
+    grow: { flexGrow: 1 },
 
-  form: {
-    margin: spacing.md,
-    marginBottom: 0,
-    padding: spacing.md,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-  },
-  pinRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  pinNote: { ...typography.tiny, color: c.gray[500] },
+    card: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      gap: spacing.ms,
+    },
+    cardDefault: { borderColor: c.primary },
+    top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.ms },
+    kindIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      backgroundColor: c.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    info: { flex: 1, gap: 2 },
+    nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    name: { ...typography.label, color: c.text, fontSize: 15, lineHeight: 20, flexShrink: 1 },
+    defaultBadge: {
+      ...typography.tiny,
+      color: c.primary,
+      backgroundColor: c.primarySoft,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+      overflow: "hidden",
+      fontWeight: "700",
+    },
+    details: { ...typography.small, color: c.text },
+    place: { ...typography.small, color: c.textMuted },
 
-  list: { padding: spacing.md, gap: spacing.xs },
-  /** So `ListEmptyComponent` has a screen to centre in. */
-  grow: { flexGrow: 1 },
+    actions: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+    action: { ...typography.label, color: c.primary, fontSize: 13, lineHeight: 18 },
+    actionNote: { ...typography.tiny, color: c.textMuted },
+    remove: { flexDirection: "row", alignItems: "center", gap: 4 },
+    removeText: { ...typography.label, color: c.error, fontSize: 13, lineHeight: 18 },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  rowDefault: { borderColor: c.brand[400] },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: c.brand[50],
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowInfo: { flex: 1, gap: 2 },
-  rowTop: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  rowLabel: { ...typography.label, color: c.text },
-  defaultBadge: {
-    ...typography.tiny,
-    color: c.brand[700],
-    backgroundColor: c.brand[50],
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    overflow: "hidden",
-    fontWeight: "700",
-  },
-  rowAddress: { ...typography.small, color: c.gray[500] },
-});
+    footer: {
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.sm,
+      backgroundColor: c.bg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.border,
+    },
+  });

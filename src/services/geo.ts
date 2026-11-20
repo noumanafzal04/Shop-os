@@ -18,6 +18,29 @@ export interface AddressSuggestion {
   lng: number;
 }
 
+/** A Plus Code ("G9C5+5F5") — Google's grid name for a spot, meaningless to a rider. */
+const PLUS_CODE = /^[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{0,3}$/i;
+
+/**
+ * THE STREET FROM GOOGLE'S ANSWER, without the grid code.
+ *
+ * Google's first result is often the Plus Code for the exact spot —
+ * "G9C5+5F5, Block N Gulberg III" — which a person reads as a typo. Results
+ * that ARE a plus code are skipped, a plus code leading any line is dropped,
+ * and the first three parts are kept ("House 12, Street 4, Gulberg III").
+ */
+export function googleLine(results: Array<{ formatted_address?: string; types?: string[] }> | null | undefined): string | null {
+  for (const r of results ?? []) {
+    if (r.types?.includes("plus_code")) continue;
+    const parts = (r.formatted_address ?? "")
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p && !PLUS_CODE.test(p) && !/^pakistan$/i.test(p));
+    if (parts.length) return parts.slice(0, 3).join(", ");
+  }
+  return null;
+}
+
 /** Coordinates → a short human label ("49 Saeed Street, Gulberg"). */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
   try {
@@ -26,7 +49,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_MAPS_API_KEY}`,
       );
       const json = await res.json();
-      return json.results?.[0]?.formatted_address?.split(",").slice(0, 2).join(",") ?? null;
+      return googleLine(json.results);
     }
 
     const res = await fetch(

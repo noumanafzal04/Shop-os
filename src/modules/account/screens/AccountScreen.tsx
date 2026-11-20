@@ -1,11 +1,14 @@
 import React from "react";
-import { Image, type ImageSourcePropType, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import {
   BanknoteIcon,
   BellIcon,
   CalendarIcon,
   ChevronRightIcon,
+  HeartIcon,
+  MapPinIcon,
+  ReceiptIcon,
   GearIcon,
   InfoIcon,
   LifeBuoyIcon,
@@ -32,7 +35,6 @@ import { useModeStore } from "../../../stores/modeStore";
 import { useLogout } from "../../auth/hooks/useAuth";
 import { useRiderProfile } from "../../rider/hooks/useRider";
 import { BRAND } from "../../../common/brand";
-import { picture } from "../../marketplace/tradePicture";
 
 /**
  * The Account tab.
@@ -275,9 +277,9 @@ export function AccountScreen() {
           list.
         */}
         <View style={styles.tiles}>
-          <Tile art={picture("receipt")} label="Orders" onPress={() => open("OrdersTab")} />
-          <Tile art={picture("red_heart")} label="Favourites" onPress={() => open("Favorites")} />
-          <Tile art={picture("round_pushpin")} label="Addresses" onPress={() => open("Addresses")} />
+          <Tile icon={ReceiptIcon} label="Orders" onPress={() => open("OrdersTab")} />
+          <Tile icon={HeartIcon} label="Favourites" onPress={() => open("Favorites")} />
+          <Tile icon={MapPinIcon} label="Addresses" onPress={() => open("Addresses")} />
         </View>
 
         {/*
@@ -401,13 +403,19 @@ export function AccountScreen() {
   );
 }
 
-/** The three doors at the top of the page, with the same 3D art as Home. */
+/**
+ * The three doors at the top of the page.
+ *
+ * An icon on a soft brand plate — "profile main icons achy lgao, ye emoji ni
+ * achy lg rhy": the 3D emoji art belongs to Home's categories; an account
+ * page is a settings page and reads better in the same line icons as its rows.
+ */
 function Tile({
-  art,
+  icon: TileIcon,
   label,
   onPress,
 }: {
-  art: ImageSourcePropType;
+  icon: Icon;
   label: string;
   onPress: () => void;
 }) {
@@ -420,7 +428,9 @@ function Tile({
       accessibilityLabel={label}
       onPress={onPress}
     >
-      <Image source={art} style={styles.tilePic} />
+      <View style={styles.tileIcon}>
+        <TileIcon size={22} color={c.primary} bold />
+      </View>
       <Text style={styles.tileLabel}>{label}</Text>
     </Pressable>
   );
@@ -596,15 +606,14 @@ const makeStyles = (c: ThemeColors) =>
       borderRadius: radius.lg,
     },
     tileIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 13,
-      backgroundColor: c.brand[50],
+      width: 44,
+      height: 44,
+      borderRadius: 15,
+      backgroundColor: c.primarySoft,
       alignItems: "center",
       justifyContent: "center",
     },
     tilePressed: { backgroundColor: c.surfaceAlt },
-    tilePic: { width: 44, height: 44 },
     tileLabel: { ...typography.small, color: c.text, fontWeight: "600" },
 
     section: {

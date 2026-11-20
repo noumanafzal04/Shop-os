@@ -37,3 +37,32 @@ export function homeCategoryTiles(trades: CategoryTrade[], cap: number): HomeTil
     .sort((a, b) => b.shops - a.shops || a.label.localeCompare(b.label))
     .slice(0, Math.max(0, cap));
 }
+
+/**
+ * FIVE TILES ACROSS, on any phone.
+ *
+ * "4 ki bajaye 5 categories show krwao, thora size kam" — the tiles were a
+ * fixed 84 points, so a 390-point phone showed four and a bit, and they read
+ * as too big. The size now comes from the screen: the row's padding (16 each
+ * side) and four gaps of 8 taken off, the rest split five ways, kept between
+ * 56 (a label still fits) and 76 (a tablet shows more rather than giants).
+ *
+ * The radius stays well under half the size — at exactly half Fabric draws a
+ * square on a real phone.
+ */
+export const TILES_ACROSS = 5;
+export const TILE_GAP = 8;
+const ROW_PADDING = 16;
+
+export interface TileSize {
+  tile: number;
+  pic: number;
+  radius: number;
+}
+
+export function tileSize(screenWidth: number, across = TILES_ACROSS): TileSize {
+  const n = Math.max(1, Math.floor(across));
+  const free = (Number.isFinite(screenWidth) ? screenWidth : 0) - ROW_PADDING * 2 - TILE_GAP * (n - 1);
+  const tile = Math.min(76, Math.max(56, Math.floor(free / n)));
+  return { tile, pic: Math.round(tile * 0.68), radius: Math.round(tile * 0.3) };
+}

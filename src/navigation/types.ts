@@ -1,3 +1,4 @@
+import type { SavedAddress } from "../modules/account/screens/AddressPinScreen";
 import type { BrowseFilters } from "../modules/marketplace/services/marketplaceService";
 
 // ── Customer side ───────────────────────────────────────────────────
@@ -22,6 +23,8 @@ export type CustomerStackParamList = {
   Reservations: undefined;
   Notifications: undefined;
   Addresses: undefined;
+  /** Add (no params) or edit (`address`) a saved place on a map; `deliverHere` also makes it the delivery pin. */
+  AddressPin: { address?: SavedAddress; deliverHere?: boolean } | undefined;
   Settings: undefined;
   Security: undefined;
   Reviews: undefined;

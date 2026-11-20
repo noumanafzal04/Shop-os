@@ -105,6 +105,23 @@ jest.mock('react-native-image-picker', () => ({
 }));
 
 /**
+ * THE MAP ON "ADD AN ADDRESS", MOCKED.
+ *
+ * `react-native-maps` is a native view (Google Maps SDK); the navigator
+ * imports the screen, so every suite that renders the app loads it. A plain
+ * View stands in, with the one method the screen calls on it.
+ */
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const MapView = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({ animateToRegion: jest.fn() }));
+    return React.createElement(View, props);
+  });
+  return { __esModule: true, default: MapView, PROVIDER_GOOGLE: 'google' };
+});
+
+/**
  * FIREBASE MESSAGING, MOCKED.
  *
  * `@react-native-firebase/messaging` ships ESM and needs a native module, so a

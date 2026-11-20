@@ -34,6 +34,8 @@ import type { HomeBanner } from "../services/marketplaceService";
  */
 const AUTO_MS = 4500;
 const ARC = 26;
+/** An own slide's words end above the dots, which now sit on its bottom edge. */
+const DOTS_ROOM = 18;
 
 interface OwnSlide {
   id: string;
@@ -132,6 +134,12 @@ export function HomeHero({
       <Animated.View style={{ backgroundColor: background, paddingTop: insets.top }}>
         {header}
 
+        {/*
+          The dots sit ON the slider's bottom edge, not in a band of their own
+          under it — that band was 22 points of empty colour between the
+          banner and the curve.
+        */}
+        <View>
         <Animated.FlatList
           ref={list}
           horizontal
@@ -173,7 +181,7 @@ export function HomeHero({
               </Pressable>
             ) : (
               <Pressable
-                style={[styles.slide, styles.own, { width, height: slideHeight + spacing.md }]}
+                style={[styles.slide, styles.own, { width, height: slideHeight + spacing.md + DOTS_ROOM }]}
                 accessible
                 accessibilityRole={item.onPress ? "button" : undefined}
                 accessibilityLabel={`${item.title}. ${item.body}`}
@@ -201,7 +209,7 @@ export function HomeHero({
         />
 
         {slides.length > 1 && (
-          <View style={styles.dotsWrap}>
+          <View style={styles.dotsWrap} pointerEvents="none">
             <View style={[styles.dots, { backgroundColor: c.surface }]}>
               {slides.map((s, i) => (
                 <View
@@ -212,6 +220,7 @@ export function HomeHero({
             </View>
           </View>
         )}
+        </View>
       </Animated.View>
 
       {/* The curve the block ends in — the same colour, an arc under it. */}
@@ -231,7 +240,7 @@ export function HomeHero({
 
 const styles = StyleSheet.create({
   slide: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
-  own: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  own: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingBottom: DOTS_ROOM },
   art: { width: "100%" },
   copy: { flex: 1, gap: 6 },
   title: { ...typography.title, fontSize: 24, lineHeight: 30, fontWeight: "800" },
@@ -240,7 +249,7 @@ const styles = StyleSheet.create({
   cta: { ...typography.label, textDecorationLine: "underline" },
   emoji: { fontSize: 76 },
   pic: { width: 112, height: 112 },
-  dotsWrap: { alignItems: "center", paddingTop: spacing.xs, paddingBottom: 4 },
+  dotsWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.sm, alignItems: "center" },
   dots: {
     flexDirection: "row",
     gap: 5,

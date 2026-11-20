@@ -1,5 +1,5 @@
 import { PROJECT_ROOT, codeOnly, fs, path } from "./support/node";
-import { shopAvatar, shopBanner, shopLogo } from "../src/modules/marketplace/shopCover";
+import { shopAvatar, shopBanner, shopHero, shopLogo } from "../src/modules/marketplace/shopCover";
 
 /**
  * "HOME PY SHOP KI COVER IMAGE SHOW NI HO RHI" — and it never had.
@@ -97,5 +97,39 @@ describe("the screens actually use them", () => {
     ]) {
       expect(codeOnly(read(rel))).not.toMatch(/\bshopLogo\(/);
     }
+  });
+});
+
+/**
+ * "LOGO HI COVER BAN JATA HAI" — the shop page's 200-point hero took the logo
+ * when there was no cover, so a small mark was stretched and cropped into a
+ * band with the same logo again beside the name. The hero is a PHOTOGRAPH or
+ * nothing; a logo never fills it.
+ */
+describe("shopHero — the shop page hero is a photograph or nothing", () => {
+  it("takes the cover first", () => {
+    expect(shopHero({ cover_url: "c.jpg", gallery: ["g.jpg"] })).toBe("c.jpg");
+  });
+
+  it("falls back to the gallery's first real photograph", () => {
+    expect(shopHero({ cover_url: null, gallery: [null, "", "g2.jpg"] })).toBe("g2.jpg");
+  });
+
+  it("never uses the logo — a shop with only a logo gets the plain header", () => {
+    expect(shopHero({ cover_url: null, gallery: [], logo_url: "logo.png", logo_path: "logo.png" } as never)).toBeNull();
+    expect(shopHero({ cover_url: "", gallery: null })).toBeNull();
+  });
+
+  it("answers null while the shop is still loading", () => {
+    expect(shopHero(undefined)).toBeNull();
+    expect(shopHero(null)).toBeNull();
+  });
+
+  it("the shop page reads its hero from shopHero, not from the logo", () => {
+    const src = codeOnly(
+      fs.readFileSync(path.join(PROJECT_ROOT, "src/modules/marketplace/screens/MarketShopScreen.tsx"), "utf8"),
+    );
+    expect(src).toMatch(/const hero = shopHero\(shop\.data\)/);
+    expect(src).not.toMatch(/\bshopLogo\(/);
   });
 });

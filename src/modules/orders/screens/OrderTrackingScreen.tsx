@@ -540,8 +540,8 @@ const makeStyles = (c: ThemeColors) =>
     marginTop: spacing.sm,
     gap: 2,
   },
-  otpCaption: { ...typography.tiny, color: c.onWarm, fontWeight: "700" },
-  otpCode: { ...typography.display, color: c.onWarm, fontSize: 28, lineHeight: 34, letterSpacing: 8 },
+  otpCaption: { ...typography.tiny, color: c.onWarmSoft, fontWeight: "700" },
+  otpCode: { ...typography.display, color: c.onWarmSoft, fontSize: 28, lineHeight: 34, letterSpacing: 8 },
 
   addrRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   addrText: { ...typography.small, color: c.gray[600], flex: 1 },

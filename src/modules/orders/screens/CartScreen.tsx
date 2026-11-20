@@ -451,7 +451,7 @@ const makeStyles = (c: ThemeColors) =>
     nudge: { backgroundColor: c.warningBg, borderRadius: radius.sm, padding: spacing.ms, gap: spacing.sm },
     nudgeText: { ...typography.small, color: c.warning, fontWeight: "600" },
     nudgeDeal: { backgroundColor: c.warmSoft },
-    nudgeDealText: { ...typography.small, color: c.onWarm, fontWeight: "600" },
+    nudgeDealText: { ...typography.small, color: c.onWarmSoft, fontWeight: "600" },
     track: { height: 4, borderRadius: 2, backgroundColor: c.surface, overflow: "hidden" },
     fill: { height: 4, borderRadius: 2, backgroundColor: c.warning },
     fillDeal: { backgroundColor: c.warm },

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useIsFocused, useNavigation, useRoute } from "@react-navigation/native";
@@ -28,7 +29,7 @@ import { useTabBarSpace } from "../../../navigation/tabBarSpace";
 import { useCategories, useMarketShops } from "../hooks/useMarketplace";
 import { HomeHero } from "../components/HomeHero";
 import { ShopTile } from "../components/ShopTile";
-import { homeCategoryTiles } from "../homeCategories";
+import { homeCategoryTiles, TILE_GAP, tileSize, type TileSize } from "../homeCategories";
 import { categoryPicture, picture } from "../tradePicture";
 import { ShopWithItems } from "../components/ShopWithItems";
 import type { ShopQuery } from "../services/marketplaceService";
@@ -45,7 +46,9 @@ const KITCHEN_TRADES = new Set(["food", "restaurant", "bakery"]);
  */
 export function MarketScreen() {
   const c = useColors();
-  const styles = React.useMemo(() => makeStyles(c), [c]);
+  const { width } = useWindowDimensions();
+  const across = React.useMemo(() => tileSize(width), [width]);
+  const styles = React.useMemo(() => makeStyles(c, across), [c, across]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
 
@@ -403,7 +406,7 @@ export function MarketScreen() {
   );
 }
 
-const makeStyles = (c: ThemeColors) =>
+const makeStyles = (c: ThemeColors, ts: TileSize = tileSize(390)) =>
   StyleSheet.create({
     header: {
       backgroundColor: c.brand[500],
@@ -454,27 +457,27 @@ const makeStyles = (c: ThemeColors) =>
     rail: { marginHorizontal: -spacing.md },
     kinds: {
       paddingHorizontal: spacing.md,
-      gap: spacing.ms,
+      gap: TILE_GAP,
       paddingTop: spacing.sm,
       paddingBottom: spacing.xs,
     },
-    kind: { width: 84, alignItems: "center", gap: 6 },
+    kind: { width: ts.tile, alignItems: "center", gap: 6 },
     kindPic: {
-      width: 84,
-      height: 84,
-      borderRadius: 24,
+      width: ts.tile,
+      height: ts.tile,
+      borderRadius: ts.radius,
       backgroundColor: c.surface,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: c.border,
       alignItems: "center",
       justifyContent: "center",
     },
-    kindImg: { width: 58, height: 58 },
+    kindImg: { width: ts.pic, height: ts.pic },
     kindLabel: {
       ...typography.caption,
       color: c.text,
-      fontSize: 13,
-      lineHeight: 17,
+      fontSize: 12,
+      lineHeight: 16,
       textAlign: "center",
     },
     popular: {

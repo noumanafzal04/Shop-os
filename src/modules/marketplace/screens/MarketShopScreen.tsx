@@ -43,7 +43,7 @@ import { ProductSheet, type ConfiguredLine } from "../components/ProductSheet";
 import type { PublicProduct } from "../services/marketplaceService";
 import { productBelongsToShop } from "../linkedProduct";
 import { formatDistance } from "../shopFacts";
-import { shopAvatar, shopInitial, shopLogo, useShopCover } from "../shopCover";
+import { shopAvatar, shopHero, shopInitial, useShopCover } from "../shopCover";
 import { SmartImage } from "../../../common/ui/SmartImage";
 import { toast } from "../../../common/ui/toast";
 import { confirm } from "../../../common/ui/confirm";
@@ -446,19 +446,16 @@ export function MarketShopScreen() {
   /**
    * THE BIGGEST PICTURE IN THE APP, and what stands in when there is none.
    *
-   * Four answers, in the order a shop would expect them:
+   * Three answers, in the order a shop would expect them:
    *
    *   cover      the photograph chosen FOR this band, by any shop;
    *   gallery[0] a portfolio's first image, which is all this used to read —
    *              and the gallery is gated on the services module, so for a
    *              restaurant it was always empty;
-   *   logo       better than a letter, and most shops have one;
-   *   letter     the derived cover, which is where every shop used to land.
+   *   nothing    the plain header — the logo is NOT stretched into a cover
+   *              (see `shopHero`); it already sits beside the name.
    */
-  const hero =
-    shop.data?.cover_url ??
-    shop.data?.gallery?.[0] ??
-    (shop.data ? shopLogo(shop.data) : null);
+  const hero = shopHero(shop.data);
 
   /**
    * Put a line in the basket — asking first if that would empty it.

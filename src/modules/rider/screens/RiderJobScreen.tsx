@@ -1,5 +1,5 @@
 import React from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   BanknoteIcon,
@@ -14,6 +14,7 @@ import { mapsUrl } from "../../../common/maps";
 import { ScreenHeader } from "../../../common/ui/ScreenHeader";
 import { AppButton } from "../../../common/ui/AppButton";
 import { AppTextInput } from "../../../common/ui/AppTextInput";
+import { KeyboardScreen } from "../../../common/ui/KeyboardScreen";
 import { RefreshPill } from "../../../common/ui/RefreshPill";
 import { confirm } from "../../../common/ui/confirm";
 import { toast } from "../../../common/ui/toast";
@@ -155,7 +156,7 @@ export function RiderJobScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+      <KeyboardScreen contentStyle={styles.body}>
         {job != null && (
           <>
             {/* ── Collect from ───────────────────────────────────────── */}
@@ -208,7 +209,7 @@ export function RiderJobScreen() {
             {/* ── The money ──────────────────────────────────────────── */}
             <View style={[styles.card, job.cash_to_collect > 0 && styles.cashCard]}>
               <View style={styles.moneyRow}>
-                <BanknoteIcon size={17} color={job.cash_to_collect > 0 ? c.onWarm : c.textMuted} />
+                <BanknoteIcon size={17} color={job.cash_to_collect > 0 ? c.onWarmSoft : c.textMuted} />
                 <Text style={styles.moneyLabel}>
                   {job.cash_to_collect > 0 ? "Collect from the customer" : "Already paid"}
                 </Text>
@@ -264,7 +265,7 @@ export function RiderJobScreen() {
             )}
           </>
         )}
-      </ScrollView>
+      </KeyboardScreen>
     </SafeScreen>
   );
 }
