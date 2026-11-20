@@ -617,8 +617,37 @@ class Tenant extends BaseModel
         return now()->setTimezone($this->timezone ?: 'Asia/Karachi');
     }
 
+    /**
+     * "BUSY" — orders paused for a while (foodpanda's "close temporarily").
+     *
+     * A power cut or no gas at 7pm used to be answered only by editing the
+     * saved opening hours and editing them back tomorrow. The pause is its own
+     * key with an END: when that moment passes the shop is open again by
+     * itself, so a pause forgotten at closing time cannot keep it shut for a
+     * week. Null when not paused, or when the pause has run out.
+     */
+    public function ordersPausedUntil(): ?Carbon
+    {
+        $v = ($this->settings ?? [])['orders_paused_until'] ?? null;
+        if (! is_string($v) || $v === '') {
+            return null;
+        }
+        try {
+            $until = Carbon::parse($v);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $until->isFuture() ? $until : null;
+    }
+
     public function isOpenNow(): bool
     {
+        // Paused is closed — for the listing, "open now" and checkout alike.
+        if ($this->ordersPausedUntil() !== null) {
+            return false;
+        }
+
         $hours = $this->business_hours;
         if (empty($hours)) {
             return true;

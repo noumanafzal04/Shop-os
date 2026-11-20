@@ -209,6 +209,12 @@ class OrderService
 
         // Business hours: shops with a configured schedule don't take orders
         // while closed (shops with no schedule are always orderable).
+        if (! $counter && $shop->ordersPausedUntil() !== null) {
+            throw DomainException::unprocessable(
+                'This shop is busy and not taking orders right now — please try again a little later.',
+                'ORDERS_PAUSED',
+            );
+        }
         if (! $counter && ! $shop->isOpenNow()) {
             throw DomainException::unprocessable(
                 'This shop is closed right now — please order during business hours.',

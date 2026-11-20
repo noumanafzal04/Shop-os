@@ -253,6 +253,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::get('/shop/keep', [KeepShopController::class, 'show']);
             Route::post('/shop/keep', [KeepShopController::class, 'store']);
             Route::put('/shop/settings', [ShopController::class, 'updateSettings'])->middleware('permission:settings.manage');
+            // "Busy" — pause online orders for a while (whoever runs the orders may).
+            Route::post('/shop/orders/pause', [ShopController::class, 'pauseOrders'])->middleware('permission:orders.manage');
+            Route::delete('/shop/orders/pause', [ShopController::class, 'resumeOrders'])->middleware('permission:orders.manage');
             // Portfolio / gallery — a service business shows its work. Gated by
             // the services module: a mart or pharmacy has no portfolio.
             Route::middleware(['feature:services', 'permission:settings.manage'])->group(function (): void {

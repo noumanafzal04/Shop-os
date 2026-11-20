@@ -21,6 +21,7 @@ use App\Support\ShopDay;
 use App\Support\ShopZone;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class ShopController extends Controller
@@ -125,7 +126,10 @@ class ShopController extends Controller
 
         // Effective branch ceiling drives whether the owner sees branch UI
         // (single-branch tenants never do). null = unlimited.
-        return ApiResponse::ok($tenant->allSettings() + [
+        return ApiResponse::ok([
+            // The LIVE answer: a pause that has run out reads null, not a past time.
+            'orders_paused_until' => $tenant->ordersPausedUntil()?->toIso8601String(),
+        ] + $tenant->allSettings() + [
             'max_branches' => PlanLimits::limit($tenant, 'branches'),
             // Its own allowance: a shop with one branch may still have a
             // godown, and the panel shows the places screen for either.
@@ -188,6 +192,43 @@ class ShopController extends Controller
             'why' => $locked ? $tenant->whyItsCurrencyIsFixed() : null,
             'options' => Currencies::options(),
         ]);
+    }
+
+    /**
+     * PAUSE ONLINE ORDERS — for a while, never for ever.
+     *
+     * `minutes` (5–1440), or `rest_of_day` to the end of today in the shop's
+     * own clock. Counter sales are not touched: this is the marketplace's
+     * door, not the till's.
+     */
+    public function pauseOrders(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'minutes' => ['required_without:rest_of_day', 'nullable', 'integer', 'min:5', 'max:1440'],
+            'rest_of_day' => ['sometimes', 'boolean'],
+        ]);
+        $tenant = $this->context->get();
+
+        $until = ! empty($data['rest_of_day'])
+            ? $tenant->localNow()->endOfDay()->utc()
+            : now()->addMinutes((int) $data['minutes']);
+
+        $settings = $tenant->settings ?? [];
+        $settings['orders_paused_until'] = $until->toIso8601String();
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return ApiResponse::ok(['orders_paused_until' => $until->toIso8601String()], 'Orders paused');
+    }
+
+    /** Take orders again now. */
+    public function resumeOrders(): JsonResponse
+    {
+        $tenant = $this->context->get();
+        $settings = $tenant->settings ?? [];
+        unset($settings['orders_paused_until']);
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return ApiResponse::ok(['orders_paused_until' => null], 'Taking orders again');
     }
 
     public function updateSettings(UpdateShopSettingsRequest $request): JsonResponse
