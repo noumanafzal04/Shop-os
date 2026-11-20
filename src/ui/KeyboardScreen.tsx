@@ -2,13 +2,22 @@ import React from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   TouchableWithoutFeedback,
   View,
   type ViewStyle,
 } from "react-native";
+
+/**
+ * "LOGIN MAIN JB EMAIL YA PASSWORD PY CLICK KRTY TO WO KEYBOARD K BACK MAIN
+ * ATA HAI" — Android was left to `adjustResize` (behavior undefined). The app
+ * targets SDK 36, and from Android 15 every app is drawn edge to edge, where
+ * `adjustResize` no longer shrinks the window: the keyboard simply covered the
+ * form. `padding` measures the keyboard's overlap with THIS view, so on an
+ * older phone that still resizes the overlap is 0 and nothing doubles.
+ */
+export const KEYBOARD_BEHAVIOR = "padding" as const;
 
 interface Props {
   children: React.ReactNode;
@@ -29,17 +38,14 @@ interface Props {
 
 /**
  * Keyboard-aware scrolling for any form screen:
- *  - inputs are never covered by the keyboard (iOS padding / Android resize)
+ *  - inputs are never covered by the keyboard (padding, on BOTH platforms)
  *  - tapping outside an input dismisses the keyboard
  *  - taps on buttons work while the keyboard is open (persistTaps)
  *  - an optional pinned `footer` that rides above the keyboard too
  */
 export function KeyboardScreen({ children, contentStyle, footer, scrollRef }: Props) {
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior={KEYBOARD_BEHAVIOR}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <ScrollView
           ref={scrollRef}

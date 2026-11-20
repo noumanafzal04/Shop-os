@@ -40,7 +40,14 @@ export interface ThemeColors {
   /** Offers, ratings, countdowns. Never a button — see `tokens.ts`. */
   warm: string;
   warmSoft: string;
+  /** Text and icons ON the solid `warm` fill (a badge, a count). */
   onWarm: string;
+  /**
+   * Text and icons on the PALE `warmSoft` ground — a nudge, a cash pill, an
+   * OTP box. Not `onWarm`: on teal that is white, and white on a pale peach
+   * was "very light bg and text white" on the cart's free-delivery line.
+   */
+  onWarmSoft: string;
 
   /**
    * THE BRAND'S SECOND VOICE — and why it is not just another green.
@@ -200,6 +207,7 @@ export const lightColors: ThemeColors = {
   warm: warm[500],
   warmSoft: warm[100],
   onWarm: "#3a2a00",
+  onWarmSoft: "#3a2a00",
 
   // The carmine side's fresh green is the one it already owns — `green` is
   // what `success` is drawn in here, one step lighter so a fill and a
@@ -277,6 +285,7 @@ export const darkColors: ThemeColors = {
   warm: "#f2ce62",
   warmSoft: "#332a10",
   onWarm: "#221711",
+  onWarmSoft: "#f2ce62",
 
   accent: "#9ccc4f",
   accentSoft: "#1c2a10",
@@ -426,6 +435,7 @@ export const meadowLightColors: ThemeColors = wearing(lightColors, tealBrand, {
   warm: dealOrange.base,
   warmSoft: dealOrange.soft,
   onWarm: "#ffffff",
+  onWarmSoft: dealOrange.dark,
 
   // The signal teal: progress, the route, a spinner — never text.
   accent: tealSignal,
@@ -462,6 +472,7 @@ export const meadowDarkColors: ThemeColors = wearing(darkColors, tealDarkBrand, 
   warm: dealOrange.light,
   warmSoft: "#2e1a10",
   onWarm: tealGray[900],
+  onWarmSoft: dealOrange.light,
   accent: tealSignal,
   accentSoft: tealDarkBrand[50],
   onAccent: tealGray[900],

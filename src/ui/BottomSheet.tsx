@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   BackHandler,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -22,6 +23,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { XIcon } from "./icons";
+import { KEYBOARD_BEHAVIOR } from "./KeyboardScreen";
 import { radius, spacing, type ThemeColors, typography, useColors } from "../theme";
 
 /**
@@ -316,7 +318,14 @@ export function BottomSheet({
 
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.root}>
+      {/*
+        THE KEYBOARD LIFTS THE SHEET. A sheet with a field in it (a review, a
+        price) had the keyboard drawn over its bottom half: inside a Modal on
+        an edge-to-edge Android nothing resizes for it. Padding by the
+        keyboard's overlap raises the panel, and the panel may shrink (its
+        scroll with it) when the two no longer fit — see `KEYBOARD_BEHAVIOR`.
+      */}
+      <KeyboardAvoidingView style={styles.root} behavior={KEYBOARD_BEHAVIOR}>
         <Animated.View style={[styles.backdrop, backdropStyle]}>
           <Pressable
             style={StyleSheet.absoluteFill}
@@ -327,7 +336,7 @@ export function BottomSheet({
         </Animated.View>
 
         {dragHandleOnly ? panel : <GestureDetector gesture={pan}>{panel}</GestureDetector>}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -348,6 +357,8 @@ const makeStyles = (c: ThemeColors) =>
       backgroundColor: "rgba(10, 20, 24, 0.55)",
     },
     panel: {
+      // May shrink when the keyboard leaves less room than its content wants.
+      flexShrink: 1,
       backgroundColor: c.surface,
       borderTopLeftRadius: radius.xl,
       borderTopRightRadius: radius.xl,
