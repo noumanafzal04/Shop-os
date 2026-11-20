@@ -12,6 +12,8 @@ import { money } from "@cartze/core/format";
 import { ChevronRightIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { PeriodBar } from "../components/PeriodBar";
+import { RangeSheet } from "../components/RangeSheet";
+import { rangeLabel, type DateRange } from "../dateRange";
 import { useCommission, useSummary } from "../hooks/useMoney";
 import type { Period, Summary } from "../services/moneyService";
 import type { MoneyStackParamList } from "../../../navigation/types";
@@ -38,15 +40,32 @@ export function MoneyScreen() {
   const s = styles(c);
   const nav = useNavigation<NativeStackNavigationProp<MoneyStackParamList>>();
   const [period, setPeriod] = useState<Period>("monthly");
+  // A chosen range, and whether its sheet is open ("custom … range date filter").
+  const [range, setRange] = useState<DateRange | null>(null);
+  const [picking, setPicking] = useState(false);
 
-  const { data, isLoading, isError, refetch } = useSummary(period);
+  const { data, isLoading, isError, refetch } = useSummary(period, range);
   const { data: commission } = useCommission();
   const { refreshing, onRefresh } = usePullToRefresh(refetch);
 
   return (
     <SafeScreen edges={["top"]}>
       <ScreenHeader title="Money" />
-      <PeriodBar active={period} onPick={setPeriod} />
+      <PeriodBar
+        active={period}
+        customLabel={range ? rangeLabel(range) : null}
+        onPick={(p) => (p === "custom" ? setPicking(true) : setPeriod(p))}
+      />
+      <RangeSheet
+        visible={picking}
+        initial={range}
+        onClose={() => setPicking(false)}
+        onApply={(r) => {
+          setRange(r);
+          setPeriod("custom");
+          setPicking(false);
+        }}
+      />
 
       <ScrollView
         contentContainerStyle={s.body}

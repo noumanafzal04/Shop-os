@@ -115,6 +115,8 @@ const styles = (c: ThemeColors) =>
       borderRadius: radius.md,
       borderWidth: 1.5,
       backgroundColor: c.surface,
+      // In line with the cards below it (the dashboard body is padded 16).
+      marginHorizontal: spacing.md,
     },
     cardOpen: { borderColor: c.border },
     cardBusy: { borderColor: c.warning },

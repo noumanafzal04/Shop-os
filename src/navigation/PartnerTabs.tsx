@@ -14,6 +14,8 @@ import { Touchable } from "@cartze/core/ui/Touchable";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useAuthStore } from "../stores/authStore";
 import { DrawerHost } from "../common/components/DrawerHost";
+import { holds } from "../common/permissions";
+import { useOrders } from "../modules/orders/hooks/useOrders";
 import { tabsFor, type PartnerTab } from "./tabsFor";
 import { DashboardScreen } from "../modules/dashboard/screens/DashboardScreen";
 import { OrdersStack } from "./OrdersStack";
@@ -56,6 +58,12 @@ function PartnerTabBar({ state, navigation }: BottomTabBarProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
   const s = styles(c);
+  /*
+   * How many orders are waiting to be accepted — on the Orders tab, from the
+   * SAME polled query the new-order screen reads (one request, two readers).
+   */
+  const user = useAuthStore((st) => st.user);
+  const waiting = useOrders({ status: "pending" }, holds(user, "orders.manage")).data?.orders.length ?? 0;
 
   return (
     <View
@@ -85,7 +93,20 @@ function PartnerTabBar({ state, navigation }: BottomTabBarProps) {
             accessibilityLabel={item.label}
             style={s.item}
           >
-            <Icon size={24} color={focused ? c.primaryPressed : c.textMuted} bold={focused} />
+            {/*
+              The active tab's soft pill, as in the customer app. The fill is
+              ALWAYS drawn and only its opacity flips — a fill added on tap
+              loses its radius under Fabric and shows as a square box.
+            */}
+            <View style={s.iconWrap}>
+              <View pointerEvents="none" style={[s.iconFill, focused ? s.fillOn : s.fillOff]} />
+              <Icon size={24} color={focused ? c.primaryPressed : c.textMuted} bold={focused} />
+              {route.name === "Orders" && waiting > 0 && (
+                <View style={s.badge} accessibilityLabel={`${waiting} waiting`}>
+                  <Text style={s.badgeText}>{waiting > 99 ? "99+" : waiting}</Text>
+                </View>
+              )}
+            </View>
             <Text style={[s.label, focused ? s.labelOn : s.labelOff]} numberOfLines={1}>
               {item.label}
             </Text>
@@ -143,6 +164,33 @@ const styles = (c: ThemeColors) =>
      * at, and the bar is tall enough to carry it.
      */
     label: { ...typography.tiny, fontSize: 12 },
+    iconWrap: { width: 56, height: 32, alignItems: "center", justifyContent: "center" },
+    iconFill: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: 12,
+      backgroundColor: c.primarySoft,
+    },
+    fillOn: { opacity: 1 },
+    fillOff: { opacity: 0 },
+    badge: {
+      position: "absolute",
+      top: -2,
+      right: 6,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: 8,
+      backgroundColor: c.error,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: c.surface,
+    },
+    badgeText: { ...typography.tiny, color: "#ffffff", fontWeight: "800", fontSize: 10, lineHeight: 12 },
     /**
      * `primaryPressed`, NOT `primary` — and the palette says so itself.
      *

@@ -2,6 +2,8 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Touchable } from "@cartze/core/ui/Touchable";
 import { MenuIcon } from "@cartze/core/ui/icons";
+import { FocusedStatusBar } from "@cartze/core/ui/FocusedStatusBar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useDrawer } from "./DrawerHost";
 
@@ -41,9 +43,17 @@ export function ScreenHeader({
   const c = useColors();
   const s = styles(c);
   const drawer = useDrawer();
+  const insets = useSafeAreaInsets();
 
+  /*
+   * THE BRAND BAND — "thora sa primary touch, like top banner". The header
+   * is the customer app's teal top block: it runs up under the status bar
+   * (the screen pads the top inset; this pulls back into it) and ends in
+   * rounded corners. White ink, light status-bar glyphs while it is shown.
+   */
   return (
-    <View style={s.head}>
+    <View style={[s.head, { marginTop: -insets.top, paddingTop: insets.top + spacing.sm + 4 }]}>
+      <FocusedStatusBar background={c.primary} />
       <View style={s.row}>
         <Touchable
           onPress={drawer.open}
@@ -52,7 +62,7 @@ export function ScreenHeader({
           hitSlop={10}
           style={s.hamburger}
         >
-          <MenuIcon size={22} color={c.text} />
+          <MenuIcon size={22} color={c.onPrimary} />
         </Touchable>
 
         <View style={s.titleBlock}>
@@ -83,17 +93,39 @@ const styles = (c: ThemeColors) =>
      * status bar inset with nothing between them. On a phone it reads as a
      * page that has scrolled up slightly rather than a page that starts here.
      */
-    head: { paddingHorizontal: spacing.md, paddingTop: spacing.sm + 4, gap: spacing.sm },
+    head: {
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.md,
+      gap: spacing.ms,
+      backgroundColor: c.primary,
+      // Under half the band's height, so Fabric keeps the curve.
+      borderBottomLeftRadius: 24,
+      borderBottomRightRadius: 24,
+      marginBottom: spacing.sm,
+    },
     row: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
     hamburger: {
       width: 40,
       height: 40,
-      marginLeft: -8,
+      borderRadius: 19,
+      backgroundColor: "rgba(255,255,255,0.16)",
       alignItems: "center",
       justifyContent: "center",
     },
     titleBlock: { flex: 1 },
-    title: { ...typography.title, color: c.text },
-    subtitle: { ...typography.small, color: c.textMuted, marginTop: 1 },
-    alert: { ...typography.small, color: c.error, marginTop: 1 },
+    title: { ...typography.title, color: c.onPrimary },
+    subtitle: { ...typography.small, color: c.onPrimary, opacity: 0.8, marginTop: 1 },
+    // A warning on the band is a pill, not red text — red on teal is unreadable.
+    alert: {
+      ...typography.small,
+      color: c.error,
+      backgroundColor: c.errorBg,
+      alignSelf: "flex-start",
+      paddingHorizontal: 8,
+      paddingVertical: 1,
+      borderRadius: 8,
+      overflow: "hidden",
+      marginTop: 3,
+      fontWeight: "700",
+    },
   });

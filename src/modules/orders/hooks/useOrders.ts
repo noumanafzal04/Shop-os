@@ -16,8 +16,9 @@ import type { OrderStatus } from "../services/orderStages";
  */
 export const ORDERS_POLL_MS = 15_000;
 
-export function useOrders(query: OrderQuery) {
+export function useOrders(query: OrderQuery, enabled = true) {
   return useQuery({
+    enabled,
     queryKey: ["orders", query],
     queryFn: async () => {
       const res = await ordersService.list(query);

@@ -20,6 +20,19 @@ const PERIODS: Array<{ key: Period; label: string }> = [
   { key: "tax_year", label: "Tax year" },
 ];
 
-export function PeriodBar({ active, onPick }: { active: Period; onPick: (p: Period) => void }) {
-  return <ChipBar items={PERIODS} active={active} onPick={onPick} />;
+/**
+ * The fixed periods, then "Custom dates" — which opens the range sheet and,
+ * once a range is chosen, wears it as its label ("12 Nov – 20 Nov").
+ */
+export function PeriodBar({
+  active,
+  onPick,
+  customLabel,
+}: {
+  active: Period;
+  onPick: (p: Period) => void;
+  customLabel?: string | null;
+}) {
+  const items = [...PERIODS, { key: "custom" as Period, label: customLabel ?? "Custom dates" }];
+  return <ChipBar items={items} active={active} onPick={onPick} />;
 }

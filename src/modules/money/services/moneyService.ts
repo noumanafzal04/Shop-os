@@ -11,7 +11,7 @@ import type { ApiEnvelope } from "@cartze/core/types/api";
  * `StoreExpenseRequest`.
  */
 
-export type Period = "daily" | "weekly" | "monthly" | "yearly" | "tax_year";
+export type Period = "daily" | "weekly" | "monthly" | "yearly" | "tax_year" | "custom";
 
 export interface SummaryTotals {
   sales_count: number;
@@ -89,8 +89,11 @@ export interface NewExpense {
 }
 
 export const moneyService = {
-  summary: (period: Period): Promise<ApiEnvelope<Summary>> =>
-    apiGet<Summary>("/reports/summary", { params: { period } }),
+  /** `custom` takes a local from/to (YYYY-MM-DD) — see `dateRange.ts`. */
+  summary: (period: Period, range?: { from: string; to: string } | null): Promise<ApiEnvelope<Summary>> =>
+    apiGet<Summary>("/reports/summary", {
+      params: period === "custom" && range ? { period, from: range.from, to: range.to } : { period },
+    }),
 
   commission: (): Promise<ApiEnvelope<Commission>> => apiGet<Commission>("/commission"),
 

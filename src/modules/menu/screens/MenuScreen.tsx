@@ -193,7 +193,8 @@ const styles = (c: ThemeColors) =>
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: c.primary,
+      // On the brand band: a lighter step of it, as the customer header does.
+      backgroundColor: "rgba(255,255,255,0.16)",
     },
     catsBar: { flexGrow: 0 },
     cats: {

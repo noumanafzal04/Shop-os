@@ -50,16 +50,17 @@ export function DashboardScreen() {
 
   return (
     <SafeScreen edges={["top"]}>
+      {/* Outside the scroll: the brand band runs up under the status bar. */}
+      <ScreenHeader
+        title={user?.tenant?.business_name ?? "Your shop"}
+        subtitle={todayLabel()}
+      />
       <ScrollView
         contentContainerStyle={s.content}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />
         }
       >
-        <ScreenHeader
-          title={user?.tenant?.business_name ?? "Your shop"}
-          subtitle={todayLabel()}
-        />
 
         {/* Taking orders, or busy until when — the switch reached for in a hurry. */}
         <BusyCard />
@@ -317,9 +318,10 @@ const styles = (c: ThemeColors) =>
       // costs a layer and shows as a hairline at the rounded corners.
       padding: spacing.lg,
     },
-    // Drawn for the ramp, not for the page: `inkMuted` is the muted tier for
-    // a dark block, where `textSecondary` disappears.
-    heroLabel: { ...typography.label, color: c.inkMuted },
+    // The inverse ink, softened — the customer app's header learned this:
+    // `inkMuted` on the teal theme is a mid grey that vanished on the dark
+    // ramp ("Taken today" was barely there on a phone).
+    heroLabel: { ...typography.label, color: c.textInverse, opacity: 0.8 },
     /**
      * 40pt. The largest number on the screen because it is the only one most
      * people came for, and it shrinks rather than wraps so a busy day and a
@@ -333,7 +335,7 @@ const styles = (c: ThemeColors) =>
     },
     heroMeta: { marginTop: spacing.sm, gap: 2 },
     heroDelta: { ...typography.label, fontSize: 13 },
-    heroQuiet: { ...typography.small, color: c.inkMuted },
+    heroQuiet: { ...typography.small, color: c.textInverse, opacity: 0.75 },
 
     row: { flexDirection: "row", gap: spacing.md },
 

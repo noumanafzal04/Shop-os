@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { moneyService, type Commission, type ExpenseCategory, type NewExpense, type Period, type Summary } from "../services/moneyService";
 
-export function useSummary(period: Period) {
+export function useSummary(period: Period, range?: { from: string; to: string } | null) {
+  const custom = period === "custom" ? range ?? null : null;
   return useQuery({
-    queryKey: ["summary", period],
-    queryFn: async (): Promise<Summary> => (await moneyService.summary(period)).data,
+    queryKey: ["summary", period, custom?.from ?? null, custom?.to ?? null],
+    enabled: period !== "custom" || custom !== null,
+    queryFn: async (): Promise<Summary> => (await moneyService.summary(period, custom)).data,
     staleTime: 60_000,
   });
 }
