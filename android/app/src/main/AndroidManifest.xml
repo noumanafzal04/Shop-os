@@ -2,6 +2,8 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- A new order buzzes until it is answered (IncomingOrderHost). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
       Android 13 and later will not show a notification until the person has

@@ -41,3 +41,34 @@ export function useSaveHours() {
     },
   });
 }
+
+/**
+ * THE PAUSE, read from the settings the shop already loads — and asked again
+ * every minute, so "back at 7:45" turns into "Taking orders" when it runs out
+ * without anybody touching the phone.
+ */
+export function useOrdersPause() {
+  return useQuery({
+    queryKey: ["shop-settings"],
+    queryFn: async (): Promise<Record<string, unknown>> => (await shopService.settings()).data,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    select: (s) => (typeof s.orders_paused_until === "string" ? s.orders_paused_until : null),
+  });
+}
+
+export function usePauseOrders() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { minutes: number } | { rest_of_day: true }) => shopService.pauseOrders(body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["shop-settings"] }),
+  });
+}
+
+export function useResumeOrders() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => shopService.resumeOrders(),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["shop-settings"] }),
+  });
+}

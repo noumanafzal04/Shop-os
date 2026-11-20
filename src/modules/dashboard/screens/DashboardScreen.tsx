@@ -21,6 +21,7 @@ import { WeekChart } from "../components/WeekChart";
 import { StatTile } from "../components/StatTile";
 import type { Dashboard } from "../services/dashboardService";
 import { ScreenHeader } from "../../../common/components/ScreenHeader";
+import { BusyCard } from "../../shop/components/BusyCard";
 
 /**
  * TODAY, FOR SOMEBODY STANDING BEHIND A COUNTER.
@@ -59,6 +60,9 @@ export function DashboardScreen() {
           title={user?.tenant?.business_name ?? "Your shop"}
           subtitle={todayLabel()}
         />
+
+        {/* Taking orders, or busy until when — the switch reached for in a hurry. */}
+        <BusyCard />
 
         {isLoading ? <Loading /> : null}
 

@@ -13,6 +13,7 @@ import { PartnerTabs } from "./PartnerTabs";
 import { BootScreen } from "../modules/auth/screens/BootScreen";
 import { setPushTapHandler, startPush } from "../services/push";
 import type { RootStackParamList } from "./types";
+import { IncomingOrderHost } from "../modules/orders/components/IncomingOrderHost";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -100,6 +101,18 @@ export function RootNavigator() {
           <Stack.Screen name="SignIn" component={SignInScreen} />
         )}
       </Stack.Navigator>
+      {/* A waiting order takes the screen and buzzes until it is answered. */}
+      {status === "authenticated" && (
+        <IncomingOrderHost
+          onOpen={(id) =>
+            (
+              navRef.current?.navigate as
+                | ((name: string, params: Record<string, unknown>) => void)
+                | undefined
+            )?.("Tabs", { screen: "Orders", params: { screen: "OrderDetail", params: { id } } })
+          }
+        />
+      )}
     </NavigationContainer>
   );
 }

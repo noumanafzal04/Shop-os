@@ -1,4 +1,4 @@
-import { apiGet, apiPut } from "@cartze/core/api/client";
+import { apiDelete, apiGet, apiPost, apiPut } from "@cartze/core/api/client";
 import type { ApiEnvelope } from "@cartze/core/types/api";
 
 /**
@@ -59,4 +59,14 @@ export const shopService = {
    */
   updateSettings: (changes: Partial<ShopSettings>) =>
     apiPut<Record<string, unknown>>("/shop/settings", changes),
+
+  /**
+   * "BUSY" — pause online orders for a while (never for ever: the server
+   * takes 5–1440 minutes, or the rest of today, and the pause ends by itself).
+   */
+  pauseOrders: (body: { minutes: number } | { rest_of_day: true }) =>
+    apiPost<{ orders_paused_until: string }>("/shop/orders/pause", body),
+
+  /** Take orders again now. */
+  resumeOrders: () => apiDelete<{ orders_paused_until: null }>("/shop/orders/pause"),
 };
