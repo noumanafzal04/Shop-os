@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useTheme } from "@cartze/core/theme";
 import { useAuthStore } from "../stores/authStore";
 import { SignInScreen } from "../modules/auth/screens/SignInScreen";
+import { ForgotPasswordScreen } from "../modules/auth/screens/ForgotPasswordScreen";
 import { PartnerTabs } from "./PartnerTabs";
 import { BootScreen, INTRO_MS } from "../modules/auth/screens/BootScreen";
 import { setPushTapHandler, startPush } from "../services/push";
@@ -109,7 +110,10 @@ export function RootNavigator() {
         {status === "authenticated" ? (
           <Stack.Screen name="Tabs" component={PartnerTabs} />
         ) : (
-          <Stack.Screen name="SignIn" component={SignInScreen} />
+          <>
+            <Stack.Screen name="SignIn" component={SignInScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+          </>
         )}
       </Stack.Navigator>
       {/* A waiting order takes the screen and buzzes until it is answered. */}

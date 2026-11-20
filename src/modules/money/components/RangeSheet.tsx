@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BottomSheet } from "@cartze/core/ui/BottomSheet";
 import { AppButton } from "@cartze/core/ui/AppButton";
 import { ChevronRightIcon } from "@cartze/core/ui/icons";
-import { radius, spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
+import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { monthGrid, monthTitle, parseYmd, PRESETS, rangeLabel, tapDay, ymd, type DateRange } from "../dateRange";
 
 const WEEK = ["M", "T", "W", "T", "F", "S", "S"];

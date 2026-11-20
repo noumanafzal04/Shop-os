@@ -90,4 +90,15 @@ export const authService = {
       password_confirmation: next,
     });
   },
+
+  /**
+   * FORGOT PASSWORD, in the app — the customer app's flow. The server answers
+   * the same whether or not the account exists (no account fishing), and
+   * returns `debug_code` only on a debug server.
+   */
+  requestResetCode: (identifier: string) =>
+    apiPost<{ debug_code?: string } | null>("/auth/otp/request", { identifier, purpose: "password_reset" }),
+
+  resetPassword: (payload: { identifier: string; code: string; password: string; password_confirmation: string }) =>
+    apiPost<null>("/auth/password/reset", payload),
 };

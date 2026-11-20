@@ -1,5 +1,8 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../../navigation/types";
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
 import { KeyboardScreen } from "@cartze/core/ui/KeyboardScreen";
 import { AppTextInput } from "@cartze/core/ui/AppTextInput";
@@ -8,6 +11,9 @@ import { EnvelopeIcon, LockIcon } from "@cartze/core/ui/icons";
 import { ApiError } from "@cartze/core/types/api";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { BRAND } from "../../../common/brand";
+import { BrandMark } from "../../../common/components/BrandMark";
+import { FocusedStatusBar } from "@cartze/core/ui/FocusedStatusBar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "../../../stores/authStore";
 import { authService } from "../services/authService";
 
@@ -31,6 +37,8 @@ export function SignInScreen() {
   const c = useColors();
   const s = styles(c);
   const setAuth = useAuthStore((st) => st.setAuth);
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -68,12 +76,20 @@ export function SignInScreen() {
   }
 
   return (
-    <SafeScreen>
+    <SafeScreen edges={["bottom"]}>
+      {/*
+        THE BRAND BAND, as on every other screen of this app (ScreenHeader)
+        and the customer app's sign-in: the assembled mark — its short bar
+        white on the dark ground — and the name, under the status bar.
+      */}
+      <FocusedStatusBar background={c.primary} />
+      <View style={[s.band, { paddingTop: insets.top + spacing.xl }]}>
+        <BrandMark size={92} barColor="#ffffff" />
+        {/* logotype */}
+        <Text style={s.wordmark}>{BRAND.family}</Text>
+        <Text style={s.sub}>Partner</Text>
+      </View>
       <KeyboardScreen contentStyle={s.content}>
-        <View style={s.head}>
-          <Text style={s.wordmark}>{BRAND.family}</Text>
-          <Text style={s.sub}>Partner</Text>
-        </View>
 
         <Text style={s.title}>Sign in to your shop</Text>
         <Text style={s.lede}>
@@ -135,9 +151,15 @@ export function SignInScreen() {
           />
         </View>
 
-        <Text style={s.foot}>
-          Forgotten your password? Reset it on {BRAND.domain}, then sign in here.
-        </Text>
+        {/* In the app now — a code to the email or phone, then a new password. */}
+        <Pressable
+          onPress={() => navigation.navigate("ForgotPassword", { identifier: identifier.trim() || undefined })}
+          hitSlop={10}
+          accessibilityRole="button"
+          style={s.forgot}
+        >
+          <Text style={s.forgotText}>Forgot password?</Text>
+        </Pressable>
       </KeyboardScreen>
     </SafeScreen>
   );
@@ -159,19 +181,26 @@ const styles = (c: ThemeColors) =>
     content: {
       flexGrow: 1,
       padding: spacing.lg,
-      paddingTop: spacing.xl,
+      paddingTop: spacing.lg,
       paddingBottom: spacing.lg,
-      justifyContent: "center",
     },
-    head: { alignItems: "center", marginBottom: spacing.xl },
+    band: {
+      alignItems: "center",
+      backgroundColor: c.primary,
+      paddingBottom: spacing.xl,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
+      gap: 2,
+    },
     // logotype — WCAG 1.4.3 exempts a brand mark from the contrast floor, and
     // this one is 34pt bold. Every other use of `c.primary` as a colour for
     // text or an icon is banned; see `houseRules`.
-    wordmark: { ...typography.display, fontSize: 34, color: c.primary, letterSpacing: -0.6 },
+    wordmark: { ...typography.display, fontSize: 30, color: c.onPrimary, letterSpacing: -0.6, marginTop: spacing.md },
     sub: {
       ...typography.label,
-      fontSize: 15,
-      color: c.textSecondary,
+      fontSize: 13,
+      color: c.onPrimary,
+      opacity: 0.8,
       letterSpacing: 3,
       textTransform: "uppercase",
       marginTop: spacing.xs,
@@ -192,6 +221,8 @@ const styles = (c: ThemeColors) =>
     },
     errorText: { ...typography.label, fontWeight: "500", color: c.error, lineHeight: 20 },
     submit: { marginTop: spacing.xs },
+    forgot: { alignSelf: "center", marginTop: spacing.lg, padding: spacing.xs },
+    forgotText: { ...typography.label, color: c.primaryPressed },
     /**
      * `textSecondary`, not `textMuted`.
      *

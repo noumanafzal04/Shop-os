@@ -97,6 +97,8 @@ export type AccountStackParamList = {
 
 export type RootStackParamList = {
   SignIn: undefined;
+  /** Forgot password: a code to the email/phone, then a new password. */
+  ForgotPassword: { identifier?: string } | undefined;
   /**
    * NESTED, because the sidebar addresses a screen two levels down.
    *
