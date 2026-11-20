@@ -19,6 +19,9 @@ export interface CustomerOrder {
   status: OrderStatus;
   fulfillment_type: "delivery" | "pickup";
   delivery_address: string | null;
+  /** The door the customer pinned — the other end of the tracking map. Null for a typed address. */
+  delivery_latitude?: number | null;
+  delivery_longitude?: number | null;
   subtotal: string;
   /**
    * All the money off the goods — coupon, the shop's promotion and a member's

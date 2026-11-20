@@ -385,8 +385,8 @@ export interface ServiceArea {
 }
 
 export const marketplaceService = {
-  serviceArea: (lat: number, lng: number) =>
-    apiGet<ServiceArea>("/marketplace/service-area", { params: { lat, lng } }),
+  serviceArea: (lat: number, lng: number, cityId?: string | null) =>
+    apiGet<ServiceArea>("/marketplace/service-area", { params: { lat, lng, ...(cityId ? { city_id: cityId } : {}) } }),
   /** GPS → nearest city (no manual picker). */
   locate: (lat: number, lng: number) =>
     apiGet<LocateResult>("/marketplace/locate", { params: { lat, lng } }),

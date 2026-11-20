@@ -22,12 +22,17 @@ import {
  * admin redraws zones rarely, and the answer only changes the home screen's
  * opening line. No pin, no question.
  */
-export function useServiceArea(lat: number | undefined, lng: number | undefined) {
+/**
+ * Is this pin served? Asked with the pin's CITY: since 2026-11-20 a zone the
+ * admin draws fences its own city only, so the answer depends on which city's
+ * zones are asked (the server falls back to the nearest city when none is sent).
+ */
+export function useServiceArea(lat: number | undefined, lng: number | undefined, cityId?: string | null) {
   const at = lat !== undefined && lng !== undefined ? [Math.round(lat * 1000) / 1000, Math.round(lng * 1000) / 1000] as const : null;
 
   return useQuery({
-    queryKey: ["market", "service-area", at],
-    queryFn: async () => (await marketplaceService.serviceArea(at![0], at![1])).data,
+    queryKey: ["market", "service-area", at, cityId ?? null],
+    queryFn: async () => (await marketplaceService.serviceArea(at![0], at![1], cityId)).data,
     enabled: at !== null,
     staleTime: 10 * 60 * 1000,
     gcTime: 30 * 60 * 1000,

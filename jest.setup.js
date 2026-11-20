@@ -118,7 +118,8 @@ jest.mock('react-native-maps', () => {
     React.useImperativeHandle(ref, () => ({ animateToRegion: jest.fn() }));
     return React.createElement(View, props);
   });
-  return { __esModule: true, default: MapView, PROVIDER_GOOGLE: 'google' };
+  const Stub = (props) => React.createElement(View, props, props.children);
+  return { __esModule: true, default: MapView, Marker: Stub, Polyline: Stub, PROVIDER_GOOGLE: 'google' };
 });
 
 /**

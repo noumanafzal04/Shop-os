@@ -225,7 +225,7 @@ export function CustomerHomeScreen() {
     if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false });
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
   // Outside every zone the platform drew → say so first, not at checkout.
-  const area = useServiceArea(pin.lat, pin.lng);
+  const area = useServiceArea(pin.lat, pin.lng, pin.city_id);
   const ground = useTileGround();
   const tint = useTileTint();
 

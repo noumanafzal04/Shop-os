@@ -26,6 +26,7 @@ import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import { etaLine } from "../orderStatus";
 import { money, qtyText } from "../../../common/format";
 import { distanceLabel, mapsUrl } from "../../../common/maps";
+import { TrackingMap } from "../components/TrackingMap";
 
 type Params = { Order: { id: string } };
 
@@ -291,6 +292,18 @@ export function OrderTrackingScreen() {
                 rider parked somewhere they left ten minutes ago.
               */}
               {o.rider.latitude != null && o.rider.longitude != null && (
+                <View style={styles.mapGap}>
+                  <TrackingMap
+                    rider={{ lat: o.rider.latitude, lng: o.rider.longitude }}
+                    home={
+                      o.delivery_latitude != null && o.delivery_longitude != null
+                        ? { lat: o.delivery_latitude, lng: o.delivery_longitude }
+                        : null
+                    }
+                  />
+                </View>
+              )}
+              {o.rider.latitude != null && o.rider.longitude != null && (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="See where your rider is on a map"
@@ -483,6 +496,7 @@ const makeStyles = (c: ThemeColors) =>
   etaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, marginBottom: spacing.xs },
   etaText: { ...typography.label, color: c.primary },
   riderCardLive: { borderColor: c.primary, borderWidth: 1.5 },
+  mapGap: { marginTop: spacing.ms },
   riderTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   riderAvatar: {
     width: 40,
