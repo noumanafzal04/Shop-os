@@ -1420,7 +1420,18 @@ class MarketplaceController extends Controller
          */
         $ranked = Product::withoutTenancy()
             ->select('products.*')
-            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY products.tenant_id ORDER BY products.discount_price IS NULL, products.created_at DESC, products.id DESC) AS preview_rank')
+            /*
+             * WHICH FIVE — the ones that sell the shop. "Food items b to show
+             * hon": a karahi house's card showed a soft drink, a margarita and
+             * a naan (its newest rows) and not one karahi. Now: an item with a
+             * photograph first (a letter tile sells nothing), then one on
+             * offer, then the dearer ones — a shop's mains cost more than its
+             * sides and drinks, so price stands in for "the signature dish"
+             * without counting sales on the busiest endpoint — then newest.
+             */
+            ->selectRaw('ROW_NUMBER() OVER (PARTITION BY products.tenant_id ORDER BY '
+                .'CASE WHEN EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = products.id) THEN 0 ELSE 1 END, '
+                .'products.discount_price IS NULL, products.price DESC, products.created_at DESC, products.id DESC) AS preview_rank')
             ->whereIn('tenant_id', $ids)
             ->where('is_active', true)
             ->where('visible_in_marketplace', true);

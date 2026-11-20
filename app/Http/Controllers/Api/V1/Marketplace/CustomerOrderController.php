@@ -14,6 +14,7 @@ use App\Support\Currencies;
 use App\Support\Geo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class CustomerOrderController extends Controller
@@ -22,7 +23,7 @@ class CustomerOrderController extends Controller
     {
         $orders = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug,settings', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->orderByDesc('placed_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
@@ -34,7 +35,7 @@ class CustomerOrderController extends Controller
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug,settings', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($order));
@@ -48,7 +49,7 @@ class CustomerOrderController extends Controller
 
         $order = $service->place($request->user(), $shop, $data);
 
-        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug,settings', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
+        return ApiResponse::created($this->serialize($order->load('tenant:id,business_name,slug,settings,logo_path', 'branch:id,name,address,phone')), "Order {$order->order_number} placed");
     }
 
     /**
@@ -197,7 +198,15 @@ class CustomerOrderController extends Controller
             'order_number' => $o->order_number,
             // With the currency its total is in: a customer's orders can be from
             // shops that trade in different money.
-            'shop' => ['slug' => $o->tenant?->slug, 'business_name' => $o->tenant?->business_name, 'currency' => Currencies::describe($o->tenant?->currency())],
+            'shop' => [
+                'slug' => $o->tenant?->slug,
+                'business_name' => $o->tenant?->business_name,
+                'currency' => Currencies::describe($o->tenant?->currency()),
+                // The shop's mark on the order card, as the marketplace sends it.
+                'logo_url' => $o->tenant?->logo_path !== null && $o->tenant?->logo_path !== ''
+                    ? Storage::disk('public')->url($o->tenant->logo_path)
+                    : null,
+            ],
             'status' => $o->status,
             'fulfillment_type' => $o->fulfillment_type,
             'payment_method' => $o->payment_method,
@@ -277,6 +286,11 @@ class CustomerOrderController extends Controller
                 : null,
             'delivered_at' => $o->delivered_at?->toIso8601String(),
             'items' => $o->items->map(fn ($i) => [
+                // What "Order again" puts back in the basket. Null when the
+                // product has since been deleted (the line keeps its name).
+                'product_id' => $i->product_id,
+                'variant_id' => $i->variant_id,
+                'product_unit_id' => $i->product_unit_id,
                 'product_name' => $i->product_name,
                 'variant_name' => $i->variant_name,
                 'unit_name' => $i->unit_name,

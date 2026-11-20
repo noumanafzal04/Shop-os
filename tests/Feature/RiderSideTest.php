@@ -311,7 +311,18 @@ class RiderSideTest extends TestCase
             ->assertJsonPath('data.rider.name', 'Bilal Khan')
             // Both ends of the tracking map: the door the customer pinned.
             ->assertJsonPath('data.delivery_latitude', 31.47)
-            ->assertJsonPath('data.delivery_longitude', 74.27);
+            ->assertJsonPath('data.delivery_longitude', 74.27)
+            // What "Order again" puts back in the basket, and the shop's mark.
+            ->assertJsonPath('data.items.0.product_id', $this->product->id)
+            ->assertJsonPath('data.items.0.variant_id', null)
+            ->assertJsonPath('data.shop.logo_url', null);
+
+        // A shop with a logo shows it on the order card.
+        $this->shop->forceFill(['logo_path' => 'logos/x/mark.png'])->save();
+        $this->assertStringEndsWith(
+            'logos/x/mark.png',
+            (string) $this->as($this->customer)->getJson('/api/v1/customer/orders')->assertOk()->json('data.0.shop.logo_url'),
+        );
 
         $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/deliver", ['code' => $otp])
             ->assertOk()->assertJsonPath('data.stage', 'delivered');

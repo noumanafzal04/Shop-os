@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\City;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\Tenant;
 use App\Support\BusinessTypes;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,5 +93,39 @@ class EveryCardGetsItsOwnStripTest extends TestCase
         $this->assertSame(['Corner Tikka' => 5], $this->strips($ask(2, true)->json('data')), 'page two keeps the cards whole');
 
         $this->assertArrayNotHasKey('preview_products', $ask(1, false)->json('data.0'), 'search and trade lists do not pay for a strip they hide');
+    }
+
+    /**
+     * "ACHY CARD BNAO K FOOD ITEMS B TO SHOW HON." A karahi house's card showed
+     * a soft drink, a margarita and a naan — its newest rows — and no karahi.
+     * The strip leads with what sells the shop: pictured items first, then
+     * offers, then the dearer dishes (mains before sides), then newest.
+     */
+    public function test_the_strip_leads_with_pictured_dishes_and_mains_before_drinks(): void
+    {
+        $shop = $this->shop('Karahi House', 0.001, 0, 0);
+        $make = function (string $name, float $price, bool $photo, int $minutesAgo) use ($shop) {
+            $p = Product::withoutTenancy()->create([
+                'tenant_id' => $shop->id, 'type' => 'product', 'item_type' => 'food_item', 'name' => $name,
+                'price' => $price, 'track_inventory' => false, 'visible_in_marketplace' => true, 'is_active' => true,
+            ]);
+            $p->forceFill(['created_at' => now()->subMinutes($minutesAgo)])->saveQuietly();
+            if ($photo) {
+                ProductImage::withoutTenancy()->create(['tenant_id' => $shop->id, 'product_id' => $p->id, 'path' => "products/{$p->id}.jpg"]);
+            }
+        };
+        $make('Soft Drink', 150, true, 1);      // newest, but a drink
+        $make('Mutton Karahi', 2400, true, 300);
+        $make('Chicken Karahi', 1800, true, 200);
+        $make('Garlic Naan', 80, true, 2);
+        $make('Secret Special', 3000, false, 0); // dearest and newest, but no photograph
+
+        $card = collect($this->getJson('/api/v1/marketplace/shops?'.http_build_query(self::HERE + ['previews' => 1]))
+            ->assertOk()->json('data'))->firstWhere('business_name', 'Karahi House');
+
+        $this->assertSame(
+            ['Mutton Karahi', 'Chicken Karahi', 'Soft Drink', 'Garlic Naan', 'Secret Special'],
+            collect($card['preview_products'])->pluck('name')->all(),
+        );
     }
 }
