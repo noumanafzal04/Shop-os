@@ -75,6 +75,7 @@ export function CommissionScreen() {
               icon={CoinsIcon}
               tone="muted"
               title="Nothing charged yet"
+              picture="moneyBag"
               message="Charges appear here as online orders complete."
             />
           ) : (

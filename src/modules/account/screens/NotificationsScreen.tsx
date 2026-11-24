@@ -124,6 +124,7 @@ export function NotificationsScreen() {
               icon={BellIcon}
               tone="muted"
               title="Nothing yet"
+              picture="chat"
               message="Orders, low stock and reviews show up here — including the ones that arrive while this app is closed."
             />
           }

@@ -95,6 +95,7 @@ export function OrdersScreen() {
               icon={ReceiptIcon}
               tone="muted"
               title={stage === "all" ? "No orders yet" : `Nothing ${STATUS_LABEL[stage].toLowerCase()}`}
+              picture="bag"
               /**
                * The empty state NAMES the filter when one is on. An empty list
                * that cannot say why reads as a fact about the shop, and there

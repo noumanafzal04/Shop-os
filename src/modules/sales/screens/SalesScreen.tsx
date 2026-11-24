@@ -148,6 +148,7 @@ export function SalesScreen() {
               icon={ReceiptIcon}
               tone="muted"
               title={filtered ? "Nothing matches" : "No sales yet"}
+              picture="wallet"
               message={
                 filtered
                   ? "Try a different status, or clear the search."
