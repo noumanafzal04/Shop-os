@@ -1,7 +1,8 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import { AppButton } from "./AppButton";
 import type { Icon } from "./icons";
+import { ART3D, type Art3dName } from "./art3d";
 import { spacing, type ThemeColors, typography, useColors } from "../theme";
 
 /**
@@ -51,17 +52,27 @@ interface Props {
    * is the first, because most empty screens are new accounts.
    */
   tone?: "warm" | "muted";
+  /**
+   * A 3D picture (`art3d.ts`) in place of the line icon on its disc — for the
+   * empty screens a new account sees first. The icon stays as the fallback
+   * and for `muted` states (no results), where a bright picture would shout.
+   */
+  picture?: Art3dName;
 }
 
-export function EmptyState({ icon: Glyph, title, message, action, tone = "warm" }: Props) {
+export function EmptyState({ icon: Glyph, title, message, action, tone = "warm", picture }: Props) {
   const c = useColors();
   const styles = React.useMemo(() => makeStyles(c), [c]);
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.plate, tone === "muted" && styles.plateMuted]}>
-        <Glyph size={30} color={tone === "muted" ? c.textMuted : c.primary} />
-      </View>
+      {picture && tone !== "muted" ? (
+        <Image source={ART3D[picture]} style={styles.picture} accessibilityIgnoresInvertColors />
+      ) : (
+        <View style={[styles.plate, tone === "muted" && styles.plateMuted]}>
+          <Glyph size={30} color={tone === "muted" ? c.textMuted : c.primaryPressed} />
+        </View>
+      )}
 
       <Text style={styles.title}>{title}</Text>
       {!!message && <Text style={styles.message}>{message}</Text>}
@@ -90,15 +101,16 @@ const makeStyles = (c: ThemeColors) =>
     plate: {
       width: 84,
       height: 84,
-      // 42, not `radius.full`: a very large radius renders as a square on
-      // small views under the new architecture.
-      borderRadius: 42,
+      // UNDER half (40 of 84): `radius.full` and an exact half both render
+      // as a square on small views under the new architecture.
+      borderRadius: 40,
       backgroundColor: c.primarySoft,
       alignItems: "center",
       justifyContent: "center",
       marginBottom: spacing.sm,
     },
     plateMuted: { backgroundColor: c.surfaceAlt },
+    picture: { width: 112, height: 112, marginBottom: spacing.xs },
     title: { ...typography.h3, color: c.text, textAlign: "center" },
     message: {
       ...typography.small,
