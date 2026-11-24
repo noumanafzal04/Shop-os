@@ -4,6 +4,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Http\Requests\Concerns\ValidatesAgainstTheStoredRecord;
 use App\Models\Banner;
+use App\Support\HeroColor;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,6 +26,18 @@ class BannerRequest extends FormRequest
     /** Accepts anything a designer would call 2:1; at 4% the worst accepted
      *  crop loses 2% of one edge, which nobody can see. */
     private const RATIO_TOLERANCE = 0.04;
+
+    /** The picture beside a top banner's words, in app points (the slide is ~170 tall). */
+    public const PICTURE_MIN = 64;
+
+    public const PICTURE_MAX = 160;
+
+    /** The banner as it will be: a top-header banner laid out from words? */
+    private function isWordsHero(): bool
+    {
+        return $this->effective('placement', Banner::class, 'banner', 'home') === 'home_top'
+            && $this->effective('hero_style', Banner::class, 'banner') === 'words';
+    }
 
     public function authorize(): bool
     {
@@ -51,13 +64,19 @@ class BannerRequest extends FormRequest
              * costs nothing: a 1200x600 banner as JPG is under 300 KB, and
              * only PNG at that size gets near two megabytes.
              */
-            'image' => [$creating ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            // A `words` top banner may be words alone; everything else is a picture.
+            'image' => [$creating && ! $this->isWordsHero() ? 'required' : 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'title' => ['nullable', 'string', 'max:120'],
+            'body' => ['nullable', 'string', 'max:160'],
+            'cta_label' => ['nullable', 'string', 'max:30'],
+            'hero_style' => ['nullable', 'required_if:placement,home_top', Rule::in(['words', 'artwork'])],
+            'hero_color' => ['nullable', 'required_if:placement,home_top', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'hero_image_size' => ['nullable', 'integer', 'min:'.self::PICTURE_MIN, 'max:'.self::PICTURE_MAX],
             'tenant_id' => ['nullable', 'uuid', Rule::exists('tenants', 'id')->whereNull('deleted_at')],
             'target_type' => ['sometimes', Rule::in(['shop', 'product', 'url', 'none'])],
             'target_product_id' => ['nullable', 'uuid', Rule::exists('products', 'id')->whereNull('deleted_at')],
             'target_url' => ['nullable', 'url', 'max:500'],
-            'placement' => ['sometimes', Rule::in(['home', 'marketplace_top'])],
+            'placement' => ['sometimes', Rule::in(['home', 'home_top', 'marketplace_top'])],
             'sort_order' => ['sometimes', 'integer', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
             'starts_at' => ['nullable', 'date'],
@@ -93,8 +112,52 @@ class BannerRequest extends FormRequest
                 $v->errors()->add('target_url', 'Enter the link for a URL banner.');
             }
 
-            $this->checkShape($v);
+            if ($this->effective('placement', Banner::class, 'banner', 'home') === 'home_top') {
+                $this->checkHero($v);
+            } elseif (! $this->hasFile('image') && blank($this->effective('image_path', Banner::class, 'banner'))) {
+                // A words top banner moved down the page has no picture to show there.
+                $v->errors()->add('image', 'Upload the banner image — below the header a banner is its picture.');
+            }
+
+            // A words banner's picture sits beside the words at any shape; only
+            // artwork that FILLS a card has to be 2:1.
+            if (! $this->isWordsHero()) {
+                $this->checkShape($v);
+            }
         });
+    }
+
+    /**
+     * A TOP-HEADER BANNER, AS THE PHONE WILL DRAW IT.
+     *
+     * Its colour becomes the ground of the address, the search and the status
+     * bar, all white — so a pale one is refused here with the number, not
+     * found later on a phone. A words banner needs its headline; an artwork
+     * banner needs its artwork (an edit that only swaps the style keeps none).
+     */
+    private function checkHero($v): void
+    {
+        $colour = $this->effective('hero_color', Banner::class, 'banner');
+        if (is_string($colour) && HeroColor::valid($colour) && ! HeroColor::readsUnderWhite($colour)) {
+            $v->errors()->add('hero_color', sprintf(
+                'White text is hard to read on %s (contrast %s:1, needs %s:1). The app writes the address, search and banner in white on this colour — pick a darker one.',
+                $colour, HeroColor::contrastWithWhite($colour), HeroColor::MIN_CONTRAST,
+            ));
+        }
+
+        if ($this->isWordsHero()) {
+            if (blank($this->effective('title', Banner::class, 'banner'))) {
+                $v->errors()->add('title', 'A top banner made of words needs its title.');
+            }
+
+            return;
+        }
+
+        $hasImage = $this->hasFile('image')
+            || filled($this->effective('image_path', Banner::class, 'banner'));
+        if (! $hasImage) {
+            $v->errors()->add('image', 'Upload the artwork — a full-image top banner is the picture.');
+        }
     }
 
     /**

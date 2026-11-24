@@ -21,7 +21,10 @@ class BannerController extends Controller
     public function store(BannerRequest $request): JsonResponse
     {
         $data = $request->validated();
-        $data['image_path'] = $request->file('image')->store('banners', 'public');
+        // A words top banner may come with no picture at all.
+        if ($request->hasFile('image')) {
+            $data['image_path'] = $request->file('image')->store('banners', 'public');
+        }
         unset($data['image']);
 
         $banner = Banner::query()->create($data);
@@ -36,7 +39,9 @@ class BannerController extends Controller
         $data = $request->validated();
 
         if ($request->hasFile('image')) {
-            Storage::disk('public')->delete($banner->image_path);
+            if ($banner->image_path) {
+                Storage::disk('public')->delete($banner->image_path);
+            }
             $data['image_path'] = $request->file('image')->store('banners', 'public');
         }
         unset($data['image']);
@@ -50,7 +55,9 @@ class BannerController extends Controller
     {
         /** @var Banner $banner */
         $banner = Banner::query()->findOrFail($id);
-        Storage::disk('public')->delete($banner->image_path);
+        if ($banner->image_path) {
+            Storage::disk('public')->delete($banner->image_path);
+        }
         $banner->delete();
 
         return ApiResponse::noContent('Banner deleted');

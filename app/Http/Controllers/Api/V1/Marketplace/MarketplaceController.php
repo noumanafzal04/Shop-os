@@ -1021,22 +1021,19 @@ class MarketplaceController extends Controller
         ]);
         $near = isset($data['lat'], $data['lng']);
 
-        $banners = Banner::query()->live()
-            ->where('placement', 'home')
+        /*
+         * TWO PLACES, NEVER BOTH. A `home_top` banner heads the page in its
+         * own colour and is shown nowhere else ("agr wo checked ho to wo sirf
+         * top py show ho"); a `home` banner is the strip further down.
+         */
+        $live = Banner::query()->live()
+            ->whereIn('placement', ['home', 'home_top'])
             ->with('advertiser:id,slug')
             ->orderBy('sort_order')
             ->get()
-            ->each->increment('impression_count')
-            ->map(fn ($b) => [
-                'id' => $b->id,
-                'title' => $b->title,
-                'image_url' => $b->image_url,
-                'target' => ['type' => $b->target_type] + array_filter([
-                    'shop_slug' => $b->target_type === 'shop' ? $b->advertiser?->slug : null,
-                    'product_id' => $b->target_product_id,
-                    'url' => $b->target_url,
-                ]),
-            ]);
+            ->each->increment('impression_count');
+        $banners = $live->where('placement', 'home')->values()->map(fn (Banner $b) => $b->forApp());
+        $hero = $live->where('placement', 'home_top')->values()->map(fn (Banner $b) => $b->forApp());
 
         /**
          * WHICH SHOPS THIS SHOPPER MAY SEE — the fence, and nothing else.
@@ -1232,6 +1229,7 @@ class MarketplaceController extends Controller
         return ApiResponse::ok([
             'featured' => $this->withPreviews($serialize($featuredShops), $featuredShops),
             'banners' => $banners,
+            'hero' => $hero,
             'nearby' => $this->withPreviews($serialize($nearbyShops), $nearbyShops),
             'top_rated' => $serialize($topRated),
             'deals' => $deals,

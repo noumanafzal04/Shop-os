@@ -45,6 +45,7 @@ class Banner extends BaseModel
             'paid_at' => 'datetime',
             'impression_count' => 'integer',
             'click_count' => 'integer',
+            'hero_image_size' => 'integer',
         ];
     }
 
@@ -63,6 +64,32 @@ class Banner extends BaseModel
         return Attribute::get(
             fn (): ?string => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
         );
+    }
+
+    /**
+     * What the phone needs to draw a banner — one shape for the top header and
+     * the strip further down, so a tap is handled the same way in both.
+     *
+     * @return array<string, mixed>
+     */
+    public function forApp(): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'image_url' => $this->image_url,
+            'target' => ['type' => $this->target_type] + array_filter([
+                'shop_slug' => $this->target_type === 'shop' ? $this->advertiser?->slug : null,
+                'product_id' => $this->target_product_id,
+                'url' => $this->target_url,
+            ]),
+        ] + ($this->placement === 'home_top' ? [
+            'body' => $this->body,
+            'cta' => $this->cta_label,
+            'color' => $this->hero_color,
+            'style' => $this->hero_style ?? 'words',
+            'image_size' => $this->hero_image_size,
+        ] : []);
     }
 
     /** Active + within its scheduling window right now. */
