@@ -109,16 +109,17 @@ describe("a banner's headline", () => {
 
   it("is drawn over the picture, not only when there is none", () => {
     // The scrim sits inside the branch that HAS an image_url.
-    const withImage = src.slice(src.indexOf('if ("image_url" in item)'), src.indexOf("const { bg, fg }"));
+    const withImage = src.slice(src.indexOf('if ("image_url" in item)'), src.indexOf("<Image source={item.photo}"));
     expect(withImage).toMatch(/\{!!item\.title && \(/);
     expect(withImage).toMatch(/styles\.scrim/);
   });
 
   it("gives the words a ground, because white on a photograph is a coin toss", () => {
-    expect(src).toMatch(/scrim: \{[\s\S]*?backgroundColor: "rgba\(12,7,5,0\.62\)"/);
+    const scrim = src.match(/scrim: \{[^}]*\}/)?.[0] ?? "";
+    expect(scrim).toMatch(/backgroundColor: "rgba\(12,7,5,0\.62\)"/);
     // A BAND, not a full overlay: the picture is what the advertiser paid for.
-    expect(src).toMatch(/scrim: \{[\s\S]*?bottom: 0,/);
-    expect(src).not.toMatch(/scrim: \{[\s\S]*?top: 0,/);
+    expect(scrim).toMatch(/bottom: 0,/);
+    expect(scrim).not.toMatch(/top: 0,/);
   });
 
   it("draws nothing when there is no title", () => {

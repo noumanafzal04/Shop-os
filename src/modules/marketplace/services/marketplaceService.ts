@@ -81,6 +81,23 @@ export interface HomeBanner {
   target: { type: "shop" | "product" | "url" | "none"; shop_slug?: string; product_id?: string; url?: string };
 }
 
+/**
+ * A TOP-HEADER BANNER — the admin's own slide at the head of home.
+ *
+ * Shown ONLY there, and the whole top block takes its `color` (checked dark
+ * enough for white type by the server). `words` is laid out by the app —
+ * title, line, button, picture at `image_size` points; `artwork` is one
+ * finished 2:1 image edge to edge. A tap goes where `target` says, the same
+ * as any banner.
+ */
+export interface HeroBanner extends HomeBanner {
+  body: string | null;
+  cta: string | null;
+  color: string;
+  style: "words" | "artwork";
+  image_size: number | null;
+}
+
 export interface DealProduct {
   id: string;
   name: string;
@@ -99,7 +116,10 @@ export interface HomeFeed {
    * visibility. Optional because a server older than the row sends none.
    */
   featured?: PublicShop[];
+  /** The strip further down the page. */
   banners: HomeBanner[];
+  /** The top header's slides. Optional: a server older than them sends none. */
+  hero?: HeroBanner[];
   nearby: PublicShop[];
   top_rated: PublicShop[];
   deals: DealProduct[];

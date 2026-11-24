@@ -16,9 +16,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRightIcon } from "../../../common/ui/icons";
 import { SmartImage } from "../../../common/ui/SmartImage";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { spacing, typography, useColors } from "../../../theme";
-import type { HomeBanner } from "../services/marketplaceService";
+import type { HomeBanner, HeroBanner } from "../services/marketplaceService";
 
 /**
  * THE TOP OF HOME: ONE COLOURED BLOCK THAT CHANGES WITH ITS SLIDE.
@@ -28,10 +27,17 @@ import type { HomeBanner } from "../services/marketplaceService";
  * the colour of the slide in view, sliding from one to the next as the thumb
  * moves. It ends in a soft downward curve instead of a straight edge.
  *
- * An admin banner is artwork made at 2:1 (`BannerRequest::checkShape`), so it
- * is shown whole, as a rounded card in the block — never cropped to fit a
- * layout. With no banners sold, the app's own slides speak instead: a
- * headline, a line and a link, on the block's colour.
+ * ── Whose slides ──────────────────────────────────────────────────────
+ *
+ * The ADMIN's top-header banners (`placement: home_top`), when any are live:
+ * each one's chosen colour becomes the block — "admin side sy jo color chose
+ * ho wohi top header ka bny" — and it is shown nowhere else on the page. Made
+ * of words (title, line, button, picture at the admin's size) or as one
+ * finished 2:1 image edge to edge on that colour.
+ *
+ * With none, the app's own slides speak: a headline, a line and a button on
+ * the palette's colours with a picture beside them. Photo cards were tried up
+ * here and moved down to the strip — "top waly pehle waly e achy lg rahy thy".
  */
 const AUTO_MS = 4500;
 const ARC = 26;
@@ -44,29 +50,32 @@ interface OwnSlide {
   body: string;
   cta: string;
   emoji: string;
-  /** A bundled 3D picture; the emoji is only the fallback. */
+  /** A bundled picture; the emoji is only the fallback. */
   art?: ImageSourcePropType;
-  /**
-   * A PHOTOGRAPH filling the slide, words over a dark wash on its left —
-   * "natural", not emoji ("emoji achy ni lg rahy, specially on banners").
-   * Wins over `art` when given. CC0 crops in `assets/photos`.
-   */
-  photo?: ImageSourcePropType;
   onPress?: () => void;
 }
 
+/** The size the app's own pictures sit at, and an admin picture's default. */
+const PICTURE = 112;
+/** The words-and-picture slide's height before the dots' room. */
+const SLIDE = 132;
+
+type Slide = HeroBanner | OwnSlide;
+const isHero = (s: Slide): s is HeroBanner => "color" in s;
+
 export function HomeHero({
   header,
-  banners,
+  hero,
   onBanner,
   ownSlides,
   autoPlay,
 }: {
   /** Address, menu, search — drawn on the block, above the slides. */
   header: React.ReactNode;
-  banners: HomeBanner[];
+  /** The admin's top-header banners — only these, never the strip's. */
+  hero: HeroBanner[];
   onBanner: (b: HomeBanner) => void;
-  /** The app's own slides, shown only while nobody has bought a banner. */
+  /** The app's own slides, shown only while no top banner is live. */
   ownSlides: OwnSlide[];
   /** Only while Home is the screen on top. */
   autoPlay: boolean;
@@ -80,11 +89,12 @@ export function HomeHero({
    * the status bar's light glyphs read on every one of them.
    */
   const tones = React.useMemo(() => [c.primary, c.warm, c.ink, c.brand[700]], [c]);
-  const slides = banners.length > 0 ? banners : ownSlides;
-  const colours = slides.map((_, i) => tones[i % tones.length]);
+  const slides: Slide[] = hero.length > 0 ? hero : ownSlides;
+  // An admin banner wears its own colour; the app's own take the palette's.
+  const colours = slides.map((s, i) => (isHero(s) ? s.color : tones[i % tones.length]));
 
   const x = React.useRef(new Animated.Value(0)).current;
-  const list = React.useRef<Animated.FlatList<HomeBanner | OwnSlide>>(null);
+  const list = React.useRef<Animated.FlatList<Slide>>(null);
   const [page, setPage] = React.useState(0);
   const touching = React.useRef(false);
   const [settled, setSettled] = React.useState(0);
@@ -132,9 +142,15 @@ export function HomeHero({
     setSettled((n) => n + 1);
   };
 
-  // A banner is shown whole at 2:1; the app's own slides are words and a
-  // picture, and need less height than artwork does.
-  const slideHeight = banners.length > 0 ? Math.round(width / 2) : 132;
+  /*
+   * ONE HEIGHT FOR EVERY SLIDE, or the block would jump as they change.
+   * Artwork is shown whole at 2:1; words and a picture need the room their
+   * biggest picture asks for, and never less than the app's own slides.
+   */
+  const artwork = slides.some((s) => isHero(s) && s.style === "artwork");
+  const biggest = Math.max(0, ...slides.map((s) => (isHero(s) && s.image_url ? s.image_size ?? PICTURE : 0)));
+  const wordsHeight = Math.max(SLIDE, biggest + spacing.ms);
+  const slideHeight = artwork ? Math.max(Math.round(width / 2), wordsHeight) : wordsHeight;
 
   return (
     <View>
@@ -165,92 +181,71 @@ export function HomeHero({
           }}
           onMomentumScrollEnd={onSettled}
           renderItem={({ item }) =>
-            "image_url" in item ? (
+            isHero(item) && item.style === "artwork" ? (
               <Pressable
-                style={{ width, height: slideHeight }}
+                style={{ width, height: slideHeight, justifyContent: "center" }}
                 accessibilityRole="button"
                 accessibilityLabel={item.title ?? "Promotion"}
                 onPress={() => onBanner(item)}
               >
                 {/*
-                  EDGE TO EDGE, on no ground of its own. As a rounded card it
-                  showed a pale rim at the corners and a white shimmer while
-                  loading — a seam in a block that is meant to be one colour.
-                  The artwork is made in the block's colour, so whole-width it
-                  simply IS the block.
+                  EDGE TO EDGE, on the block's own colour, which the admin
+                  picked to match the artwork — so it simply IS the block.
                 */}
                 <SmartImage
                   uri={item.image_url}
                   shimmer={false}
                   fallbackBackground="transparent"
-                  style={{ width, height: slideHeight }}
+                  style={{ width, height: Math.round(width / 2) }}
                 />
-              </Pressable>
-            ) : item.photo ? (
-              <Pressable
-                style={{ width, height: slideHeight + spacing.md + DOTS_ROOM, paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: DOTS_ROOM }}
-                accessible
-                accessibilityRole={item.onPress ? "button" : undefined}
-                accessibilityLabel={`${item.title}. ${item.body}`}
-                onPress={item.onPress}
-                disabled={!item.onPress}
-              >
-                <View style={styles.photoCard}>
-                  <Image source={item.photo} style={styles.photoImg} resizeMode="cover" />
-                  {/*
-                    The wash: black fading to clear, left to right. `stopOpacity`,
-                    not rgba() — an SVG stop ignores rgba's alpha and drew the
-                    whole card black.
-                  */}
-                  <Svg style={styles.photoWash} pointerEvents="none" preserveAspectRatio="none" viewBox="0 0 100 100">
-                    <Defs>
-                      <LinearGradient id={`wash-${item.id}`} x1="0" y1="0" x2="1" y2="0">
-                        <Stop offset="0" stopColor="#000000" stopOpacity="0.72" />
-                        <Stop offset="0.55" stopColor="#000000" stopOpacity="0.4" />
-                        <Stop offset="1" stopColor="#000000" stopOpacity="0" />
-                      </LinearGradient>
-                    </Defs>
-                    <Rect x="0" y="0" width="100" height="100" fill={`url(#wash-${item.id})`} />
-                  </Svg>
-                  <View style={styles.photoCopy}>
-                    <Text style={[styles.title, styles.photoTitle]} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.body, styles.photoBody]} numberOfLines={2}>
-                      {item.body}
-                    </Text>
-                    {!!item.onPress && !!item.cta && (
-                      <View style={styles.photoCta}>
-                        <Text style={styles.photoCtaText}>{item.cta}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
               </Pressable>
             ) : (
               <Pressable
                 style={[styles.slide, styles.own, { width, height: slideHeight + spacing.md + DOTS_ROOM }]}
                 accessible
-                accessibilityRole={item.onPress ? "button" : undefined}
-                accessibilityLabel={`${item.title}. ${item.body}`}
-                onPress={item.onPress}
-                disabled={!item.onPress}
+                accessibilityRole={isHero(item) || item.onPress ? "button" : undefined}
+                accessibilityLabel={[item.title, item.body].filter(Boolean).join(". ")}
+                onPress={isHero(item) ? () => onBanner(item) : item.onPress}
+                disabled={!isHero(item) && !item.onPress}
               >
                 <View style={styles.copy}>
                   <Text style={[styles.title, { color: c.textInverse }]} numberOfLines={3}>
                     {item.title}
                   </Text>
-                  <Text style={[styles.body, { color: c.textInverse }]} numberOfLines={2}>
-                    {item.body}
-                  </Text>
-                  {!!item.onPress && (
-                    <View style={styles.ctaRow}>
-                      <Text style={[styles.cta, { color: c.textInverse }]}>{item.cta}</Text>
-                      <ChevronRightIcon size={16} color={c.textInverse} />
-                    </View>
+                  {!!item.body && (
+                    <Text style={[styles.body, { color: c.textInverse }]} numberOfLines={2}>
+                      {item.body}
+                    </Text>
                   )}
+                  {(() => {
+                    const label = isHero(item) ? item.cta : item.onPress ? item.cta : null;
+                    if (!label) return null;
+                    // A white pill in the slide's own colour — a button, not a
+                    // link, on any colour the admin picks.
+                    const tone = isHero(item) ? item.color : colours[slides.indexOf(item)];
+                    return (
+                      <View style={[styles.ctaPill, { backgroundColor: c.surface }]}>
+                        <Text style={[styles.cta, { color: tone }]}>{label}</Text>
+                        <ChevronRightIcon size={14} color={tone} />
+                      </View>
+                    );
+                  })()}
                 </View>
-                {item.art ? <Image source={item.art} style={styles.pic} /> : <Text style={styles.emoji}>{item.emoji}</Text>}
+                {isHero(item) ? (
+                  item.image_url ? (
+                    <SmartImage
+                      uri={item.image_url}
+                      shimmer={false}
+                      fallbackBackground="transparent"
+                      resizeMode="contain"
+                      style={{ width: item.image_size ?? PICTURE, height: item.image_size ?? PICTURE }}
+                    />
+                  ) : null
+                ) : item.art ? (
+                  <Image source={item.art} style={styles.pic} />
+                ) : (
+                  <Text style={styles.emoji}>{item.emoji}</Text>
+                )}
               </Pressable>
             )
           }
@@ -289,29 +284,23 @@ export function HomeHero({
 const styles = StyleSheet.create({
   slide: { paddingHorizontal: spacing.md, paddingTop: spacing.sm },
   own: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingBottom: DOTS_ROOM },
-  art: { width: "100%" },
   copy: { flex: 1, gap: 6 },
   title: { ...typography.title, fontSize: 24, lineHeight: 30, fontWeight: "800" },
   body: { ...typography.small, opacity: 0.85 },
-  ctaRow: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 4 },
-  cta: { ...typography.label, textDecorationLine: "underline" },
-  emoji: { fontSize: 76 },
-  photoCard: { flex: 1, borderRadius: 20, overflow: "hidden", backgroundColor: "rgba(0,0,0,0.2)" },
-  photoImg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
-  photoWash: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
-  photoCopy: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.md, gap: 4, maxWidth: "68%" },
-  photoTitle: { color: "#ffffff", fontSize: 22, lineHeight: 27 },
-  photoBody: { color: "#ffffff", opacity: 0.9 },
-  photoCta: {
+  ctaPill: {
+    flexDirection: "row",
+    alignItems: "center",
     alignSelf: "flex-start",
+    gap: 2,
     marginTop: spacing.xs,
-    backgroundColor: "#ffffff",
     borderRadius: 14,
-    paddingHorizontal: spacing.ms,
+    paddingLeft: spacing.ms,
+    paddingRight: spacing.sm,
     paddingVertical: 6,
   },
-  photoCtaText: { ...typography.label, color: "#111111", fontSize: 13, lineHeight: 18 },
-  pic: { width: 112, height: 112 },
+  cta: { ...typography.label, fontSize: 13, lineHeight: 18 },
+  emoji: { fontSize: 76 },
+  pic: { width: PICTURE, height: PICTURE },
   dotsWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.sm, alignItems: "center" },
   dots: {
     flexDirection: "row",

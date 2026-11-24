@@ -61,7 +61,7 @@ describe("grocery tab", () => {
 
   it("shows its own slides, not Home's banners", () => {
     expect(market).not.toMatch(/useHomeFeed/);
-    expect(market).toMatch(/banners=\{NO_BANNERS\}/);
+    expect(market).toMatch(/hero=\{NO_BANNERS\}/);
     expect(market).toMatch(/ownSlides=\{slides\}/);
   });
 

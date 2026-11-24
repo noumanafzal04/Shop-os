@@ -51,9 +51,11 @@ describe("photographs for the kinds of shop", () => {
     expect(src("src/modules/marketplace/screens/MarketScreen.tsx")).toMatch(
       /categoryPhoto\(t\.value, t\.label, t\.trade\)/,
     );
-    expect(src("src/modules/marketplace/screens/MarketScreen.tsx")).toMatch(/photo: SLIDE_PHOTO\.vegetables/);
-    expect(src("src/modules/marketplace/screens/CustomerHomeScreen.tsx")).toMatch(/photo: SLIDE_PHOTO\.restaurant/);
-    expect(src("src/modules/marketplace/components/HomeHero.tsx")).toMatch(/item\.photo \? \(/);
+    // The photo cards live in the strip further down; the top block went back
+    // to colour + picture ("top waly pehle waly e achy lg rahy thy").
+    expect(src("src/modules/marketplace/components/PromoCarousel.tsx")).toMatch(/photo: SLIDE_PHOTO\.restaurant/);
+    expect(src("src/modules/marketplace/components/PromoCarousel.tsx")).toMatch(/<Image source=\{item\.photo\}/);
+    expect(src("src/modules/marketplace/components/HomeHero.tsx")).not.toMatch(/SLIDE_PHOTO|item\.photo/);
     expect(src("src/modules/auth/components/AuthScreen.tsx")).toMatch(/art=\{photo\("burger"\)\}/);
     expect(src("src/common/ui/Splash.tsx")).toMatch(/assets\/photos\/cat-pizza\.jpg/);
     expect(Object.keys(SLIDE_PHOTO).length).toBeGreaterThanOrEqual(3);

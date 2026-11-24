@@ -30,7 +30,7 @@ import { useCategories, useMarketShops } from "../hooks/useMarketplace";
 import { HomeHero } from "../components/HomeHero";
 import { ShopTile } from "../components/ShopTile";
 import { homeCategoryTiles, TILE_GAP, tileSize, type TileSize } from "../homeCategories";
-import { categoryPhoto, categoryPicture, picture, SLIDE_PHOTO } from "../tradePicture";
+import { categoryPhoto, categoryPicture, picture } from "../tradePicture";
 import { ShopWithItems } from "../components/ShopWithItems";
 import type { ShopQuery } from "../services/marketplaceService";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
@@ -121,7 +121,6 @@ export function MarketScreen() {
         cta: "Shop now",
         emoji: "🥦",
         art: picture("leafy_green"),
-        photo: SLIDE_PHOTO.vegetables,
         onPress: () =>
           navigation.navigate("ShopList", {
             business_type: "mart",
@@ -135,7 +134,6 @@ export function MarketScreen() {
         cta: "Order now",
         emoji: "🥛",
         art: picture("glass_of_milk"),
-        photo: SLIDE_PHOTO.dairy,
         onPress: () =>
           navigation.navigate("ShopList", {
             business_type: "mart",
@@ -150,7 +148,6 @@ export function MarketScreen() {
         cta: "Order now",
         emoji: "💊",
         art: picture("pill"),
-        photo: SLIDE_PHOTO.pharmacy,
         onPress: () =>
           navigation.navigate("ShopList", {
             business_type: "pharmacy",
@@ -268,7 +265,7 @@ export function MarketScreen() {
               <View style={styles.bleed}>
                 <HomeHero
                   autoPlay={focused}
-                  banners={NO_BANNERS}
+                  hero={NO_BANNERS}
                   onBanner={() => undefined}
                   ownSlides={slides}
                   header={

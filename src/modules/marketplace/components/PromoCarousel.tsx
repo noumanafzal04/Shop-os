@@ -3,6 +3,8 @@ import {
   AccessibilityInfo,
   AppState,
   FlatList,
+  Image,
+  type ImageSourcePropType,
   Pressable,
   StyleSheet,
   Text,
@@ -13,7 +15,8 @@ import {
 } from "react-native";
 import { useTheme } from "../../../theme";
 import { SmartImage } from "../../../common/ui/SmartImage";
-import { Gradient } from "../../../common/ui/Gradient";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import { SLIDE_PHOTO } from "../tradePicture";
 import type { HomeBanner } from "../services/marketplaceService";
 
 /**
@@ -54,12 +57,19 @@ const RATIO = 2; // width : height
  */
 const AUTO_MS = 4000;
 
+/**
+ * THE APP'S OWN CARDS ARE PHOTOGRAPHS.
+ *
+ * They were flat colour with an emoji; the photo cards were tried at the top
+ * of home and the user kept them for down here instead ("niche waly hum aise
+ * use kr skty hain") while the top went back to its coloured block. CC0 crops
+ * in `assets/photos`, words over a dark wash on the left.
+ */
 interface Placeholder {
   id: string;
   title: string;
   body: string;
-  emoji: string;
-  tone: "brand" | "warm" | "ink";
+  photo: ImageSourcePropType;
 }
 
 const PLACEHOLDERS: Placeholder[] = [
@@ -67,22 +77,19 @@ const PLACEHOLDERS: Placeholder[] = [
     id: "ph-delivery",
     title: "Shops near you",
     body: "Order from the ones that already know your street",
-    emoji: "🛵",
-    tone: "brand",
+    photo: SLIDE_PHOTO.restaurant,
   },
   {
     id: "ph-cod",
     title: "Pay when it arrives",
     body: "Cash on delivery, every order",
-    emoji: "💵",
-    tone: "warm",
+    photo: SLIDE_PHOTO.mart,
   },
   {
     id: "ph-everything",
     title: "Food, grocery, medicine",
     body: "One basket, one delivery",
-    emoji: "🧺",
-    tone: "ink",
+    photo: SLIDE_PHOTO.pharmacy,
   },
 ];
 
@@ -164,13 +171,6 @@ export function PromoCarousel({
     setSettled((n) => n + 1);
   };
 
-  const toneOf = (tone: Placeholder["tone"]) =>
-    tone === "warm"
-      ? { bg: c.warm, fg: c.onWarm }
-      : tone === "ink"
-        ? { bg: c.ink, fg: c.textInverse }
-        : { bg: c.primary, fg: c.onPrimary };
-
   return (
     <View style={{ marginTop: spacing.lg }}>
       <FlatList
@@ -250,61 +250,38 @@ export function PromoCarousel({
             );
           }
 
-          const { bg, fg } = toneOf(item.tone);
-
-          /*
-            THE APP'S OWN CARD GETS THE APP'S OWN RAMP.
-
-            Only the `brand` tone. The warm and ink placeholders stay flat,
-            because three gradients side by side in a snapping carousel is a
-            strip that shimmers as it scrolls — and the whole reason there are
-            three tones is that the cards should read as three different
-            things.
-
-            `Gradient` draws an SVG behind its children, so the padding and
-            the row layout move onto it rather than staying on a wrapper; a
-            `<View>` inside would sit on top of the ramp at the wrong size.
-          */
-          const body = (
-            <>
-              <Text style={styles.emoji}>{item.emoji}</Text>
-              <View style={styles.copy}>
-                <Text style={[typography.title, { color: fg }]} numberOfLines={2}>
+          return (
+            <View
+              // Not a button: it advertises the app to the person already
+              // holding it, so there is nowhere for a tap to go.
+              accessible
+              accessibilityLabel={`${item.title}. ${item.body}`}
+              style={[styles.card, size, { backgroundColor: c.surfaceAlt }]}
+            >
+              <Image source={item.photo} style={[styles.fill, size]} resizeMode="cover" />
+              {/*
+                The wash: black fading to clear, left to right. `stopOpacity`,
+                not rgba() — an SVG stop ignores rgba's alpha and drew the
+                whole card black.
+              */}
+              <Svg style={styles.fill} pointerEvents="none" preserveAspectRatio="none" viewBox="0 0 100 100">
+                <Defs>
+                  <LinearGradient id={`wash-${item.id}`} x1="0" y1="0" x2="1" y2="0">
+                    <Stop offset="0" stopColor="#000000" stopOpacity="0.72" />
+                    <Stop offset="0.6" stopColor="#000000" stopOpacity="0.35" />
+                    <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+                  </LinearGradient>
+                </Defs>
+                <Rect x="0" y="0" width="100" height="100" fill={`url(#wash-${item.id})`} />
+              </Svg>
+              <View style={[styles.photoCopy, { padding: spacing.lg }]}>
+                <Text style={[typography.title, styles.onPhoto]} numberOfLines={2}>
                   {item.title}
                 </Text>
-                <Text style={[typography.small, styles.body, { color: fg }]} numberOfLines={2}>
+                <Text style={[typography.small, styles.body, styles.onPhoto]} numberOfLines={2}>
                   {item.body}
                 </Text>
               </View>
-            </>
-          );
-
-          const props = {
-            // Not a button: it advertises the app to the person already
-            // holding it, so there is nowhere for a tap to go.
-            accessible: true,
-            accessibilityLabel: `${item.title}. ${item.body}`,
-          };
-
-          if (item.tone === "brand") {
-            return (
-              <Gradient
-                {...props}
-                direction="diagonal"
-                borderRadius={radius.lg}
-                style={[styles.card, styles.placeholder, size, { padding: spacing.lg }]}
-              >
-                {body}
-              </Gradient>
-            );
-          }
-
-          return (
-            <View
-              {...props}
-              style={[styles.card, styles.placeholder, size, { backgroundColor: bg, padding: spacing.lg }]}
-            >
-              {body}
             </View>
           );
         }}
@@ -362,9 +339,9 @@ const styles = StyleSheet.create({
 
   card: { overflow: "hidden" },
   fallback: { alignItems: "flex-start", justifyContent: "center" },
-  placeholder: { flexDirection: "row", alignItems: "center", gap: 14 },
-  emoji: { fontSize: 42 },
-  copy: { flex: 1 },
+  fill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  photoCopy: { flex: 1, justifyContent: "center", maxWidth: "70%" },
+  onPhoto: { color: "#ffffff" },
   body: { opacity: 0.9, marginTop: 4 },
   dots: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 6 },
   dot: { height: 6, borderRadius: 3 },
