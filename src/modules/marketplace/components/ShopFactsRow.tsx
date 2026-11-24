@@ -4,6 +4,7 @@ import { ClockIcon, MapPinIcon, MotorcycleIcon, StarIcon } from "../../../common
 import { useTheme } from "../../../theme";
 import { shopFactsShort, type ShopFact } from "../shopFacts";
 import type { PublicShop } from "../services/marketplaceService";
+import { shutLabel } from "../shutLabel";
 
 /**
  * The facts line under a shop's name.
@@ -84,7 +85,7 @@ export function ShopFactsRow({
 
       {closed && (
         <View style={[styles.fact, styles.shut, { backgroundColor: c.errorBg }]}>
-          <Text style={[typography.tiny, styles.offer, { color: c.error }]}>Closed</Text>
+          <Text style={[typography.tiny, styles.offer, { color: c.error }]}>{shutLabel(shop)}</Text>
         </View>
       )}
     </View>

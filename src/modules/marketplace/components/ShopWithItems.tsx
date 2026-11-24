@@ -13,6 +13,7 @@ import { radius, spacing, type ThemeColors, typography, useColors } from "../../
 import type { PublicShop } from "../services/marketplaceService";
 import { Skeleton } from "../../../common/ui/Skeleton";
 import { FeaturedTag } from "./FeaturedTag";
+import { shutLabel, shutLine } from "../shutLabel";
 
 /**
  * A SHOP, AND A FEW OF THE THINGS IT SELLS.
@@ -114,7 +115,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
             <SmartImage uri={picture} fallbackBackground={cover.bg} style={styles.heroImg} />
             {closed && (
               <View style={styles.shutVeil}>
-                <Text style={styles.heroShut}>Closed for now</Text>
+                <Text style={styles.heroShut}>{shutLine(shop)}</Text>
               </View>
             )}
           </View>
@@ -166,7 +167,7 @@ export function ShopWithItems({ shop, onOpen, onItem }: Props) {
           */}
           {closed && !picture && (
             <View style={styles.shutVeil}>
-              <Text style={styles.shutText}>Closed</Text>
+              <Text style={styles.shutText}>{shutLabel(shop)}</Text>
             </View>
           )}
         </View>

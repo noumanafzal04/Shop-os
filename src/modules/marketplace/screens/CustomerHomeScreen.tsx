@@ -52,6 +52,7 @@ import { SHORTCUTS } from "../tradeIcon";
 import { shortcutArt, tradeArt, useTileGround, useTileTint } from "../tileArt";
 import { OfferBadge, Price } from "../../../common/ui/Price";
 import { shopAvatar, shopBanner, shopInitial, useShopCover } from "../shopCover";
+import { shutLabel } from "../shutLabel";
 
 /**
  * HOW MANY TRADES THE GRID SHOWS — and why it is a FIXED number.
@@ -1056,7 +1057,7 @@ function ShopCard({ shop, wide = false, onPress }: { shop: PublicShop; wide?: bo
         {shop.is_featured === true && <FeaturedTag onImage style={styles.railFeatured} />}
         {closed && (
           <View style={styles.railShut}>
-            <Text style={styles.shutText}>Closed</Text>
+            <Text style={styles.shutText}>{shutLabel(shop)}</Text>
           </View>
         )}
       </View>

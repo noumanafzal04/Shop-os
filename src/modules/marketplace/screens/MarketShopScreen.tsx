@@ -50,6 +50,7 @@ import { confirm } from "../../../common/ui/confirm";
 import { usePullToRefresh } from "../../../common/hooks/usePullToRefresh";
 import { money } from "../../../common/format";
 import { OfferBadge, Price } from "../../../common/ui/Price";
+import { shutLabel } from "../shutLabel";
 import {
   useFavorites,
   useMarketProduct,
@@ -711,7 +712,7 @@ export function MarketShopScreen() {
                 </>
               )}
               <Text style={styles.metaDot}>·</Text>
-              <Text style={closed ? styles.closedText : styles.openText}>{closed ? "Closed" : "Open now"}</Text>
+              <Text style={closed ? styles.closedText : styles.openText}>{closed ? shutLabel(shop.data) : "Open now"}</Text>
             </View>
             </View>
           </View>

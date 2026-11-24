@@ -27,6 +27,8 @@ export interface PublicShop {
   rating: number | null;
   reviews_count: number;
   is_open_now?: boolean;
+  /** Closed because the shop paused orders for a while — say "Busy", see `shutLabel`. */
+  is_busy?: boolean;
   distance_km?: number | null;
   address?: string | null;
   phone?: string | null;
