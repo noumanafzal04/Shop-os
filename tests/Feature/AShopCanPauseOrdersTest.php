@@ -77,7 +77,10 @@ class AShopCanPauseOrdersTest extends TestCase
         $this->as($this->owner)->getJson('/api/v1/shop/settings')
             ->assertOk()->assertJsonPath('data.orders_paused_until', $until);
         $this->assertFalse($this->shop->fresh()->isOpenNow());
-        $this->getJson("/api/v1/marketplace/shops/{$this->shop->slug}")->assertOk()->assertJsonPath('data.is_open_now', false);
+        $this->getJson("/api/v1/marketplace/shops/{$this->shop->slug}")->assertOk()
+            ->assertJsonPath('data.is_open_now', false)
+            // Said as "Busy", not as shut for the day.
+            ->assertJsonPath('data.is_busy', true);
 
         $this->order()->assertUnprocessable()->assertJsonPath('meta.error_code', 'ORDERS_PAUSED');
 

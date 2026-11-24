@@ -1513,6 +1513,9 @@ class MarketplaceController extends Controller
             'reviews_count' => (int) ($tenant->reviews_count ?? 0),
             // On every card, so lists can grey-out closed shops.
             'is_open_now' => $tenant->isOpenNow(),
+            // Closed BECAUSE the shop paused orders for a while — the card
+            // says "Busy" rather than "Closed", which reads as shut for the day.
+            'is_busy' => $tenant->ordersPausedUntil() !== null,
 
             // ── What a card needs to be DECIDABLE ──────────────────────
             //
@@ -1550,6 +1553,7 @@ class MarketplaceController extends Controller
                 'longitude' => $tenant->longitude,
                 'business_hours' => $tenant->business_hours,
                 'is_open_now' => $tenant->isOpenNow(),
+                'is_busy' => $tenant->ordersPausedUntil() !== null,
                 'categories' => Category::withoutTenancy()
                     ->where('tenant_id', $tenant->id)
                     ->where('is_active', true)
