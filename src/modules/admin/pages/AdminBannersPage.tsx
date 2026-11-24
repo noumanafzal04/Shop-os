@@ -3,6 +3,17 @@ import PageMeta from "../../../components/common/PageMeta";
 import { BoxCubeIcon } from "../../../icons";
 import { Card, Empty, PageHeader } from "../components/kit";
 import BannerPreview from "../components/BannerPreview";
+import HeroBannerPreview from "../components/HeroBannerPreview";
+import {
+  contrastWithWhite,
+  HERO_MIN_CONTRAST,
+  HERO_PICTURE_DEFAULT,
+  HERO_PICTURE_MAX,
+  HERO_PICTURE_MIN,
+  HERO_SWATCHES,
+  isHex,
+  readsUnderWhite,
+} from "../heroColor";
 import { bannerShapeProblem, measureImage } from "../bannerShape";
 import Button from "../../../components/ui/button/Button";
 import Input from "../../../components/form/input/InputField";
@@ -58,6 +69,31 @@ export default function AdminBannersPage() {
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   /**
+   * A TOP-HEADER BANNER heads the app's home in its own colour and is shown
+   * nowhere else. Made of words (colour, title, line, button, picture) or as
+   * one finished image — both asked for.
+   */
+  const isTop = form.placement === "home_top";
+  const heroStyle: "words" | "artwork" = form.hero_style === "artwork" ? "artwork" : "words";
+  const wordsTop = isTop && heroStyle === "words";
+  const colour = form.hero_color ?? "";
+  const colourProblem = !isTop
+    ? null
+    : !isHex(colour)
+      ? "Pick a colour."
+      : !readsUnderWhite(colour)
+        ? `White text is hard to read on ${colour} (contrast ${contrastWithWhite(colour)}:1, needs ${HERO_MIN_CONTRAST}:1). Pick a darker one.`
+        : null;
+  const setTop = (on: boolean) =>
+    setForm((f) => ({
+      ...f,
+      placement: on ? "home_top" : "home",
+      hero_style: f.hero_style || "words",
+      hero_color: f.hero_color || HERO_SWATCHES[0],
+      hero_image_size: f.hero_image_size || String(HERO_PICTURE_DEFAULT),
+    }));
+
+  /**
    * WHAT THE SERVER WILL ACTUALLY TAKE.
    *
    * PHP's own `upload_max_filesize` defaults to 2M, and a file over that never
@@ -107,7 +143,9 @@ export default function AdminBannersPage() {
      * rather than after two megabytes have crossed a phone network to be
      * thrown away. Same arrangement as the size check above.
      */
-    const measured = await measureImage(f);
+    // A picture beside a top banner's words may be any shape — only artwork
+    // that FILLS a card is held to 2:1.
+    const measured = wordsTop ? null : await measureImage(f);
     const shape = measured ? bannerShapeProblem(measured.width, measured.height) : null;
     if (shape != null) {
       setFileProblem(shape);
@@ -133,6 +171,8 @@ export default function AdminBannersPage() {
       title: b.title ?? "", target_type: b.target_type, tenant_id: b.tenant_id ?? "", target_url: b.target_url ?? "",
       placement: b.placement, starts_at: b.starts_at?.slice(0, 10) ?? "", ends_at: b.ends_at?.slice(0, 10) ?? "",
       amount: b.amount != null ? String(b.amount) : "", paid_at: b.paid_at?.slice(0, 10) ?? "", is_active: b.is_active ? "1" : "0",
+      body: b.body ?? "", cta_label: b.cta_label ?? "", hero_color: b.hero_color ?? "", hero_style: b.hero_style ?? "",
+      hero_image_size: b.hero_image_size != null ? String(b.hero_image_size) : "",
     });
     editor.openModal();
   };
@@ -156,7 +196,7 @@ export default function AdminBannersPage() {
 
   const save = () => {
     if (mutation.isPending) return;
-    if (!editing && !file) return;
+    if (!canSave) return;
     const fd = new FormData();
     if (file) fd.append("image", file);
     fd.append("target_type", form.target_type || "shop");
@@ -165,10 +205,24 @@ export default function AdminBannersPage() {
     for (const k of ["title", "tenant_id", "target_url", "starts_at", "ends_at", "amount", "paid_at"]) {
       if (form[k]) fd.append(k, form[k]);
     }
+    if (isTop) {
+      fd.append("hero_style", heroStyle);
+      fd.append("hero_color", colour);
+      // Sent even when empty, so clearing the line or the button on an edit
+      // clears it on the phone too.
+      fd.append("body", form.body ?? "");
+      fd.append("cta_label", form.cta_label ?? "");
+      fd.append("hero_image_size", form.hero_image_size || String(HERO_PICTURE_DEFAULT));
+    }
     const opts = { onSuccess: () => editor.closeModal() };
     if (editing) update.mutate({ id: editing.id, data: fd }, opts);
     else create.mutate(fd, opts);
   };
+
+  const hasPicture = !!file || !!editing?.image_url;
+  const canSave =
+    !colourProblem &&
+    (wordsTop ? !!(form.title ?? "").trim() : hasPicture);
 
   const rows = banners.data ?? [];
 
@@ -200,10 +254,22 @@ export default function AdminBannersPage() {
         <div className="space-y-3">
           {rows.map((b) => (
             <div key={b.id} className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-white/[0.03]">
-              <img src={b.image_url ?? ""} alt="" className="h-16 w-28 shrink-0 rounded-lg object-cover" />
+              {b.placement === "home_top" ? (
+                <div
+                  className="flex h-16 w-28 shrink-0 items-center justify-end overflow-hidden rounded-lg px-1"
+                  style={{ backgroundColor: b.hero_color ?? undefined }}
+                >
+                  {b.image_url && (
+                    <img src={b.image_url} alt="" className={b.hero_style === "artwork" ? "h-full w-full rounded object-cover" : "h-12 w-12 object-contain"} />
+                  )}
+                </div>
+              ) : (
+                <img src={b.image_url ?? ""} alt="" className="h-16 w-28 shrink-0 rounded-lg object-cover" />
+              )}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-gray-800 dark:text-white/90">{b.title || "(untitled)"}</span>
+                  {b.placement === "home_top" && <Badge size="sm" color="primary">Top header</Badge>}
                   {!b.is_active && <Badge size="sm" color="light">off</Badge>}
                 </div>
                 <div className="text-theme-xs text-gray-400">
@@ -223,12 +289,70 @@ export default function AdminBannersPage() {
         </div>
       )}
 
-      <Modal isOpen={editor.isOpen} onClose={editor.closeModal} className="max-w-lg p-6">
+      <Modal isOpen={editor.isOpen} onClose={editor.closeModal} className={`${isTop ? "max-w-4xl" : "max-w-lg"} p-6`}>
         <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">{editing ? "Edit banner" : "New banner"}</h3>
         {err && <div className="mb-3"><Alert variant="error" title="Couldn't save" message={err} /></div>}
+        <label className="mb-3 flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-700 dark:border-gray-700 dark:text-gray-200">
+          <input type="checkbox" className="mt-0.5" checked={isTop} onChange={(e) => setTop(e.target.checked)} />
+          <span>
+            <span className="font-medium">Top header banner</span>
+            <span className="block text-theme-xs text-gray-400">
+              Shows only at the very top of the app's home, and the whole header takes its colour. Unticked, it shows in the strip further down.
+            </span>
+          </span>
+        </label>
+        <div className={isTop ? "grid gap-6 md:grid-cols-[1fr_auto]" : ""}>
         <div className="space-y-3">
+          {isTop && (
+            <>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="How it is made">
+                {([
+                  ["words", "Design it here", "Colour, words, button and a picture"],
+                  ["artwork", "Upload full image", "One finished 1200×600 image"],
+                ] as const).map(([value, label, hint]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={heroStyle === value}
+                    onClick={() => { set("hero_style", value); pickFile(null); }}
+                    className={`rounded-xl border p-3 text-left text-sm ${heroStyle === value ? "border-brand-500 bg-brand-50 dark:bg-brand-500/10" : "border-gray-200 dark:border-gray-700"}`}
+                  >
+                    <span className="block font-medium text-gray-800 dark:text-white/90">{label}</span>
+                    <span className="block text-theme-xs text-gray-400">{hint}</span>
+                  </button>
+                ))}
+              </div>
+              <div>
+                <label className="mb-1 block text-theme-xs text-gray-400">Header colour</label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="color"
+                    aria-label="Header colour"
+                    value={isHex(colour) ? colour : HERO_SWATCHES[0]}
+                    onChange={(e) => set("hero_color", e.target.value)}
+                    className="h-10 w-12 cursor-pointer rounded border border-gray-200 bg-transparent dark:border-gray-700"
+                  />
+                  <div className="w-28"><Input value={colour} onChange={(e) => set("hero_color", e.target.value.trim())} placeholder="#03444a" /></div>
+                  {HERO_SWATCHES.map((sw) => (
+                    <button
+                      key={sw}
+                      type="button"
+                      aria-label={`Use ${sw}`}
+                      onClick={() => set("hero_color", sw)}
+                      className={`h-7 w-7 rounded-full border-2 ${colour.toLowerCase() === sw ? "border-gray-900 dark:border-white" : "border-transparent"}`}
+                      style={{ backgroundColor: sw }}
+                    />
+                  ))}
+                </div>
+                {colourProblem && <p className="mt-1 text-theme-xs text-error-500">{colourProblem}</p>}
+              </div>
+            </>
+          )}
           <div>
-            <label className="mb-1 block text-theme-xs text-gray-400">Banner image {editing && "(leave empty to keep)"}</label>
+            <label className="mb-1 block text-theme-xs text-gray-400">
+              {wordsTop ? "Picture or icon (optional, any shape — a PNG with a clear background looks best)" : "Banner image"} {editing && "(leave empty to keep)"}
+            </label>
             {/*
               THE PREVIEW, where the decision is made.
 
@@ -238,11 +362,13 @@ export default function AdminBannersPage() {
               bottom on one and loses them on the other. There was no way to
               know that without publishing and going to look.
             */}
-            <BannerPreview
-              src={preview ?? editing?.image_url ?? null}
-              title={form.title}
-              action={targetSentence}
-            />
+            {!isTop && (
+              <BannerPreview
+                src={preview ?? editing?.image_url ?? null}
+                title={form.title}
+                action={targetSentence}
+              />
+            )}
 
             <input type="file" accept="image/*" onChange={(e) => pickFile(e.target.files?.[0] ?? null)} className="text-sm" />
             {/*
@@ -263,17 +389,46 @@ export default function AdminBannersPage() {
               each side, which is where a logo and a price sit. This comment
               said top and bottom.
             */}
-            <p className="mt-1 text-theme-xs text-gray-400">
+            {wordsTop && (preview || editing?.image_url) && (
+              <div className="mt-2">
+                <label className="block text-theme-xs text-gray-400">
+                  Picture size: {form.hero_image_size || HERO_PICTURE_DEFAULT}
+                </label>
+                <input
+                  type="range"
+                  aria-label="Picture size"
+                  min={HERO_PICTURE_MIN}
+                  max={HERO_PICTURE_MAX}
+                  step={4}
+                  value={Number(form.hero_image_size || HERO_PICTURE_DEFAULT)}
+                  onChange={(e) => set("hero_image_size", e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            )}
+            {!wordsTop && <p className="mt-1 text-theme-xs text-gray-400">
               1200×600 (2:1), JPG under 2 MB. Anything else is refused — the app fills a 2:1 card, so a taller or wider file loses its edges. The ratio is the same on every phone.
-            </p>
+            </p>}
             {fileProblem && (
               <p className="mt-1 text-theme-xs text-error-500">{fileProblem}</p>
             )}
           </div>
-          <Input placeholder="Title / caption (optional)" value={form.title ?? ""} onChange={(e) => set("title", e.target.value)} />
-          <div className="grid grid-cols-2 gap-3">
-            <Select defaultValue={form.target_type} options={[{ value: "shop", label: "Opens a shop" }, { value: "url", label: "Opens a URL" }, { value: "none", label: "No action" }]} placeholder="Target" onChange={(v) => set("target_type", v)} />
-            <Select defaultValue={form.placement} options={[{ value: "home", label: "Home" }, { value: "marketplace_top", label: "Marketplace top" }]} placeholder="Placement" onChange={(v) => set("placement", v)} />
+          <Input
+            placeholder={wordsTop ? "Title (shown big on the header)" : "Title / caption (optional)"}
+            value={form.title ?? ""}
+            onChange={(e) => set("title", e.target.value)}
+          />
+          {wordsTop && (
+            <>
+              <Input placeholder="Description (one short line, optional)" value={form.body ?? ""} onChange={(e) => set("body", e.target.value)} />
+              <Input placeholder="Button text, e.g. Order now (optional)" value={form.cta_label ?? ""} onChange={(e) => set("cta_label", e.target.value)} />
+            </>
+          )}
+          <div className={isTop ? "" : "grid grid-cols-2 gap-3"}>
+            <Select defaultValue={form.target_type} options={[{ value: "shop", label: "Opens a shop" }, { value: "url", label: "Opens a link (URL)" }, { value: "none", label: "No action" }]} placeholder="Target" onChange={(v) => set("target_type", v)} />
+            {!isTop && (
+              <Select defaultValue={form.placement} options={[{ value: "home", label: "Home" }, { value: "marketplace_top", label: "Marketplace top" }]} placeholder="Placement" onChange={(v) => set("placement", v)} />
+            )}
           </div>
           {form.target_type === "shop" && (
             <div className="relative">
@@ -326,9 +481,23 @@ export default function AdminBannersPage() {
             <input type="checkbox" checked={form.is_active !== "0"} onChange={(e) => set("is_active", e.target.checked ? "1" : "0")} /> Active
           </label>
         </div>
+        {isTop && (
+          <div className="md:sticky md:top-0 md:self-start">
+            <HeroBannerPreview
+              colour={colour}
+              style={heroStyle}
+              title={form.title ?? ""}
+              body={form.body ?? ""}
+              cta={form.cta_label ?? ""}
+              picture={preview ?? editing?.image_url ?? null}
+              pictureSize={Number(form.hero_image_size || HERO_PICTURE_DEFAULT)}
+            />
+          </div>
+        )}
+        </div>
         <div className="mt-6 flex justify-end gap-3">
           <Button size="sm" variant="outline" onClick={editor.closeModal}>Cancel</Button>
-          <Button size="sm" onClick={save} disabled={mutation.isPending || (!editing && !file)}>{mutation.isPending ? "Saving…" : "Save"}</Button>
+          <Button size="sm" onClick={save} disabled={mutation.isPending || !canSave}>{mutation.isPending ? "Saving…" : "Save"}</Button>
         </div>
       </Modal>
     </>

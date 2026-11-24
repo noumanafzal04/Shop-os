@@ -226,6 +226,12 @@ export interface Banner {
   target_product_id: string | null;
   target_url: string | null;
   placement: string;
+  /** Top-header banners only (`placement: "home_top"`). */
+  body?: string | null;
+  cta_label?: string | null;
+  hero_color?: string | null;
+  hero_style?: "words" | "artwork" | null;
+  hero_image_size?: number | null;
   sort_order: number;
   is_active: boolean;
   starts_at: string | null;
