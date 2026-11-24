@@ -205,6 +205,7 @@ export function OrdersScreen() {
             <EmptyState
               icon={ReceiptIcon}
               title="No orders yet"
+              picture="bag"
               message="Everything you order shows up here — you can follow a delivery, or order the same thing again."
               action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
             />

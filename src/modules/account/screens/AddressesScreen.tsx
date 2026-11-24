@@ -94,6 +94,7 @@ export function AddressesScreen() {
             <EmptyState
               icon={MapPinIcon}
               title="No saved addresses"
+              picture="pin"
               message="Save Home, Work and the places you order to — checkout fills them in for you."
             />
           }

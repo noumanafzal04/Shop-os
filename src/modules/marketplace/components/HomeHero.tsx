@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRightIcon } from "../../../common/ui/icons";
 import { SmartImage } from "../../../common/ui/SmartImage";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { spacing, typography, useColors } from "../../../theme";
 import type { HomeBanner } from "../services/marketplaceService";
 
@@ -45,6 +46,12 @@ interface OwnSlide {
   emoji: string;
   /** A bundled 3D picture; the emoji is only the fallback. */
   art?: ImageSourcePropType;
+  /**
+   * A PHOTOGRAPH filling the slide, words over a dark wash on its left —
+   * "natural", not emoji ("emoji achy ni lg rahy, specially on banners").
+   * Wins over `art` when given. CC0 crops in `assets/photos`.
+   */
+  photo?: ImageSourcePropType;
   onPress?: () => void;
 }
 
@@ -179,6 +186,47 @@ export function HomeHero({
                   style={{ width, height: slideHeight }}
                 />
               </Pressable>
+            ) : item.photo ? (
+              <Pressable
+                style={{ width, height: slideHeight + spacing.md + DOTS_ROOM, paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: DOTS_ROOM }}
+                accessible
+                accessibilityRole={item.onPress ? "button" : undefined}
+                accessibilityLabel={`${item.title}. ${item.body}`}
+                onPress={item.onPress}
+                disabled={!item.onPress}
+              >
+                <View style={styles.photoCard}>
+                  <Image source={item.photo} style={styles.photoImg} resizeMode="cover" />
+                  {/*
+                    The wash: black fading to clear, left to right. `stopOpacity`,
+                    not rgba() — an SVG stop ignores rgba's alpha and drew the
+                    whole card black.
+                  */}
+                  <Svg style={styles.photoWash} pointerEvents="none" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <Defs>
+                      <LinearGradient id={`wash-${item.id}`} x1="0" y1="0" x2="1" y2="0">
+                        <Stop offset="0" stopColor="#000000" stopOpacity="0.72" />
+                        <Stop offset="0.55" stopColor="#000000" stopOpacity="0.4" />
+                        <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+                      </LinearGradient>
+                    </Defs>
+                    <Rect x="0" y="0" width="100" height="100" fill={`url(#wash-${item.id})`} />
+                  </Svg>
+                  <View style={styles.photoCopy}>
+                    <Text style={[styles.title, styles.photoTitle]} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    <Text style={[styles.body, styles.photoBody]} numberOfLines={2}>
+                      {item.body}
+                    </Text>
+                    {!!item.onPress && !!item.cta && (
+                      <View style={styles.photoCta}>
+                        <Text style={styles.photoCtaText}>{item.cta}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </Pressable>
             ) : (
               <Pressable
                 style={[styles.slide, styles.own, { width, height: slideHeight + spacing.md + DOTS_ROOM }]}
@@ -248,6 +296,21 @@ const styles = StyleSheet.create({
   ctaRow: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 4 },
   cta: { ...typography.label, textDecorationLine: "underline" },
   emoji: { fontSize: 76 },
+  photoCard: { flex: 1, borderRadius: 20, overflow: "hidden", backgroundColor: "rgba(0,0,0,0.2)" },
+  photoImg: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%" },
+  photoWash: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+  photoCopy: { flex: 1, justifyContent: "center", paddingHorizontal: spacing.md, gap: 4, maxWidth: "68%" },
+  photoTitle: { color: "#ffffff", fontSize: 22, lineHeight: 27 },
+  photoBody: { color: "#ffffff", opacity: 0.9 },
+  photoCta: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xs,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    paddingHorizontal: spacing.ms,
+    paddingVertical: 6,
+  },
+  photoCtaText: { ...typography.label, color: "#111111", fontSize: 13, lineHeight: 18 },
   pic: { width: 112, height: 112 },
   dotsWrap: { position: "absolute", left: 0, right: 0, bottom: spacing.sm, alignItems: "center" },
   dots: {

@@ -220,10 +220,11 @@ export function Splash() {
 
 /** The app's own pictures, one per thing it delivers, placed round the mark. */
 const SPLASH_ART = [
-  { key: "food", source: require("../../assets/art/pizza.png"), place: { top: "18%", left: "10%" }, turn: "-12deg" },
-  { key: "grocery", source: require("../../assets/art/leafy_green.png"), place: { top: "21%", right: "11%" }, turn: "10deg" },
-  { key: "medicine", source: require("../../assets/art/pill.png"), place: { bottom: "22%", left: "13%" }, turn: "14deg" },
-  { key: "shopping", source: require("../../assets/art/shopping_bags.png"), place: { bottom: "19%", right: "10%" }, turn: "-8deg" },
+  // Photographs in white rings (CC0, assets/photos) — not emoji.
+  { key: "food", source: require("../../assets/photos/cat-pizza.jpg"), place: { top: "18%", left: "10%" }, turn: "-8deg" },
+  { key: "grocery", source: require("../../assets/photos/cat-vegetables.jpg"), place: { top: "21%", right: "11%" }, turn: "6deg" },
+  { key: "medicine", source: require("../../assets/photos/cat-pharmacy.jpg"), place: { bottom: "22%", left: "13%" }, turn: "8deg" },
+  { key: "shopping", source: require("../../assets/photos/cat-clothing.jpg"), place: { bottom: "19%", right: "10%" }, turn: "-6deg" },
 ] as const;
 
 const styles = StyleSheet.create({
@@ -236,7 +237,8 @@ const styles = StyleSheet.create({
     borderRadius: 149,
     backgroundColor: "rgba(255,255,255,0.07)",
   },
-  art: { position: "absolute", width: 64, height: 64 },
+  // A photo in a white ring; the radius stays under half (Fabric).
+  art: { position: "absolute", width: 68, height: 68, borderRadius: 32, borderWidth: 3, borderColor: "#ffffff" },
   /**
    * A ring, not a filled plate.
    *

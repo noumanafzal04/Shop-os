@@ -85,6 +85,7 @@ export function FavoritesScreen() {
             <EmptyState
               icon={HeartIcon}
               title="No favourites yet"
+              picture="heart"
               message="Tap the heart on a shop and it will be waiting here next time."
               action={{ label: "Browse shops", onPress: () => navigation.navigate("FoodTab") }}
             />

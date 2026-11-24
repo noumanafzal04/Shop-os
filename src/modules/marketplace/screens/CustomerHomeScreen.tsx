@@ -39,7 +39,7 @@ import { formatDistance } from "../shopFacts";
 import { PromoCarousel } from "../components/PromoCarousel";
 import { HomeHero } from "../components/HomeHero";
 import { ShopTile } from "../components/ShopTile";
-import { categoryPicture, picture, shortcutPicture } from "../tradePicture";
+import { categoryPhoto, categoryPicture, picture, shortcutPicture, SLIDE_PHOTO } from "../tradePicture";
 import { homeCategoryTiles, TILE_GAP, tileSize, type TileSize } from "../homeCategories";
 import { ShopWithItems, ShopWithItemsSkeleton } from "../components/ShopWithItems";
 import { FeaturedTag } from "../components/FeaturedTag";
@@ -286,9 +286,10 @@ export function CustomerHomeScreen() {
         cta: "Browse shops",
         emoji: "🛵",
         art: picture("motor_scooter"),
+        photo: SLIDE_PHOTO.restaurant,
         onPress: () => navigation.navigate("ShopList", { title: "All shops" }),
       },
-      { id: "own-cod", title: "Pay when it arrives", body: "Cash on delivery, every order", cta: "", emoji: "💵", art: picture("dollar_banknote") },
+      { id: "own-cod", title: "Pay when it arrives", body: "Cash on delivery, every order", cta: "", emoji: "💵", art: picture("dollar_banknote"), photo: SLIDE_PHOTO.mart },
       {
         id: "own-offers",
         title: "Today's offers near you",
@@ -296,6 +297,7 @@ export function CustomerHomeScreen() {
         cta: "See offers",
         emoji: "🏷️",
         art: picture("label"),
+        photo: SLIDE_PHOTO.burger,
         onPress: seeAll("offers", "Today's offers"),
       },
     ],
@@ -707,7 +709,12 @@ export function CustomerHomeScreen() {
                   }
                 >
                   <View style={[styles.tileIcon, { backgroundColor: ground(art) }]}>
-                    <Image source={categoryPicture(t.value, t.label, t.trade)} style={styles.tilePic} />
+                    {/* A photograph of the kind of shop where one fits; the icon otherwise. */}
+                    {categoryPhoto(t.value, t.label, t.trade) ? (
+                      <Image source={categoryPhoto(t.value, t.label, t.trade)!} style={styles.tilePhoto} />
+                    ) : (
+                      <Image source={categoryPicture(t.value, t.label, t.trade)} style={styles.tilePic} />
+                    )}
                   </View>
                   {/* The label is the SERVER's — "Mart & Grocery", the name every surface uses. */}
                   <Text style={styles.tileLabel} numberOfLines={2}>
@@ -1265,6 +1272,8 @@ const makeStyles = (c: ThemeColors, ts: TileSize = tileSize(390)) =>
     justifyContent: "center",
   },
   tilePic: { width: ts.pic, height: ts.pic },
+  // Full-bleed, with the tile's own corner (under half — Fabric squares a half radius).
+  tilePhoto: { width: ts.tile, height: ts.tile, borderRadius: ts.radius },
   chipPic: { width: 22, height: 22 },
   tileLabel: { ...typography.caption, color: c.text, fontSize: 12, lineHeight: 16, textAlign: "center" },
   tileRow: { paddingHorizontal: spacing.md, gap: spacing.ms, paddingVertical: 2 },

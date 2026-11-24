@@ -1,6 +1,6 @@
 import React from "react";
 import { Image, type ImageSourcePropType, Pressable, StyleSheet, Text, View } from "react-native";
-import { picture } from "../../marketplace/tradePicture";
+import { photo } from "../../marketplace/tradePicture";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SafeScreen } from "../../../common/ui/SafeScreen";
@@ -66,12 +66,13 @@ export function AuthScreen({
           */}
           <View style={styles.art} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <View style={styles.centre}>
-              <Image source={picture("motor_scooter")} style={styles.centrePic} />
+              <Image source={require("../../../assets/brand/mark.png")} style={styles.centreMark} resizeMode="contain" />
             </View>
-            <Bubble styles={styles} art={picture("hamburger")} at={{ top: 6, left: "14%" }} />
-            <Bubble styles={styles} art={picture("broccoli")} at={{ top: 0, right: "14%" }} />
-            <Bubble styles={styles} art={picture("pill")} at={{ bottom: 6, left: "20%" }} />
-            <Bubble styles={styles} art={picture("shopping_cart")} at={{ bottom: 0, right: "18%" }} />
+            {/* Real photographs (CC0, assets/photos), not emoji — "emoji achy ni lg rahy". */}
+            <Bubble styles={styles} art={photo("burger")} at={{ top: 6, left: "14%" }} />
+            <Bubble styles={styles} art={photo("vegetables")} at={{ top: 0, right: "14%" }} />
+            <Bubble styles={styles} art={photo("pharmacy")} at={{ bottom: 6, left: "20%" }} />
+            <Bubble styles={styles} art={photo("mart")} at={{ bottom: 0, right: "18%" }} />
           </View>
           <Text style={styles.tagline}>Food, groceries and medicine from the shops near you.</Text>
         </View>
@@ -141,22 +142,24 @@ const makeStyles = (c: ThemeColors) =>
     centre: {
       width: 132,
       height: 132,
-      borderRadius: 66,
+      // Under half the size: Fabric draws an exact half as a square.
+      borderRadius: 62,
       backgroundColor: "rgba(255,255,255,0.14)",
       alignItems: "center",
       justifyContent: "center",
     },
-    centrePic: { width: 96, height: 96 },
+    centreMark: { width: 84, height: 60 },
     bubble: {
       position: "absolute",
-      width: 58,
-      height: 58,
-      borderRadius: 29,
+      width: 60,
+      height: 60,
+      borderRadius: 28,
       backgroundColor: c.surface,
       alignItems: "center",
       justifyContent: "center",
     },
-    bubblePic: { width: 38, height: 38 },
+    // The photograph inside its white ring.
+    bubblePic: { width: 54, height: 54, borderRadius: 25 },
     tagline: { ...typography.body, color: c.textInverse, opacity: 0.85, textAlign: "center", marginTop: spacing.md },
     sheet: {
       flexGrow: 1,

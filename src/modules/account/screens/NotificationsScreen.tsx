@@ -138,6 +138,7 @@ export function NotificationsScreen() {
             <EmptyState
               icon={BellIcon}
               title="No notifications yet"
+              picture="chat"
               message="When a shop accepts your order, or a rider sets off with it, you will hear about it here."
             />
           }

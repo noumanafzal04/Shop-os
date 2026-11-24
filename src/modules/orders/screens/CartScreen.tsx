@@ -133,6 +133,7 @@ export function CartScreen() {
         <EmptyState
           icon={BagIcon}
           title="Your cart is empty"
+          picture="bag"
           message="Browse shops near you and add something. Your basket holds one shop at a time, so it all arrives together."
           /*
             A WAY OUT. The cart is a leaf of the tab bar — no back arrow — and
