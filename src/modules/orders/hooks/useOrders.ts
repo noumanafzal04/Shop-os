@@ -53,7 +53,10 @@ export function useAdvanceOrder() {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) =>
       ordersService.advance(id, status),
-    onSuccess: (_res, { id }) => {
+    // Settled, not success: a refusal means this screen was old (the
+    // customer cancelled, another device moved it) — re-read so the stale
+    // button goes. Found by the live three-app run.
+    onSettled: (_res, _err, { id }) => {
       void qc.invalidateQueries({ queryKey: ["orders"] });
       void qc.invalidateQueries({ queryKey: ["order", id] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -67,7 +70,10 @@ export function useCancelOrder() {
   return useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       ordersService.cancel(id, reason),
-    onSuccess: (_res, { id }) => {
+    // Settled, not success: a refusal means this screen was old (the
+    // customer cancelled, another device moved it) — re-read so the stale
+    // button goes. Found by the live three-app run.
+    onSettled: (_res, _err, { id }) => {
       void qc.invalidateQueries({ queryKey: ["orders"] });
       void qc.invalidateQueries({ queryKey: ["order", id] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
