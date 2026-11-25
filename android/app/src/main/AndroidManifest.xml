@@ -4,6 +4,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- A new order buzzes until it is answered (IncomingOrderHost). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Slip printing over Bluetooth: CONNECT on Android 12+, the old pair below it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!--
       Android 13 and later will not show a notification until the person has

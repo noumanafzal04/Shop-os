@@ -2,18 +2,28 @@ import React, { createContext, useCallback, useContext, useMemo, useState } from
 import { useNavigation } from "@react-navigation/native";
 import { AppButton } from "@cartze/core/ui/AppButton";
 import {
+  BanknoteIcon,
+  BellIcon,
   BoxIcon,
   ClockIcon,
+  FileTextIcon,
   GearIcon,
   LifeBuoyIcon,
+  PersonIcon,
   PlusIcon,
+  ReceiptIcon,
   SparkleIcon,
   SignOutIcon,
   TagIcon,
 } from "@cartze/core/ui/icons";
 import { useAuthStore } from "../../stores/authStore";
 import { holds } from "../permissions";
-import { AppDrawer, type DrawerSection } from "./AppDrawer";
+import { BRAND } from "../brand";
+import { tabsFor } from "../../navigation/tabsFor";
+import { useOrders } from "../../modules/orders/hooks/useOrders";
+import { useOrdersPause } from "../../modules/shop/hooks/useShop";
+import { activePause, backAt } from "../../modules/shop/pause";
+import { AppDrawer, type DrawerSection, type DrawerStatus } from "./AppDrawer";
 
 interface DrawerApi {
   open: () => void;
@@ -60,8 +70,20 @@ export function DrawerHost({ children }: { children: React.ReactNode }) {
   const open = useCallback(() => setOpen(true), []);
   const close = useCallback(() => setOpen(false), []);
 
+  const takesOrders = holds(user, "orders.manage");
+  // The same queries the tab bar and the Busy card already hold — no new calls.
+  const waiting = useOrders({ status: "pending" }, takesOrders).data?.orders.length ?? 0;
+  const pause = useOrdersPause();
+  const until = activePause(pause.data);
+  const status: DrawerStatus | undefined = !takesOrders
+    ? undefined
+    : until
+      ? { label: `Busy · back ${backAt(until)}`, tone: "busy" }
+      : { label: "Taking orders", tone: "open" };
+
   const sections = useMemo<DrawerSection[]>(() => {
     const canCatalog = holds(user, "products.manage") && user?.tenant?.features?.products === true;
+    const tabs = tabsFor(user);
     const out: DrawerSection[] = [];
 
     /**
@@ -79,6 +101,44 @@ export function DrawerHost({ children }: { children: React.ReactNode }) {
       nav.navigate("Tabs", { screen: tab, params: { screen } });
     const toMenu = toTab("Menu");
     const toAccount = toTab("Account");
+    const toOrders = toTab("Orders");
+    const toMoney = toTab("Money");
+
+    /*
+     * TODAY first — the three places a shopkeeper goes forty times a day, so
+     * the panel is a way to get there with the thumb already on the left,
+     * not only a list of settings. Each one only when its tab is allowed.
+     */
+    const today: DrawerSection["items"] = [];
+    if (tabs.includes("Orders")) {
+      today.push({
+        key: "orders",
+        label: "Orders",
+        hint: waiting > 0 ? "Waiting for you to accept" : "New, cooking, ready, out",
+        icon: ReceiptIcon,
+        badge: waiting,
+        onPress: toOrders("OrdersQueue"),
+      });
+    }
+    if (tabs.includes("Money")) {
+      today.push(
+        {
+          key: "sales",
+          label: "Sales",
+          hint: "Every sale, and who paid",
+          icon: FileTextIcon,
+          onPress: toMoney("Sales"),
+        },
+        {
+          key: "money",
+          label: "Money",
+          hint: "Takings, commission, expenses",
+          icon: BanknoteIcon,
+          onPress: toMoney("MoneyHome"),
+        },
+      );
+    }
+    if (today.length > 0) out.push({ title: "Today", items: today });
 
     if (canCatalog) {
       out.push({
@@ -134,8 +194,29 @@ export function DrawerHost({ children }: { children: React.ReactNode }) {
           onPress: toAccount("Hours"),
         },
         {
+          key: "notifications",
+          label: "Notifications",
+          hint: "Orders and news from us",
+          icon: BellIcon,
+          onPress: toAccount("Notifications"),
+        },
+      ],
+    });
+
+    out.push({
+      title: "You",
+      items: [
+        {
+          key: "profile",
+          label: "Your profile",
+          hint: "Name, phone, password",
+          icon: PersonIcon,
+          onPress: toAccount("Profile"),
+        },
+        {
           key: "help",
           label: "Help",
+          hint: "Questions, call or message us",
           icon: LifeBuoyIcon,
           onPress: toAccount("Help"),
         },
@@ -143,7 +224,7 @@ export function DrawerHost({ children }: { children: React.ReactNode }) {
     });
 
     return out;
-  }, [nav, user]);
+  }, [nav, user, waiting]);
 
   const api = useMemo(() => ({ open, close, isOpen }), [open, close, isOpen]);
 
@@ -165,6 +246,8 @@ export function DrawerHost({ children }: { children: React.ReactNode }) {
         title={user?.tenant?.business_name ?? "Your shop"}
         subtitle={user?.name ?? undefined}
         sections={sections}
+        status={status}
+        version={`${BRAND.name} · v${BRAND.version}`}
         footer={
           <AppButton
             title="Sign out"

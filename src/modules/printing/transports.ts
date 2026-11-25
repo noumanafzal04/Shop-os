@@ -44,12 +44,8 @@ export const shareSlip: Transport = async (slip, title) => {
 };
 
 /**
- * NOT BUILT. Listed so the seam is visible rather than remembered.
- *
- * `bluetoothSlip` — ESC/POS over RFCOMM to a paired 58/80mm printer. The text
- * from `slip.ts` goes out unchanged, wrapped in an init sequence and a cut.
- *
- * `printSlip` — Android's print service, which reaches a network or USB
- * printer and a PDF, and reaches a Bluetooth thermal printer never.
+ * The other two transports live in `printers.ts`: Bluetooth ESC/POS to a
+ * paired thermal printer (remembered after the first print), and Android's
+ * print dialog for a Wi-Fi/USB printer or a PDF. Both through this app's own
+ * native module, `SlipPrinterModule.kt`.
  */
-export const TRANSPORTS_NOT_BUILT = ["bluetooth", "androidPrint"] as const;

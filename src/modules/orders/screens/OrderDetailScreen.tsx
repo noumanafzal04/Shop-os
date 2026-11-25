@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import { SafeScreen } from "@cartze/core/ui/SafeScreen";
@@ -10,13 +10,13 @@ import { confirm } from "@cartze/core/ui/confirm";
 import { toast } from "@cartze/core/ui/toast";
 import { ApiError } from "@cartze/core/types/api";
 import { money, qtyText } from "@cartze/core/format";
-import { MapPinIcon, PhoneIcon, UploadIcon, UtensilsIcon } from "@cartze/core/ui/icons";
+import { FileTextIcon, MapPinIcon, PhoneIcon, UtensilsIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
 import { useAdvanceOrder, useCancelOrder, useOrder } from "../hooks/useOrders";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { useAuthStore } from "../../../stores/authStore";
 import { renderSlip, type ReceiptWidth } from "../../printing/slip";
-import { shareSlip } from "../../printing/transports";
+import { PrintSheet } from "../../printing/components/PrintSheet";
 import { ACTION_LABEL, STATUS_LABEL, nextStates, type OrderStatus } from "../services/orderStages";
 import type { Order } from "../services/ordersService";
 import type { OrdersStackParamList } from "../../../navigation/types";
@@ -51,13 +51,15 @@ export function OrderDetailScreen() {
    */
   const width = settings?.receipt_width as ReceiptWidth | undefined;
 
-  async function send(kitchen: boolean) {
+  /**
+   * Which slip the print sheet is open for — the kitchen docket or the bill.
+   * The sheet prints on the remembered Bluetooth printer in one tap, or a
+   * Wi-Fi printer / PDF, or shares it (WhatsApp) as before.
+   */
+  const [slipFor, setSlipFor] = useState<"kitchen" | "bill" | null>(null);
+  function send(kitchen: boolean) {
     if (!order) return;
-    const slip = renderSlip(order, { shopName, width, kitchen });
-    const sent = await shareSlip(slip, `${order.order_number}${kitchen ? " — kitchen" : ""}`);
-    // Only on success. Somebody who changed their mind in the share sheet did
-    // not fail at anything and should not be told they did.
-    if (sent) toast.success(kitchen ? "Kitchen slip sent" : "Order sent");
+    setSlipFor(kitchen ? "kitchen" : "bill");
   }
 
   const busy = advance.isPending || cancel.isPending;
@@ -128,6 +130,13 @@ export function OrderDetailScreen() {
             onMove={moveTo}
             onReject={reject}
             onSend={send}
+          />
+          <PrintSheet
+            visible={slipFor !== null}
+            onClose={() => setSlipFor(null)}
+            slip={renderSlip(order, { shopName, width, kitchen: slipFor === "kitchen" })}
+            title={`${order.order_number}${slipFor === "kitchen" ? " — kitchen" : ""}`}
+            what={slipFor === "kitchen" ? "Kitchen slip" : "Bill"}
           />
         </>
       ) : null}
@@ -275,9 +284,9 @@ function Actions({
           style={s.sendHalf}
         />
         <AppButton
-          title="Send order"
+          title="Print bill"
           variant="outline"
-          icon={UploadIcon}
+          icon={FileTextIcon}
           onPress={() => onSend(false)}
           style={s.sendHalf}
         />

@@ -55,7 +55,7 @@ export const BRAND = {
    * app deliberately does not have. The customer app pays for that with a test
    * comparing the two; this one will need the same guard the day it ships.
    */
-  version: "0.1.0",
+  version: "1.1.0",
 } as const;
 
 /**

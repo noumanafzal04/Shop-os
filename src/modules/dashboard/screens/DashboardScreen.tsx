@@ -22,6 +22,9 @@ import { StatTile } from "../components/StatTile";
 import type { Dashboard } from "../services/dashboardService";
 import { ScreenHeader } from "../../../common/components/ScreenHeader";
 import { BusyCard } from "../../shop/components/BusyCard";
+import { QuickActions } from "../components/QuickActions";
+import { Touchable } from "@cartze/core/ui/Touchable";
+import { useNavigation } from "@react-navigation/native";
 
 /**
  * TODAY, FOR SOMEBODY STANDING BEHIND A COUNTER.
@@ -64,6 +67,9 @@ export function DashboardScreen() {
 
         {/* Taking orders, or busy until when — the switch reached for in a hurry. */}
         <BusyCard />
+
+        {/* The work, one tap away — orders, add a product, sales, hours. */}
+        <QuickActions />
 
         {isLoading ? <Loading /> : null}
 
@@ -152,11 +158,11 @@ function Body({ data }: { data: Dashboard }) {
       {data.order_pipeline.pending + data.order_pipeline.preparing + data.order_pipeline.delivery >
       0 ? (
         <Section title="Orders on the go">
-          <View style={s.pipeline}>
+          <OpenOrders>
             <Stage label="Waiting" count={data.order_pipeline.pending} urgent />
             <Stage label="Preparing" count={data.order_pipeline.preparing} />
             <Stage label="On the way" count={data.order_pipeline.delivery} />
-          </View>
+          </OpenOrders>
         </Section>
       ) : null}
 
@@ -229,6 +235,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <Text style={s.sectionTitle}>{title}</Text>
       <View style={s.card}>{children}</View>
     </View>
+  );
+}
+
+/** The pipeline is a way IN to the queue, not only a count of it. */
+function OpenOrders({ children }: { children: React.ReactNode }) {
+  const s = styles(useColors());
+  const nav = useNavigation<{ navigate: (tab: string, params?: object) => void }>();
+  return (
+    <Touchable
+      onPress={() => nav.navigate("Orders", { screen: "OrdersQueue" })}
+      accessibilityRole="button"
+      accessibilityLabel="Open the orders"
+      style={s.pipeline}
+    >
+      {children}
+    </Touchable>
   );
 }
 

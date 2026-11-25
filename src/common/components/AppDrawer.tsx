@@ -21,7 +21,15 @@ export interface DrawerItem {
   label: string;
   icon: Icon;
   hint?: string;
+  /** A count that needs attention — orders waiting. Drawn red, never hidden in a hint. */
+  badge?: number;
   onPress: () => void;
+}
+
+/** Where the shop stands right now, said at the top of the panel. */
+export interface DrawerStatus {
+  label: string;
+  tone: "open" | "busy";
 }
 
 export interface DrawerSection {
@@ -89,11 +97,17 @@ export function AppDrawer({
   sections,
   footer,
   onOpen,
+  status,
+  version,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
+  /** "Taking orders" / "Busy · back at 5:30 pm" — the first thing a shopkeeper checks. */
+  status?: DrawerStatus;
+  /** "True Serve Partner · v1.0" under the sign-out. */
+  version?: string;
   sections: DrawerSection[];
   footer?: React.ReactNode;
   /**
@@ -240,11 +254,22 @@ export function AppDrawer({
       <Animated.View
         style={[
           s.panel,
-          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.md },
+          { paddingBottom: insets.bottom + spacing.md },
           { transform: [{ translateX: slide }] },
         ]}
       >
-        <View style={s.head}>
+        {/*
+          THE SHOP, IN ITS OWN BAND.
+
+          The brand colour runs under the status bar, as every screen header
+          in this app does — so opening the panel does not flash a white strip
+          where the band was. A letter plate stands for the shop; the status
+          chip is the answer to "are customers able to order right now?".
+        */}
+        <View style={[s.head, { paddingTop: insets.top + spacing.md }]}>
+          <View style={s.plate} accessibilityElementsHidden importantForAccessibility="no">
+            <Text style={s.plateText}>{(title.trim()[0] ?? "S").toUpperCase()}</Text>
+          </View>
           <Text style={s.title} numberOfLines={1}>
             {title}
           </Text>
@@ -252,6 +277,14 @@ export function AppDrawer({
             <Text style={s.subtitle} numberOfLines={1}>
               {subtitle}
             </Text>
+          ) : null}
+          {status ? (
+            <View style={s.chip} accessibilityLabel={status.label}>
+              <View style={[s.dot, { backgroundColor: status.tone === "busy" ? c.warning : c.success }]} />
+              <Text style={s.chipText} numberOfLines={1}>
+                {status.label}
+              </Text>
+            </View>
           ) : null}
         </View>
 
@@ -261,14 +294,19 @@ export function AppDrawer({
               <Text style={s.sectionTitle}>{section.title}</Text>
               {section.items.map((item) => {
                 const Glyph = item.icon;
+                const count = item.badge ?? 0;
                 return (
                   <Touchable
                     key={item.key}
                     onPress={() => go(item)}
                     accessibilityRole="button"
+                    accessibilityLabel={count > 0 ? `${item.label}, ${count} waiting` : item.label}
                     style={s.row}
                   >
-                    <Glyph size={20} color={c.textSecondary} />
+                    {/* A soft plate behind every glyph: one shape the eye can run down. */}
+                    <View style={s.glyph}>
+                      <Glyph size={20} color={c.primaryPressed} />
+                    </View>
                     <View style={s.rowText}>
                       <Text style={s.rowLabel} numberOfLines={1}>
                         {item.label}
@@ -279,7 +317,13 @@ export function AppDrawer({
                         </Text>
                       ) : null}
                     </View>
-                    <ChevronRightIcon size={18} color={c.textMuted} />
+                    {count > 0 ? (
+                      <View style={s.badge}>
+                        <Text style={s.badgeText}>{count > 99 ? "99+" : count}</Text>
+                      </View>
+                    ) : (
+                      <ChevronRightIcon size={18} color={c.textMuted} />
+                    )}
                   </Touchable>
                 );
               })}
@@ -287,7 +331,12 @@ export function AppDrawer({
           ))}
         </ScrollView>
 
-        {footer != null ? <View style={s.footer}>{footer}</View> : null}
+        {footer != null || version ? (
+          <View style={s.footer}>
+            {footer}
+            {version ? <Text style={s.version}>{version}</Text> : null}
+          </View>
+        ) : null}
       </Animated.View>
       </GestureDetector>
     </Modal>
@@ -329,9 +378,37 @@ const styles = (c: ThemeColors) =>
       borderRightWidth: 1,
       borderRightColor: c.border,
     },
-    head: { paddingHorizontal: spacing.md, paddingBottom: spacing.md },
-    title: { ...typography.title, color: c.text },
-    subtitle: { ...typography.small, color: c.textSecondary, marginTop: 2 },
+    head: {
+      backgroundColor: c.primary,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.lg,
+      gap: 2,
+    },
+    plate: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: "rgba(255,255,255,0.18)",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.sm,
+    },
+    plateText: { ...typography.title, fontSize: 24, lineHeight: 30, color: c.onPrimary },
+    title: { ...typography.title, color: c.onPrimary },
+    subtitle: { ...typography.small, color: c.onPrimary, opacity: 0.85 },
+    chip: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 6,
+      marginTop: spacing.sm,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: 12,
+      backgroundColor: c.surface,
+    },
+    dot: { width: 8, height: 8, borderRadius: 3 },
+    chipText: { ...typography.label, fontSize: 13, lineHeight: 17, color: c.text },
     body: { paddingBottom: spacing.lg },
     section: { marginTop: spacing.md },
     sectionTitle: {
@@ -346,13 +423,33 @@ const styles = (c: ThemeColors) =>
     row: {
       flexDirection: "row",
       alignItems: "center",
-      gap: spacing.md,
+      gap: spacing.ms,
       paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm + 4,
+      paddingVertical: spacing.sm,
+      minHeight: 56,
+    },
+    glyph: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: c.primarySoft,
+      alignItems: "center",
+      justifyContent: "center",
     },
     rowText: { flex: 1 },
-    rowLabel: { ...typography.body, fontSize: 16, color: c.text },
+    rowLabel: { ...typography.body, fontSize: 16, fontWeight: "600", color: c.text },
     rowHint: { ...typography.small, color: c.textMuted, marginTop: 1 },
+    badge: {
+      minWidth: 24,
+      height: 22,
+      paddingHorizontal: 6,
+      borderRadius: 10,
+      backgroundColor: c.error,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    badgeText: { ...typography.label, fontSize: 12, lineHeight: 16, color: c.onPrimary },
+    version: { ...typography.tiny, fontSize: 11, color: c.textMuted, textAlign: "center", marginTop: spacing.sm },
     footer: {
       paddingHorizontal: spacing.md,
       paddingTop: spacing.md,
