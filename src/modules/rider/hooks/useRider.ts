@@ -102,12 +102,18 @@ export function useRiderActions() {
     onSuccess: after,
   });
 
-  const accept = useMutation({ mutationFn: (id: string) => riderService.accept(id), onSuccess: after });
-  const decline = useMutation({ mutationFn: (id: string) => riderService.decline(id), onSuccess: after });
-  const pickUp = useMutation({ mutationFn: (id: string) => riderService.pickUp(id), onSuccess: after });
+  /*
+   * A JOB IS RE-READ WHETHER OR NOT THE SERVER AGREED. A refusal here usually
+   * means the board was old — another rider took the job, the shop cancelled
+   * it — and a board left as it was keeps offering a button that can only be
+   * refused again until the next poll. Found by the live three-app run.
+   */
+  const accept = useMutation({ mutationFn: (id: string) => riderService.accept(id), onSettled: after });
+  const decline = useMutation({ mutationFn: (id: string) => riderService.decline(id), onSettled: after });
+  const pickUp = useMutation({ mutationFn: (id: string) => riderService.pickUp(id), onSettled: after });
   const deliver = useMutation({
     mutationFn: (v: { id: string; code: string }) => riderService.deliver(v.id, v.code),
-    onSuccess: after,
+    onSettled: after,
   });
 
   return { apply, claim, uploadDocument, submit, setOnline, setPool, accept, decline, pickUp, deliver };

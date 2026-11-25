@@ -229,6 +229,9 @@ export function useCancelMyOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiPost(`/customer/orders/${id}/cancel`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
+    // Settled, and the whole `["orders"]` key: a cancel the shop beat (it
+    // accepted first) must show the order as it now is — `["orders","mine"]`
+    // alone left the order's own screen, `["orders","one",id]`, unread.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
