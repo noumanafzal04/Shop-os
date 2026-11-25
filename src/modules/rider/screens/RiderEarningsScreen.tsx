@@ -122,7 +122,7 @@ export function RiderEarningsScreen() {
               </View>
               <Text style={styles.cashHint}>
                 {(earnings.data?.cash_in_hand ?? 0) > 0
-                  ? `From ${earnings.data?.cash_orders ?? 0} cash order${(earnings.data?.cash_orders ?? 0) === 1 ? "" : "s"}. This is the shop's money — hand it back and they will mark it settled.`
+                  ? handBackLine(earnings.data!)
                   : "You are not holding anybody's cash. Everything has been settled."}
               </Text>
             </View>
@@ -242,3 +242,17 @@ const makeStyles = (c: ThemeColors) =>
     },
     noteText: { ...typography.tiny, color: c.textMuted, flex: 1, lineHeight: 16 },
   });
+
+/**
+ * WHAT TO HAND BACK, said once and exactly. A pool rider keeps the delivery
+ * fees, so the shops are owed less than the cash in the pocket — the rider
+ * needs that number, not the gross they then have to work out at the counter.
+ */
+export function handBackLine(e: { cash_in_hand: number; to_hand_in?: number; cash_orders: number }): string {
+  const orders = `${e.cash_orders} cash order${e.cash_orders === 1 ? "" : "s"}`;
+  const back = e.to_hand_in ?? e.cash_in_hand;
+  const kept = Math.round((e.cash_in_hand - back) * 100) / 100;
+  return kept > 0
+    ? `From ${orders}. Hand ${money(back)} back to the shops — the other ${money(kept)} is your delivery fees.`
+    : `From ${orders}. This is the shop's money — hand it back and they will mark it settled.`;
+}

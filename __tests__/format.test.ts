@@ -23,6 +23,15 @@ describe("money", () => {
     expect(money(undefined)).toBe("Rs 0");
   });
 
+  it("writes paisa as two digits, never one, and leaves whole rupees whole", () => {
+    // ORD-000003: a 16% tax made the total 2,115.20, shown as "Rs 2,115.2".
+    expect(money(2115.2)).toBe("Rs 2,115.20");
+    expect(money("275.20")).toBe("Rs 275.20");
+    expect(money(0.5)).toBe("Rs 0.50");
+    expect(money(1720)).toBe("Rs 1,720");
+    expect(money(99.999)).toBe("Rs 100");
+  });
+
   it("never prints NaN at somebody", () => {
     expect(money("not a number")).toBe("Rs 0");
   });

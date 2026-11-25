@@ -103,6 +103,11 @@ export interface RiderEarnings {
   deliveries: number;
   earned: number;
   cash_in_hand: number;
+  /**
+   * The cash less the delivery fees that are the rider's to keep — what
+   * actually goes back to the shops. Optional: an older server sends none.
+   */
+  to_hand_in?: number;
   cash_orders: number;
   by_shop: { shop: string | null; orders: number; cash: number }[];
 }

@@ -36,7 +36,7 @@ export const BRAND = {
    * file and fails when the two drift. That is the whole reason this line is
    * safe to trust on a support call, which is the only reason it is shown.
    */
-  version: "1.2.0",
+  version: "1.3.0",
 
   /**
    * The deep-link scheme, e.g. `cartze://orders/123`. An ADDRESS — see
