@@ -203,6 +203,20 @@ class OrderService
     {
         $counter = $staff !== null;
 
+        // REPLAY FIRST: same key → the original order, whatever the shop is
+        // doing now. Below the open/paused checks, a phone retrying an order
+        // that HAD gone through was told "busy" the moment the shop paused —
+        // and showed its customer a failure for an order the kitchen had.
+        if (! empty($data['idempotency_key'])) {
+            $existing = Order::withoutTenancy()
+                ->where('tenant_id', $shop->id)
+                ->where('idempotency_key', $data['idempotency_key'])
+                ->first();
+            if ($existing !== null) {
+                return $existing->load('items');
+            }
+        }
+
         if (! $counter && ! $shop->sellsOnline()) {
             throw DomainException::unprocessable('This shop is not accepting online orders.', 'ORDERING_DISABLED');
         }
@@ -272,17 +286,6 @@ class OrderService
                     "We don't deliver to this area yet — choose an address inside our delivery zone, or collect it from the shop.",
                     'OUTSIDE_SERVICE_AREA',
                 );
-            }
-        }
-
-        // Replay: same key → original order.
-        if (! empty($data['idempotency_key'])) {
-            $existing = Order::withoutTenancy()
-                ->where('tenant_id', $shop->id)
-                ->where('idempotency_key', $data['idempotency_key'])
-                ->first();
-            if ($existing !== null) {
-                return $existing->load('items');
             }
         }
 
@@ -991,6 +994,21 @@ class OrderService
                 'idempotency_key' => "order-sale-{$order->id}",
             ]);
 
+            /*
+             * NOBODY AT THE SHOP RANG THIS UP when a rider closed it.
+             *
+             * `created_by` is filled from whoever is signed in, and a rider is
+             * not the shop's staff — so the pool rider showed in the shop's
+             * staff report as its top seller (found by the end-to-end run,
+             * ORD-000003). A shop member completing it at the counter is
+             * still its seller, as before.
+             */
+            $outsider = auth()->check() && auth()->user()->tenant_id !== $order->tenant_id;
+            if ($outsider) {
+                Sale::query()->whereKey($sale->id)->update(['created_by' => null, 'updated_by' => null]);
+                $sale->forceFill(['created_by' => null, 'updated_by' => null]);
+            }
+
             /**
              * THE DELIVERY FEE REACHES THE BOOKS (#ON1).
              *
@@ -1005,7 +1023,7 @@ class OrderService
              */
             $shopsFee = round((float) $order->delivery_fee - $order->feeToTheRider(), 2);
             if ($order->fulfillment_type === FulfillmentType::Delivery && $shopsFee > 0) {
-                Income::query()->create([
+                $income = Income::query()->create([
                     'tenant_id' => $order->tenant_id,
                     'branch_id' => $sale->branch_id,
                     'description' => "Delivery charge · {$order->order_number}",
@@ -1014,6 +1032,9 @@ class OrderService
                     'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
                     'income_date' => ShopDay::today(),
                 ]);
+                if ($outsider) {
+                    Income::query()->whereKey($income->id)->update(['created_by' => null, 'updated_by' => null]);
+                }
             }
 
             $order->forceFill([

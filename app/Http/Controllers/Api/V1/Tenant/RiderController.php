@@ -140,6 +140,12 @@ class RiderController extends Controller
         $cash = round((float) $orders->sum(fn (Order $o) => (float) $o->total), 2);
         $earned = round((float) $orders->sum(fn (Order $o) => $o->feeToTheRider()), 2);
 
+        // The card's own totals, from the rows above — `index()` loads them as
+        // aggregates and this did not, so the nested block said 0 beside the
+        // real figure on the same screen.
+        $rider->setAttribute('unsettled_orders', $orders->count());
+        $rider->setAttribute('cash_in_hand', $cash);
+
         return ApiResponse::ok([
             'rider' => $this->serialize($rider->load('riderProfile:id,rider_code,status,is_online,last_seen_at,vehicle_type,user_id')),
             'orders' => $orders,

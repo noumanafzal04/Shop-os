@@ -967,7 +967,11 @@ class RiderService
         if ($order->picked_up_at !== null) {
             throw DomainException::conflict('You already collected this order.', 'ORDER_ALREADY_PICKED_UP');
         }
-        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Preparing], strict: true)) {
+        // OUT FOR DELIVERY is collectable too while nobody has collected it:
+        // a shop that pressed the panel's button before the rider arrived
+        // used to strand the job — pick-up refused, deliver refused, the only
+        // way out was handing it back (found by the end-to-end run, ORD-000004).
+        if (! in_array($order->status, [OrderStatus::Confirmed, OrderStatus::Preparing, OrderStatus::OutForDelivery], strict: true)) {
             throw DomainException::conflict(
                 'This order cannot be collected while it is '.str_replace('_', ' ', $order->status->value).'.',
                 'ORDER_NOT_COLLECTABLE',
@@ -978,7 +982,9 @@ class RiderService
             if ($order->status === OrderStatus::Confirmed) {
                 $orders->advance($order, OrderStatus::Preparing);
             }
-            $orders->advance($order, OrderStatus::OutForDelivery);
+            if ($order->status !== OrderStatus::OutForDelivery) {
+                $orders->advance($order, OrderStatus::OutForDelivery);
+            }
 
             $order->forceFill([
                 'picked_up_at' => now(),
@@ -989,8 +995,12 @@ class RiderService
                 'delivery_otp' => $order->delivery_otp ?? str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT),
             ])->save();
 
+            // ITS OWN KEY. Under the stage's key ("order.out_for_delivery-{id}")
+            // this was dropped as a duplicate of the generic "now: out for
+            // delivery" sent a moment earlier — and the code was the point.
             $this->tellCustomer($order, 'order.out_for_delivery', 'Your order is on the way',
-                "Give the rider code {$order->delivery_otp} when it arrives.");
+                "Give the rider code {$order->delivery_otp} when it arrives.",
+                "order.delivery_code-{$order->id}");
 
             return $order->refresh()->load(self::JOB_RELATIONS);
         });
@@ -1070,7 +1080,7 @@ class RiderService
     {
         $cards = $this->cardIds($profile);
         if ($cards === []) {
-            return ['deliveries' => 0, 'earned' => 0.0, 'cash_in_hand' => 0.0, 'cash_orders' => 0, 'by_shop' => []];
+            return ['deliveries' => 0, 'earned' => 0.0, 'cash_in_hand' => 0.0, 'to_hand_in' => 0.0, 'cash_orders' => 0, 'by_shop' => []];
         }
 
         $delivered = Order::withoutTenancy()
@@ -1098,6 +1108,10 @@ class RiderService
             // the fee for the shop.
             'earned' => round((float) $delivered->sum(fn (Order $o) => $o->feeToTheRider()), 2),
             'cash_in_hand' => round((float) $holding->sum(fn (Order $o) => (float) $o->total), 2),
+            // WHAT GOES BACK TO THE SHOPS: the cash, less the fees that are the
+            // rider's to keep. The shop's statement already said this
+            // (`to_hand_in`); the rider's own screen only had the gross.
+            'to_hand_in' => round((float) $holding->sum(fn (Order $o) => (float) $o->total - $o->feeToTheRider()), 2),
             'cash_orders' => $holding->count(),
             'by_shop' => $holding->groupBy('tenant_id')->map(fn ($rows, $id) => [
                 'shop' => $rows->first()->tenant?->business_name,
@@ -1401,14 +1415,14 @@ class RiderService
         return Currencies::format($order->delivery_fee, $order->tenant?->currency(), 0)." · {$order->tenant?->business_name}";
     }
 
-    private function tellCustomer(Order $order, string $type, string $title, string $body): void
+    private function tellCustomer(Order $order, string $type, string $title, string $body, ?string $key = null): void
     {
         $order->loadMissing('customer');
         if ($order->customer !== null) {
             $this->notifications->notify(
                 $order->customer, $type, $title, $body,
                 ['order_id' => $order->id],
-                "{$type}-{$order->id}",
+                $key ?? "{$type}-{$order->id}",
             );
         }
     }

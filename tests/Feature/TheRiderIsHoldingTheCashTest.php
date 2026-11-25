@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppNotification;
 use App\Models\CashMovement;
 use App\Models\City;
 use App\Models\Order;
@@ -257,5 +258,80 @@ class TheRiderIsHoldingTheCashTest extends TestCase
         $this->assertDatabaseHas('riders', [
             'id' => $cardId, 'name' => 'Bilal Khan', 'phone' => '0300-7654321',
         ]);
+    }
+
+    // ── Found by the end-to-end run (ORD-000003 / ORD-000004) ──────────
+
+    public function test_the_rider_who_delivered_is_not_the_shops_seller(): void
+    {
+        $this->deliveredForCash($this->card());
+
+        $sale = Sale::withoutTenancy()->where('tenant_id', $this->shop->id)->latest()->firstOrFail();
+        $this->assertNull($sale->created_by, 'the rider was booked as the shop staff who rang the sale');
+
+        $staff = $this->as($this->owner)->getJson('/api/v1/reports/staff?period=daily')->assertOk()->json('data');
+        $this->assertStringNotContainsString('Bilal Khan', json_encode($staff));
+    }
+
+    public function test_a_shop_that_pressed_out_for_delivery_first_does_not_strand_the_rider(): void
+    {
+        $cardId = $this->card();
+        $order = $this->as($this->customer)->postJson('/api/v1/customer/orders', [
+            'shop_slug' => $this->shop->slug, 'fulfillment_type' => 'delivery',
+            'delivery_address' => 'House 12, Johar Town, Lahore', 'latitude' => 31.47, 'longitude' => 74.27,
+            'payment_method' => 'cod', 'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data');
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/assign-rider", ['rider_id' => $cardId])->assertOk();
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/accept")->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'preparing'])->assertOk();
+        $this->as($this->owner)->postJson("/api/v1/orders/{$order['id']}/advance", ['status' => 'out_for_delivery'])->assertOk();
+
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/pick-up")->assertOk();
+        $otp = Order::withoutTenancy()->find($order['id'])->delivery_otp;
+        $this->assertNotNull($otp);
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$order['id']}/deliver", ['code' => $otp])->assertOk();
+        $this->assertSame('completed', Order::withoutTenancy()->find($order['id'])->status->value);
+    }
+
+    public function test_the_customer_is_sent_the_handover_code(): void
+    {
+        $this->deliveredForCash($this->card());
+
+        $otp = Order::withoutTenancy()->where('tenant_id', $this->shop->id)->latest()->firstOrFail()->delivery_otp;
+        $this->assertTrue(
+            AppNotification::query()->where('user_id', $this->customer->id)->where('body', 'like', "%{$otp}%")->exists(),
+            'the code push was dropped as a duplicate of the stage push',
+        );
+    }
+
+    public function test_the_rider_s_screen_says_what_goes_back_and_the_statement_agrees_with_itself(): void
+    {
+        $cardId = $this->card();
+        $this->deliveredForCash($cardId);
+
+        $mine = $this->as($this->rider)->getJson('/api/v1/rider/earnings')->assertOk()->json('data');
+        $this->assertArrayHasKey('to_hand_in', $mine);
+        $this->assertEqualsWithDelta($mine['cash_in_hand'] - $mine['earned'], $mine['to_hand_in'], 0.001);
+
+        $statement = $this->as($this->owner)->getJson("/api/v1/riders/{$cardId}/statement")->assertOk()->json('data');
+        $this->assertEqualsWithDelta($statement['cash_in_hand'], $statement['rider']['cash_in_hand'], 0.001);
+        $this->assertSame(1, $statement['rider']['unsettled_orders']);
+    }
+
+    public function test_an_order_retried_after_the_shop_paused_comes_back_as_the_order_it_was(): void
+    {
+        $body = [
+            'shop_slug' => $this->shop->slug, 'fulfillment_type' => 'delivery',
+            'delivery_address' => 'House 12, Johar Town, Lahore', 'latitude' => 31.47, 'longitude' => 74.27,
+            'payment_method' => 'cod', 'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+            'idempotency_key' => 'retry-after-pause-1',
+        ];
+        $first = $this->as($this->customer)->postJson('/api/v1/customer/orders', $body)->assertCreated()->json('data.id');
+        $this->as($this->owner)->postJson('/api/v1/shop/orders/pause', ['minutes' => 30])->assertOk();
+
+        $again = $this->as($this->customer)->postJson('/api/v1/customer/orders', $body);
+        $this->assertTrue(in_array($again->status(), [200, 201], true), 'a retry of a placed order was refused as ORDERS_PAUSED');
+        $this->assertSame($first, $again->json('data.id'));
     }
 }

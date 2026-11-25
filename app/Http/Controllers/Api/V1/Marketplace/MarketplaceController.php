@@ -1678,7 +1678,11 @@ class MarketplaceController extends Controller
                 // What the customer will be charged for it — the design's sale
                 // reaches a size priced as the design. See Product::priceOfSize.
                 'price' => $product->priceOfSize($v),
-                'in_stock' => $v->stock_quantity > 0,
+                // A dish whose stock is not counted is never "out" — the same
+                // rule as the product's own `in_stock` above. Read as the count
+                // alone, every size of an uncounted karahi said unavailable and
+                // the app greyed out a dish the server would happily sell.
+                'in_stock' => ! $product->track_inventory || $v->stock_quantity > 0,
             ])->all(),
             'modifier_groups' => $product->modifierGroups->map(fn ($g) => [
                 'id' => $g->id,
