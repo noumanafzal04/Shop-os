@@ -20,7 +20,11 @@
  */
 export function money(value: string | number | null | undefined): string {
   const n = Number(value ?? 0);
-  return `Rs ${(Number.isFinite(n) ? n : 0).toLocaleString()}`;
+  const v = Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  // Paisa as TWO digits or none: a taxed total of 2,115.20 read "2,115.2",
+  // which is not how anybody writes money. Whole rupees stay whole.
+  const paisa = v % 1 !== 0;
+  return `Rs ${v.toLocaleString("en-US", { minimumFractionDigits: paisa ? 2 : 0, maximumFractionDigits: 2 })}`;
 }
 
 /**
