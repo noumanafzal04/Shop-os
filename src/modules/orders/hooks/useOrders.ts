@@ -87,6 +87,9 @@ export function useTakeOrder() {
   });
 }
 
+/** How often the shop's open Orders screen asks for news — the partner app's own figure. */
+export const ORDER_QUEUE_POLL_MS = 15_000;
+
 // owner
 export function useShopOrders(params: OrderQueueFilters, enabled = true) {
   return useQuery({
@@ -94,7 +97,9 @@ export function useShopOrders(params: OrderQueueFilters, enabled = true) {
     queryFn: () => ordersService.shopOrders(params),
     enabled,
     placeholderData: keepPreviousData,
-    refetchInterval: 30_000, // new orders surface without manual refresh
+    // New orders surface without a reload. 15 s, as the partner app: the live
+    // run measured 28 s from a customer's press to the shop's screen at 30.
+    refetchInterval: ORDER_QUEUE_POLL_MS,
   });
 }
 
@@ -193,15 +198,18 @@ export function useOrderActions() {
 
   const advance = useMutation({
     mutationFn: ({ id, status }: { id: string; status: OrderStatus }) => ordersService.advance(id, status),
-    onSuccess: invalidate,
+    // SETTLED, not success. A refusal means the card was old — the customer
+    // cancelled, a rider delivered — and the live run found the cancelled
+    // card still offering "Confirm" under its own "Blocked" message.
+    onSettled: invalidate,
   });
   const cancel = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason?: string }) => ordersService.cancel(id, reason),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
   const assignRider = useMutation({
     mutationFn: ({ id, riderId }: { id: string; riderId: string | null }) => ordersService.assignRider(id, riderId),
-    onSuccess: invalidate,
+    onSettled: invalidate,
   });
 
   return { advance, cancel, assignRider };
