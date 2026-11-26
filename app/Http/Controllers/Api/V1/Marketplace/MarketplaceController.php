@@ -14,6 +14,7 @@ use App\Support\ApiResponse;
 use App\Support\BusinessTypes;
 use App\Support\Currencies;
 use App\Support\Geo;
+use App\Support\OrderCharges;
 use App\Support\ServiceZones;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -1571,7 +1572,18 @@ class MarketplaceController extends Controller
                     'delivery' => $tenant->deliveryEnabled(),
                 ],
                 'delivery_radius_km' => $tenant->setting('delivery_radius_km') !== null ? (float) $tenant->setting('delivery_radius_km') : null,
-                'min_order_amount' => $tenant->setting('min_order_amount') !== null ? (float) $tenant->setting('min_order_amount') : null,
+                // The rules the order will be charged by — the same numbers
+                // `OrderCharges::for` uses, read BEFORE ordering: the least a
+                // delivery basket may be (the shop's own or the platform's),
+                // what happens below it, the per-km part, the service and
+                // rush fees.
+                ...OrderCharges::terms($tenant),
+                // Where to send a transfer — only to somebody signed in, as
+                // the phone number is. Null = cash on delivery only.
+                'transfer_details' => auth('sanctum')->check() && trim((string) $tenant->setting('transfer_details')) !== ''
+                    ? (string) $tenant->setting('transfer_details')
+                    : null,
+                'takes_transfer' => trim((string) $tenant->setting('transfer_details')) !== '',
                 'accepts_orders' => $tenant->sellsOnline(),
                 'service_area' => $tenant->setting('service_area'),
                 'gallery' => GalleryImage::withoutTenancy()

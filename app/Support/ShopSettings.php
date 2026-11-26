@@ -95,6 +95,17 @@ class ShopSettings
             'delivery_radius_km' => null,  // null = no distance limit (city-wide)
             'min_order_amount' => null,    // delivery orders below this are rejected
             'free_delivery_threshold' => null, // subtotal at/above → delivery fee waived
+            // Below the minimum: `fee` (order anyway, pay the difference) or
+            // `refuse`. Null follows the platform's rule.
+            'below_minimum' => null,
+            // Rupees a km past `delivery_fee_base_km`, on top of the flat fee.
+            // Null follows the platform's (which may be none).
+            'delivery_fee_per_km' => null,
+            'delivery_fee_base_km' => null,
+            // Where a customer who pays by TRANSFER sends it — "JazzCash
+            // 0300 1234567 (Ali Raza), Meezan IBAN PK…". None = the shop
+            // takes cash only. Shown to a signed-in customer at checkout.
+            'transfer_details' => null,
 
             // Invoice / receipt
             'invoice_header' => null,       // extra line under the shop name
@@ -335,6 +346,10 @@ class ShopSettings
             'delivery_radius_km' => ['sometimes', 'nullable', 'numeric', 'min:0.5', 'max:100'],
             'min_order_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'free_delivery_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'below_minimum' => ['sometimes', 'nullable', 'in:fee,refuse'],
+            'delivery_fee_per_km' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:10000'],
+            'delivery_fee_base_km' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100'],
+            'transfer_details' => ['sometimes', 'nullable', 'string', 'max:300'],
             'invoice_header' => ['sometimes', 'nullable', 'string', 'max:200'],
             'invoice_footer' => ['sometimes', 'nullable', 'string', 'max:300'],
             'invoice_show_logo' => ['sometimes', 'boolean'],

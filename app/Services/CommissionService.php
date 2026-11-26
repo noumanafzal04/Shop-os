@@ -67,12 +67,15 @@ class CommissionService
         }
 
         $rate = $this->rateFor($shop);
-        if ($rate <= 0) {
-            return null;
-        }
-
         $base = $this->baseFor($order);
-        if ($base <= 0) {
+        $commission = $rate > 0 && $base > 0 ? round($base * $rate / 100, 2) : 0.0;
+
+        // The platform's service fee rides on the same charge: the shop
+        // collected it with the goods (booked as collected-for-the-platform
+        // when the order completed), and pays it back on the same invoice.
+        $service = round((float) $order->service_fee, 2);
+
+        if ($commission <= 0 && $service <= 0) {
             return null;
         }
 
@@ -84,9 +87,10 @@ class CommissionService
             ['order_id' => $order->id],
             [
                 'tenant_id' => $order->tenant_id,
-                'rate_percent' => $rate,
-                'base_amount' => $base,
-                'amount' => round($base * $rate / 100, 2),
+                'rate_percent' => $commission > 0 ? $rate : 0,
+                'base_amount' => $commission > 0 ? $base : 0,
+                'amount' => round($commission + $service, 2),
+                'service_fee' => $service,
             ],
         );
     }

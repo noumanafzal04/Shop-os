@@ -6,8 +6,10 @@ use App\Enums\FulfillmentType;
 use App\Enums\OrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\OrderIssue;
 use App\Models\RiderProfile;
 use App\Models\Tenant;
+use App\Services\OrderIssueService;
 use App\Services\OrderService;
 use App\Support\ApiResponse;
 use App\Support\Currencies;
@@ -23,7 +25,7 @@ class CustomerOrderController extends Controller
     {
         $orders = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone', 'issue'])
             ->orderByDesc('placed_at')
             ->stably()->paginate(min((int) $request->query('per_page', 15), 100))
             ->through(fn (Order $o) => $this->serialize($o));
@@ -35,7 +37,7 @@ class CustomerOrderController extends Controller
     {
         $order = Order::withoutTenancy()
             ->where('customer_id', $request->user()->id)
-            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone'])
+            ->with(['tenant:id,business_name,slug,settings,logo_path', 'items', 'rider:id,name,rider_profile_id', 'rider.riderProfile:id,latitude,longitude,last_seen_at', 'branch:id,name,address,phone', 'issue'])
             ->findOrFail($id);
 
         return ApiResponse::ok($this->serialize($order));
@@ -84,7 +86,11 @@ class CustomerOrderController extends Controller
             'delivery_address' => [...($placing ? ['required_if:fulfillment_type,delivery'] : []), 'nullable', 'string', 'max:500'],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
-            'payment_method' => ['sometimes', Rule::in(['cod', 'paid'])],
+            // Cash at the door, or a TRANSFER to the shop's own account with
+            // its reference. Never `paid` from a customer: with no gateway
+            // behind it, that was a word that made the rider collect nothing.
+            'payment_method' => ['sometimes', Rule::in(['cod', 'transfer'])],
+            'payment_reference' => [...($placing ? ['required_if:payment_method,transfer'] : []), 'nullable', 'string', 'min:4', 'max:60'],
             'items' => ['required', 'array', 'min:1', 'max:100'],
             'items.*.product_id' => ['required', 'uuid'],
             'items.*.variant_id' => ['nullable', 'uuid'],
@@ -96,6 +102,20 @@ class CustomerOrderController extends Controller
             'idempotency_key' => ['nullable', 'string', 'max:64'],
             'coupon_code' => ['nullable', 'string', 'max:40'],
         ];
+    }
+
+    /** "Order mein masla" — one report per order; the platform answers it. */
+    public function reportIssue(Request $request, string $id, OrderIssueService $issues): JsonResponse
+    {
+        $data = $request->validate([
+            'kind' => ['required', Rule::in(array_keys(OrderIssue::KINDS))],
+            'note' => ['nullable', 'string', 'max:1000', 'required_if:kind,other'],
+        ]);
+
+        $order = Order::withoutTenancy()->where('customer_id', $request->user()->id)->findOrFail($id);
+        $issue = $issues->report($request->user(), $order, $data['kind'], $data['note'] ?? null);
+
+        return ApiResponse::created($issue->forCustomer(), 'Thanks — we will look into it and reply here.');
     }
 
     public function cancel(Request $request, string $id, OrderService $service): JsonResponse
@@ -245,7 +265,17 @@ class CustomerOrderController extends Controller
             'tax_inclusive' => (bool) $o->tax_inclusive,
             'coupon_code' => $o->coupon_code,
             'delivery_fee' => $o->delivery_fee,
+            'distance_fee' => $o->distance_fee,
+            'rush_fee' => $o->rush_fee,
+            'small_order_fee' => $o->small_order_fee,
+            'service_fee' => $o->service_fee,
             'total' => $o->total,
+            'payment_method' => $o->payment_method,
+            'payment_reference' => $o->payment_reference,
+            'payment_received' => $o->payment_verified_at !== null,
+            // A problem reported with it, and whether one may be now.
+            'issue' => $o->issue?->forCustomer(),
+            'can_report_issue' => app(OrderIssueService::class)->whyNot($o) === null,
             // ── Delivery tracking ────────────────────────────────────
             //
             // The stage comes from the RIDER'S OWN timestamps now, not from

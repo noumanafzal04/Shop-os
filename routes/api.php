@@ -8,10 +8,13 @@ use App\Http\Controllers\Api\V1\Admin\BillingController;
 use App\Http\Controllers\Api\V1\Admin\CommissionController;
 use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\DeliveryRulesController;
 use App\Http\Controllers\Api\V1\Admin\DemoShopController;
 use App\Http\Controllers\Api\V1\Admin\EnquiryController as AdminEnquiryController;
 use App\Http\Controllers\Api\V1\Admin\FeaturedShopController;
 use App\Http\Controllers\Api\V1\Admin\InboxController;
+use App\Http\Controllers\Api\V1\Admin\LiveOrdersController;
+use App\Http\Controllers\Api\V1\Admin\OrderIssueController;
 use App\Http\Controllers\Api\V1\Admin\PlanController;
 use App\Http\Controllers\Api\V1\Admin\RiderApplicationController;
 use App\Http\Controllers\Api\V1\Admin\ServiceZoneController as AdminServiceZoneController;
@@ -1027,6 +1030,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 Route::get('/{id}', [OrderController::class, 'show']);
                 Route::post('/{id}/advance', [OrderController::class, 'advance']);
                 Route::post('/{id}/assign-rider', [OrderController::class, 'assignRider']);
+                // The customer's transfer reached the shop's account.
+                Route::post('/{id}/payment-received', [OrderController::class, 'paymentReceived']);
                 Route::post('/{id}/cancel', [OrderController::class, 'cancel']);
             });
 
@@ -1323,6 +1328,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             // NOT under `billing.view`, which reads the PLAN ledger. This is
             // the other debt — a share of what the marketplace sold — and the
             // rate on it decides what every shop is charged.
+            // ORDERS & DELIVERY — the marketplace's open orders as they
+            // happen, customers' problems with them, and the delivery rules.
+            Route::middleware('permission:orders.oversee')->group(function (): void {
+                Route::get('/delivery-rules', [DeliveryRulesController::class, 'show']);
+                Route::put('/delivery-rules', [DeliveryRulesController::class, 'update']);
+                Route::get('/live-orders', [LiveOrdersController::class, 'index']);
+                Route::post('/live-orders/{id}/cancel', [LiveOrdersController::class, 'cancel']);
+                Route::get('/order-issues', [OrderIssueController::class, 'index']);
+                Route::post('/order-issues/{id}/resolve', [OrderIssueController::class, 'resolve']);
+            });
+
             Route::middleware('permission:commission.manage')->group(function (): void {
                 Route::get('/commission/settings', [CommissionController::class, 'settings']);
                 Route::put('/commission/settings', [CommissionController::class, 'updateSettings']);
@@ -1479,6 +1495,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('/orders/worth', [CustomerOrderController::class, 'worth']);
             Route::get('/orders/{id}', [CustomerOrderController::class, 'show']);
             Route::post('/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
+            // "Order mein masla" — something missing, wrong, late…
+            Route::post('/orders/{id}/issue', [CustomerOrderController::class, 'reportIssue']);
         });
 
         // ── Rider side ────────────────────────────────────────────────

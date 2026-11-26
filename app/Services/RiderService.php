@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Support\BusinessTypes;
 use App\Support\Currencies;
 use App\Support\Geo;
+use App\Support\PlatformSettings;
 use App\Support\ShopSettings;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
@@ -638,6 +639,18 @@ class RiderService
             ];
         }
 
+        // HOLDING TOO MUCH CASH. A rider at the platform's limit is offered
+        // no more pool work until they hand in what they carry — the cash at
+        // a stranger's door is the platform's risk, and the limit is its
+        // size. A shop's own jobs for them still come: that shop chose them.
+        if ($profile->is_platform && ($limit = $this->cashLimit()) !== null
+            && ($held = $this->cashInHand($profile)) >= $limit) {
+            return [
+                'code' => 'cash_limit',
+                'message' => 'You are holding '.$this->rupees($held).' in cash. Hand it in at the shops to be offered pool orders again.',
+            ];
+        }
+
         if (! $profile->is_platform) {
             return [
                 'code' => 'not_platform',
@@ -732,7 +745,7 @@ class RiderService
             ->orderBy('placed_at')
             ->get();
 
-        if (! $profile->is_platform) {
+        if (! $profile->is_platform || $this->overCashLimit($profile)) {
             return $mine;
         }
 
@@ -886,6 +899,12 @@ class RiderService
                 // rider who learned an id could take any shop's work.
                 if (! $profile->is_platform || ! in_array($order->tenant_id, $this->platformShopIds(), strict: true)) {
                     throw DomainException::forbidden('This order is not open to platform riders.', 'ORDER_NOT_IN_POOL');
+                }
+                if ($this->overCashLimit($profile)) {
+                    throw DomainException::conflict(
+                        'You are holding '.$this->rupees($this->cashInHand($profile)).' in cash — hand it in to take pool orders again.',
+                        'RIDER_CASH_LIMIT',
+                    );
                 }
                 $card = $this->cardFor($profile, $order->tenant_id);
                 $order->forceFill([
@@ -1076,6 +1095,43 @@ class RiderService
      * number the orders already answer, and the two drift the first time
      * anything is refunded.
      */
+    /** The platform's cash limit for a pool rider, or null for none. */
+    private function cashLimit(): ?float
+    {
+        $limit = PlatformSettings::get('rider_cash_limit');
+
+        return $limit !== null && (float) $limit > 0 ? (float) $limit : null;
+    }
+
+    /** Cash collected at doors and not yet handed in, across every shop. */
+    public function cashInHand(RiderProfile $profile): float
+    {
+        $cards = $this->cardIds($profile);
+        if ($cards === []) {
+            return 0.0;
+        }
+
+        return round((float) Order::withoutTenancy()
+            ->whereIn('rider_id', $cards)
+            ->whereNotNull('delivered_at')
+            ->whereNull('rider_settlement_id')
+            ->where('payment_method', 'cod')
+            ->sum('total'), 2);
+    }
+
+    private function overCashLimit(RiderProfile $profile): bool
+    {
+        $limit = $this->cashLimit();
+
+        return $limit !== null && $this->cashInHand($profile) >= $limit;
+    }
+
+    /** Rupees as the platform says them (the rider works across shops). */
+    private function rupees(float $amount): string
+    {
+        return Currencies::format($amount);
+    }
+
     public function earnings(RiderProfile $profile, ?string $from = null, ?string $to = null): array
     {
         $cards = $this->cardIds($profile);

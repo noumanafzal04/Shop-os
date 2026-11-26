@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -28,6 +29,11 @@ class Order extends Model
             'tax' => 'decimal:2',
             'tax_inclusive' => 'boolean',
             'delivery_fee' => 'decimal:2',
+            'small_order_fee' => 'decimal:2',
+            'service_fee' => 'decimal:2',
+            'distance_fee' => 'decimal:2',
+            'rush_fee' => 'decimal:2',
+            'payment_verified_at' => 'datetime',
             'total' => 'decimal:2',
             'placed_at' => 'datetime',
             'rider_assigned_at' => 'datetime',
@@ -43,6 +49,12 @@ class Order extends Model
             'picked_up_at' => 'datetime',
             'delivered_at' => 'datetime',
         ];
+    }
+
+    /** The problem the customer reported with it, if they did. */
+    public function issue(): HasOne
+    {
+        return $this->hasOne(OrderIssue::class);
     }
 
     public function rider(): BelongsTo
@@ -62,6 +74,31 @@ class Order extends Model
     public function riderKeepsTheFee(): bool
     {
         return $this->rider_self_claimed === true;
+    }
+
+    /**
+     * PAID BY TRANSFER — to the shop's own bank or wallet, outside the app.
+     * The customer types the reference; the shop says it arrived before it
+     * accepts the order (`OrderService::paymentReceived`).
+     */
+    public function paysByTransfer(): bool
+    {
+        return $this->payment_method === 'transfer';
+    }
+
+    public function awaitsItsTransfer(): bool
+    {
+        return $this->paysByTransfer() && $this->payment_verified_at === null;
+    }
+
+    /** How the books record the money: cash at the door, a card, or a transfer. */
+    public function tenderForTheBooks(): string
+    {
+        return match ($this->payment_method) {
+            'paid' => 'card',
+            'transfer' => 'bank_transfer',
+            default => 'cash',
+        };
     }
 
     /** The part of the delivery fee that is the rider's, not the shop's. */

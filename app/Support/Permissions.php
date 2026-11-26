@@ -81,6 +81,14 @@ class Permissions
      */
     public const COMMISSION_MANAGE = 'commission.manage';
 
+    /**
+     * Watching the marketplace's orders as they happen — the ones stuck
+     * waiting for a shop or a rider — and answering customers' problems with
+     * them: a refund, a voucher, or a no. Also sets the delivery rules (the
+     * minimum basket, the fees, the cash a rider may carry).
+     */
+    public const ORDERS_OVERSEE = 'orders.oversee';
+
     // ── Tenant scope (shop side) ────────────────────────────────────
     public const STAFF_MANAGE = 'staff.manage';
 
@@ -391,6 +399,10 @@ class Permissions
             'label' => 'Marketplace commission',
             'hint' => 'Sets the percentage every shop is charged on an online order, and raises the invoices for it.',
         ],
+        self::ORDERS_OVERSEE => [
+            'label' => 'Live orders, problems & delivery fees',
+            'hint' => "Sees every shop's open orders, answers customers' problems with refunds or vouchers, and sets the minimum order and delivery fees for the whole marketplace.",
+        ],
         self::RIDERS_MANAGE => [
             'label' => 'Approve riders',
             'hint' => "Reads applicants' CNIC and licence photographs, and decides who may carry customers' orders and cash.",
@@ -595,6 +607,7 @@ class Permissions
             self::ANNOUNCEMENTS_MANAGE,
             self::RIDERS_MANAGE,
             self::COMMISSION_MANAGE,
+            self::ORDERS_OVERSEE,
         ];
     }
 

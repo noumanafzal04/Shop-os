@@ -4,6 +4,7 @@ use App\Actions\Inventory\NotifyExpiringStock;
 use App\Models\AnsweredRequest;
 use App\Models\FuelPriceChange;
 use App\Models\Product;
+use App\Services\OrderService;
 use App\Services\ReservationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -21,6 +22,15 @@ Artisan::command('reservations:expire', function (ReservationService $service) {
 })->purpose('Expire overdue reservations and release held stock');
 
 Schedule::command('reservations:expire')->everyFiveMinutes();
+
+// An online order no shop accepted in time is let go, and both sides told —
+// see OrderService::cancelUnaccepted. Every minute: the rule is in minutes.
+Artisan::command('orders:cancel-unaccepted', function (OrderService $service) {
+    $count = $service->cancelUnaccepted();
+    $this->info("Cancelled {$count} order(s) no shop accepted in time.");
+})->purpose('Cancel online orders nobody accepted within the platform\'s time');
+
+Schedule::command('orders:cancel-unaccepted')->everyMinute()->withoutOverlapping();
 
 /**
  * Rates that have fallen due.

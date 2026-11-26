@@ -28,7 +28,9 @@ use App\Support\CatalogPlaces;
 use App\Support\FulfillingBranch;
 use App\Support\Geo;
 use App\Support\ModifierResolver;
+use App\Support\OrderCharges;
 use App\Support\Permissions;
+use App\Support\PlatformSettings;
 use App\Support\ServiceZones;
 use App\Support\ShopDay;
 use App\Support\SoldOut;
@@ -236,6 +238,16 @@ class OrderService
             );
         }
 
+        // A transfer goes to the shop's own account — a shop that has given
+        // none takes cash only, and a customer is told so before ordering.
+        if (! $counter && ($data['payment_method'] ?? null) === 'transfer'
+            && trim((string) $shop->setting('transfer_details')) === '') {
+            throw DomainException::unprocessable(
+                'This shop takes cash on delivery only — it has not given an account to transfer to.',
+                'TRANSFER_UNAVAILABLE',
+            );
+        }
+
         // Fulfillment config: each business chooses pickup / delivery / both.
         $fulfillment = $data['fulfillment_type'];
         if ($fulfillment === FulfillmentType::Delivery->value && ! $shop->deliveryEnabled()) {
@@ -434,27 +446,22 @@ class OrderService
                     ];
                 }
 
-                // Delivery economics: minimum basket + free-delivery threshold.
-                $deliveryFee = 0.0;
-                if ($fulfillment === FulfillmentType::Delivery->value) {
-                    // The minimum basket is a rule for strangers. A shopkeeper who
-                    // agrees to run one packet round the corner has already made
-                    // that decision, out loud, on the phone.
-                    $minOrder = $counter ? null : $lockedShop->setting('min_order_amount');
-                    if ($minOrder !== null && $subtotal < (float) $minOrder) {
-                        throw DomainException::unprocessable(
-                            'Minimum order for delivery is '.$lockedShop->money($minOrder)
-                                .' — add '.$lockedShop->money((float) $minOrder - $subtotal).' more, or collect it.',
-                            'MIN_ORDER_AMOUNT',
-                        );
-                    }
-
-                    $deliveryFee = (float) $lockedShop->delivery_fee;
-                    $freeAbove = $lockedShop->setting('free_delivery_threshold');
-                    if ($freeAbove !== null && $subtotal >= (float) $freeAbove) {
-                        $deliveryFee = 0.0; // earned free delivery
-                    }
-                }
+                // Delivery economics — the minimum basket (refused, or made up
+                // by a small-order fee), the flat fee and its kilometres, the
+                // rush fee, free delivery, and the platform's service fee. One
+                // place, `OrderCharges`, which the shop page reads too. The
+                // minimum is a rule for strangers: a shopkeeper who agrees to
+                // run one packet round the corner decided that on the phone.
+                $charges = OrderCharges::for(
+                    $lockedShop,
+                    $subtotal,
+                    $fulfillment === FulfillmentType::Delivery->value,
+                    $counter,
+                    isset($data['latitude'], $data['longitude']) && $lockedShop->latitude !== null && $lockedShop->longitude !== null
+                        ? Geo::distanceKm((float) $data['latitude'], (float) $data['longitude'], (float) $lockedShop->latitude, (float) $lockedShop->longitude)
+                        : null,
+                );
+                $deliveryFee = $charges['delivery_fee'];
 
                 // Coupon: validate + consume against the item subtotal.
                 $discount = 0.0;
@@ -529,7 +536,7 @@ class OrderService
                 }
                 $tax = BillTax::of($lines, $subtotal, $discount, $taxInclusive);
                 $goods = round($subtotal - $discount + ($taxInclusive ? 0.0 : $tax), 2);
-                $total = round($goods + $deliveryFee, 2);
+                $total = round($goods + $deliveryFee + $charges['small_order_fee'] + $charges['service_fee'], 2);
 
                 // ── WHICH BRANCH IS FILLING THIS ──────────────────────
                 //
@@ -604,6 +611,11 @@ class OrderService
                         'tax' => $tax,
                         'tax_inclusive' => $taxInclusive,
                         'delivery_fee' => $deliveryFee,
+                        'distance_fee' => $charges['distance_fee'],
+                        'rush_fee' => $charges['rush_fee'],
+                        'small_order_fee' => $charges['small_order_fee'],
+                        'service_fee' => $charges['service_fee'],
+                        'minimum' => $charges['minimum'],
                         'total' => $total,
                         'lines' => array_map(fn (array $l): array => [
                             'product_id' => $l['product']->id,
@@ -634,6 +646,9 @@ class OrderService
                     'fulfillment_type' => $fulfillment,
                     'payment_method' => $data['payment_method'] ?? 'cod',
                     'payment_status' => 'unpaid',
+                    'payment_reference' => ($data['payment_method'] ?? null) === 'transfer'
+                        ? trim((string) ($data['payment_reference'] ?? ''))
+                        : null,
                     // A caller has no account, so the name and number come off the
                     // form the staff member filled in while they were talking.
                     'customer_name' => $customer?->name ?? $data['customer_name'],
@@ -651,6 +666,10 @@ class OrderService
                     'tax' => $tax,
                     'tax_inclusive' => $taxInclusive,
                     'delivery_fee' => $deliveryFee,
+                    'distance_fee' => $charges['distance_fee'],
+                    'rush_fee' => $charges['rush_fee'],
+                    'small_order_fee' => $charges['small_order_fee'],
+                    'service_fee' => $charges['service_fee'],
                     'total' => $total,
                     'notes' => $data['notes'] ?? null,
                     'idempotency_key' => $data['idempotency_key'] ?? null,
@@ -800,6 +819,18 @@ class OrderService
             );
         }
 
+        // A TRANSFER IS CHECKED BEFORE THE KITCHEN STARTS. The reference is
+        // only what the customer typed; until the shop has seen the money in
+        // its own account, accepting would cook for a payment that may not
+        // exist. Cancelling stays open — that is how a fake one is refused.
+        if ($order->awaitsItsTransfer() && $to !== OrderStatus::Cancelled) {
+            throw DomainException::conflict(
+                "Check the transfer first — {$order->customer_name} says they sent it with reference "
+                    ."\"{$order->payment_reference}\". Press \"Payment received\" once it is in your account, or cancel the order.",
+                'TRANSFER_NOT_VERIFIED',
+            );
+        }
+
         if ($to === OrderStatus::Completed) {
             return $this->complete($order);
         }
@@ -856,6 +887,91 @@ class OrderService
                 app(RiderService::class)->beginOffering($order);
             }
         }
+
+        return $order;
+    }
+
+    /**
+     * NOBODY AT THE SHOP ANSWERED — the order is let go, and both sides told.
+     *
+     * An online order still waiting for its shop after the platform's
+     * `accept_within_minutes` is cancelled: a customer left watching
+     * "waiting for the shop" for an hour is a customer who ordered somewhere
+     * else forty minutes ago, and a shop that comes back to it then cooks for
+     * nobody. A transfer order is given twice as long — the shop has to look
+     * in its account before it may accept.
+     *
+     * Orders the shop took itself (phone, WhatsApp) are never touched: the
+     * shop accepted those in the act of typing them.
+     *
+     * @return int how many were cancelled
+     */
+    public function cancelUnaccepted(): int
+    {
+        $minutes = PlatformSettings::get('accept_within_minutes');
+        if ($minutes === null || (int) $minutes <= 0) {
+            return 0;
+        }
+        $minutes = (int) $minutes;
+
+        $stale = Order::withoutTenancy()
+            ->where('status', OrderStatus::Pending->value)
+            ->where('channel', 'online')
+            ->where('placed_at', '<=', now()->subMinutes($minutes))
+            ->get();
+
+        $count = 0;
+        foreach ($stale as $order) {
+            $allowed = $order->paysByTransfer() ? $minutes * 2 : $minutes;
+            if ($order->placed_at->gt(now()->subMinutes($allowed))) {
+                continue;
+            }
+
+            $this->cancel($order, 'The shop did not accept it in time — nothing will be charged.');
+            $count++;
+
+            $shop = Tenant::query()->find($order->tenant_id);
+            if ($shop !== null) {
+                $this->notifications->notifyWhoCanAct(
+                    $shop,
+                    Permissions::ORDERS_MANAGE,
+                    'order.expired',
+                    'Order missed',
+                    "{$order->order_number} from {$order->customer_name} was cancelled — nobody accepted it within {$allowed} minutes.",
+                    ['order_id' => $order->id],
+                    "order-expired-{$order->id}",
+                    $order->branch_id,
+                );
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * THE TRANSFER ARRIVED — the shop's word, after looking at its own account.
+     * Once, by somebody at the shop, and only while the order is still open.
+     */
+    public function paymentReceived(Order $order, User $by): Order
+    {
+        if (! $order->paysByTransfer()) {
+            throw DomainException::unprocessable('This order is not paid by transfer.', 'NOT_A_TRANSFER');
+        }
+        if (! $order->status->isOpen()) {
+            throw DomainException::conflict('This order is closed.', 'ORDER_CLOSED');
+        }
+        if ($order->payment_verified_at !== null) {
+            return $order;
+        }
+
+        $order->forceFill([
+            'payment_verified_at' => now(),
+            'payment_verified_by' => $by->id,
+            'payment_status' => 'paid',
+        ])->save();
+
+        $this->notifyCustomer($order, 'order.payment_received', 'Payment received',
+            "The shop received your transfer for order {$order->order_number}.");
 
         return $order;
     }
@@ -970,7 +1086,7 @@ class OrderService
                 'promotion_id' => $order->promotion_id,
                 'promo_name' => $order->promotion_name,
                 'promo_discount' => (float) $order->promotion_discount,
-                'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
+                'payment_method' => $order->tenderForTheBooks(),
                 'amount_paid' => max(0, $goodsPaid),
                 'trusted_prices' => true,
                 // WHERE THE MONEY WAS TAKEN, which is not what `channel` says.
@@ -1029,7 +1145,38 @@ class OrderService
                     'description' => "Delivery charge · {$order->order_number}",
                     'reference' => $order->order_number,
                     'amount' => $shopsFee,
-                    'payment_method' => $order->payment_method === 'paid' ? 'card' : 'cash',
+                    'payment_method' => $order->tenderForTheBooks(),
+                    'income_date' => ShopDay::today(),
+                ]);
+                if ($outsider) {
+                    Income::query()->whereKey($income->id)->update(['created_by' => null, 'updated_by' => null]);
+                }
+            }
+
+            /*
+             * …AND THE OTHER CHARGES ON THE BILL. The customer paid them with
+             * the goods, so the cash (or the transfer) the shop receives holds
+             * them; booked nowhere, the drawer would count over by exactly
+             * these. The small-order fee is the shop's — it makes up the
+             * shop's own minimum. The service fee is the platform's: booked
+             * here as money the shop COLLECTED for it, and billed back on the
+             * shop's commission invoice (CommissionService::chargeFor).
+             */
+            foreach ([
+                ['small_order_fee', "Small order fee · {$order->order_number}"],
+                ['service_fee', "Service fee (collected for the platform) · {$order->order_number}"],
+            ] as [$column, $description]) {
+                $amount = round((float) $order->{$column}, 2);
+                if ($amount <= 0) {
+                    continue;
+                }
+                $income = Income::query()->create([
+                    'tenant_id' => $order->tenant_id,
+                    'branch_id' => $sale->branch_id,
+                    'description' => $description,
+                    'reference' => $order->order_number,
+                    'amount' => $amount,
+                    'payment_method' => $order->tenderForTheBooks(),
                     'income_date' => ShopDay::today(),
                 ]);
                 if ($outsider) {

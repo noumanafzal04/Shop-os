@@ -12,6 +12,7 @@ use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\BusinessTypes;
+use App\Support\PlatformSettings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Routing\Middleware\ThrottleRequests;
@@ -333,5 +334,34 @@ class TheRiderIsHoldingTheCashTest extends TestCase
         $again = $this->as($this->customer)->postJson('/api/v1/customer/orders', $body);
         $this->assertTrue(in_array($again->status(), [200, 201], true), 'a retry of a placed order was refused as ORDERS_PAUSED');
         $this->assertSame($first, $again->json('data.id'));
+    }
+
+    public function test_a_pool_rider_holding_the_cash_limit_is_offered_no_pool_work_until_it_is_raised_or_handed_in(): void
+    {
+        PlatformSettings::put(['rider_cash_limit' => 2000]);
+        $cardId = $this->card();
+        $this->as($this->rider)->putJson('/api/v1/rider/pool', ['is_platform' => true])->assertOk();
+        $this->deliveredForCash($cardId); // Rs 2,100 at the door — over the limit
+
+        $pool = $this->as($this->customer)->postJson('/api/v1/customer/orders', [
+            'shop_slug' => $this->shop->slug, 'fulfillment_type' => 'delivery',
+            'delivery_address' => 'House 9, Model Town', 'latitude' => 31.48, 'longitude' => 74.32,
+            'items' => [['product_id' => $this->product->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+        $this->as($this->owner)->postJson("/api/v1/orders/{$pool}/advance", ['status' => 'confirmed'])->assertOk();
+        $this->as($this->rider)->postJson('/api/v1/rider/ping', ['latitude' => 31.52, 'longitude' => 74.35])->assertOk();
+
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->assertOk()->json('data');
+        $this->assertSame('cash_limit', $board['blocked']['code']);
+        $this->assertStringContainsString('2,100', $board['blocked']['message']);
+        $this->assertNotContains($pool, array_column($board['offers'], 'id'));
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$pool}/accept")
+            ->assertStatus(409)->assertJsonPath('meta.error_code', 'RIDER_CASH_LIMIT');
+
+        PlatformSettings::put(['rider_cash_limit' => 5000]);
+        $board = $this->as($this->rider)->getJson('/api/v1/rider/board')->json('data');
+        $this->assertNull($board['blocked']);
+        $this->assertContains($pool, array_column($board['offers'], 'id'));
+        $this->as($this->rider)->postJson("/api/v1/rider/jobs/{$pool}/accept")->assertOk();
     }
 }

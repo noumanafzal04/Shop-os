@@ -100,7 +100,7 @@ class FulfillmentConfigTest extends TestCase
 
     public function test_a_basket_short_of_the_minimum_is_told_by_how_much_in_rupees(): void
     {
-        $shop = $this->makeShop(['min_order_amount' => 1000]);
+        $shop = $this->makeShop(['min_order_amount' => 1000, 'below_minimum' => 'refuse']);
         $p = $this->makeProduct($shop, 900);
 
         // It said "Minimum order for delivery is 1,000 — add a bit more": no
@@ -130,7 +130,7 @@ class FulfillmentConfigTest extends TestCase
 
     public function test_minimum_order_amount_enforced_for_delivery(): void
     {
-        $shop = $this->makeShop(['min_order_amount' => 500]);
+        $shop = $this->makeShop(['min_order_amount' => 500, 'below_minimum' => 'refuse']);
         $p = $this->makeProduct($shop, 100);
 
         // 100 < 500 → rejected for delivery…

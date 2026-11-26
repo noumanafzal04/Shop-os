@@ -296,6 +296,14 @@ class OrderController extends Controller
         return ApiResponse::ok($order, $rider !== null ? "Assigned to {$rider->name}" : 'Rider cleared');
     }
 
+    /** The customer's transfer is in the shop's account — the order may now be accepted. */
+    public function paymentReceived(Request $request, string $id, OrderService $service): JsonResponse
+    {
+        $order = $service->paymentReceived(Order::query()->with('items')->findOrFail($id), $request->user());
+
+        return ApiResponse::ok($order, "Payment received for {$order->order_number}");
+    }
+
     public function advance(Request $request, string $id, OrderService $service): JsonResponse
     {
         $data = $request->validate(['status' => ['required', Rule::enum(OrderStatus::class)]]);

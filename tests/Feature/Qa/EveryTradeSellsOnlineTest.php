@@ -207,10 +207,10 @@ class EveryTradeSellsOnlineTest extends TestCase
         ])->assertStatus(422)->assertJsonPath('meta.error_code', 'OUT_OF_DELIVERY_AREA');
 
         // ── Below the shop's minimum ─────────────────────────────────
-        $this->setting($shop, ['min_order_amount' => 5000]);
+        $this->setting($shop, ['min_order_amount' => 5000, 'below_minimum' => 'refuse']);
         $this->order($shop, $product)
             ->assertStatus(422)->assertJsonPath('meta.error_code', 'MIN_ORDER_AMOUNT');
-        $this->setting($shop, ['min_order_amount' => null]);
+        $this->setting($shop, ['min_order_amount' => null, 'below_minimum' => null]);
 
         // ── Delivery switched off ────────────────────────────────────
         $this->setting($shop, ['delivery_enabled' => false]);

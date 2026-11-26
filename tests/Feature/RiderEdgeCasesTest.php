@@ -141,6 +141,7 @@ class RiderEdgeCasesTest extends TestCase
             'delivery_address' => $fulfillment === 'delivery' ? 'House 12, Johar Town, Lahore' : null,
             'latitude' => 31.47, 'longitude' => 74.27,
             'payment_method' => $payment,
+            'payment_reference' => $payment === 'transfer' ? 'TX20261126' : null,
             'items' => [['product_id' => $product->id, 'quantity' => 1]],
         ]))->assertCreated()->json('data');
     }
@@ -700,8 +701,12 @@ class RiderEdgeCasesTest extends TestCase
         $profile = $this->approvedRider($this->rider);
         $cardId = $this->link($profile);
 
+        // Paid ahead by TRANSFER (a customer can no longer just say "paid"):
+        // the shop checks its account, and the rider collects nothing.
+        $this->shop->forceFill(['settings' => array_merge($this->shop->settings ?? [], ['transfer_details' => 'JazzCash 0300 1234567'])])->save();
         $cash = $this->place(payment: 'cod');
-        $prepaid = $this->place(payment: 'paid');
+        $prepaid = $this->place(payment: 'transfer');
+        $this->as($this->owner)->postJson("/api/v1/orders/{$prepaid['id']}/payment-received")->assertOk();
         $this->inHand($cash, $cardId, $this->rider);
         $this->inHand($prepaid, $cardId, $this->rider);
         $this->deliver($cash, $this->rider);

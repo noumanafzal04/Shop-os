@@ -71,6 +71,63 @@ class PlatformSettings
             'console_theme_primary' => null,
             'console_theme_tint' => 'subtle',
             'console_theme_sidebar' => 'primary',
+
+            // ── What a delivery costs, and the rules around an order ──
+            //
+            // The market's rules, set once by the admin for every shop that
+            // has not set its own. Each is OFF (null / zero) until somebody
+            // chooses a number, for the same reason commission is: a platform
+            // that starts charging customers on install surprises everybody.
+            //
+            // The least a delivery basket may be, for a shop that set none of
+            // its own. "agr koi 20 rs ka order kry ga to hum delivery thori
+            // dene jayen gy." Null = no platform minimum.
+            'default_min_order' => null,
+            // Below the minimum: `fee` lets the customer order anyway and pay
+            // the difference as a small-order fee (foodpanda's way); `refuse`
+            // turns the basket away. A shop may choose for itself.
+            'below_minimum' => 'fee',
+            // Rupees for each kilometre past `delivery_fee_base_km`, on top of
+            // the shop's flat delivery fee — for shops that set none of their
+            // own. Null = the flat fee only, however far.
+            'delivery_fee_per_km' => null,
+            'delivery_fee_base_km' => 3,
+            // The platform's own charge on every online order. Zero = none.
+            'service_fee' => 0,
+            // RAIN OR A RUSH: switched on by the admin, added to every
+            // delivery fee while on, and the rider's when the rider keeps
+            // the fee — it is the rider who is out in it.
+            'rush_fee' => 0,
+            'rush_fee_on' => false,
+            // An online order nobody at the shop has accepted after this many
+            // minutes is cancelled, and the customer told. 0 = never.
+            'accept_within_minutes' => 10,
+            // A pool rider holding this much cash is offered no more
+            // cash-on-delivery jobs until they hand it in. Null = no limit.
+            'rider_cash_limit' => null,
+        ];
+    }
+
+    /**
+     * What the "Delivery & fees" screen may save — its own list, as the
+     * console's look has its own: whoever prices a delivery is not thereby
+     * whoever sets the commission.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function deliveryRules(): array
+    {
+        return [
+            'default_min_order' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:100000'],
+            'below_minimum' => ['sometimes', 'in:fee,refuse'],
+            'delivery_fee_per_km' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:10000'],
+            'delivery_fee_base_km' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'service_fee' => ['sometimes', 'numeric', 'min:0', 'max:10000'],
+            'rush_fee' => ['sometimes', 'numeric', 'min:0', 'max:10000'],
+            'rush_fee_on' => ['sometimes', 'boolean'],
+            // 0 = never cancel; otherwise at least two minutes to answer.
+            'accept_within_minutes' => ['sometimes', 'integer', 'min:0', 'max:120', 'not_in:1'],
+            'rider_cash_limit' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:10000000'],
         ];
     }
 
@@ -136,6 +193,13 @@ class PlatformSettings
     {
         foreach ($values as $key => $value) {
             if (! array_key_exists($key, self::defaults())) {
+                continue;
+            }
+            // Cleared = back to the default. The column holds no null, and
+            // a row means somebody chose something (see `forget`).
+            if ($value === null) {
+                PlatformSetting::query()->where('key', $key)->delete();
+
                 continue;
             }
             PlatformSetting::query()->updateOrCreate(
