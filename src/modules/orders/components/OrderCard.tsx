@@ -1,3 +1,4 @@
+import { awaitsTransfer } from "../hooks/useOrders";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Touchable } from "@cartze/core/ui/Touchable";
@@ -73,6 +74,11 @@ export function OrderCard({ order, onPress }: { order: Order; onPress: () => voi
        */}
       {delivery && !order.rider_id && order.status === "out_for_delivery" ? (
         <Text style={s.warn}>No rider assigned</Text>
+      ) : null}
+
+      {/* Paid by transfer and not checked yet — the first thing to do with it. */}
+      {awaitsTransfer(order) ? (
+        <Text style={s.warn}>Transfer · check your account for ref {order.payment_reference}</Text>
       ) : null}
     </Touchable>
   );

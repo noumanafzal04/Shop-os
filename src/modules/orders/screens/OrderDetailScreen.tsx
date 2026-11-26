@@ -12,7 +12,7 @@ import { ApiError } from "@cartze/core/types/api";
 import { money, qtyText } from "@cartze/core/format";
 import { FileTextIcon, MapPinIcon, PhoneIcon, UtensilsIcon } from "@cartze/core/ui/icons";
 import { spacing, typography, useColors, type ThemeColors } from "@cartze/core/theme";
-import { useAdvanceOrder, useCancelOrder, useOrder } from "../hooks/useOrders";
+import { awaitsTransfer, useAdvanceOrder, useCancelOrder, useOrder, usePaymentReceived } from "../hooks/useOrders";
 import { useShopSettings } from "../../shop/hooks/useShop";
 import { useAuthStore } from "../../../stores/authStore";
 import { renderSlip, type ReceiptWidth } from "../../printing/slip";
@@ -62,7 +62,17 @@ export function OrderDetailScreen() {
     setSlipFor(kitchen ? "kitchen" : "bill");
   }
 
-  const busy = advance.isPending || cancel.isPending;
+  const received = usePaymentReceived();
+  const busy = advance.isPending || cancel.isPending || received.isPending;
+
+  async function paymentReceived() {
+    try {
+      await received.mutateAsync(params.id);
+      toast.success("Payment received — you can accept the order now");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not record the payment");
+    }
+  }
 
   async function moveTo(status: OrderStatus) {
     try {
@@ -130,6 +140,7 @@ export function OrderDetailScreen() {
             onMove={moveTo}
             onReject={reject}
             onSend={send}
+            onPaymentReceived={paymentReceived}
           />
           <PrintSheet
             visible={slipFor !== null}
@@ -210,10 +221,20 @@ function Detail({ order }: { order: Order }) {
         {Number(order.delivery_fee) > 0 ? (
           <Row label="Delivery" value={money(order.delivery_fee)} />
         ) : null}
+        {Number(order.small_order_fee ?? 0) > 0 ? (
+          <Row label="Small order fee" value={money(order.small_order_fee!)} />
+        ) : null}
+        {Number(order.service_fee ?? 0) > 0 ? (
+          <Row label="Service fee (platform's)" value={money(order.service_fee!)} />
+        ) : null}
         <Row label="Total" value={money(order.total)} strong />
         <Row
           label="Payment"
-          value={`${order.payment_method === "cod" ? "Cash on delivery" : "Paid"} · ${order.payment_status}`}
+          value={
+            order.payment_method === "transfer"
+              ? `Transfer · ref ${order.payment_reference ?? "—"} · ${order.payment_verified_at ? "received" : "check your account"}`
+              : `${order.payment_method === "cod" ? "Cash on delivery" : "Paid"} · ${order.payment_status}`
+          }
         />
       </View>
     </>
@@ -242,12 +263,14 @@ function Actions({
   onMove,
   onReject,
   onSend,
+  onPaymentReceived,
 }: {
   order: Order;
   busy: boolean;
   onMove: (s: OrderStatus) => void;
   onReject: () => void;
   onSend: (kitchen: boolean) => void;
+  onPaymentReceived: () => void;
 }) {
   const s = styles(useColors());
   const next = nextStates(order.status, order.fulfillment_type);
@@ -292,7 +315,15 @@ function Actions({
         />
       </View>
 
-      {forward ? (
+      {/* A TRANSFER IS CHECKED FIRST — the server refuses Accept until it is. */}
+      {awaitsTransfer(order) ? (
+        <AppButton
+          title={`Payment received · ref ${order.payment_reference ?? ""}`}
+          onPress={onPaymentReceived}
+          loading={busy}
+          size="lg"
+        />
+      ) : forward ? (
         <AppButton
           title={ACTION_LABEL[forward]}
           onPress={() => onMove(forward)}

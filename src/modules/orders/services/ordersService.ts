@@ -29,12 +29,20 @@ export interface Order {
   fulfillment_type: FulfillmentType;
   payment_method: string;
   payment_status: string;
+  /** A transfer's transaction id, as the customer typed it. */
+  payment_reference?: string | null;
+  /** When the shop said the transfer arrived. Null = not checked yet. */
+  payment_verified_at?: string | null;
   customer_name: string;
   customer_phone: string | null;
   delivery_address: string | null;
   subtotal: string | number;
   discount?: string | number;
   delivery_fee: string | number;
+  /** Below the minimum, the difference — the shop's money. */
+  small_order_fee?: string | number;
+  /** The platform's charge, collected with the order and billed back. */
+  service_fee?: string | number;
   total: string | number;
   notes: string | null;
   cancel_reason: string | null;
@@ -92,6 +100,8 @@ export const ordersService = {
    */
   advance: (id: string, status: OrderStatus): Promise<ApiEnvelope<Order>> =>
     apiPost<Order>(`/orders/${id}/advance`, { status }),
+  /** The customer's transfer is in the shop's account — it may now be accepted. */
+  paymentReceived: (id: string): Promise<ApiEnvelope<Order>> => apiPost<Order>(`/orders/${id}/payment-received`),
 
   cancel: (id: string, reason?: string): Promise<ApiEnvelope<Order>> =>
     apiPost<Order>(`/orders/${id}/cancel`, reason ? { reason } : {}),

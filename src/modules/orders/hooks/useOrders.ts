@@ -64,6 +64,23 @@ export function useAdvanceOrder() {
   });
 }
 
+/** The transfer arrived. Re-read whether or not the server agreed, as Accept does. */
+export function usePaymentReceived() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => ordersService.paymentReceived(id),
+    onSettled: (_res, _err, id) => {
+      void qc.invalidateQueries({ queryKey: ["orders"] });
+      void qc.invalidateQueries({ queryKey: ["order", id] });
+    },
+  });
+}
+
+/** A transfer the shop has not checked yet — the server will not let it be accepted. */
+export const awaitsTransfer = (o: { payment_method: string; payment_verified_at?: string | null; status: string }) =>
+  o.payment_method === "transfer" && !o.payment_verified_at && o.status === "pending";
+
 export function useCancelOrder() {
   const qc = useQueryClient();
 
