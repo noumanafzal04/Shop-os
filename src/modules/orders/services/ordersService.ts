@@ -45,9 +45,33 @@ export interface CustomerOrder {
   tax_inclusive?: boolean;
   coupon_code?: string | null;
   delivery_fee: string;
+  small_order_fee?: string;
+  service_fee?: string;
+  rush_fee?: string;
+  distance_fee?: string;
   total: string;
+  /** A transfer's reference, and whether the shop has seen the money. */
+  payment_reference?: string | null;
+  payment_received?: boolean;
+  /** A problem the customer reported, and the platform's answer. */
+  issue?: MyOrderIssue | null;
+  can_report_issue?: boolean;
   items?: OrderItem[];
   placed_at: string;
+}
+
+export type MyIssueKind = "missing_item" | "wrong_item" | "late" | "quality" | "rider" | "payment" | "other";
+
+export interface MyOrderIssue {
+  id: string;
+  kind: MyIssueKind;
+  kind_label: string;
+  note: string | null;
+  status: "open" | "resolved" | "rejected";
+  outcome: "refund" | "voucher" | "none" | null;
+  amount: string | null;
+  voucher_code: string | null;
+  answer: string | null;
 }
 
 export interface PlaceOrderPayload {
@@ -275,6 +299,8 @@ export const ordersService = {
   /** What this basket comes to at this shop — the placing path, stopped before it places. */
   myWorth: (payload: Omit<PlaceOrderPayload, "idempotency_key">) => apiPost<OrderWorth>("/customer/orders/worth", payload),
   cancelMine: (id: string) => apiPost<CustomerOrder>(`/customer/orders/${id}/cancel`),
+  /** "Order mein masla" — one report per order. */
+  reportIssue: (id: string, body: { kind: MyIssueKind; note?: string }) => apiPost<MyOrderIssue>(`/customer/orders/${id}/issue`, body),
 
   // owner
   shopOrders: (params: OrderQueueFilters) =>

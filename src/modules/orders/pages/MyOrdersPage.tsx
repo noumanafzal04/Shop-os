@@ -8,7 +8,8 @@ import { useToast } from "../../../components/ui/toast";
 import { MarketHeader } from "../../marketplace/components/MarketHeader";
 import { MyReservations } from "../../marketplace/components/MyReservations";
 import Pager from "../../../components/ui/pager";
-import { useCancelMyOrder, useMyOrders } from "../hooks/useOrders";
+import { useCancelMyOrder, useMyOrders, useReportMyIssue } from "../hooks/useOrders";
+import type { MyIssueKind } from "../services/ordersService";
 import { customerSays } from "../orderFlow";
 import { moneyLineValue, orderMoneyLines } from "../orderMoney";
 import type { CustomerOrder, OrderStatus } from "../services/ordersService";
@@ -38,7 +39,9 @@ export default function MyOrdersPage() {
   const toast = useToast();
   const rows = orders.data?.data ?? [];
 
-  const canCancel = (o: CustomerOrder) => o.status === "pending" || o.status === "confirmed";
+  // Only while nobody has answered: the server refuses a cancel once the
+  // shop has accepted, so offering it then was offering a refusal.
+  const canCancel = (o: CustomerOrder) => o.status === "pending";
 
   return (
     <div className="min-h-dvh bg-gray-50 dark:bg-gray-900">
@@ -106,7 +109,8 @@ export default function MyOrdersPage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-sm dark:border-gray-800">
                   <span className="text-gray-500 dark:text-gray-400">
-                    {o.fulfillment_type === "delivery" ? `Delivery · ${o.delivery_address ?? ""}` : "Pickup"} · {o.payment_method.toUpperCase()}
+                    {o.fulfillment_type === "delivery" ? `Delivery · ${o.delivery_address ?? ""}` : "Pickup"} ·{" "}
+                    {o.payment_method === "transfer" ? "Transfer" : o.payment_method === "paid" ? "Paid" : o.fulfillment_type === "delivery" ? "Cash on delivery" : "Pay at the shop"}
                   </span>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-gray-800 dark:text-white/90">{money(o.total, o.shop?.currency)}</span>
@@ -133,6 +137,15 @@ export default function MyOrdersPage() {
                     )}
                   </div>
                 </div>
+
+                {/* A transfer: whether the shop has seen the money yet. */}
+                {o.payment_method === "transfer" && o.status !== "cancelled" && (
+                  <p className={`mt-3 rounded-xl px-3 py-2 text-sm ${o.payment_received ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400" : "bg-warning-50 text-warning-800 dark:bg-warning-500/10 dark:text-warning-300"}`}>
+                    {o.payment_received ? "The shop has received your transfer." : `Waiting for the shop to check your transfer (ref ${o.payment_reference ?? "—"}). It starts once the money shows.`}
+                  </p>
+                )}
+
+                <IssueBlock order={o} />
               </div>
             ))}
           </div>
@@ -146,6 +159,85 @@ export default function MyOrdersPage() {
             the server and never called. */}
         <MyReservations />
       </div>
+    </div>
+  );
+}
+
+const ISSUE_KINDS: Array<{ value: MyIssueKind; label: string }> = [
+  { value: "missing_item", label: "Something was missing" },
+  { value: "wrong_item", label: "Wrong item" },
+  { value: "late", label: "Arrived very late" },
+  { value: "quality", label: "Food or item quality" },
+  { value: "rider", label: "Problem with the rider" },
+  { value: "payment", label: "Charged wrongly" },
+  { value: "other", label: "Something else" },
+];
+
+/**
+ * "ORDER MEIN MASLA" on the web — report it once, read the answer here.
+ * The same rule as the app: one report per order, while it makes sense.
+ */
+function IssueBlock({ order: o }: { order: CustomerOrder }) {
+  const report = useReportMyIssue();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<MyIssueKind | "">("");
+  const [note, setNote] = useState("");
+
+  if (o.issue) {
+    const i = o.issue;
+    return (
+      <div className={`mt-3 rounded-xl border px-3 py-2 text-sm ${i.status === "open" ? "border-warning-200 dark:border-warning-500/30" : "border-success-200 dark:border-success-500/30"}`} data-testid="my-order-issue">
+        <p className="font-medium text-gray-800 dark:text-white/90">
+          {i.status === "open" ? `You reported: ${i.kind_label}` : i.outcome === "refund" ? `Refund of ${money(i.amount ?? 0, o.shop?.currency)}` : i.outcome === "voucher" ? `Voucher ${i.voucher_code} · ${money(i.amount ?? 0, o.shop?.currency)}` : "We looked into it"}
+        </p>
+        <p className="text-gray-600 dark:text-gray-400">{i.status === "open" ? "We are looking into it — the answer will appear here." : i.answer}</p>
+      </div>
+    );
+  }
+  if (!o.can_report_issue) return null;
+  if (!open) {
+    return (
+      <button type="button" className="mt-3 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400" onClick={() => setOpen(true)}>
+        Problem with this order?
+      </button>
+    );
+  }
+
+  const ready = kind !== "" && (kind !== "other" || note.trim() !== "");
+  return (
+    <div className="mt-3 grid gap-2 rounded-xl bg-gray-50 p-3 dark:bg-white/5 sm:grid-cols-[14rem_1fr_auto]">
+      <select
+        aria-label="What happened"
+        value={kind}
+        onChange={(e) => setKind(e.target.value as MyIssueKind)}
+        className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+      >
+        <option value="">What happened?</option>
+        {ISSUE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+      </select>
+      <input
+        aria-label="Tell us more"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder={kind === "missing_item" ? "Which item was missing?" : "Tell us a little more"}
+        className="h-10 rounded-lg border border-gray-300 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+      />
+      <Button
+        size="sm"
+        disabled={!ready || report.isPending}
+        onClick={() =>
+          report.mutate(
+            { id: o.id, kind: kind as MyIssueKind, note: note.trim() || undefined },
+            {
+              onSuccess: () => { toast.success("Thanks — we will look into it and reply here."); setOpen(false); },
+              onError: (e) => toast.error(e instanceof Error ? e.message : "That did not go through."),
+            },
+          )
+        }
+      >
+        Send
+      </Button>
     </div>
   );
 }

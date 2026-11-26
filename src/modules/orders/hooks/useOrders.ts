@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { asksAbout } from "../../../common/asksAbout";
-import {
+import { type MyIssueKind,
   ordersService,
   type CounterOrderPayload,
   type OrderAsked,
@@ -42,7 +42,17 @@ export function useCancelMyOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => ordersService.cancelMine(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
+    // Settled: a cancel the shop beat (it accepted first) shows the order as it is now.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
+  });
+}
+
+/** "Order mein masla" — the answer comes back on the order. */
+export function useReportMyIssue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, kind, note }: { id: string; kind: MyIssueKind; note?: string }) => ordersService.reportIssue(id, { kind, note }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
   });
 }
 
