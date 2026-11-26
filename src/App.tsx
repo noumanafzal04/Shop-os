@@ -55,6 +55,7 @@ const AdminAnnouncementsPage = lazy(() => import("./modules/admin/pages/AdminAnn
 const AdminRidersPage = lazy(() => import("./modules/admin/pages/AdminRidersPage"));
 const AdminCustomersPage = lazy(() => import("./modules/admin/pages/AdminCustomersPage"));
 const AdminCommissionPage = lazy(() => import("./modules/admin/pages/AdminCommissionPage"));
+const AdminOrdersDeskPage = lazy(() => import("./modules/admin/pages/AdminOrdersDeskPage"));
 // One screen, mounted on both consoles. Changing your own password has nothing
 // role-specific about it, and a second copy is a second copy to forget.
 const SecurityPage = lazy(() => import("./modules/auth/pages/SecurityPage"));
@@ -247,6 +248,9 @@ export default function App() {
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/customers" />}>
                   <Route path="customers" element={<AdminCustomersPage />} />
+                </Route>
+                <Route element={<RequireAdminScreen path="/admin/orders" />}>
+                  <Route path="orders" element={<AdminOrdersDeskPage />} />
                 </Route>
                 <Route element={<RequireAdminScreen path="/admin/commission" />}>
                   <Route path="commission" element={<AdminCommissionPage />} />

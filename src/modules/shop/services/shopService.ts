@@ -209,6 +209,13 @@ export interface ShopSettings {
   prep_time_minutes: number | string | null;
   delivery_radius_km: number | string | null;
   min_order_amount: number | string | null;
+  /** Below the minimum: `fee` (order anyway, pay the difference) or `refuse`. Null = the platform's rule. */
+  below_minimum?: "fee" | "refuse" | null;
+  /** Rupees per km past `delivery_fee_base_km`, on top of the flat fee. Null = the platform's. */
+  delivery_fee_per_km?: number | string | null;
+  delivery_fee_base_km?: number | string | null;
+  /** Where a customer sends a transfer. Null = cash only. */
+  transfer_details?: string | null;
   free_delivery_threshold: number | string | null;
   invoice_header: string | null;
   invoice_footer: string | null;

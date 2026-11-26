@@ -8,6 +8,7 @@ import Button from "../../../components/ui/button/Button";
 import Badge from "../../../components/ui/badge/Badge";
 import Label from "../../../components/form/Label";
 import Input from "../../../components/form/input/InputField";
+import TextArea from "../../../components/form/input/TextArea";
 import Select from "../../../components/form/Select";
 import MapPicker from "../../../components/maps/MapPicker";
 import { useToast } from "../../../components/ui/toast";
@@ -936,13 +937,38 @@ export default function ShopSettingsPage() {
                           <Field label={`Delivery fee (${sym})`} hint="Charged on delivery orders. 0 = free delivery." error={errorFor("delivery_fee")}>
                             <Input type="number" min="0" value={form.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value)} />
                           </Field>
-                          <Field label={`Minimum order (${sym})`} hint="Delivery orders below this amount cannot be placed.">
-                            <Input type="number" min="0" value={prefs.min_order_amount != null ? String(prefs.min_order_amount) : ""} onChange={(e) => setP("min_order_amount", e.target.value === "" ? null : Number(e.target.value))} placeholder="No minimum" />
+                          <Field label={`Minimum order (${sym})`} hint="The least a delivery basket may be. Empty follows the marketplace's minimum.">
+                            <Input type="number" min="0" value={prefs.min_order_amount != null ? String(prefs.min_order_amount) : ""} onChange={(e) => setP("min_order_amount", e.target.value === "" ? null : Number(e.target.value))} placeholder="Marketplace's minimum" />
+                          </Field>
+                          <Field label="Below the minimum" hint="Foodpanda's way is the fee: the customer can still order and pays the difference, which comes to you.">
+                            <select
+                              value={String(prefs.below_minimum ?? "")}
+                              onChange={(e) => setP("below_minimum", e.target.value === "" ? null : e.target.value)}
+                              className="h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 dark:border-gray-700 dark:text-white/90"
+                            >
+                              <option value="">Follow the marketplace</option>
+                              <option value="fee">Let them order — add a small order fee</option>
+                              <option value="refuse">Refuse the order</option>
+                            </select>
+                          </Field>
+                          <Field label={`Extra per km (${sym})`} hint="Added to the delivery fee for every km past the distance it covers. Empty follows the marketplace.">
+                            <Input type="number" min="0" value={prefs.delivery_fee_per_km != null ? String(prefs.delivery_fee_per_km) : ""} onChange={(e) => setP("delivery_fee_per_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="Marketplace's" />
+                          </Field>
+                          <Field label="Km the delivery fee covers" hint="From your shop to the customer's pin. Empty follows the marketplace.">
+                            <Input type="number" min="0" step={0.5} value={prefs.delivery_fee_base_km != null ? String(prefs.delivery_fee_base_km) : ""} onChange={(e) => setP("delivery_fee_base_km", e.target.value === "" ? null : Number(e.target.value))} placeholder="Marketplace's" />
                           </Field>
                           <Field label={`Free delivery above (${sym})`} hint="No delivery fee when the order is this much or more.">
                             <Input type="number" min="0" value={prefs.free_delivery_threshold != null ? String(prefs.free_delivery_threshold) : ""} onChange={(e) => setP("free_delivery_threshold", e.target.value === "" ? null : Number(e.target.value))} placeholder="Never" />
                           </Field>
                         </div>
+                        <Field label="Take payment by transfer" hint="Your JazzCash, Easypaisa or bank account. Customers see it at checkout, send the money and type the transaction ID — you check it arrived, then accept. Empty = cash only.">
+                          <TextArea
+                            rows={2}
+                            value={String(prefs.transfer_details ?? "")}
+                            onChange={(v: string) => setP("transfer_details", v.trim() === "" ? null : v)}
+                            placeholder={"JazzCash 0300 1234567 (Ali Raza)\nMeezan IBAN PK00 MEZN 0000 0000 0000"}
+                          />
+                        </Field>
                         </>
                       )}
                     </SectionCard>

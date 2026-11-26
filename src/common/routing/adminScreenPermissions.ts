@@ -47,6 +47,9 @@ const ADMIN_SCREEN_PERMISSIONS: Record<string, string> = {
   // shop on the marketplace is charged. Whoever may READ the revenue figures
   // is not automatically whoever may DECIDE them.
   "/admin/commission": "commission.manage",
+  // Live orders, customers' problems and the delivery rules — refunds and
+  // the fee every customer pays are decided here.
+  "/admin/orders": "orders.oversee",
   // Super-admin only on the server, and no permission grants it.
   "/admin/audit-logs": SUPER_ADMIN_ONLY(),
   // The same, and for the same reason the route says: there is no

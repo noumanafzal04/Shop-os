@@ -22,6 +22,10 @@ import { orderFigures, type Fulfillment } from "../orderTerms";
 
 interface ShopChoices {
   fulfillment: Fulfillment;
+  /** Cash at the door, or a transfer to the shop's own account. */
+  pay: "cod" | "transfer";
+  /** The transfer's transaction id, as the customer's bank or wallet showed it. */
+  reference: string;
   address: string;
   /**
    * The pin behind the sentence, when the address has one.
@@ -83,7 +87,7 @@ export default function CheckoutPage() {
   const [placing, setPlacing] = useState(false);
 
   const choicesFor = (slug: string): ShopChoices =>
-    choices[slug] ?? { fulfillment: "delivery", address: "", lat: null, lng: null, coupon: "", notes: "" };
+    choices[slug] ?? { fulfillment: "delivery", address: "", lat: null, lng: null, coupon: "", notes: "", pay: "cod", reference: "" };
 
   const setFor = (slug: string, patch: Partial<ShopChoices>) =>
     setChoices((was) => ({ ...was, [slug]: { ...choicesFor(slug), ...patch } }));
@@ -173,9 +177,15 @@ export default function CheckoutPage() {
   const needsAddress = groups.some(
     (g) => howFor(g.shop_slug) === "delivery" && choicesFor(g.shop_slug).address.trim() === "",
   );
-  // Below a shop's minimum for delivery: the server would refuse it, so it is
-  // not sent — the card says by how much, and that collecting it has none.
-  const belowMinimum = groups.some((g) => figuresFor(g).short > 0);
+  // Below a shop's minimum for delivery and the shop REFUSES such orders: not
+  // sent — the card says by how much. Most shops charge a small-order fee
+  // instead, which the quote already carries.
+  const belowMinimum = groups.some((g) => figuresFor(g).refused);
+  // A transfer is sent with its reference, or not at all.
+  const needsReference = groups.some((g) => {
+    const mine = choicesFor(g.shop_slug);
+    return mine.pay === "transfer" && mine.reference.trim().length < 4;
+  });
   const grandTotal = groups.reduce((sum, g) => sum + Number(worthFor(g.shop_slug)?.data?.total ?? 0), 0);
 
   const place = async () => {
@@ -202,6 +212,8 @@ export default function CheckoutPage() {
           longitude: how === "delivery" ? (mine.lng ?? undefined) : undefined,
           coupon_code: mine.coupon.trim() || undefined,
           notes: mine.notes.trim() || undefined,
+          payment_method: mine.pay,
+          payment_reference: mine.pay === "transfer" ? mine.reference.trim() : undefined,
           items: group.lines.map((l) => ({
             product_id: l.product_id,
             variant_id: l.variant_id,
@@ -391,7 +403,9 @@ export default function CheckoutPage() {
 
                     {figures.short > 0 && minimum !== null && (
                       <p role="alert" className="rounded-2xl bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
-                        Minimum order for delivery is {money(minimum, group.currency)} — add {money(figures.short, group.currency)} more, or collect it.
+                        {figures.refused
+                          ? <>Minimum order for delivery is {money(minimum, group.currency)} — add {money(figures.short, group.currency)} more, or collect it.</>
+                          : <>Below this shop&rsquo;s {money(minimum, group.currency)} minimum, so a small order fee of {money(figures.short, group.currency)} is added. Add {money(figures.short, group.currency)} more of anything and it goes away — or collect it.</>}
                       </p>
                     )}
 
@@ -401,6 +415,45 @@ export default function CheckoutPage() {
                         onChange={(address, lat, lng) => setFor(group.shop_slug, { address, lat, lng })}
                         enabled
                       />
+                    )}
+
+                    {/* HOW TO PAY — cash at the door, or a transfer to the shop's
+                        own account when it has given one. No card gateway. */}
+                    {termsFor(group.shop_slug)?.takes_transfer && (
+                      <div className="space-y-3">
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-300">How you pay</p>
+                        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="How you pay">
+                          {(["cod", "transfer"] as const).map((way) => (
+                            <button
+                              key={way}
+                              type="button"
+                              role="radio"
+                              aria-checked={mine.pay === way}
+                              onClick={() => setFor(group.shop_slug, { pay: way })}
+                              className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                                mine.pay === way
+                                  ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                                  : "border-gray-200 text-gray-700 hover:border-brand-300 dark:border-white/10 dark:text-gray-200"
+                              }`}
+                            >
+                              <span className="block font-medium">{way === "cod" ? (how === "delivery" ? "Cash on delivery" : "Pay when you collect") : "Bank / JazzCash / Easypaisa transfer"}</span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">{way === "cod" ? "Pay the rider or the counter." : "Send it first — the shop checks it, then starts."}</span>
+                            </button>
+                          ))}
+                        </div>
+                        {mine.pay === "transfer" && (
+                          <div className="rounded-2xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm dark:border-brand-500/20 dark:bg-brand-500/10">
+                            <p className="font-medium text-gray-900 dark:text-white">Send {worthFor(group.shop_slug)?.data ? money(worthFor(group.shop_slug)?.data?.total, group.currency) : "the total"} to</p>
+                            <p className="mt-0.5 whitespace-pre-line text-gray-700 dark:text-gray-200" data-testid="transfer-details">{termsFor(group.shop_slug)?.transfer_details}</p>
+                            <label className="mb-1.5 mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">Transaction ID</label>
+                            <Input
+                              placeholder="As your bank or wallet shows it"
+                              value={mine.reference}
+                              onChange={(e) => setFor(group.shop_slug, { reference: e.target.value })}
+                            />
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -463,13 +516,15 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={place}
-                disabled={placing || needsAddress || belowMinimum || !allPriced}
+                disabled={placing || needsAddress || needsReference || belowMinimum || !allPriced}
                 className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-brand-500 text-sm font-semibold text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/10 dark:disabled:text-gray-500"
               >
                 {placing
                   ? "Placing…"
                   : needsAddress
                     ? "Add a delivery address"
+                    : needsReference
+                      ? "Add the transfer's transaction ID"
                     : `Place ${groups.length === 1 ? "order" : `${groups.length} orders`}`}
               </button>
 

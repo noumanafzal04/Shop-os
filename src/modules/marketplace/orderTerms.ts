@@ -15,6 +15,8 @@ export interface ShopTerms {
   delivery_fee?: number | null;
   free_delivery_threshold?: number | null;
   min_order_amount?: number | null;
+  /** `fee` (the default): below the minimum costs the difference. `refuse`: it is not taken. */
+  below_minimum?: "fee" | "refuse";
 }
 
 export type Fulfillment = "delivery" | "pickup";
@@ -26,6 +28,8 @@ export interface OrderFigures {
   total: number;
   /** How far the basket is below the shop's minimum for DELIVERY. Nought when it is not. */
   short: number;
+  /** Below the minimum and the shop REFUSES it — the order cannot be sent. */
+  refused: boolean;
   /** How much more would make delivery free, while it is not. Null when it never is, or already is. */
   toFreeDelivery: number | null;
 }
@@ -43,5 +47,10 @@ export function orderFigures(subtotal: number, how: Fulfillment, terms: ShopTerm
   const delivery = how === "delivery" && !earnedFree ? fee : 0;
   const toFreeDelivery = how === "delivery" && fee > 0 && freeAbove !== null && !earnedFree ? money(freeAbove - subtotal) : null;
 
-  return { delivery, total: money(subtotal + delivery), short, toFreeDelivery };
+  // Below the minimum is a small-order fee of the difference (foodpanda's
+  // way) unless the shop chose to refuse it. The fee itself is the server's
+  // figure, read from the quote — this only says whether it can be sent.
+  const refused = short > 0 && terms.below_minimum === "refuse";
+
+  return { delivery, total: money(subtotal + delivery), short, refused, toFreeDelivery };
 }

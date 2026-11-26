@@ -21,10 +21,18 @@ export interface OrderMoney {
   tax?: number | string | null;
   tax_inclusive?: boolean | null;
   delivery_fee?: number | string | null;
+  /** Below the shop's minimum, the difference — instead of a refusal. */
+  small_order_fee?: number | string | null;
+  /** The platform's own charge on an online order. */
+  service_fee?: number | string | null;
+  /** The part of the delivery fee that is rain or a rush (inside `delivery_fee`). */
+  rush_fee?: number | string | null;
+  /** The part of the delivery fee that is kilometres (inside `delivery_fee`). */
+  distance_fee?: number | string | null;
   total: number | string;
 }
 
-export type MoneyLineKind = "goods" | "off" | "tax" | "tax-inside" | "delivery" | "total";
+export type MoneyLineKind = "goods" | "off" | "tax" | "tax-inside" | "delivery" | "fee" | "total";
 
 export interface MoneyLine {
   key: string;
@@ -70,7 +78,16 @@ export function orderMoneyLines(m: OrderMoney, fulfillment?: "delivery" | "picku
       : { key: "tax", label: "Tax", amount: tax, kind: "tax" });
   }
   if (fulfillment === "delivery" || (fulfillment === undefined && fee > 0)) {
-    lines.push({ key: "delivery", label: "Delivery", amount: fee, kind: "delivery" });
+    // What made it, when it is more than the shop's flat fee: the km past what
+    // the fee covers, and the rain/rush fee while the platform charges one.
+    const why = [n(m.distance_fee) > 0 ? "distance" : null, n(m.rush_fee) > 0 ? "rush hour" : null].filter(Boolean);
+    lines.push({ key: "delivery", label: why.length > 0 ? `Delivery (incl. ${why.join(" & ")})` : "Delivery", amount: fee, kind: "delivery" });
+  }
+  if (n(m.small_order_fee) > 0) {
+    lines.push({ key: "small_order", label: "Small order fee", amount: n(m.small_order_fee), kind: "fee" });
+  }
+  if (n(m.service_fee) > 0) {
+    lines.push({ key: "service", label: "Service fee", amount: n(m.service_fee), kind: "fee" });
   }
 
   lines.push({ key: "total", label: "Total", amount: n(m.total), kind: "total" });

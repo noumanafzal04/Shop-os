@@ -41,12 +41,14 @@ const TONE: Record<BoardColumn["key"], { panel: string; dot: string; count: stri
   },
 };
 
-export function OrderBoard({ orders, money, busy, onOpen, onAdvance }: {
+export function OrderBoard({ orders, money, busy, onOpen, onAdvance, onPaymentReceived }: {
   orders: OwnerOrder[];
   money: (n: string | number) => string;
   busy: boolean;
   onOpen: (order: OwnerOrder) => void;
   onAdvance: (order: OwnerOrder, to: OrderStatus) => void;
+  /** A transfer order's first step: the shop saw the money arrive. */
+  onPaymentReceived?: (order: OwnerOrder) => void;
 }) {
   const board = onTheBoard(orders);
 
@@ -86,7 +88,7 @@ export function OrderBoard({ orders, money, busy, onOpen, onAdvance }: {
                 </p>
               ) : (
                 list.map((order) => (
-                  <OrderCard key={order.id} order={order} money={money} busy={busy} onOpen={() => onOpen(order)} onAdvance={(to) => onAdvance(order, to)} />
+                  <OrderCard key={order.id} order={order} money={money} busy={busy} onOpen={() => onOpen(order)} onAdvance={(to) => onAdvance(order, to)} onPaymentReceived={onPaymentReceived ? () => onPaymentReceived(order) : undefined} />
                 ))
               )}
             </div>
@@ -97,13 +99,18 @@ export function OrderBoard({ orders, money, busy, onOpen, onAdvance }: {
   );
 }
 
-function OrderCard({ order, money, busy, onOpen, onAdvance }: {
+function OrderCard({ order, money, busy, onOpen, onAdvance, onPaymentReceived }: {
   order: OwnerOrder;
   money: (n: string | number) => string;
   busy: boolean;
   onOpen: () => void;
   onAdvance: (to: OrderStatus) => void;
+  onPaymentReceived?: () => void;
 }) {
+  // A TRANSFER is checked before anything else: the server will not accept it
+  // until the shop says the money arrived, so that is the card's one button.
+  const transfer = order.payment_method === "transfer";
+  const unchecked = transfer && !order.payment_verified_at && order.status === "pending";
   const urgency = urgencyOf(order.placed_at, order.status);
   const delivery = order.fulfillment_type === "delivery";
   const { lines, more } = linesOf(order);
@@ -174,11 +181,26 @@ function OrderCard({ order, money, busy, onOpen, onAdvance }: {
       <div className="mt-3 flex items-end justify-between gap-2 border-t border-gray-100 pt-2.5 dark:border-gray-800">
         <span className="text-base font-bold tabular-nums text-gray-900 dark:text-white">{money(order.total)}</span>
         <span className={`text-theme-xs font-medium ${paid ? "text-success-600 dark:text-success-400" : "text-gray-500 dark:text-gray-400"}`}>
-          {paid ? "Paid" : delivery ? "Cash on delivery" : "Pays when collecting"}
+          {transfer ? (paid ? "Transfer received" : "Transfer — check it") : paid ? "Paid" : delivery ? "Cash on delivery" : "Pays when collecting"}
         </span>
       </div>
 
-      {step !== null && (
+      {unchecked && (
+        <p className="mt-2 rounded-lg bg-warning-50 px-2.5 py-1.5 text-theme-xs text-warning-800 dark:bg-warning-500/15 dark:text-warning-300">
+          Sent by transfer · ref <span className="font-semibold tabular-nums">{order.payment_reference}</span>. Check your account for {money(order.total)}.
+        </p>
+      )}
+
+      {unchecked && onPaymentReceived ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onPaymentReceived(); }}
+          disabled={busy}
+          className="mt-2.5 min-h-11 w-full rounded-lg bg-warning-500 px-3 text-theme-sm font-semibold text-white transition hover:bg-warning-600 disabled:opacity-50"
+        >
+          Payment received
+        </button>
+      ) : step !== null && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onAdvance(step.status); }}

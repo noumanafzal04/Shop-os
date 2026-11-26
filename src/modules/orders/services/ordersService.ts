@@ -68,7 +68,9 @@ export interface PlaceOrderPayload {
    */
   latitude?: number;
   longitude?: number;
-  payment_method?: "cod" | "paid";
+  /** Cash at the door, or a transfer to the shop's own account (with its reference). */
+  payment_method?: "cod" | "transfer";
+  payment_reference?: string;
   items?: Array<{ product_id: string; variant_id?: string | null; quantity: number; modifier_option_ids?: string[] }>;
   notes?: string;
   /** Held by the form from its first press until the order is placed (useOnceKey). */
@@ -186,6 +188,14 @@ export interface OwnerOrder {
   fulfillment_type: "delivery" | "pickup";
   payment_method: string;
   payment_status: string;
+  /** A transfer's transaction id, as the customer typed it. */
+  payment_reference?: string | null;
+  /** When the shop said the transfer arrived. Null = not checked yet. */
+  payment_verified_at?: string | null;
+  small_order_fee?: string | null;
+  service_fee?: string | null;
+  rush_fee?: string | null;
+  distance_fee?: string | null;
   customer_name: string;
   customer_phone: string | null;
   /** Which door it came through: online | phone | whatsapp | walk_in. */
@@ -294,6 +304,8 @@ export const ordersService = {
   /** What it will come to. Nothing is written — see OrderService::worth. */
   worth: (asked: OrderAsked) => apiPost<OrderWorth>("/orders/worth", asked),
   advance: (id: string, status: OrderStatus) => apiPost<OwnerOrder>(`/orders/${id}/advance`, { status }),
+  /** The customer's transfer is in the shop's account — the order may now be accepted. */
+  paymentReceived: (id: string) => apiPost<OwnerOrder>(`/orders/${id}/payment-received`),
   cancel: (id: string, reason?: string) => apiPost<OwnerOrder>(`/orders/${id}/cancel`, { reason }),
   assignRider: (id: string, riderId: string | null) =>
     apiPost<OwnerOrder>(`/orders/${id}/assign-rider`, { rider_id: riderId }),

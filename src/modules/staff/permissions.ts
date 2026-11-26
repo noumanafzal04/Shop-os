@@ -29,6 +29,10 @@ export const PERMISSION_LABELS: Record<string, { label: string; hint?: string }>
     label: "Service zones",
     hint: "Draws where shops may trade online and where orders may be delivered. A zone drawn too tight hides shops the moment it is saved.",
   },
+  "orders.oversee": {
+    label: "Live orders, problems & delivery fees",
+    hint: "Sees every shop's open orders, answers customers' problems with refunds or vouchers, and sets the minimum order and delivery fees for the whole marketplace.",
+  },
   "announcements.manage": {
     label: "Announcements",
     hint: "Broadcasts a push notification to every shop or every customer. There is no unsend.",

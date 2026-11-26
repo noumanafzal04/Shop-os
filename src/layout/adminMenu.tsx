@@ -12,6 +12,7 @@ import {
   PaperPlaneIcon,
   PieChartIcon,
   TaskIcon,
+  TruckIcon,
   UserCircleIcon,
   UserIcon,
 } from "../icons";
@@ -42,6 +43,9 @@ export const adminMainItems: NavItem[] = [
   // A PACKAGE, not a person. `UserCircleIcon` is Platform Staff four rows
   // down, and two rows wearing one glyph is a rail you have to read word by
   // word — the collision this list was already swept for once.
+  // The marketplace on the day: open orders, the stuck ones flagged, what
+  // customers reported, and what a delivery costs.
+  { icon: <TruckIcon />, name: "Orders & delivery", path: "/admin/orders" },
   { icon: <BoxIcon />, name: "Riders", path: "/admin/riders" },
   { icon: <DollarLineIcon />, name: "Billing & Payments", path: "/admin/payments" },
   // Beside Billing, because both are money — and NOT merged into it, because

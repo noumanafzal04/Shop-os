@@ -50,6 +50,15 @@ export interface PublicShop {
   prep_time_minutes?: number | null;
   free_delivery_threshold?: number | null;
   min_order_amount?: number | null;
+  /** Below the minimum: order anyway and pay the difference (`fee`), or refused. */
+  below_minimum?: "fee" | "refuse";
+  delivery_fee_per_km?: number | null;
+  delivery_fee_base_km?: number;
+  service_fee?: number;
+  rush_fee?: number;
+  /** Where to send a transfer — only to a signed-in customer. */
+  transfer_details?: string | null;
+  takes_transfer?: boolean;
   /** The ways this shop hands an order over. Detail payload only. */
   fulfillment?: { pickup: boolean; delivery: boolean };
   accepts_orders?: boolean;

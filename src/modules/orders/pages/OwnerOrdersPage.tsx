@@ -120,7 +120,14 @@ export default function OwnerOrdersPage() {
   const doneRows = finished.data?.data ?? [];
   const pastRows = past.data?.data ?? [];
 
-  const { advance, cancel, assignRider } = useOrderActions();
+  const { advance, cancel, assignRider, paymentReceived } = useOrderActions();
+  const received = (order: OwnerOrder) => {
+    setError(null);
+    paymentReceived.mutate(order.id, {
+      onError,
+      onSuccess: () => toast.success(`Payment received for ${order.order_number} — you can accept it now.`),
+    });
+  };
   const confirm = useConfirm();
   const toast = useToast();
   const settings = useShopSettings();
@@ -167,7 +174,7 @@ export default function OwnerOrdersPage() {
     }
     send(order, to);
   };
-  const busy = advance.isPending || cancel.isPending || assignRider.isPending;
+  const busy = advance.isPending || cancel.isPending || assignRider.isPending || paymentReceived.isPending;
 
   /**
    * The order the panel is showing, taken from the LISTS rather than kept in
@@ -425,7 +432,7 @@ export default function OwnerOrdersPage() {
             </ListEmpty>
           ) : (
             <>
-              <OrderBoard orders={onBoard} money={money} busy={busy} onOpen={(o) => setOpenId(o.id)} onAdvance={move} />
+              <OrderBoard orders={onBoard} money={money} busy={busy} onOpen={(o) => setOpenId(o.id)} onAdvance={move} onPaymentReceived={received} />
               {(working.data?.meta.pagination?.total ?? 0) > onBoard.length && (
                 <p className="mt-3 text-center text-theme-xs text-gray-500 dark:text-gray-400">
                   Showing the newest {onBoard.length} of {working.data?.meta.pagination?.total} being worked — search by number, name or phone to find another.

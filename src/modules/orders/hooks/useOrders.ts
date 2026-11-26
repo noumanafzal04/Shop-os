@@ -212,7 +212,12 @@ export function useOrderActions() {
     onSettled: invalidate,
   });
 
-  return { advance, cancel, assignRider };
+  const paymentReceived = useMutation({
+    mutationFn: (id: string) => ordersService.paymentReceived(id),
+    onSettled: invalidate,
+  });
+
+  return { advance, cancel, assignRider, paymentReceived };
 }
 
 export function useRiders(enabled = true) {

@@ -131,7 +131,11 @@ export function OrderDetail({
             <p className="text-theme-sm text-gray-700 dark:text-gray-300">
               {/* In words. It read "cod unpaid" — a column's value and another
                   column's value, side by side. */}
-              {order.payment_method === "cod" ? (delivery ? "Cash on delivery" : "Pays when collecting") : "Paid when ordering"}{" "}
+              {order.payment_method === "cod"
+                ? (delivery ? "Cash on delivery" : "Pays when collecting")
+                : order.payment_method === "transfer"
+                  ? `Transfer · ref ${order.payment_reference ?? "—"}`
+                  : "Paid when ordering"}{" "}
               <Badge size="sm" color={order.payment_status === "paid" ? "success" : "light"}>
                 {order.payment_status === "paid" ? "Paid" : "Not yet paid"}
               </Badge>

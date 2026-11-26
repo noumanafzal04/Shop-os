@@ -31,6 +31,7 @@ const PLATFORM = [
   "banners.manage",
   "service_zones.manage",
   "announcements.manage",
+  "orders.oversee",
 ];
 
 const TENANT = [
