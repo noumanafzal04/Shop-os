@@ -55,4 +55,18 @@ describe("an order's money, line by line — the server's figures, never a sum o
     const lines = orderMoneyLines({ subtotal: 100, discount: 10, total: 90 });
     expect(lines.map((l) => moneyLineValue(l, fmt))).toEqual(["100.00", "− 10.00", "90.00"]);
   });
+
+  it("says the small order fee and the service fee as their own lines, and what made the delivery dearer", () => {
+    const lines = orderMoneyLines(
+      { subtotal: 80, delivery_fee: 190, distance_fee: 40, rush_fee: 50, small_order_fee: 220, service_fee: 10, total: 500 },
+      "delivery",
+    );
+    expect(lines.map((l) => [l.label, l.amount])).toEqual([
+      ["Items", 80],
+      ["Delivery (incl. distance & rush hour)", 190],
+      ["Small order fee", 220],
+      ["Service fee", 10],
+      ["Total", 500],
+    ]);
+  });
 });

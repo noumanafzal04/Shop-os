@@ -67,7 +67,7 @@ const PING_MS = 45_000;
  * rather than to nothing, so a reason added on the server still reads as a
  * reason on an app that has not been updated.
  */
-const BLOCK_TITLES: Record<string, string> = {
+export const BLOCK_TITLES: Record<string, string> = {
   not_approved: "Your account is not approved yet",
   offline: "Go online to see work",
   at_limit: "You are at your limit",
@@ -76,6 +76,8 @@ const BLOCK_TITLES: Record<string, string> = {
   not_platform: `You are not taking ${BRAND.name} jobs`,
   no_position: "We cannot see where you are",
   stale: "Your position has gone stale",
+  // Holding the platform's cash limit: hand it in to get pool orders again.
+  cash_limit: "Hand in your cash first",
 };
 
 export function RiderHomeScreen() {

@@ -27,6 +27,7 @@ import { etaLine } from "../orderStatus";
 import { money, qtyText } from "../../../common/format";
 import { distanceLabel, mapsUrl } from "../../../common/maps";
 import { TrackingMap } from "../components/TrackingMap";
+import { ReportIssueSheet } from "../components/ReportIssueSheet";
 
 type Params = { Order: { id: string } };
 
@@ -136,6 +137,7 @@ export function OrderTrackingScreen() {
    */
   const myReviews = useMyReviews();
   const [rating, setRating] = React.useState(false);
+  const [reporting, setReporting] = React.useState(false);
   const mine = myReviews.data?.find((r) => r.shop_slug === o?.shop?.slug) ?? null;
   const currentIdx = o ? steps.indexOf(o.status) : -1;
 
@@ -379,10 +381,41 @@ export function OrderTrackingScreen() {
                 </View>
               ))}
             <View style={styles.sumRow}>
-              <Text style={styles.grand}>Total (COD)</Text>
+              <Text style={styles.grand}>
+                Total {o.payment_method === "transfer" ? "(transfer)" : o.payment_method === "paid" ? "(paid)" : "(cash)"}
+              </Text>
               <Text style={styles.grand}>{money(o.total)}</Text>
             </View>
           </View>
+
+          {/* A TRANSFER: whether the shop has seen it yet. It will not start
+              the order until it has — said here, so the wait has a reason. */}
+          {o.payment_method === "transfer" && !cancelled && (
+            <View style={[styles.card, o.payment_received ? styles.goodCard : styles.waitCard]}>
+              <Text style={styles.cardHeading}>{o.payment_received ? "Transfer received" : "Waiting for the shop to check your transfer"}</Text>
+              <Text style={styles.cardBody}>
+                {o.payment_received
+                  ? `${o.shop?.business_name ?? "The shop"} has your payment.`
+                  : `Reference ${o.payment_reference ?? "—"}. The shop starts your order once the money shows in its account.`}
+              </Text>
+            </View>
+          )}
+
+          {/* "ORDER MEIN MASLA" — the report, and the platform's answer. */}
+          {o.issue ? (
+            <View style={[styles.card, o.issue.status === "open" ? styles.waitCard : styles.goodCard]} testID="order-issue">
+              <Text style={styles.cardHeading}>
+                {o.issue.status === "open" ? `You reported: ${o.issue.kind_label}` : o.issue.outcome === "refund" ? `Refund of ${money(o.issue.amount ?? 0)}` : o.issue.outcome === "voucher" ? `Voucher ${o.issue.voucher_code} · ${money(o.issue.amount ?? 0)}` : "We looked into it"}
+              </Text>
+              <Text style={styles.cardBody}>
+                {o.issue.status === "open" ? "We are looking into it — the answer will appear here." : o.issue.answer}
+              </Text>
+            </View>
+          ) : o.can_report_issue ? (
+            <Pressable style={styles.call} accessibilityRole="button" onPress={() => setReporting(true)}>
+              <Text style={styles.callText}>Problem with this order?</Text>
+            </Pressable>
+          ) : null}
 
           {/*
             Only while the order is still a REQUEST. Once the shop accepts it,
@@ -423,6 +456,10 @@ export function OrderTrackingScreen() {
         </ScrollView>
       )}
 
+      {reporting && !!o && (
+        <ReportIssueSheet visible onClose={() => setReporting(false)} orderId={o.id} orderNumber={o.order_number} />
+      )}
+
       {rating && !!o?.shop?.slug && (
         <RateSheet
           visible
@@ -438,6 +475,10 @@ export function OrderTrackingScreen() {
 
 const makeStyles = (c: ThemeColors) =>
   StyleSheet.create({
+    cardHeading: { ...typography.body, color: c.text, fontWeight: "700" },
+    cardBody: { ...typography.small, color: c.textSecondary, marginTop: 2 },
+    waitCard: { borderWidth: 1, borderColor: c.warning },
+    goodCard: { borderWidth: 1, borderColor: c.success },
   headline: { ...typography.title, fontSize: 18, lineHeight: 24, color: c.text, marginTop: spacing.sm },
   itemsMore: { ...typography.tiny, color: c.textMuted, paddingVertical: 4 },
   call: {

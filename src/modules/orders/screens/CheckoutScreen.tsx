@@ -168,7 +168,18 @@ export function CheckoutScreen() {
   const freeAbove = shop.data?.free_delivery_threshold ?? null;
   const earnedFreeDelivery = freeAbove != null && subtotal >= freeAbove;
   const minOrder = shop.data?.min_order_amount ?? null;
-  const belowMinimum = fulfillment === "delivery" && minOrder != null && subtotal < minOrder;
+  const shortOfMinimum = fulfillment === "delivery" && minOrder != null && subtotal < minOrder;
+  // Below the minimum is a SMALL ORDER FEE of the difference (foodpanda's
+  // way) — only a shop that chose to refuse such baskets stops the button.
+  const belowMinimum = shortOfMinimum && shop.data?.below_minimum === "refuse";
+
+  // How it is paid: cash, or a transfer to the shop's own account with the
+  // transaction id. No card gateway — "online direct payment ni".
+  const takesTransfer = shop.data?.takes_transfer === true;
+  const [pay, setPay] = useState<"cod" | "transfer">("cod");
+  const [reference, setReference] = useState("");
+  const paying = takesTransfer ? pay : "cod";
+  const referenceReady = paying !== "transfer" || reference.trim().length >= 4;
 
   const itemCount = lines.reduce(
     (n, l) => n + (l.sold_by === "weight" ? 1 : l.quantity),
@@ -252,7 +263,7 @@ export function CheckoutScreen() {
     : null;
 
   const submit = () => {
-    if (lines.length === 0 || place.isPending || !deliveryReady || !priced) return;
+    if (lines.length === 0 || place.isPending || !deliveryReady || !priced || !referenceReady) return;
     // The pin: the saved address's own coordinates, else the one the shopper
     // set for themselves. Not "the live GPS pin" any more — the store stopped
     // re-detecting on every launch, so `pin` is now the place they chose and
@@ -269,6 +280,8 @@ export function CheckoutScreen() {
         longitude: fulfillment === "delivery" ? lng : undefined,
         coupon_code: coupon.trim() || undefined,
         notes: notes.trim() || undefined,
+        payment_method: paying,
+        payment_reference: paying === "transfer" ? reference.trim() : undefined,
         items: lines.map((l) => ({
           product_id: l.product_id,
           variant_id: l.variant_id ?? undefined,
@@ -348,10 +361,10 @@ export function CheckoutScreen() {
               <Text style={styles.barValue}>{priced ? money(priced.total) : "…"}</Text>
             </View>
             <AppButton
-              title={place.isPending ? "Placing order…" : priced ? `Place order · ${money(priced.total)}` : refused ? "Place order" : "Working out the total…"}
+              title={place.isPending ? "Placing order…" : !referenceReady ? "Add the transaction ID" : priced ? `Place order · ${money(priced.total)}` : refused ? "Place order" : "Working out the total…"}
               onPress={submit}
               loading={place.isPending}
-              disabled={lines.length === 0 || !deliveryReady || belowMinimum || !priced}
+              disabled={lines.length === 0 || !deliveryReady || belowMinimum || !priced || !referenceReady}
               size="lg"
               style={styles.barButton}
             />
@@ -472,7 +485,13 @@ export function CheckoutScreen() {
               selected={fulfillment === "delivery"}
               title="Delivery"
               detail={prep !== null ? `${prep} – ${prep + 20} min` : "To your address"}
-              extra={(shop.data?.delivery_fee ?? 0) > 0 ? money(shop.data!.delivery_fee!) : "Free"}
+              extra={
+                // The quoted fee once there is one — it holds the km and the
+                // rush fee — else the shop's flat fee.
+                fulfillment === "delivery" && shown
+                  ? (Number(shown.delivery_fee) > 0 ? money(Number(shown.delivery_fee)) : "Free")
+                  : (shop.data?.delivery_fee ?? 0) > 0 ? money(shop.data!.delivery_fee!) : "Free"
+              }
               onPress={() => {
                 setChosen(true);
                 setFulfillment("delivery");
@@ -494,18 +513,57 @@ export function CheckoutScreen() {
           )}
         </View>
 
+        {/* RAIN OR A RUSH — said before the bill, so the dearer delivery is not a surprise. */}
+        {fulfillment === "delivery" && (shop.data?.rush_fee ?? 0) > 0 && (
+          <View style={styles.warnBox}>
+            <Text style={styles.warnText}>Busy time — a {money(shop.data!.rush_fee!)} rush fee is added to delivery right now. It goes to your rider.</Text>
+          </View>
+        )}
+
         <Text style={styles.section}>Payment method</Text>
-        <View style={[styles.card, styles.payRow]}>
-          <BanknoteIcon size={19} color={c.success} />
-          <View style={styles.payCopy}>
-            <Text style={styles.payText}>Cash on delivery</Text>
-            <Text style={styles.payHint}>Pay when you receive your order</Text>
-          </View>
-          {/* Selected, and the only option — drawn rather than implied. */}
-          <View style={styles.radio}>
-            <View style={styles.radioDot} />
-          </View>
+        <View style={styles.options}>
+          <Touchable
+            style={[styles.card, styles.payRow]}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: paying === "cod" }}
+            onPress={() => setPay("cod")}
+          >
+            <BanknoteIcon size={19} color={c.success} />
+            <View style={styles.payCopy}>
+              <Text style={styles.payText}>{fulfillment === "delivery" ? "Cash on delivery" : "Pay at the shop"}</Text>
+              <Text style={styles.payHint}>{fulfillment === "delivery" ? "Pay when you receive your order" : "Pay when you collect it"}</Text>
+            </View>
+            <View style={styles.radio}>{paying === "cod" && <View style={styles.radioDot} />}</View>
+          </Touchable>
+          {takesTransfer && (
+            <Touchable
+              style={[styles.card, styles.payRow]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: paying === "transfer" }}
+              onPress={() => setPay("transfer")}
+            >
+              <TicketIcon size={19} color={c.primaryPressed} />
+              <View style={styles.payCopy}>
+                <Text style={styles.payText}>Bank / JazzCash / Easypaisa</Text>
+                <Text style={styles.payHint}>Send it first — the shop checks it, then starts</Text>
+              </View>
+              <View style={styles.radio}>{paying === "transfer" && <View style={styles.radioDot} />}</View>
+            </Touchable>
+          )}
         </View>
+        {paying === "transfer" && (
+          <View style={[styles.card, styles.cardPad]}>
+            <Text style={styles.payText}>Send {shown ? money(Number(shown.total)) : "the total"} to</Text>
+            <Text style={styles.payHint} selectable testID="transfer-details">{shop.data?.transfer_details ?? "—"}</Text>
+            <AppTextInput
+              label="Transaction ID"
+              placeholder="As your bank or wallet shows it"
+              value={reference}
+              onChangeText={setReference}
+              autoCapitalize="characters"
+            />
+          </View>
+        )}
 
         <Text style={styles.section}>Voucher and note</Text>
         <View style={[styles.card, styles.cardPad]}>
@@ -525,10 +583,12 @@ export function CheckoutScreen() {
         </View>
 
         {/* Said once: the server's refusal under the bill says the same thing. */}
-        {belowMinimum && !refused && (
+        {shortOfMinimum && !refused && (
           <View style={styles.warnBox}>
             <Text style={styles.warnText}>
-              Minimum order for delivery is {money(minOrder!)} — add {money(minOrder! - subtotal)} more, or switch to pickup.
+              {belowMinimum
+                ? `Minimum order for delivery is ${money(minOrder!)} — add ${money(minOrder! - subtotal)} more, or switch to pickup.`
+                : `Below this shop's ${money(minOrder!)} minimum, so a ${money(minOrder! - subtotal)} small order fee is added. Add ${money(minOrder! - subtotal)} more of anything and it goes away.`}
             </Text>
           </View>
         )}

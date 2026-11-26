@@ -148,11 +148,15 @@ async function render() {
    * saw the shop and some saw the skeleton, depending on what had run before
    * them. A flaky test is worse than none — it teaches you to re-run.
    */
-  for (let i = 0; i < 12; i++) {
+  // The shop AND its menu: the menu is a second query that lands after the
+  // shop, and stopping at the shop's name let "keeps the add button for a
+  // guest" look for a button on a menu that was not drawn yet (flaky under load).
+  for (let i = 0; i < 40; i++) {
     await ReactTestRenderer.act(async () => {
       await new Promise<void>((r) => setImmediate(() => r()));
     });
-    if (textOf(tree).includes("Burger Hut")) break;
+    const said = textOf(tree);
+    if (said.includes("Burger Hut") && said.includes("Zinger Burger")) break;
   }
   return tree;
 }

@@ -62,6 +62,16 @@ export interface PublicShop {
   }>;
   fulfillment?: { pickup: boolean; delivery: boolean };
   min_order_amount?: number | null;
+  /** Below the minimum: order anyway and pay the difference (`fee`), or refused. */
+  below_minimum?: "fee" | "refuse";
+  delivery_fee_per_km?: number | null;
+  delivery_fee_base_km?: number;
+  service_fee?: number;
+  /** The rain/rush fee being charged now — 0 when off. */
+  rush_fee?: number;
+  /** Where to send a transfer (signed in only). */
+  transfer_details?: string | null;
+  takes_transfer?: boolean;
   free_delivery_threshold?: number | null;
   accepts_orders?: boolean;
   gallery?: string[];

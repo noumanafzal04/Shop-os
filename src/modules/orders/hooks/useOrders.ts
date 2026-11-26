@@ -38,7 +38,20 @@ export interface CustomerOrder {
   tax?: string;
   tax_inclusive?: boolean;
   delivery_fee: string;
+  small_order_fee?: string;
+  service_fee?: string;
+  rush_fee?: string;
+  distance_fee?: string;
   total: string;
+  /** Cash at the door, or a transfer to the shop's account with its reference. */
+  payment_method?: "cod" | "transfer" | "paid";
+  payment_reference?: string | null;
+  /** The shop saw the transfer arrive. */
+  payment_received?: boolean;
+  /** A problem the customer reported with it, and the platform's answer. */
+  issue?: OrderIssue | null;
+  /** Whether a problem may be reported now. */
+  can_report_issue?: boolean;
   items: Array<{
     /** For "Order again"; null once the shop deleted the product. */
     product_id?: string | null;
@@ -93,6 +106,22 @@ export interface CustomerOrder {
   delivered_at?: string | null;
 }
 
+export type IssueKind = "missing_item" | "wrong_item" | "late" | "quality" | "rider" | "payment" | "other";
+
+export interface OrderIssue {
+  id: string;
+  kind: IssueKind;
+  kind_label: string;
+  note: string | null;
+  status: "open" | "resolved" | "rejected";
+  outcome: "refund" | "voucher" | "none" | null;
+  amount: string | null;
+  voucher_code: string | null;
+  answer: string | null;
+  reported_at: string | null;
+  resolved_at: string | null;
+}
+
 export interface PlaceOrderPayload {
   shop_slug: string;
   fulfillment_type: "delivery" | "pickup";
@@ -101,6 +130,9 @@ export interface PlaceOrderPayload {
   longitude?: number;
   coupon_code?: string;
   notes?: string;
+  /** Cash at the door, or a transfer to the shop's own account (with its reference). */
+  payment_method?: "cod" | "transfer";
+  payment_reference?: string;
   items: Array<{
     product_id: string;
     variant_id?: string | null;
@@ -222,6 +254,15 @@ export function usePlaceOrder() {
       // be a second order. This default only covers a caller that sent none.
       apiPost<CustomerOrder>("/customer/orders", { idempotency_key: makeKey(), ...payload }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["orders", "mine"] }),
+  });
+}
+
+/** "Order mein masla" — one report per order; the platform answers it on the order. */
+export function useReportIssue(orderId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { kind: IssueKind; note?: string }) => apiPost<OrderIssue>(`/customer/orders/${orderId}/issue`, body),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
 
